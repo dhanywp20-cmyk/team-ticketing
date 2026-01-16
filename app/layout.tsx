@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Team Ticketing System',
-  description: 'Sistem ticketing untuk tim support',
+  title: 'Reminder Troubleshooting',
+  description: 'PTS IVP Teams',
 };
 
 export default function RootLayout({
@@ -12,7 +12,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
