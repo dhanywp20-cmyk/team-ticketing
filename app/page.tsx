@@ -64,7 +64,7 @@ export default function TicketingSystem() {
 
   const [newTicket, setNewTicket] = useState({
     project_name: '',
-    Sales_name: '',
+    sales_name: '',
     issue_case: '',
     description: '',
     assigned_to: 'Dhany',
@@ -966,3 +966,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
