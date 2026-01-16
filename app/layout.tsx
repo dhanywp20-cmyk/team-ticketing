@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Reminder Troubleshooting',
-  description: 'PTS IVP Teams',
+  title: 'IndoVisual Ticketing System',
+  description: 'Sistem ticketing untuk tim support IndoVisual',
 };
 
 export default function RootLayout({
