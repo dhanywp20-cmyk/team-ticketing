@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -23,7 +22,9 @@ interface ActivityLog {
   action_taken: string;
   notes: string;
   photo_url: string;
+  face_photo_url: string;
   shift_time: string;
+  recorded_at: string;
   created_at: string;
 }
 
@@ -41,6 +42,7 @@ interface Ticket {
   issue_case: string;
   description: string;
   assigned_to: string;
+  sales_name: string;
   status: string;
   date: string;
   created_at: string;
@@ -56,17 +58,21 @@ export default function TicketingSystem() {
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [capturingFace, setCapturingFace] = useState(false);
   
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [newTicket, setNewTicket] = useState({
     project_name: '',
     issue_case: '',
     description: '',
     assigned_to: 'Dhany',
+    sales_name: '',
     date: new Date().toISOString().split('T')[0],
     status: 'Pending'
   });
@@ -75,11 +81,16 @@ export default function TicketingSystem() {
     handler_name: 'Dhany',
     action_taken: '',
     notes: '',
-    shift_time: 'Pagi (08:00-16:00)',
-    photo: null as File | null
+    status: 'Pending',
+    photo: null as File | null,
+    facePhoto: null as string | null
   });
 
-  const shifts = ['Pagi (08:00-16:00)', 'Siang (16:00-00:00)', 'Malam (00:00-08:00)'];
+  const [newMember, setNewMember] = useState({
+    name: '',
+    role: 'Support Engineer'
+  });
+
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'Process Action': 'bg-blue-100 text-blue-800 border-blue-400',
@@ -164,6 +175,44 @@ export default function TicketingSystem() {
     return teamMembers.find(m => m.name === name);
   };
 
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCapturingFace(true);
+    } catch (err) {
+      alert('Tidak dapat mengakses kamera. Pastikan izin kamera diaktifkan.');
+      console.error(err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCapturingFace(false);
+  };
+
+  const captureFace = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+        const faceDataUrl = canvasRef.current.toDataURL('image/jpeg');
+        setNewActivity({...newActivity, facePhoto: faceDataUrl});
+        stopCamera();
+      }
+    }
+  };
+
   const createTicket = async () => {
     if (!newTicket.project_name.trim() || !newTicket.issue_case.trim()) {
       alert('Nama Project dan Issue Case harus diisi!');
@@ -177,6 +226,7 @@ export default function TicketingSystem() {
           issue_case: newTicket.issue_case,
           description: newTicket.description,
           assigned_to: newTicket.assigned_to,
+          sales_name: newTicket.sales_name,
           status: newTicket.status,
           date: newTicket.date
         }
@@ -199,6 +249,7 @@ export default function TicketingSystem() {
         issue_case: '', 
         description: '', 
         assigned_to: 'Dhany',
+        sales_name: '',
         date: new Date().toISOString().split('T')[0],
         status: 'Pending'
       });
@@ -227,19 +278,49 @@ export default function TicketingSystem() {
     return data.publicUrl;
   };
 
+  const uploadFacePhoto = async (dataUrl: string): Promise<string> => {
+    const blob = await (await fetch(dataUrl)).blob();
+    const fileName = `face_${Date.now()}.jpg`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('ticket-photos')
+      .upload(filePath, blob);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('ticket-photos')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
+
   const addActivity = async () => {
     if (!newActivity.notes.trim() || !selectedTicket) {
       alert('Notes harus diisi!');
       return;
     }
 
+    if (!newActivity.facePhoto) {
+      alert('Foto wajah harus diambil untuk verifikasi!');
+      return;
+    }
+
     try {
       setUploadingPhoto(true);
       let photoUrl = '';
+      let facePhotoUrl = '';
 
       if (newActivity.photo) {
         photoUrl = await uploadPhoto(newActivity.photo);
       }
+
+      if (newActivity.facePhoto) {
+        facePhotoUrl = await uploadFacePhoto(newActivity.facePhoto);
+      }
+
+      const currentTime = new Date().toISOString();
 
       const { error } = await supabase.from('activity_logs').insert([
         {
@@ -247,19 +328,27 @@ export default function TicketingSystem() {
           handler_name: newActivity.handler_name,
           action_taken: newActivity.action_taken,
           notes: newActivity.notes,
-          shift_time: newActivity.shift_time,
-          photo_url: photoUrl
+          shift_time: currentTime,
+          recorded_at: currentTime,
+          photo_url: photoUrl,
+          face_photo_url: facePhotoUrl
         }
       ]);
 
       if (error) throw error;
+
+      // Update status ticket
+      await supabase
+        .from('tickets')
+        .update({ status: newActivity.status, updated_at: currentTime })
+        .eq('id', selectedTicket.id);
 
       const lastHandler = selectedTicket.ticket_handlers?.[selectedTicket.ticket_handlers.length - 1];
       if (!lastHandler || lastHandler.handler_name !== newActivity.handler_name) {
         if (lastHandler && !lastHandler.ended_at) {
           await supabase
             .from('ticket_handlers')
-            .update({ ended_at: new Date().toISOString() })
+            .update({ ended_at: currentTime })
             .eq('id', lastHandler.id);
         }
 
@@ -267,7 +356,7 @@ export default function TicketingSystem() {
           {
             ticket_id: selectedTicket.id,
             handler_name: newActivity.handler_name,
-            shift_notes: `Shift: ${newActivity.shift_time}`
+            shift_notes: `Update at: ${new Date(currentTime).toLocaleString('id-ID')}`
           }
         ]);
       }
@@ -276,8 +365,9 @@ export default function TicketingSystem() {
         handler_name: 'Dhany', 
         action_taken: '', 
         notes: '', 
-        shift_time: 'Pagi (08:00-16:00)',
-        photo: null 
+        status: 'Pending',
+        photo: null,
+        facePhoto: null
       });
       setUploadingPhoto(false);
       fetchTickets();
@@ -287,29 +377,28 @@ export default function TicketingSystem() {
     }
   };
 
-  const handleStatusChange = (ticketId: string, status: string) => {
-    setNewStatus(status);
-    setShowStatusModal(true);
-  };
-
-  const confirmStatusChange = async () => {
-    if (!selectedTicket) return;
+  const addTeamMember = async () => {
+    if (!newMember.name.trim()) {
+      alert('Nama team member harus diisi!');
+      return;
+    }
 
     try {
-      const { error } = await supabase
-        .from('tickets')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', selectedTicket.id);
+      const photoUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(newMember.name)}&background=EF4444&color=fff&size=128`;
+      
+      const { error } = await supabase.from('team_members').insert([
+        {
+          name: newMember.name,
+          photo_url: photoUrl,
+          role: newMember.role
+        }
+      ]);
 
       if (error) throw error;
-      
-      setShowStatusModal(false);
-      fetchTickets();
-      
-      const updatedTicket = tickets.find(t => t.id === selectedTicket.id);
-      if (updatedTicket) {
-        setSelectedTicket({...updatedTicket, status: newStatus});
-      }
+
+      setNewMember({ name: '', role: 'Support Engineer' });
+      fetchTeamMembers();
+      alert('Team member berhasil ditambahkan!');
     } catch (err: any) {
       alert('Error: ' + err.message);
     }
@@ -324,7 +413,7 @@ export default function TicketingSystem() {
     return (
       <div className="min-h-screen flex items-center justify-center"
            style={{
-             backgroundImage: 'url(https://i.ibb.co/hDjYW4g/indovisual-bg.jpg)',
+             backgroundImage: 'url(/IVP Background.png)',
              backgroundSize: 'cover',
              backgroundPosition: 'center',
              backgroundAttachment: 'fixed'
@@ -340,63 +429,122 @@ export default function TicketingSystem() {
   return (
     <div className="min-h-screen p-4 md:p-6"
          style={{
-           backgroundImage: 'url(https://i.ibb.co/hDjYW4g/indovisual-bg.jpg)',
+           backgroundImage: 'url(/IVP Background.png)',
            backgroundSize: 'cover',
            backgroundPosition: 'center',
            backgroundAttachment: 'fixed'
          }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-red-500 animate-border-pulse">
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-red-500">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-2 animate-text-shine">
-                🎫 Reminder Troubleshooting PTS IVP
+              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-2">
+                🎫 Reminder Troubleshooting Project
               </h1>
+              <p className="text-lg font-bold text-red-600 mb-2">PTS IVP</p>
               <p className="text-gray-700 font-medium">
-                <span className="font-bold text-red-600">Tim Support:</span> Dhany, Reka, Yoga, Ade, Ferdinan
+                <span className="font-bold text-red-600">Tim Support:</span> {teamMembers.map(m => m.name).join(', ')}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="bg-gradient-to-r from-gray-600 to-gray-800 text-white px-6 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 shadow-lg transition-all font-bold"
+              >
+                ⚙️ Pengaturan
+              </button>
               <button
                 onClick={() => setShowDashboard(!showDashboard)}
-                className="group relative bg-gradient-to-r from-purple-600 to-purple-800 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-purple-900 shadow-lg transition-all font-bold overflow-hidden animate-button-glow"
+                className="bg-gradient-to-r from-purple-600 to-purple-800 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-purple-900 shadow-lg transition-all font-bold"
               >
-                <span className="relative z-10">📊 Dashboard</span>
-                <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                📊 Dashboard
               </button>
               <button
                 onClick={() => setShowNewTicket(!showNewTicket)}
-                className="group relative bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 shadow-lg transition-all font-bold overflow-hidden animate-button-glow"
+                className="bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 shadow-lg transition-all font-bold"
               >
-                <span className="relative z-10">+ Ticket Baru</span>
-                <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                + Ticket Baru
               </button>
             </div>
           </div>
         </div>
 
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-gray-500">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">⚙️ Pengaturan Team</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+                <label className="block text-sm font-bold mb-2 text-gray-800">Nama Team Member *</label>
+                <input
+                  type="text"
+                  value={newMember.name}
+                  onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                  placeholder="Masukkan nama"
+                  className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                />
+              </div>
+              <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+                <label className="block text-sm font-bold mb-2 text-gray-800">Role</label>
+                <input
+                  type="text"
+                  value={newMember.role}
+                  onChange={(e) => setNewMember({...newMember, role: e.target.value})}
+                  className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                />
+              </div>
+              <div className="flex items-end border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+                <button
+                  onClick={addTeamMember}
+                  className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-2 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all"
+                >
+                  ➕ Tambah Member
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t-2 border-gray-300 pt-4">
+              <h3 className="font-bold text-gray-800 mb-4">Daftar Team Member:</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {teamMembers.map(member => (
+                  <div key={member.id} className="border-2 border-gray-300 rounded-xl p-4 text-center bg-white">
+                    <img 
+                      src={member.photo_url} 
+                      alt={member.name}
+                      className="w-20 h-20 rounded-full border-2 border-red-500 shadow-md mx-auto mb-2"
+                    />
+                    <p className="font-bold text-gray-800">{member.name}</p>
+                    <p className="text-xs text-gray-600">{member.role}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Dashboard */}
         {showDashboard && (
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500 animate-slide-down">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
             <h2 className="text-2xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-purple-800">
               📊 Dashboard & Analytics
             </h2>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in">
+              <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform">
                 <p className="text-sm opacity-90">Total Tickets</p>
                 <p className="text-4xl font-bold">{stats.total}</p>
               </div>
-              <div className="bg-gradient-to-br from-yellow-500 to-yellow-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in delay-100">
+              <div className="bg-gradient-to-br from-yellow-500 to-yellow-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform">
                 <p className="text-sm opacity-90">Pending</p>
                 <p className="text-4xl font-bold">{stats.pending}</p>
               </div>
-              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in delay-200">
+              <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform">
                 <p className="text-sm opacity-90">Process Action</p>
                 <p className="text-4xl font-bold">{stats.processing}</p>
               </div>
-              <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in delay-300">
+              <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform">
                 <p className="text-sm opacity-90">Solved</p>
                 <p className="text-4xl font-bold">{stats.solved}</p>
               </div>
@@ -445,22 +593,22 @@ export default function TicketingSystem() {
         {/* Search & Filter */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+            <div className="flex-1 border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
               <label className="block text-sm font-bold mb-2 text-gray-800">🔍 Cari Project</label>
               <input
                 type="text"
                 value={searchProject}
                 onChange={(e) => setSearchProject(e.target.value)}
                 placeholder="Ketik nama project atau issue..."
-                className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium"
+                className="w-full border-2 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium"
               />
             </div>
-            <div className="md:w-64">
+            <div className="md:w-64 border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
               <label className="block text-sm font-bold mb-2 text-gray-800">📋 Filter Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium"
+                className="w-full border-2 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium"
               >
                 <option value="All">Semua Status</option>
                 <option value="Pending">Pending</option>
@@ -470,7 +618,7 @@ export default function TicketingSystem() {
             </div>
           </div>
           {(searchProject || filterStatus !== 'All') && (
-            <div className="mt-4 flex items-center justify-between bg-blue-50 rounded-xl p-4 border-2 border-blue-300 animate-slide-down">
+            <div className="mt-4 flex items-center justify-between bg-blue-50 rounded-xl p-4 border-2 border-blue-300">
               <p className="text-sm text-gray-800 font-medium">
                 Menampilkan <span className="font-bold text-blue-700 text-lg">{filteredTickets.length}</span> dari {tickets.length} ticket
               </p>
@@ -489,474 +637,548 @@ export default function TicketingSystem() {
 
         {/* Form Ticket Baru */}
         {showNewTicket && (
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-green-500 animate-slide-down">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-green-500">
             <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-green-800">
               📝 Buat Ticket Baru
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
                 <label className="block text-sm font-bold mb-2 text-gray-800">Nama Project *</label>
                 <input
                   type="text"
                   value={newTicket.project_name}
                   onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})}
                   placeholder="Contoh: Project BCA"
-                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
+                  className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
                 />
               </div>
-              <div>
+              <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+                <label className="block text-sm font-bold mb-2 text-gray-800">Nama Sales</label>
+                <input
+                  type="text"
+                  value={newTicket.sales_name}
+                  onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})}
+                  placeholder="Nama sales yang handle"
+                  className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
+                />
+              </div>
+              <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
                 <label className="block text-sm font-bold mb-2 text-gray-800">Issue Case *</label>
                 <input
                   type="text"
                   value={newTicket.issue_case}
                   onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})}
                   placeholder="Contoh: Videowall Error"
-                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
+                  className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
                 />
               </div>
-              <div>
+              <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
                 <label className="block text-sm font-bold mb-2 text-gray-800">Tanggal</label>
                 <input
                   type="date"
                   value={newTicket.date}
                   onChange={(e) => setNewTicket({...newTicket, date: e.target.value})}
-                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
+                  className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
                 />
+		</div>
+          <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+            <label className="block text-sm font-bold mb-2 text-gray-800">Status</label>
+            <select
+              value={newTicket.status}
+              onChange={(e) => setNewTicket({...newTicket, status: e.target.value})}
+              className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
+            >
+              <option value="Pending">Pending</option>
+              <option value="Process Action">Process Action</option>
+              <option value="Solved">Solved</option>
+            </select>
+          </div>
+          <div className="border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+            <label className="block text-sm font-bold mb-2 text-gray-800 mb-3">Assign ke</label>
+            <div className="flex flex-wrap gap-3">
+              {teamMembers.map(member => {
+                const isSelected = newTicket.assigned_to === member.name;
+                return (
+                  <div
+                    key={member.id}
+                    onClick={() => setNewTicket({...newTicket, assigned_to: member.name})}
+                    className={`cursor-pointer p-2 rounded-xl border-3 transition-all transform hover:scale-110 ${
+                      isSelected ? 'border-red-600 bg-red-50 shadow-lg' : 'border-gray-300 bg-white'
+                    }`}
+                  >
+                    <img 
+                      src={member.photo_url} 
+                      alt={member.name}
+                      className="w-16 h-16 rounded-full border-2 border-white shadow-md"
+                    />
+                    <p className={`text-xs font-bold text-center mt-1 ${isSelected ? 'text-red-600' : 'text-gray-700'}`}>
+                      {member.name}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="md:col-span-2 border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+            <label className="block text-sm font-bold mb-2 text-gray-800">Deskripsi</label>
+            <textarea
+              value={newTicket.description}
+              onChange={(e) => setNewTicket({...newTicket, description: e.target.value})}
+              placeholder="Detail masalah..."
+              className="w-full border-2 border-gray-400 rounded-xl px-4 py-2 h-24 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
+            />
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={createTicket}
+            className="bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all"
+          >
+            💾 Simpan Ticket
+          </button>
+          <button
+            onClick={() => setShowNewTicket(false)}
+            className="bg-gray-400 text-white px-8 py-3 rounded-xl hover:bg-gray-500 font-bold shadow-xl transition-all"
+          >
+            ✖ Batal
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* List & Detail Tickets */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Daftar Ticket */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket</h2>
+          <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold text-red-600 shadow-lg border-2 border-red-500">
+            {filteredTickets.length} Ticket
+          </span>
+        </div>
+        
+        {filteredTickets.length === 0 ? (
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 text-center border-2 border-gray-400">
+            <p className="text-gray-600 font-medium">
+              {searchProject || filterStatus !== 'All' 
+                ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
+                : 'Belum ada ticket. Buat ticket pertama Anda!'}
+            </p>
+          </div>
+        ) : (
+          filteredTickets.map((ticket) => {
+            const member = getTeamMember(ticket.assigned_to);
+            return (
+              <div
+                key={ticket.id}
+                onClick={() => setSelectedTicket(ticket)}
+                className={`bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 ${
+                  selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1 flex items-center gap-3">
+                    {member && (
+                      <img 
+                        src={member.photo_url} 
+                        alt={member.name}
+                        className="w-12 h-12 rounded-full border-3 border-red-500 shadow-lg"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg text-gray-800 mb-1">
+                        🏢 {ticket.project_name}
+                      </h3>
+                      <p className="text-sm text-gray-600 font-medium">
+                        ⚠️ {ticket.issue_case}
+                      </p>
+                      {ticket.sales_name && (
+                        <p className="text-xs text-blue-600 font-medium mt-1">
+                          👤 Sales: {ticket.sales_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} whitespace-nowrap ml-2`}>
+                    {ticket.status}
+                  </span>
+                </div>
+                
+                {ticket.description && (
+                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{ticket.description}</p>
+                )}
+                
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <span>👤</span>
+                    <span className="font-medium">{ticket.assigned_to}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>📅</span>
+                    <span>{new Date(ticket.date).toLocaleDateString('id-ID')}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>💬</span>
+                    <span>{ticket.activity_logs?.length || 0} aktivitas</span>
+                  </div>
+                </div>
               </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Detail Ticket */}
+      {selectedTicket && (
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 h-fit sticky top-6 border-3 border-red-500">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1 flex items-center gap-3">
+              {getTeamMember(selectedTicket.assigned_to) && (
+                <img 
+                  src={getTeamMember(selectedTicket.assigned_to)!.photo_url} 
+                  alt={selectedTicket.assigned_to}
+                  className="w-16 h-16 rounded-full border-3 border-red-600 shadow-xl"
+                />
+              )}
               <div>
-                <label className="block text-sm font-bold mb-2 text-gray-800">Status</label>
-                <select
-                  value={newTicket.status}
-                  onChange={(e) => setNewTicket({...newTicket, status: e.target.value})}
-                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-2 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Process Action">Process Action</option>
-                  <option value="Solved">Solved</option>
-                </select>
+                <h2 className="text-2xl font-bold text-gray-800 mb-1">
+                  🏢 {selectedTicket.project_name}
+                </h2>
+                <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
+                {selectedTicket.sales_name && (
+                  <p className="text-sm text-blue-600 font-medium mt-1">
+                    👤 Sales: {selectedTicket.sales_name}
+                  </p>
+                )}
               </div>
-              <div>
-                <label className="block text-sm font-bold mb-2 text-gray-800 mb-3">Assign ke</label>
-                <div className="flex flex-wrap gap-3">
-                  {teamMembers.map(member => {
-                    const isSelected = newTicket.assigned_to === member.name;
-                    return (
-                      <div
-                        key={member.id}
-                        onClick={() => setNewTicket({...newTicket, assigned_to: member.name})}
-                        className={`cursor-pointer p-2 rounded-xl border-3 transition-all transform hover:scale-110 ${
-                          isSelected ? 'border-red-600 bg-red-50 shadow-lg' : 'border-gray-300 bg-white'
-                        }`}
-                      >
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500 mb-2">Status Saat Ini:</p>
+              <span className={`px-4 py-2 rounded-xl text-sm font-bold border-2 ${statusColors[selectedTicket.status]}`}>
+                {selectedTicket.status}
+              </span>
+            </div>
+          </div>
+
+          {selectedTicket.description && (
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 mb-4 border-2 border-gray-300">
+              <p className="text-gray-700 text-sm">{selectedTicket.description}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 border-2 border-blue-300">
+              <p className="text-gray-600 mb-1">Assigned to:</p>
+              <p className="font-bold text-gray-800">👤 {selectedTicket.assigned_to}</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 border-2 border-green-300">
+              <p className="text-gray-600 mb-1">Tanggal:</p>
+              <p className="font-bold text-gray-800">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
+            </div>
+          </div>
+
+          {/* Handler History */}
+          {selectedTicket.ticket_handlers && selectedTicket.ticket_handlers.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                👥 Handler History
+              </h3>
+              <div className="space-y-2">
+                {selectedTicket.ticket_handlers.map((handler, idx) => {
+                  const member = getTeamMember(handler.handler_name);
+                  return (
+                    <div key={handler.id} className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-3 border-2 border-purple-300 text-sm flex items-center gap-3">
+                      {member && (
                         <img 
                           src={member.photo_url} 
                           alt={member.name}
-                          className="w-16 h-16 rounded-full border-2 border-white shadow-md"
+                          className="w-10 h-10 rounded-full border-2 border-purple-500 shadow-md"
                         />
-                        <p className={`text-xs font-bold text-center mt-1 ${isSelected ? 'text-red-600' : 'text-gray-700'}`}>
-                          {member.name}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-bold mb-2 text-gray-800">Deskripsi</label>
-                <textarea
-                  value={newTicket.description}
-                  onChange={(e) => setNewTicket({...newTicket, description: e.target.value})}
-                  placeholder="Detail masalah..."
-                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-2 h-24 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={createTicket}
-                className="group relative bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all overflow-hidden"
-              >
-                <span className="relative z-10">💾 Simpan Ticket</span>
-                <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-              </button>
-              <button
-                onClick={() => setShowNewTicket(false)}
-                className="bg-gray-400 text-white px-8 py-3 rounded-xl hover:bg-gray-500 font-bold shadow-xl transition-all"
-              >
-                ✖ Batal
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Status Change Modal */}
-        {showStatusModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border-4 border-red-500 animate-scale-in">
-              <h3 className="text-2xl font-bold mb-4 text-gray-800">Konfirmasi Perubahan Status</h3>
-              <p className="text-gray-700 mb-2">Ubah status ticket menjadi:</p>
-              <p className="text-2xl font-bold text-red-600 mb-6">{newStatus}</p>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={confirmStatusChange}
-                  className="flex-1 bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all"
-                >
-                  ✓ Konfirmasi
-                </button>
-                <button
-                  onClick={() => setShowStatusModal(false)}
-                  className="flex-1 bg-gray-400 text-white px-6 py-3 rounded-xl hover:bg-gray-500 font-bold shadow-xl transition-all"
-                >
-                  ✖ Batal
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* List & Detail Tickets */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Daftar Ticket */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket</h2>
-              <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold text-red-600 shadow-lg border-2 border-red-500">
-                {filteredTickets.length} Ticket
-              </span>
-            </div>
-            
-            {filteredTickets.length === 0 ? (
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 text-center border-2 border-gray-400">
-                <p className="text-gray-600 font-medium">
-                  {searchProject || filterStatus !== 'All' 
-                    ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
-                    : 'Belum ada ticket. Buat ticket pertama Anda!'}
-                </p>
-              </div>
-            ) : (
-              filteredTickets.map((ticket, idx) => {
-                const member = getTeamMember(ticket.assigned_to);
-                return (
-                  <div
-                    key={ticket.id}
-                    onClick={() => setSelectedTicket(ticket)}
-                    style={{ animationDelay: `${idx * 50}ms` }}
-                    className={`bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
-                      selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1 flex items-center gap-3">
-                        {member && (
-                          <img 
-                            src={member.photo_url} 
-                            alt={member.name}
-                            className="w-12 h-12 rounded-full border-3 border-red-500 shadow-lg"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <h3 className="font-bold text-lg text-gray-800 mb-1">
-                            🏢 {ticket.project_name}
-                          </h3>
-                          <p className="text-sm text-gray-600 font-medium">
-                            ⚠️ {ticket.issue_case}
-                          </p>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-gray-800">
+                            {idx + 1}. {handler.handler_name}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${handler.ended_at ? 'bg-gray-300 text-gray-700' : 'bg-green-400 text-white'}`}>
+                            {handler.ended_at ? 'Selesai' : 'Aktif'}
+                          </span>
                         </div>
+                        <p className="text-gray-600 text-xs mt-1">
+                          Mulai: {new Date(handler.started_at).toLocaleString('id-ID', { 
+                            year: 'numeric', 
+                            month: '2-digit', 
+                            day: '2-digit', 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })}
+                        </p>
+                        {handler.ended_at && (
+                          <p className="text-gray-600 text-xs">
+                            Selesai: {new Date(handler.ended_at).toLocaleString('id-ID', { 
+                              year: 'numeric', 
+                              month: '2-digit', 
+                              day: '2-digit', 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: false 
+                            })}
+                          </p>
+                        )}
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} whitespace-nowrap ml-2`}>
-                        {ticket.status}
-                      </span>
                     </div>
-                    
-                    {ticket.description && (
-                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">{ticket.description}</p>
-                    )}
-                    
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <span>👤</span>
-                        <span className="font-medium">{ticket.assigned_to}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span>📅</span>
-                        <span>{new Date(ticket.date).toLocaleDateString('id-ID')}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span>💬</span>
-                        <span>{ticket.activity_logs?.length || 0} aktivitas</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Detail Ticket */}
-          {selectedTicket && (
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 h-fit sticky top-6 border-3 border-red-500 animate-scale-in">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1 flex items-center gap-3">
-                  {getTeamMember(selectedTicket.assigned_to) && (
-                    <img 
-                      src={getTeamMember(selectedTicket.assigned_to)!.photo_url} 
-                      alt={selectedTicket.assigned_to}
-                      className="w-16 h-16 rounded-full border-3 border-red-600 shadow-xl"
-                    />
-                  )}
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-1">
-                      🏢 {selectedTicket.project_name}
-                    </h2>
-                    <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500 mb-2">Status Saat Ini:</p>
-                  <span className={`px-4 py-2 rounded-xl text-sm font-bold border-2 ${statusColors[selectedTicket.status]}`}>
-                    {selectedTicket.status}
-                  </span>
-                </div>
+                  );
+                })}
               </div>
+            </div>
+          )}
 
-              {selectedTicket.description && (
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 mb-4 border-2 border-gray-300">
-                  <p className="text-gray-700 text-sm">{selectedTicket.description}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 border-2 border-blue-300">
-                  <p className="text-gray-600 mb-1">Assigned to:</p>
-                  <p className="font-bold text-gray-800">👤 {selectedTicket.assigned_to}</p>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 border-2 border-green-300">
-                  <p className="text-gray-600 mb-1">Tanggal:</p>
-                  <p className="font-bold text-gray-800">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
-                </div>
-              </div>
-
-              {/* Handler History */}
-              {selectedTicket.ticket_handlers && selectedTicket.ticket_handlers.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">
-                    👥 Handler History
-                  </h3>
-                  <div className="space-y-2">
-                    {selectedTicket.ticket_handlers.map((handler, idx) => {
-                      const member = getTeamMember(handler.handler_name);
-                      return (
-                        <div key={handler.id} className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-3 border-2 border-purple-300 text-sm flex items-center gap-3">
-                          {member && (
+          {/* Activity Log */}
+          <div className="border-t-2 border-gray-300 pt-6 mb-6">
+            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg">
+              📝 Activity Log
+            </h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
+                selectedTicket.activity_logs.map((log) => {
+                  const member = getTeamMember(log.handler_name);
+                  const timestamp = log.recorded_at || log.created_at;
+                  return (
+                    <div key={log.id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {member ? (
                             <img 
                               src={member.photo_url} 
                               alt={member.name}
-                              className="w-10 h-10 rounded-full border-2 border-purple-500 shadow-md"
+                              className="w-10 h-10 rounded-full border-2 border-blue-600 shadow-md"
                             />
+                          ) : (
+                            <span className="bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-sm font-bold">
+                              {log.handler_name.charAt(0)}
+                            </span>
                           )}
-                          <div className="flex-1">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-gray-800">
-                                {idx + 1}. {handler.handler_name}
-                              </span>
-                              <span className={`px-2 py-1 rounded text-xs font-bold ${handler.ended_at ? 'bg-gray-300 text-gray-700' : 'bg-green-400 text-white'}`}>
-                                {handler.ended_at ? 'Selesai' : 'Aktif'}
-                              </span>
-                            </div>
-                            <p className="text-gray-600 text-xs mt-1">
-                              Mulai: {new Date(handler.started_at).toLocaleString('id-ID')}
+                          <div>
+                            <p className="font-bold text-gray-800">{log.handler_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(timestamp).toLocaleString('id-ID', { 
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit', 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false 
+                              })}
                             </p>
-                            {handler.ended_at && (
-                              <p className="text-gray-600 text-xs">
-                                Selesai: {new Date(handler.ended_at).toLocaleString('id-ID')}
-                              </p>
-                            )}
                           </div>
+                        </div>
+                      </div>
+                      
+                      {log.action_taken && (
+                        <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
+                          <p className="text-sm font-semibold text-blue-900">
+                            🔧 Action: {log.action_taken}
+                          </p>
+                        </div>
+                      )}
+                      
+                      <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
+                      
+                      <div className="flex gap-2 mt-2">
+                        {log.face_photo_url && (
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Verifikasi Wajah:</p>
+                            <img 
+                              src={log.face_photo_url} 
+                              alt="Face verification" 
+                              className="rounded-xl w-24 h-24 object-cover border-2 border-green-500 cursor-pointer hover:scale-105 transition-transform shadow-lg"
+                              onClick={() => window.open(log.face_photo_url, '_blank')}
+                            />
+                          </div>
+                        )}
+                        {log.photo_url && (
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-600 mb-1">Dokumentasi:</p>
+                            <img 
+                              src={log.photo_url} 
+                              alt="Activity photo" 
+                              className="rounded-xl max-w-full h-auto border-2 border-gray-400 cursor-pointer hover:scale-105 transition-transform shadow-lg"
+                              onClick={() => window.open(log.photo_url, '_blank')}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
+              )}
+            </div>
+          </div>
+
+          {/* Form Tambah Activity */}
+          <div className="border-t-2 border-gray-300 pt-6">
+            <h3 className="font-bold text-gray-800 mb-4 text-lg">➕ Update Status & Activity</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border-2 border-gray-300 rounded-xl p-3 bg-gray-50">
+                  <label className="block text-xs font-bold mb-2 text-gray-800">Handler</label>
+                  <div className="flex flex-wrap gap-2">
+                    {teamMembers.map(member => {
+                      const isSelected = newActivity.handler_name === member.name;
+                      return (
+                        <div
+                          key={member.id}
+                          onClick={() => setNewActivity({...newActivity, handler_name: member.name})}
+                          className={`cursor-pointer p-1 rounded-xl border-2 transition-all transform hover:scale-110 ${
+                            isSelected ? 'border-red-600 bg-red-50 shadow-lg' : 'border-gray-300 bg-white'
+                          }`}
+                        >
+                          <img 
+                            src={member.photo_url} 
+                            alt={member.name}
+                            className="w-12 h-12 rounded-full border-2 border-white shadow-md"
+                          />
+                          <p className={`text-xs font-bold text-center ${isSelected ? 'text-red-600' : 'text-gray-700'}`}>
+                            {member.name}
+                          </p>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              )}
-
-              {/* Activity Log */}
-              <div className="border-t-2 border-gray-300 pt-6 mb-6">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg">
-                  📝 Activity Log
-                </h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
-                    selectedTicket.activity_logs.map((log, idx) => {
-                      const member = getTeamMember(log.handler_name);
-                      return (
-                        <div key={log.id} style={{ animationDelay: `${idx * 50}ms` }} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md animate-slide-down">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              {member ? (
-                                <img 
-                                  src={member.photo_url} 
-                                  alt={member.name}
-                                  className="w-10 h-10 rounded-full border-2 border-blue-600 shadow-md"
-                                />
-                              ) : (
-                                <span className="bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-sm font-bold">
-                                  {log.handler_name.charAt(0)}
-                                </span>
-                              )}
-                              <div>
-                                <p className="font-bold text-gray-800">{log.handler_name}</p>
-                                <p className="text-xs text-gray-500">
-                                  {new Date(log.created_at).toLocaleString('id-ID')}
-                                </p>
-                              </div>
-                            </div>
-                            <span className="text-xs bg-orange-200 text-orange-900 px-3 py-1 rounded-full font-bold border-2 border-orange-400">
-                              {log.shift_time}
-                            </span>
-                          </div>
-                          
-                          {log.action_taken && (
-                            <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
-                              <p className="text-sm font-semibold text-blue-900">
-                                🔧 Action: {log.action_taken}
-                              </p>
-                            </div>
-                          )}
-                          
-                          <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
-                          
-                          {log.photo_url && (
-                            <img 
-                              src={log.photo_url} 
-                              alt="Activity photo" 
-                              className="rounded-xl mt-2 max-w-full h-auto border-3 border-gray-400 cursor-pointer hover:scale-105 transition-transform shadow-lg"
-                              onClick={() => window.open(log.photo_url, '_blank')}
-                            />
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
-                  )}
+                <div className="border-2 border-gray-300 rounded-xl p-3 bg-gray-50">
+                  <label className="block text-xs font-bold mb-2 text-gray-800">Status Baru *</label>
+                  <select
+                    value={newActivity.status}
+                    onChange={(e) => setNewActivity({...newActivity, status: e.target.value})}
+                    className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Process Action">Process Action</option>
+                    <option value="Solved">Solved</option>
+                  </select>
                 </div>
               </div>
+              
+              <div className="border-2 border-gray-300 rounded-xl p-3 bg-gray-50">
+                <label className="block text-xs font-bold mb-2 text-gray-800">Action yang Dilakukan</label>
+                <input
+                  type="text"
+                  value={newActivity.action_taken}
+                  onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
+                  placeholder="Contoh: Cek kabel HDMI dan power"
+                  className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                />
+              </div>
+              
+              <div className="border-2 border-gray-300 rounded-xl p-3 bg-gray-50">
+                <label className="block text-xs font-bold mb-2 text-gray-800">Notes *</label>
+                <textarea
+                  value={newActivity.notes}
+                  onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
+                  placeholder="Detail pekerjaan yang dilakukan..."
+                  className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 h-20 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                />
+              </div>
+              
+              <div className="border-2 border-gray-300 rounded-xl p-3 bg-gray-50">
+                <label className="block text-xs font-bold mb-2 text-gray-800">Upload Foto Dokumentasi</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
+                  className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                />
+                {newActivity.photo && (
+                  <p className="text-xs text-green-600 mt-1 font-bold">📎 {newActivity.photo.name}</p>
+                )}
+              </div>
 
-              {/* Form Tambah Activity */}
-              <div className="border-t-2 border-gray-300 pt-6">
-                <h3 className="font-bold text-gray-800 mb-4 text-lg">➕ Tambah Update</h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold mb-2 text-gray-800">Handler</label>
-                      <div className="flex flex-wrap gap-2">
-                        {teamMembers.map(member => {
-                          const isSelected = newActivity.handler_name === member.name;
-                          return (
-                            <div
-                              key={member.id}
-                              onClick={() => setNewActivity({...newActivity, handler_name: member.name})}
-                              className={`cursor-pointer p-1 rounded-xl border-2 transition-all transform hover:scale-110 ${
-                                isSelected ? 'border-red-600 bg-red-50 shadow-lg' : 'border-gray-300 bg-white'
-                              }`}
-                            >
-                              <img 
-                                src={member.photo_url} 
-                                alt={member.name}
-                                className="w-12 h-12 rounded-full border-2 border-white shadow-md"
-                              />
-                              <p className={`text-xs font-bold text-center ${isSelected ? 'text-red-600' : 'text-gray-700'}`}>
-                                {member.name}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold mb-2 text-gray-800">Shift</label>
-                      <select
-                        value={newActivity.shift_time}
-                        onChange={(e) => setNewActivity({...newActivity, shift_time: e.target.value})}
-                        className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                      >
-                        {shifts.map(shift => (
-                          <option key={shift} value={shift}>{shift}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-800">Action yang Dilakukan</label>
-                    <input
-                      type="text"
-                      value={newActivity.action_taken}
-                      onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
-                      placeholder="Contoh: Cek kabel HDMI dan power"
-                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-800">Notes *</label>
-                    <textarea
-                      value={newActivity.notes}
-                      onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
-                      placeholder="Detail pekerjaan yang dilakukan..."
-                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 h-20 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-800">Upload Foto</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
-                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                    />
-                    {newActivity.photo && (
-                      <p className="text-xs text-green-600 mt-1 font-bold">📎 {newActivity.photo.name}</p>
-                    )}
-                  </div>
-                  
+              {/* Face Verification */}
+              <div className="border-2 border-red-500 rounded-xl p-4 bg-red-50">
+                <label className="block text-sm font-bold mb-2 text-red-800">📸 Verifikasi Wajah (Wajib) *</label>
+                <p className="text-xs text-gray-600 mb-3">Ambil foto wajah Anda untuk verifikasi identitas</p>
+                
+                {!capturingFace && !newActivity.facePhoto && (
                   <button
-                    onClick={addActivity}
-                    disabled={uploadingPhoto}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed animate-button-glow"
-                  >
-                    {uploadingPhoto ? '⏳ Uploading...' : '💾 Tambah Activity'}
-                  </button>
-
-                  <button
-                    onClick={() => handleStatusChange(selectedTicket.id, 
-                      selectedTicket.status === 'Pending' ? 'Process Action' : 
-                      selectedTicket.status === 'Process Action' ? 'Solved' : 'Pending'
-                    )}
+                    onClick={startCamera}
                     className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all"
                   >
-                    🔄 Ubah Status ke {
-                      selectedTicket.status === 'Pending' ? 'Process Action' : 
-                      selectedTicket.status === 'Process Action' ? 'Solved' : 'Pending'
-                    }
+                    📷 Ambil Foto Wajah
                   </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+                )}
 
-      <style jsx>{`
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
+                {capturingFace && (
+                  <div className="space-y-3">
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline
+                      className="w-full rounded-xl border-2 border-blue-500"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={captureFace}
+                        className="flex-1 bg-gradient-to-r from-green-600 to-green-800 text-white py-2 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all"
+                      >
+                        ✓ Capture
+                      </button>
+                      <button
+                        onClick={stopCamera}
+                        className="flex-1 bg-gray-400 text-white py-2 rounded-xl hover:bg-gray-500 font-bold shadow-xl transition-all"
+                      >
+                        ✖ Batal
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {newActivity.facePhoto && (
+                  <div className="space-y-2">
+                    <img 
+                      src={newActivity.facePhoto} 
+                      alt="Face captured" 
+                      className="w-full rounded-xl border-2 border-green-500"
+                    />
+                    <button
+                      onClick={() => {
+                        setNewActivity({...newActivity, facePhoto: null});
+                        startCamera();
+                      }}
+                      className="w-full bg-orange-500 text-white py-2 rounded-xl hover:bg-orange-600 font-bold shadow-xl transition-all"
+                    >
+                      🔄 Ambil Ulang
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <canvas ref={canvasRef} style={{ display: 'none' }} />
+              
+              <button
+                onClick={addActivity}
+                disabled={uploadingPhoto || !newActivity.facePhoto}
+                className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploadingPhoto ? '⏳ Uploading...' : '💾 Update Status & Tambah Activity'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
-}
+  </div>
+
+  <style jsx>{`
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  `}</style>
+</div>
