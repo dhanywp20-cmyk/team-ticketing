@@ -74,11 +74,43 @@ export default function TicketingSystem() {
     handler_name: 'Dhany',
     action_taken: '',
     notes: '',
-    shift_time: 'Pagi (08:00-16:00)',
     photo: null as File | null
   });
 
-  const shifts = ['Pagi (08:00-16:00)', 'Siang (16:00-00:00)', 'Malam (00:00-08:00)'];
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update waktu setiap detik
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Format waktu Jakarta
+  const getJakartaTime = () => {
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(currentTime);
+  };
+
+  const getJakartaDateTime = () => {
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(currentTime);
+  };
+
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'Process Action': 'bg-blue-100 text-blue-800 border-blue-400',
@@ -240,14 +272,23 @@ export default function TicketingSystem() {
         photoUrl = await uploadPhoto(newActivity.photo);
       }
 
+      // Dapatkan waktu Jakarta saat submit
+      const jakartaDateTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
+      const submitTime = new Date(jakartaDateTime).toISOString();
+
       const { error } = await supabase.from('activity_logs').insert([
         {
           ticket_id: selectedTicket.id,
           handler_name: newActivity.handler_name,
           action_taken: newActivity.action_taken,
           notes: newActivity.notes,
-          shift_time: newActivity.shift_time,
-          photo_url: photoUrl
+          shift_time: new Date(jakartaDateTime).toLocaleTimeString('id-ID', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+          }),
+          photo_url: photoUrl,
+          created_at: submitTime
         }
       ]);
 
@@ -258,7 +299,7 @@ export default function TicketingSystem() {
         if (lastHandler && !lastHandler.ended_at) {
           await supabase
             .from('ticket_handlers')
-            .update({ ended_at: new Date().toISOString() })
+            .update({ ended_at: submitTime })
             .eq('id', lastHandler.id);
         }
 
@@ -266,7 +307,8 @@ export default function TicketingSystem() {
           {
             ticket_id: selectedTicket.id,
             handler_name: newActivity.handler_name,
-            shift_notes: `Shift: ${newActivity.shift_time}`
+            shift_notes: `Mulai menangani pada ${new Date(jakartaDateTime).toLocaleString('id-ID')}`,
+            started_at: submitTime
           }
         ]);
       }
@@ -275,7 +317,6 @@ export default function TicketingSystem() {
         handler_name: 'Dhany', 
         action_taken: '', 
         notes: '', 
-        shift_time: 'Pagi (08:00-16:00)',
         photo: null 
       });
       setUploadingPhoto(false);
@@ -355,6 +396,9 @@ export default function TicketingSystem() {
               <p className="text-gray-700 font-medium">
                 <span className="font-bold text-red-600">Tim Support PTS IVP:</span> Dhany, Reka, Yoga, Ade, Ferdinan
               </p>
+              <p className="text-sm text-gray-600 mt-2 font-mono">
+                🕐 Waktu Jakarta: <span className="font-bold text-blue-600">{getJakartaTime()}</span>
+              </p>
             </div>
             <div className="flex gap-3">
               <button
@@ -380,7 +424,337 @@ export default function TicketingSystem() {
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-purple-800">
               📊 Dashboard & Analytics
-            </h2>
+                          </h2>
+              <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold text-red-600 shadow-lg border-2 border-red-500">
+                {filteredTickets.length} Ticket
+              </span>
+            </div>
+            
+            {filteredTickets.length === 0 ? (
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 text-center border-2 border-gray-400">
+                <p className="text-gray-600 font-medium">
+                  {searchProject || filterStatus !== 'All' 
+                    ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
+                    : 'Belum ada ticket. Buat ticket pertama Anda!'}
+                </p>
+              </div>
+            ) : (
+              filteredTickets.map((ticket, idx) => {
+                const member = getTeamMember(ticket.assigned_to);
+                return (
+                  <div
+                    key={ticket.id}
+                    onClick={() => setSelectedTicket(ticket)}
+                    style={{ animationDelay: `${idx * 50}ms` }}
+                    className={`bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
+                      selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1 flex items-center gap-3">
+                        {member && (
+                          <img 
+                            src={member.photo_url} 
+                            alt={member.name}
+                            className="w-12 h-12 rounded-full border-3 border-red-500 shadow-lg"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg text-gray-800 mb-1">
+                            🏢 {ticket.project_name}
+                          </h3>
+                          <p className="text-sm text-gray-600 font-medium">
+                            ⚠️ {ticket.issue_case}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} whitespace-nowrap ml-2`}>
+                        {ticket.status}
+                      </span>
+                    </div>
+                    
+                    {ticket.description && (
+                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">{ticket.description}</p>
+                    )}
+                    
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <span>👤</span>
+                        <span className="font-medium">{ticket.assigned_to}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>📅</span>
+                        <span>{new Date(ticket.date).toLocaleDateString('id-ID')}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>💬</span>
+                        <span>{ticket.activity_logs?.length || 0} aktivitas</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Detail Ticket */}
+          {selectedTicket && (
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 h-fit sticky top-6 border-3 border-red-500 animate-scale-in">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1 flex items-center gap-3">
+                  {getTeamMember(selectedTicket.assigned_to) && (
+                    <img 
+                      src={getTeamMember(selectedTicket.assigned_to)!.photo_url} 
+                      alt={selectedTicket.assigned_to}
+                      className="w-16 h-16 rounded-full border-3 border-red-600 shadow-xl"
+                    />
+                  )}
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-1">
+                      🏢 {selectedTicket.project_name}
+                    </h2>
+                    <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 mb-2">Status Saat Ini:</p>
+                  <span className={`px-4 py-2 rounded-xl text-sm font-bold border-2 ${statusColors[selectedTicket.status]}`}>
+                    {selectedTicket.status}
+                  </span>
+                </div>
+              </div>
+
+              {selectedTicket.description && (
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 mb-4 border-2 border-gray-300">
+                  <p className="text-gray-700 text-sm">{selectedTicket.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 border-2 border-blue-300">
+                  <p className="text-gray-600 mb-1">Assigned to:</p>
+                  <p className="font-bold text-gray-800">👤 {selectedTicket.assigned_to}</p>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 border-2 border-green-300">
+                  <p className="text-gray-600 mb-1">Tanggal:</p>
+                  <p className="font-bold text-gray-800">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
+                </div>
+              </div>
+
+              {/* Handler History */}
+              {selectedTicket.ticket_handlers && selectedTicket.ticket_handlers.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">
+                    👥 Handler History
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedTicket.ticket_handlers.map((handler, idx) => {
+                      const member = getTeamMember(handler.handler_name);
+                      return (
+                        <div key={handler.id} className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-3 border-2 border-purple-300 text-sm flex items-center gap-3">
+                          {member && (
+                            <img 
+                              src={member.photo_url} 
+                              alt={member.name}
+                              className="w-10 h-10 rounded-full border-2 border-purple-500 shadow-md"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-gray-800">
+                                {idx + 1}. {handler.handler_name}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-bold ${handler.ended_at ? 'bg-gray-300 text-gray-700' : 'bg-green-400 text-white'}`}>
+                                {handler.ended_at ? 'Selesai' : 'Aktif'}
+                              </span>
+                            </div>
+                            <p className="text-gray-600 text-xs mt-1">
+                              Mulai: {new Date(handler.started_at).toLocaleString('id-ID')}
+                            </p>
+                            {handler.ended_at && (
+                              <p className="text-gray-600 text-xs">
+                                Selesai: {new Date(handler.ended_at).toLocaleString('id-ID')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity Log */}
+              <div className="border-t-2 border-gray-300 pt-6 mb-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg">
+                  📝 Activity Log
+                </h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                  {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
+                    selectedTicket.activity_logs.map((log, idx) => {
+                      const member = getTeamMember(log.handler_name);
+                      return (
+                        <div key={log.id} style={{ animationDelay: `${idx * 50}ms` }} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md animate-slide-down">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              {member ? (
+                                <img 
+                                  src={member.photo_url} 
+                                  alt={member.name}
+                                  className="w-10 h-10 rounded-full border-2 border-blue-600 shadow-md"
+                                />
+                              ) : (
+                                <span className="bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-sm font-bold">
+                                  {log.handler_name.charAt(0)}
+                                </span>
+                              )}
+                              <div>
+                                <p className="font-bold text-gray-800">{log.handler_name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(log.created_at).toLocaleString('id-ID')}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs bg-orange-200 text-orange-900 px-3 py-1 rounded-full font-bold border-2 border-orange-400">
+                              ⏰ {log.shift_time}
+                            </span>
+                          </div>
+                          
+                          {log.action_taken && (
+                            <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
+                              <p className="text-sm font-semibold text-blue-900">
+                                🔧 Action: {log.action_taken}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
+                          
+                          {log.photo_url && (
+                            <img 
+                              src={log.photo_url} 
+                              alt="Activity photo" 
+                              className="rounded-xl mt-2 max-w-full h-auto border-3 border-gray-400 cursor-pointer hover:scale-105 transition-transform shadow-lg"
+                              onClick={() => window.open(log.photo_url, '_blank')}
+                            />
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Form Tambah Activity */}
+              <div className="border-t-2 border-gray-300 pt-6">
+                <h3 className="font-bold text-gray-800 mb-4 text-lg">➕ Tambah Update</h3>
+                <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-3 mb-4">
+                  <p className="text-sm text-gray-700">
+                    📅 Waktu submit otomatis: <span className="font-bold text-blue-700">{getJakartaDateTime()}</span>
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-2 text-gray-800">Handler</label>
+                    <div className="flex flex-wrap gap-2">
+                      {teamMembers.map(member => {
+                        const isSelected = newActivity.handler_name === member.name;
+                        return (
+                          <div
+                            key={member.id}
+                            onClick={() => setNewActivity({...newActivity, handler_name: member.name})}
+                            className={`cursor-pointer p-1 rounded-xl border-2 transition-all transform hover:scale-110 ${
+                              isSelected ? 'border-red-600 bg-red-50 shadow-lg' : 'border-gray-300 bg-white'
+                            }`}
+                          >
+                            <img 
+                              src={member.photo_url} 
+                              alt={member.name}
+                              className="w-12 h-12 rounded-full border-2 border-white shadow-md"
+                            />
+                            <p className={`text-xs font-bold text-center ${isSelected ? 'text-red-600' : 'text-gray-700'}`}>
+                              {member.name}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold mb-2 text-gray-800">Action yang Dilakukan</label>
+                    <input
+                      type="text"
+                      value={newActivity.action_taken}
+                      onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
+                      placeholder="Contoh: Cek kabel HDMI dan power"
+                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold mb-2 text-gray-800">Notes *</label>
+                    <textarea
+                      value={newActivity.notes}
+                      onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
+                      placeholder="Detail pekerjaan yang dilakukan..."
+                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 h-20 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold mb-2 text-gray-800">Upload Foto</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
+                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
+                    />
+                    {newActivity.photo && (
+                      <p className="text-xs text-green-600 mt-1 font-bold">📎 {newActivity.photo.name}</p>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={addActivity}
+                    disabled={uploadingPhoto}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed animate-button-glow"
+                  >
+                    {uploadingPhoto ? '⏳ Uploading...' : '💾 Tambah Activity'}
+                  </button>
+
+                  <button
+                    onClick={() => handleStatusChange(selectedTicket.id, 
+                      selectedTicket.status === 'Pending' ? 'Process Action' : 
+                      selectedTicket.status === 'Process Action' ? 'Solved' : 'Pending'
+                    )}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all"
+                  >
+                    🔄 Ubah Status ke {
+                      selectedTicket.status === 'Pending' ? 'Process Action' : 
+                      selectedTicket.status === 'Process Action' ? 'Solved' : 'Pending'
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style jsx>{`
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
+    </div>
+  );
+}
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in">
@@ -619,344 +993,4 @@ export default function TicketingSystem() {
           {/* Daftar Ticket */}
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket</h2>
-              <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold text-red-600 shadow-lg border-2 border-red-500">
-                {filteredTickets.length} Ticket
-              </span>
-            </div>
-            
-            {filteredTickets.length === 0 ? (
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 text-center border-2 border-gray-400">
-                <p className="text-gray-600 font-medium">
-                  {searchProject || filterStatus !== 'All' 
-                    ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
-                    : 'Belum ada ticket. Buat ticket pertama Anda!'}
-                </p>
-              </div>
-            ) : (
-              filteredTickets.map((ticket, idx) => {
-                const member = getTeamMember(ticket.assigned_to);
-                return (
-                  <div
-                    key={ticket.id}
-                    onClick={() => setSelectedTicket(ticket)}
-                    style={{ animationDelay: `${idx * 50}ms` }}
-                    className={`bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
-                      selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1 flex items-center gap-3">
-                        {member && (
-                          <img 
-                            src={member.photo_url} 
-                            alt={member.name}
-                            className="w-12 h-12 rounded-full border-3 border-red-500 shadow-lg"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <h3 className="font-bold text-lg text-gray-800 mb-1">
-                            🏢 {ticket.project_name}
-                          </h3>
-                          <p className="text-sm text-gray-600 font-medium">
-                            ⚠️ {ticket.issue_case}
-                          </p>
-                        </div>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} whitespace-nowrap ml-2`}>
-                        {ticket.status}
-                      </span>
-                    </div>
-                    
-                    {ticket.description && (
-                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">{ticket.description}</p>
-                    )}
-                    
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <span>👤</span>
-                        <span className="font-medium">{ticket.assigned_to}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span>📅</span>
-                        <span>{new Date(ticket.date).toLocaleDateString('id-ID')}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span>💬</span>
-                        <span>{ticket.activity_logs?.length || 0} aktivitas</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Detail Ticket */}
-          {selectedTicket && (
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 h-fit sticky top-6 border-3 border-red-500 animate-scale-in">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1 flex items-center gap-3">
-                  {getTeamMember(selectedTicket.assigned_to) && (
-                    <img 
-                      src={getTeamMember(selectedTicket.assigned_to)!.photo_url} 
-                      alt={selectedTicket.assigned_to}
-                      className="w-16 h-16 rounded-full border-3 border-red-600 shadow-xl"
-                    />
-                  )}
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-1">
-                      🏢 {selectedTicket.project_name}
-                    </h2>
-                    <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500 mb-2">Status Saat Ini:</p>
-                  <span className={`px-4 py-2 rounded-xl text-sm font-bold border-2 ${statusColors[selectedTicket.status]}`}>
-                    {selectedTicket.status}
-                  </span>
-                </div>
-              </div>
-
-              {selectedTicket.description && (
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 mb-4 border-2 border-gray-300">
-                  <p className="text-gray-700 text-sm">{selectedTicket.description}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 mb-6 text-sm">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 border-2 border-blue-300">
-                  <p className="text-gray-600 mb-1">Assigned to:</p>
-                  <p className="font-bold text-gray-800">👤 {selectedTicket.assigned_to}</p>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 border-2 border-green-300">
-                  <p className="text-gray-600 mb-1">Tanggal:</p>
-                  <p className="font-bold text-gray-800">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
-                </div>
-              </div>
-
-              {/* Handler History */}
-              {selectedTicket.ticket_handlers && selectedTicket.ticket_handlers.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-lg">
-                    👥 Handler History
-                  </h3>
-                  <div className="space-y-2">
-                    {selectedTicket.ticket_handlers.map((handler, idx) => {
-                      const member = getTeamMember(handler.handler_name);
-                      return (
-                        <div key={handler.id} className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-3 border-2 border-purple-300 text-sm flex items-center gap-3">
-                          {member && (
-                            <img 
-                              src={member.photo_url} 
-                              alt={member.name}
-                              className="w-10 h-10 rounded-full border-2 border-purple-500 shadow-md"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-gray-800">
-                                {idx + 1}. {handler.handler_name}
-                              </span>
-                              <span className={`px-2 py-1 rounded text-xs font-bold ${handler.ended_at ? 'bg-gray-300 text-gray-700' : 'bg-green-400 text-white'}`}>
-                                {handler.ended_at ? 'Selesai' : 'Aktif'}
-                              </span>
-                            </div>
-                            <p className="text-gray-600 text-xs mt-1">
-                              Mulai: {new Date(handler.started_at).toLocaleString('id-ID')}
-                            </p>
-                            {handler.ended_at && (
-                              <p className="text-gray-600 text-xs">
-                                Selesai: {new Date(handler.ended_at).toLocaleString('id-ID')}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Activity Log */}
-              <div className="border-t-2 border-gray-300 pt-6 mb-6">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-lg">
-                  📝 Activity Log
-                </h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
-                    selectedTicket.activity_logs.map((log, idx) => {
-                      const member = getTeamMember(log.handler_name);
-                      return (
-                        <div key={log.id} style={{ animationDelay: `${idx * 50}ms` }} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md animate-slide-down">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              {member ? (
-                                <img 
-                                  src={member.photo_url} 
-                                  alt={member.name}
-                                  className="w-10 h-10 rounded-full border-2 border-blue-600 shadow-md"
-                                />
-                              ) : (
-                                <span className="bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-sm font-bold">
-                                  {log.handler_name.charAt(0)}
-                                </span>
-                              )}
-                              <div>
-                                <p className="font-bold text-gray-800">{log.handler_name}</p>
-                                <p className="text-xs text-gray-500">
-                                  {new Date(log.created_at).toLocaleString('id-ID')}
-                                </p>
-                              </div>
-                            </div>
-                            <span className="text-xs bg-orange-200 text-orange-900 px-3 py-1 rounded-full font-bold border-2 border-orange-400">
-                              {log.shift_time}
-                            </span>
-                          </div>
-                          
-                          {log.action_taken && (
-                            <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
-                              <p className="text-sm font-semibold text-blue-900">
-                                🔧 Action: {log.action_taken}
-                              </p>
-                            </div>
-                          )}
-                          
-                          <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
-                          
-                          {log.photo_url && (
-                            <img 
-                              src={log.photo_url} 
-                              alt="Activity photo" 
-                              className="rounded-xl mt-2 max-w-full h-auto border-3 border-gray-400 cursor-pointer hover:scale-105 transition-transform shadow-lg"
-                              onClick={() => window.open(log.photo_url, '_blank')}
-                            />
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Form Tambah Activity */}
-              <div className="border-t-2 border-gray-300 pt-6">
-                <h3 className="font-bold text-gray-800 mb-4 text-lg">➕ Tambah Update</h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold mb-2 text-gray-800">Handler</label>
-                      <div className="flex flex-wrap gap-2">
-                        {teamMembers.map(member => {
-                          const isSelected = newActivity.handler_name === member.name;
-                          return (
-                            <div
-                              key={member.id}
-                              onClick={() => setNewActivity({...newActivity, handler_name: member.name})}
-                              className={`cursor-pointer p-1 rounded-xl border-2 transition-all transform hover:scale-110 ${
-                                isSelected ? 'border-red-600 bg-red-50 shadow-lg' : 'border-gray-300 bg-white'
-                              }`}
-                            >
-                              <img 
-                                src={member.photo_url} 
-                                alt={member.name}
-                                className="w-12 h-12 rounded-full border-2 border-white shadow-md"
-                              />
-                              <p className={`text-xs font-bold text-center ${isSelected ? 'text-red-600' : 'text-gray-700'}`}>
-                                {member.name}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold mb-2 text-gray-800">Shift</label>
-                      <select
-                        value={newActivity.shift_time}
-                        onChange={(e) => setNewActivity({...newActivity, shift_time: e.target.value})}
-                        className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                      >
-                        {shifts.map(shift => (
-                          <option key={shift} value={shift}>{shift}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-800">Action yang Dilakukan</label>
-                    <input
-                      type="text"
-                      value={newActivity.action_taken}
-                      onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
-                      placeholder="Contoh: Cek kabel HDMI dan power"
-                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-800">Notes *</label>
-                    <textarea
-                      value={newActivity.notes}
-                      onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
-                      placeholder="Detail pekerjaan yang dilakukan..."
-                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 h-20 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-800">Upload Foto</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
-                      className="w-full border-2 border-gray-400 rounded-xl px-3 py-2 text-sm focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all"
-                    />
-                    {newActivity.photo && (
-                      <p className="text-xs text-green-600 mt-1 font-bold">📎 {newActivity.photo.name}</p>
-                    )}
-                  </div>
-                  
-                  <button
-                    onClick={addActivity}
-                    disabled={uploadingPhoto}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-800 text-white py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed animate-button-glow"
-                  >
-                    {uploadingPhoto ? '⏳ Uploading...' : '💾 Tambah Activity'}
-                  </button>
-
-                  <button
-                    onClick={() => handleStatusChange(selectedTicket.id, 
-                      selectedTicket.status === 'Pending' ? 'Process Action' : 
-                      selectedTicket.status === 'Process Action' ? 'Solved' : 'Pending'
-                    )}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all"
-                  >
-                    🔄 Ubah Status ke {
-                      selectedTicket.status === 'Pending' ? 'Process Action' : 
-                      selectedTicket.status === 'Process Action' ? 'Solved' : 'Pending'
-                    }
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <style jsx>{`
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
-    </div>
-  );
-}
-
+              <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket
