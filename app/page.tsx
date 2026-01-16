@@ -80,7 +80,41 @@ export default function TicketingSystem() {
     photo: null as File | null
   });
 
-  const shifts = ['Pagi (08:00-16:00)', 'Siang (16:00-00:00)', 'Malam (00:00-08:00)'];
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update waktu setiap detik
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Format waktu Jakarta
+  const getJakartaTime = () => {
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(currentTime);
+  };
+
+  const getJakartaDateTime = () => {
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(currentTime);
+  };
+
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'Process Action': 'bg-blue-100 text-blue-800 border-blue-400',
@@ -966,4 +1000,5 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
