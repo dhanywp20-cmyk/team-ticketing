@@ -350,10 +350,10 @@ export default function TicketingSystem() {
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-2 animate-text-shine">
-                🎫 IndoVisual Ticketing System
+                🎫 Reminder Troubleshooting Project
               </h1>
               <p className="text-gray-700 font-medium">
-                <span className="font-bold text-red-600">Tim Support:</span> Dhany, Reka, Yoga, Ade, Ferdinan
+                <span className="font-bold text-red-600">Tim Support PTS IVP:</span> Dhany, Reka, Yoga, Ade, Ferdinan
               </p>
             </div>
             <div className="flex gap-3">
@@ -959,3 +959,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
