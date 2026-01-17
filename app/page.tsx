@@ -490,6 +490,7 @@ export default function TicketingSystem() {
             </div>
           </div>
         </div>
+      </div>
 
         {/* Settings */}
         {showSettings && currentUser?.role === 'admin' && (
@@ -987,4 +988,5 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
