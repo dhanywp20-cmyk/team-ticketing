@@ -667,7 +667,7 @@ export default function TicketingSystem() {
         )}
 
         {/* Tickets List & Detail */}
-        <div className="bg-blue-500/20 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-blue-400">
+        <div className="bg-blue-500/5 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-blue-300">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* List */}
             <div className="space-y-4">
