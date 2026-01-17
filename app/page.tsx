@@ -671,6 +671,7 @@ export default function TicketingSystem() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* List */}
             <div className="space-y-4">
+              <div className="bg-orange-50 rounded-xl p-5 border-3 border-orange-300">
               <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
               {filteredTickets.map((ticket, idx) => (
                 <div
@@ -696,6 +697,7 @@ export default function TicketingSystem() {
                     {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
                   </div>
                 </div>
+              </div>
               ))}
             </div>
 
@@ -853,3 +855,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
