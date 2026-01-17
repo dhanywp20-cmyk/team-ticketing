@@ -12,6 +12,7 @@ const supabase = createClient(
 interface User {
   id: string;
   username: string;
+  password: string;
   full_name: string;
   role: string;
 }
@@ -293,15 +294,28 @@ export default function TicketingSystem() {
       return;
     }
 
-    if (changePassword.current !== currentUser?.password) {
-      alert('Password lama salah!');
-      return;
-    }
-
     try {
+      // Verify current password
+      const { data: userData } = await supabase
+        .from('users')
+        .select('password')
+        .eq('id', currentUser!.id)
+        .single();
+
+      if (!userData || userData.password !== changePassword.current) {
+        alert('Password lama salah!');
+        return;
+      }
+
+      // Update password
       await supabase.from('users')
         .update({ password: changePassword.new })
-        .eq('id', currentUser.id);
+        .eq('id', currentUser!.id);
+
+      // Update local user state
+      const updatedUser = { ...currentUser!, password: changePassword.new };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
 
       alert('Password berhasil diubah!');
       setChangePassword({ current: '', new: '', confirm: '' });
