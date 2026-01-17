@@ -493,7 +493,7 @@ export default function TicketingSystem() {
 
         {/* Settings */}
         {showSettings && currentUser?.role === 'admin' && (
-         
+         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -540,7 +540,7 @@ export default function TicketingSystem() {
                 ))}
               </div>
             </div>
-          
+          </div>
         )}
 
         {/* Dashboard */}
@@ -669,6 +669,7 @@ export default function TicketingSystem() {
         {/* Tickets List & Detail */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* List */}
+          <div className="bg-blue-50 rounded-xl p-5 border-3 border-blue-300">
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
             {filteredTickets.map((ticket, idx) => (
@@ -680,10 +681,10 @@ export default function TicketingSystem() {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
-                    <h3 className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</h3>
-                    <p className="text-sm text-gray-600 font-medium">⚠️ {ticket.issue_case}</p>
-                    {ticket.sales_name && <p className="text-xs text-gray-500">👤 Sales: {ticket.sales_name}</p>}
-                    {ticket.customer_phone && <p className="text-xs text-gray-500">📞 {ticket.customer_phone}</p>}
+                    <h3 className="font-bold text-lg text-gray-800">🏢 Nama Project   : {ticket.project_name}</h3>
+                    <p className="text-sm text-gray-600 font-medium">⚠️ Issue report  : {ticket.issue_case}</p>
+                    {ticket.customer_phone && <p className="text-xs text-gray-500">📞 No. User : {ticket.customer_phone}</p>}
+                    {ticket.sales_name && <p className="text-xs text-gray-500">👤 Sales Project  : {ticket.sales_name}</p>}
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
                     {ticket.status}
@@ -695,7 +696,7 @@ export default function TicketingSystem() {
                   {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
                 </div>
               </div>
-            
+          </div>
             ))}
           </div>
 
@@ -852,6 +853,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
