@@ -656,7 +656,7 @@ export default function TicketingSystem() {
               </div>
               <div className="md:col-span-2">
                 <label className="label-field">Deskripsi    : </label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field h-10 w-30" />
+                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field w-50" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -851,6 +851,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
