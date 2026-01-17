@@ -666,37 +666,61 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* Tickets List & Detail */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* List */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
-            {filteredTickets.map((ticket, idx) => (
-              <div
-                key={ticket.id}
-                onClick={() => setSelectedTicket(ticket)}
-                className={`ticket-card ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'}`}
-                style={{ animationDelay: `${idx * 50}ms` }}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</h3>
-                    <p className="text-sm text-gray-600 font-medium">⚠️ {ticket.issue_case}</p>
-                    {ticket.sales_name && <p className="text-xs text-gray-500">👤 Sales: {ticket.sales_name}</p>}
-                    {ticket.customer_phone && <p className="text-xs text-gray-500">📞 {ticket.customer_phone}</p>}
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
-                    {ticket.status}
-                  </span>
-                </div>
-                <div className="flex gap-3 text-sm text-gray-600">
-                  <span>📅 {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
-                  <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
-                  {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
-                </div>
-              </div>
-            ))}
+// Update di page.tsx - bagian Tickets List
+
+{/* Tickets List */}
+<div className="space-y-4">
+  <div className="flex justify-between items-center mb-4">
+    <h2 className="text-2xl font-bold text-gray-800 bg-white/90 backdrop-blur-sm px-6 py-3 rounded-xl shadow-lg border-2 border-red-500">
+      📋 Daftar Ticket ({filteredTickets.length})
+    </h2>
+  </div>
+  
+  {filteredTickets.map((ticket, idx) => (
+    <div
+      key={ticket.id}
+      onClick={() => setSelectedTicket(ticket)}
+      className={`ticket-card-improved ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300 bg-red-50' : 'border-gray-300 bg-white'}`}
+      style={{ animationDelay: `${idx * 50}ms` }}
+    >
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex-1">
+          <h3 className="font-bold text-xl text-gray-900 mb-2">🏢 {ticket.project_name}</h3>
+          <div className="space-y-1">
+            <p className="text-sm text-gray-800 font-semibold">⚠️ {ticket.issue_case}</p>
+            {ticket.sales_name && (
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">👤 Sales:</span> {ticket.sales_name}
+              </p>
+            )}
+            {ticket.customer_phone && (
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">📞 Phone:</span> {ticket.customer_phone}
+              </p>
+            )}
           </div>
+        </div>
+        <span className={`px-4 py-2 rounded-full text-sm font-bold border-2 shadow-md ${statusColors[ticket.status]}`}>
+          {ticket.status}
+        </span>
+      </div>
+      
+      <div className="flex flex-wrap gap-4 text-sm text-gray-700 bg-gray-50 rounded-lg p-3 border border-gray-200">
+        <span className="flex items-center gap-1 font-medium">
+          📅 {new Date(ticket.date).toLocaleDateString('id-ID')}
+        </span>
+        <span className="flex items-center gap-1 font-medium">
+          💬 {ticket.activity_logs?.length || 0} aktivitas
+        </span>
+        {ticket.activity_logs?.some(a => a.file_url) && (
+          <span className="flex items-center gap-1 font-medium text-blue-600">
+            📄 Report tersedia
+          </span>
+        )}
+      </div>
+    </div>
+  ))}
+</div>
 
           {/* Detail */}
           {selectedTicket && (
@@ -851,3 +875,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
