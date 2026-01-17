@@ -103,9 +103,9 @@ export default function TicketingSystem() {
   });
 
   const statusColors: Record<string, string> = {
-    'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
-    'Process Action': 'bg-blue-100 text-blue-800 border-blue-400',
-    'Solved': 'bg-green-100 text-green-800 border-green-400'
+    'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-500',
+    'Process Action': 'bg-blue-100 text-blue-800 border-blue-500',
+    'Solved': 'bg-green-100 text-green-800 border-green-500'
   };
 
   const formatDateTime = (dateString: string) => {
@@ -600,11 +600,11 @@ export default function TicketingSystem() {
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-bold mb-2">🔍 Cari Project</label>
+              <label className="block text-sm font-bold mb-2 text-gray-900">🔍 Cari Project</label>
               <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="Nama project, sales, atau issue..." className="input-field" />
             </div>
             <div className="md:w-64">
-              <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
+              <label className="block text-sm font-bold mb-2 text-gray-900">📋 Filter Status</label>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input-field">
                 <option value="All">Semua Status</option>
                 <option value="Pending">Pending</option>
@@ -666,61 +666,69 @@ export default function TicketingSystem() {
           </div>
         )}
 
-// Update di page.tsx - bagian Tickets List
-
-{/* Tickets List */}
-<div className="space-y-4">
-  <div className="flex justify-between items-center mb-4">
-    <h2 className="text-2xl font-bold text-gray-800 bg-white/90 backdrop-blur-sm px-6 py-3 rounded-xl shadow-lg border-2 border-red-500">
-      📋 Daftar Ticket ({filteredTickets.length})
-    </h2>
-  </div>
-  
-  {filteredTickets.map((ticket, idx) => (
-    <div
-      key={ticket.id}
-      onClick={() => setSelectedTicket(ticket)}
-      className={`ticket-card-improved ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300 bg-red-50' : 'border-gray-300 bg-white'}`}
-      style={{ animationDelay: `${idx * 50}ms` }}
-    >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex-1">
-          <h3 className="font-bold text-xl text-gray-900 mb-2">🏢 {ticket.project_name}</h3>
-          <div className="space-y-1">
-            <p className="text-sm text-gray-800 font-semibold">⚠️ {ticket.issue_case}</p>
-            {ticket.sales_name && (
-              <p className="text-sm text-gray-700">
-                <span className="font-semibold">👤 Sales:</span> {ticket.sales_name}
-              </p>
-            )}
-            {ticket.customer_phone && (
-              <p className="text-sm text-gray-700">
-                <span className="font-semibold">📞 Phone:</span> {ticket.customer_phone}
-              </p>
+        {/* Tickets List & Detail */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* List */}
+          <div className="space-y-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 bg-white/90 backdrop-blur-sm px-6 py-3 rounded-xl shadow-lg border-2 border-red-500">
+            📋 Daftar Ticket ({filteredTickets.length})
+          </h2>
+        </div>
+        
+        {filteredTickets.map((ticket, idx) => (
+          <div
+            key={ticket.id}
+            onClick={() => setSelectedTicket(ticket)}
+            className={`ticket-card-improved ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300 bg-red-50/95' : 'border-gray-300 bg-white/98'}`}
+            style={{ animationDelay: `${idx * 50}ms` }}
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <h3 className="font-bold text-xl text-gray-900 mb-2">🏢 {ticket.project_name}</h3>
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-800 font-semibold">⚠️ {ticket.issue_case}</p>
+                  {ticket.sales_name && (
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">👤 Sales:</span> {ticket.sales_name}
+                    </p>
+                  )}
+                  {ticket.customer_phone && (
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">📞 Phone:</span> {ticket.customer_phone}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <span className={`px-4 py-2 rounded-full text-sm font-bold border-2 shadow-md whitespace-nowrap ${statusColors[ticket.status]}`}>
+                {ticket.status}
+              </span>
+            </div>
+            
+            <div className="flex flex-wrap gap-4 text-sm text-gray-700 bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <span className="flex items-center gap-1 font-medium">
+                📅 {new Date(ticket.date).toLocaleDateString('id-ID')}
+                <span className="flex items-center gap-1 font-medium">
+                    📅 {new Date(ticket.date).toLocaleDateString('id-ID')}
+                  </span>
+                  <span className="flex items-center gap-1 font-medium">
+                    💬 {ticket.activity_logs?.length || 0} aktivitas
+                  </span>
+                  {ticket.activity_logs?.some(a => a.file_url) && (
+                    <span className="flex items-center gap-1 font-medium text-blue-600">
+                      📄 Report tersedia
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {filteredTickets.length === 0 && (
+              <div className="bg-white/95 rounded-2xl shadow-lg p-8 text-center border-2 border-gray-300">
+                <p className="text-gray-500 text-lg">Tidak ada ticket ditemukan</p>
+              </div>
             )}
           </div>
-        </div>
-        <span className={`px-4 py-2 rounded-full text-sm font-bold border-2 shadow-md ${statusColors[ticket.status]}`}>
-          {ticket.status}
-        </span>
-      </div>
-      
-      <div className="flex flex-wrap gap-4 text-sm text-gray-700 bg-gray-50 rounded-lg p-3 border border-gray-200">
-        <span className="flex items-center gap-1 font-medium">
-          📅 {new Date(ticket.date).toLocaleDateString('id-ID')}
-        </span>
-        <span className="flex items-center gap-1 font-medium">
-          💬 {ticket.activity_logs?.length || 0} aktivitas
-        </span>
-        {ticket.activity_logs?.some(a => a.file_url) && (
-          <span className="flex items-center gap-1 font-medium text-blue-600">
-            📄 Report tersedia
-          </span>
-        )}
-      </div>
-    </div>
-  ))}
-</div>
 
           {/* Detail */}
           {selectedTicket && (
@@ -739,31 +747,31 @@ export default function TicketingSystem() {
 
               {selectedTicket.description && (
                 <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
-                  <p className="text-sm">{selectedTicket.description}</p>
+                  <p className="text-sm text-gray-800">{selectedTicket.description}</p>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="info-box bg-blue-50 border-blue-300">
                   <p className="text-xs text-gray-600">Assigned to</p>
-                  <p className="font-bold">👤 {selectedTicket.assigned_to}</p>
+                  <p className="font-bold text-gray-900">👤 {selectedTicket.assigned_to}</p>
                 </div>
                 <div className="info-box bg-green-50 border-green-300">
                   <p className="text-xs text-gray-600">Tanggal</p>
-                  <p className="font-bold">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
+                  <p className="font-bold text-gray-900">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
                 </div>
               </div>
 
               {/* Activity Log */}
               <div className="border-t-2 border-gray-300 pt-6 mb-6">
-                <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
+                <h3 className="font-bold text-lg mb-4 text-gray-900">📝 Activity Log</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
                     selectedTicket.activity_logs.map((log, idx) => (
                       <div key={log.id} className="activity-log" style={{ animationDelay: `${idx * 50}ms` }}>
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="font-bold text-gray-800">{log.handler_name}</p>
+                            <p className="font-bold text-gray-900">{log.handler_name}</p>
                             <p className="text-xs text-gray-500">{formatDateTime(log.created_at)}</p>
                             {log.handler_username && <p className="text-xs text-blue-600">@{log.handler_username}</p>}
                           </div>
@@ -776,7 +784,7 @@ export default function TicketingSystem() {
                             <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
                           </div>
                         )}
-                        <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
+                        <p className="text-sm text-gray-800 mb-2">{log.notes}</p>
                         {log.file_url && (
                           <a href={log.file_url} download={log.file_name} className="file-download">
                             📄 {log.file_name || 'Download Report'}
@@ -792,7 +800,7 @@ export default function TicketingSystem() {
 
               {/* Update Form */}
               <div className="border-t-2 border-gray-300 pt-6">
-                <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
+                <h3 className="font-bold text-lg mb-4 text-gray-900">➕ Update Status</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="label-field">Handler</label>
@@ -833,46 +841,149 @@ export default function TicketingSystem() {
 
       <style jsx>{`
         .btn-primary {
-          @apply bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all;
+          @apply bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all hover:scale-105;
         }
         .btn-secondary {
-          @apply bg-gradient-to-r from-gray-600 to-gray-800 text-white px-5 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all;
+          @apply bg-gradient-to-r from-gray-600 to-gray-800 text-white px-5 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all hover:scale-105;
         }
         .btn-purple {
           @apply bg-gradient-to-r from-purple-600 to-purple-800 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-900 font-bold shadow-lg transition-all animate-button-glow;
         }
         .btn-danger {
-          @apply bg-gradient-to-r from-red-500 to-red-700 text-white px-5 py-3 rounded-xl hover:from-red-600 hover:to-red-800 font-bold shadow-lg transition-all;
+          @apply bg-gradient-to-r from-red-500 to-red-700 text-white px-5 py-3 rounded-xl hover:from-red-600 hover:to-red-800 font-bold shadow-lg transition-all hover:scale-105;
         }
         .btn-export {
-          @apply bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-bold text-sm transition-all;
+          @apply bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-bold text-sm transition-all shadow-md hover:shadow-lg;
         }
-        .ticket-card {
-          @apply bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up;
+        
+        .ticket-card-improved {
+          @apply backdrop-blur-md rounded-2xl shadow-xl p-6 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up;
         }
+        
         .ticket-detail {
-          @apply bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6 animate-scale-in;
+          @apply bg-white/98 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6 animate-scale-in;
         }
+        
         .activity-log {
-          @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md animate-slide-down;
+          @apply bg-white rounded-xl p-4 border-2 border-gray-300 shadow-md hover:shadow-lg transition-all animate-slide-down;
         }
+        
         .stat-card {
-          @apply rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in;
+          @apply rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in;
         }
+        
         .chart-container {
-          @apply bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-3 border-gray-300 shadow-xl;
+          @apply bg-white rounded-2xl p-6 border-3 border-gray-300 shadow-xl;
         }
+        
         .info-box {
-          @apply rounded-xl p-3 border-2;
+          @apply rounded-xl p-4 border-2 shadow-sm;
         }
+        
         .label-field {
-          @apply block text-sm font-bold mb-2 text-gray-800;
+          @apply block text-sm font-bold mb-2 text-gray-900;
         }
+        
+        .input-field {
+          @apply w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all bg-white text-gray-900 font-medium;
+        }
+        
         .file-download {
-          @apply inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-200 transition-all;
+          @apply inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg;
+        }
+
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes scale-in {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes button-glow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(147, 51, 234, 0.5);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(147, 51, 234, 0.8);
+          }
+        }
+
+        @keyframes border-pulse {
+          0%, 100% {
+            border-color: rgb(220, 38, 38);
+          }
+          50% {
+            border-color: rgb(239, 68, 68);
+          }
+        }
+
+        .animate-slide-up {
+          animation: slide-up 0.3s ease-out forwards;
+        }
+
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out forwards;
+        }
+
+        .animate-scale-in {
+          animation: scale-in 0.3s ease-out forwards;
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out forwards;
+        }
+
+        .animate-button-glow {
+          animation: button-glow 2s ease-in-out infinite;
+        }
+
+        .animate-border-pulse {
+          animation: border-pulse 2s ease-in-out infinite;
+        }
+
+        .hover\\:scale-102:hover {
+          transform: scale(1.02);
+        }
+
+        .hover\\:scale-105:hover {
+          transform: scale(1.05);
         }
       `}</style>
     </div>
   );
 }
-
