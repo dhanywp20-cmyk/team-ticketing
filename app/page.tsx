@@ -669,7 +669,6 @@ export default function TicketingSystem() {
         {/* Tickets List & Detail */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* List */}
-          <div className="bg-blue-50 rounded-xl p-5 border-3 border-blue-300">
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
             {filteredTickets.map((ticket, idx) => (
@@ -696,7 +695,6 @@ export default function TicketingSystem() {
                   {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
                 </div>
               </div>
-          </div>
             ))}
           </div>
 
@@ -705,10 +703,10 @@ export default function TicketingSystem() {
             <div className="ticket-detail">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-gray-800">🏢 {selectedTicket.project_name}</h2>
-                  <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
-                  {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales: {selectedTicket.sales_name}</p>}
-                  {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 {selectedTicket.customer_phone}</p>}
+                  <h2 className="text-2xl font-bold text-gray-800">🏢 Nama Project   : {selectedTicket.project_name}</h2>
+                  <p className="text-gray-600 font-medium">⚠️ Issue Report  : {selectedTicket.issue_case}</p>
+                  {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 No. User   : {selectedTicket.customer_phone}</p>}
+                  {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales Project  : {selectedTicket.sales_name}</p>}
                 </div>
                 <button onClick={() => exportToPDF(selectedTicket)} className="btn-export">
                   📄 Export PDF
@@ -853,6 +851,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
