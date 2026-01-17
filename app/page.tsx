@@ -621,23 +621,23 @@ export default function TicketingSystem() {
             <h2 className="text-2xl font-bold mb-4">📝 Buat Ticket Baru</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label-field">Nama Project *</label>
+                <label className="label-field">Nama Project    : *</label>
                 <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Nama project" className="input-field" />
               </div>
               <div>
-                <label className="label-field">Nama Sales</label>
+                <label className="label-field">Nama Sales       : </label>
                 <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales" className="input-field" />
               </div>
               <div>
-                <label className="label-field">No. Telepon Customer</label>
+                <label className="label-field">No. Telepon Customer  : </label>
                 <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} placeholder="08xx-xxxx-xxxx" className="input-field" />
               </div>
               <div>
-                <label className="label-field">Issue Case *</label>
+                <label className="label-field">Issue Case     : *</label>
                 <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Masalah yang terjadi" className="input-field" />
               </div>
               <div>
-                <label className="label-field">Tanggal</label>
+                <label className="label-field">Tanggal    :</label>
                 <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} className="input-field" />
               </div>
               <div>
@@ -851,3 +851,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
