@@ -641,7 +641,7 @@ export default function TicketingSystem() {
                 <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} className="input-field" />
               </div>
               <div>
-                <label className="label-field">Status</label>
+                <label className="label-field">Status    : </label>
                 <select value={newTicket.status} onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} className="input-field">
                   <option value="Pending">Pending</option>
                   <option value="Process Action">Process Action</option>
@@ -649,13 +649,13 @@ export default function TicketingSystem() {
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="label-field">Assign ke</label>
+                <label className="label-field">Assign ke    : </label>
                 <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} className="input-field">
                   {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="label-field">Deskripsi</label>
+                <label className="label-field">Deskripsi    : </label>
                 <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field h-24" />
               </div>
             </div>
@@ -668,6 +668,7 @@ export default function TicketingSystem() {
 
         {/* Tickets List & Detail */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-blue/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
           {/* List */}
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
@@ -695,6 +696,7 @@ export default function TicketingSystem() {
                   {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
                 </div>
               </div>
+            </div>
             ))}
           </div>
 
@@ -851,4 +853,5 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
