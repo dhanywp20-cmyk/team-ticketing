@@ -409,7 +409,7 @@ export default function TicketingSystem() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Loading.jpg)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/public/IVP_Background.png)' }}>
         <div className="bg-white/90 p-8 rounded-2xl shadow-2xl">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
@@ -420,7 +420,7 @@ export default function TicketingSystem() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Loading.jpg)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/public/IVP_Background.png)' }}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
@@ -462,7 +462,7 @@ export default function TicketingSystem() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Loading.jpg)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/public/IVP_Background.png)' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600 animate-border-pulse">
@@ -667,7 +667,7 @@ export default function TicketingSystem() {
         )}
 
         {/* Tickets List & Detail */}
-        <div className="bg-blue-500/5 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-blue-300">
+        <div className="bg-blue-500/20 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-blue-400">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* List */}
             <div className="space-y-4">
