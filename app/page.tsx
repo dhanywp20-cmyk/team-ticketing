@@ -493,7 +493,7 @@ export default function TicketingSystem() {
 
         {/* Settings */}
         {showSettings && currentUser?.role === 'admin' && (
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
+         
             <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -540,7 +540,7 @@ export default function TicketingSystem() {
                 ))}
               </div>
             </div>
-          </div>
+          
         )}
 
         {/* Dashboard */}
@@ -852,6 +852,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
