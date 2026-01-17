@@ -409,7 +409,7 @@ export default function TicketingSystem() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Loading.jpg)' }}>
         <div className="bg-white/90 p-8 rounded-2xl shadow-2xl">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
@@ -420,7 +420,7 @@ export default function TicketingSystem() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Loading.jpg)' }}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
@@ -462,7 +462,7 @@ export default function TicketingSystem() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Loading.jpg)' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600 animate-border-pulse">
@@ -667,143 +667,145 @@ export default function TicketingSystem() {
         )}
 
         {/* Tickets List & Detail */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* List */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
-            {filteredTickets.map((ticket, idx) => (
-              <div
-                key={ticket.id}
-                onClick={() => setSelectedTicket(ticket)}
-                className={`ticket-card ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'}`}
-                style={{ animationDelay: `${idx * 50}ms` }}
-              >
-                <div className="flex justify-between items-start mb-3">
+        <div className="bg-blue-500/20 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-blue-400">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* List */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
+              {filteredTickets.map((ticket, idx) => (
+                <div
+                  key={ticket.id}
+                  onClick={() => setSelectedTicket(ticket)}
+                  className={`ticket-card ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'}`}
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg text-gray-800">🏢 Nama Project   : {ticket.project_name}</h3>
+                      <p className="text-sm text-gray-600 font-medium">⚠️ Issue report  : {ticket.issue_case}</p>
+                      {ticket.customer_phone && <p className="text-xs text-gray-500">📞 No. User : {ticket.customer_phone}</p>}
+                      {ticket.sales_name && <p className="text-xs text-gray-500">👤 Sales Project  : {ticket.sales_name}</p>}
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
+                      {ticket.status}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 text-sm text-gray-600">
+                    <span>📅 {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
+                    <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
+                    {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Detail */}
+            {selectedTicket && (
+              <div className="ticket-detail">
+                <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <h3 className="font-bold text-lg text-gray-800">🏢 Nama Project   : {ticket.project_name}</h3>
-                    <p className="text-sm text-gray-600 font-medium">⚠️ Issue report  : {ticket.issue_case}</p>
-                    {ticket.customer_phone && <p className="text-xs text-gray-500">📞 No. User : {ticket.customer_phone}</p>}
-                    {ticket.sales_name && <p className="text-xs text-gray-500">👤 Sales Project  : {ticket.sales_name}</p>}
+                    <h2 className="text-2xl font-bold text-gray-800">🏢 Nama Project   : {selectedTicket.project_name}</h2>
+                    <p className="text-gray-600 font-medium">⚠️ Issue Report  : {selectedTicket.issue_case}</p>
+                    {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 No. User   : {selectedTicket.customer_phone}</p>}
+                    {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales Project  : {selectedTicket.sales_name}</p>}
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
-                    {ticket.status}
-                  </span>
-                </div>
-                <div className="flex gap-3 text-sm text-gray-600">
-                  <span>📅 {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
-                  <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
-                  {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Detail */}
-          {selectedTicket && (
-            <div className="ticket-detail">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-gray-800">🏢 Nama Project   : {selectedTicket.project_name}</h2>
-                  <p className="text-gray-600 font-medium">⚠️ Issue Report  : {selectedTicket.issue_case}</p>
-                  {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 No. User   : {selectedTicket.customer_phone}</p>}
-                  {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales Project  : {selectedTicket.sales_name}</p>}
-                </div>
-                <button onClick={() => exportToPDF(selectedTicket)} className="btn-export">
-                  📄 Export PDF
-                </button>
-              </div>
-
-              {selectedTicket.description && (
-                <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
-                  <p className="text-sm">{selectedTicket.description}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="info-box bg-blue-50 border-blue-300">
-                  <p className="text-xs text-gray-600">Assigned to</p>
-                  <p className="font-bold">👤 {selectedTicket.assigned_to}</p>
-                </div>
-                <div className="info-box bg-green-50 border-green-300">
-                  <p className="text-xs text-gray-600">Tanggal</p>
-                  <p className="font-bold">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
-                </div>
-              </div>
-
-              {/* Activity Log */}
-              <div className="border-t-2 border-gray-300 pt-6 mb-6">
-                <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
-                    selectedTicket.activity_logs.map((log, idx) => (
-                      <div key={log.id} className="activity-log" style={{ animationDelay: `${idx * 50}ms` }}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-bold text-gray-800">{log.handler_name}</p>
-                            <p className="text-xs text-gray-500">{formatDateTime(log.created_at)}</p>
-                            {log.handler_username && <p className="text-xs text-blue-600">@{log.handler_username}</p>}
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[log.new_status]}`}>
-                            {log.new_status}
-                          </span>
-                        </div>
-                        {log.action_taken && (
-                          <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
-                            <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
-                          </div>
-                        )}
-                        <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
-                        {log.file_url && (
-                          <a href={log.file_url} download={log.file_name} className="file-download">
-                            📄 {log.file_name || 'Download Report'}
-                          </a>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Update Form */}
-              <div className="border-t-2 border-gray-300 pt-6">
-                <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="label-field">Handler</label>
-                    <select value={newActivity.handler_name} onChange={(e) => setNewActivity({...newActivity, handler_name: e.target.value})} className="input-field">
-                      {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label-field">Status Baru</label>
-                    <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
-                      <option value="Pending">Pending</option>
-                      <option value="Process Action">Process Action</option>
-                      <option value="Solved">Solved</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label-field">Action</label>
-                    <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Action yang dilakukan" className="input-field" />
-                  </div>
-                  <div>
-                    <label className="label-field">Notes *</label>
-                    <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Catatan detail..." className="input-field h-20" />
-                  </div>
-                  <div>
-                    <label className="label-field">Upload File Report (PDF)</label>
-                    <input type="file" accept=".pdf" onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} className="input-field" />
-                    {newActivity.file && <p className="text-xs text-green-600 mt-1">📎 {newActivity.file.name}</p>}
-                  </div>
-                  <button onClick={addActivity} disabled={uploading} className="btn-primary w-full">
-                    {uploading ? '⏳ Uploading...' : '💾 Update Status'}
+                  <button onClick={() => exportToPDF(selectedTicket)} className="btn-export">
+                    📄 Export PDF
                   </button>
                 </div>
+
+                {selectedTicket.description && (
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
+                    <p className="text-sm">{selectedTicket.description}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="info-box bg-blue-50 border-blue-300">
+                    <p className="text-xs text-gray-600">Assigned to</p>
+                    <p className="font-bold">👤 {selectedTicket.assigned_to}</p>
+                  </div>
+                  <div className="info-box bg-green-50 border-green-300">
+                    <p className="text-xs text-gray-600">Tanggal</p>
+                    <p className="font-bold">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
+                  </div>
+                </div>
+
+                {/* Activity Log */}
+                <div className="border-t-2 border-gray-300 pt-6 mb-6">
+                  <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
+                      selectedTicket.activity_logs.map((log, idx) => (
+                        <div key={log.id} className="activity-log" style={{ animationDelay: `${idx * 50}ms` }}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-bold text-gray-800">{log.handler_name}</p>
+                              <p className="text-xs text-gray-500">{formatDateTime(log.created_at)}</p>
+                              {log.handler_username && <p className="text-xs text-blue-600">@{log.handler_username}</p>}
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[log.new_status]}`}>
+                              {log.new_status}
+                            </span>
+                          </div>
+                          {log.action_taken && (
+                            <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
+                              <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
+                            </div>
+                          )}
+                          <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
+                          {log.file_url && (
+                            <a href={log.file_url} download={log.file_name} className="file-download">
+                              📄 {log.file_name || 'Download Report'}
+                            </a>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Update Form */}
+                <div className="border-t-2 border-gray-300 pt-6">
+                  <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="label-field">Handler</label>
+                      <select value={newActivity.handler_name} onChange={(e) => setNewActivity({...newActivity, handler_name: e.target.value})} className="input-field">
+                        {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-field">Status Baru</label>
+                      <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
+                        <option value="Pending">Pending</option>
+                        <option value="Process Action">Process Action</option>
+                        <option value="Solved">Solved</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-field">Action</label>
+                      <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Action yang dilakukan" className="input-field" />
+                    </div>
+                    <div>
+                      <label className="label-field">Notes *</label>
+                      <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Catatan detail..." className="input-field h-20" />
+                    </div>
+                    <div>
+                      <label className="label-field">Upload File Report (PDF)</label>
+                      <input type="file" accept=".pdf" onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} className="input-field" />
+                      {newActivity.file && <p className="text-xs text-green-600 mt-1">📎 {newActivity.file.name}</p>}
+                    </div>
+                    <button onClick={addActivity} disabled={uploading} className="btn-primary w-full">
+                      {uploading ? '⏳ Uploading...' : '💾 Update Status'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -851,13 +853,3 @@ export default function TicketingSystem() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
