@@ -656,11 +656,11 @@ export default function TicketingSystem() {
               </div>
               <div className="md:col-span-2">
                 <label className="label-field">Deskripsi    : </label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field h-24" />
+                <text value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field h-24" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={createTicket} className="btn-primary">💾 Simpan Ticket</button>
+              <button onClick={createTicket} className="btn-primary">💾 Apply Ticket</button>
               <button onClick={() => setShowNewTicket(false)} className="btn-secondary">✖ Batal</button>
             </div>
           </div>
@@ -851,6 +851,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
