@@ -409,7 +409,7 @@ export default function TicketingSystem() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/public/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <div className="bg-white/90 p-8 rounded-2xl shadow-2xl">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
@@ -420,7 +420,7 @@ export default function TicketingSystem() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/public/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
@@ -462,7 +462,7 @@ export default function TicketingSystem() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/public/IVP_Background.png)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600 animate-border-pulse">
@@ -493,7 +493,7 @@ export default function TicketingSystem() {
 
         {/* Settings */}
         {showSettings && currentUser?.role === 'admin' && (
-         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -621,27 +621,27 @@ export default function TicketingSystem() {
             <h2 className="text-2xl font-bold mb-4">📝 Buat Ticket Baru</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label-field">Nama Project    : *</label>
+                <label className="label-field">Nama Project *</label>
                 <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Nama project" className="input-field" />
               </div>
               <div>
-                <label className="label-field">Nama Sales       : </label>
+                <label className="label-field">Nama Sales</label>
                 <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales" className="input-field" />
               </div>
               <div>
-                <label className="label-field">No. Telepon Customer  : </label>
+                <label className="label-field">No. Telepon Customer</label>
                 <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} placeholder="08xx-xxxx-xxxx" className="input-field" />
               </div>
               <div>
-                <label className="label-field">Issue Case     : *</label>
+                <label className="label-field">Issue Case *</label>
                 <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Masalah yang terjadi" className="input-field" />
               </div>
               <div>
-                <label className="label-field">Tanggal    :</label>
+                <label className="label-field">Tanggal</label>
                 <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} className="input-field" />
               </div>
               <div>
-                <label className="label-field">Status    : </label>
+                <label className="label-field">Status</label>
                 <select value={newTicket.status} onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} className="input-field">
                   <option value="Pending">Pending</option>
                   <option value="Process Action">Process Action</option>
@@ -649,165 +649,175 @@ export default function TicketingSystem() {
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="label-field">Assign ke    : </label>
+                <label className="label-field">Assign ke</label>
                 <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} className="input-field">
                   {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="label-field">Deskripsi    : </label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field w-50" />
+                <label className="label-field">Deskripsi</label>
+                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field h-24" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={createTicket} className="btn-primary">💾 Apply Ticket</button>
+              <button onClick={createTicket} className="btn-primary">💾 Simpan Ticket</button>
               <button onClick={() => setShowNewTicket(false)} className="btn-secondary">✖ Batal</button>
             </div>
           </div>
         )}
 
         {/* Tickets List & Detail */}
-        <div className="bg-blue-500/20 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-blue-400">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* List */}
-            <div className="space-y-4">
-              <div className="bg-white-50 rounded-xl p-5 border-3 border-black-300">
-              <h2 className="text-2xl font-bold text-red drop-shadow-lg">📋 Daftar Ticket ({filteredTickets.length})</h2>
-              {filteredTickets.map((ticket, idx) => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* List */}
+          <div className="space-y-4">
+            <div className="bg-blue-600/80 backdrop-blur-md rounded-2xl shadow-xl p-4 border-3 border-blue-700">
+              <h2 className="text-2xl font-bold text-white">📋 Daftar Ticket ({filteredTickets.length})</h2>
+            </div>
+            {filteredTickets.length === 0 ? (
+              <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-8 text-center border-3 border-gray-400">
+                <p className="text-gray-600 font-medium">
+                  {searchProject || filterStatus !== 'All' 
+                    ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
+                    : 'Belum ada ticket. Buat ticket pertama Anda!'}
+                </p>
+              </div>
+            ) : (
+              filteredTickets.map((ticket, idx) => (
                 <div
                   key={ticket.id}
                   onClick={() => setSelectedTicket(ticket)}
-                  className={`ticket-card ${selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-gray-400'}`}
+                  className={`bg-blue-50/90 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
+                    selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-blue-400'
+                  }`}
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-800">🏢 Nama Project   : {ticket.project_name}</h3>
-                      <p className="text-sm text-gray-600 font-medium">⚠️ Issue report  : {ticket.issue_case}</p>
-                      {ticket.customer_phone && <p className="text-xs text-gray-500">📞 No. User : {ticket.customer_phone}</p>}
-                      {ticket.sales_name && <p className="text-xs text-gray-500">👤 Sales Project  : {ticket.sales_name}</p>}
+                      <h3 className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</h3>
+                      <p className="text-sm text-gray-700 font-medium">⚠️ {ticket.issue_case}</p>
+                      {ticket.sales_name && <p className="text-xs text-gray-600">👤 Sales: {ticket.sales_name}</p>}
+                      {ticket.customer_phone && <p className="text-xs text-gray-600">📞 {ticket.customer_phone}</p>}
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
                       {ticket.status}
                     </span>
                   </div>
-                  <div className="flex gap-3 text-sm text-gray-600">
+                  <div className="flex gap-3 text-sm text-gray-700 font-medium">
                     <span>📅 {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
                     <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
                     {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
-                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Detail */}
-            {selectedTicket && (
-              <div className="ticket-detail">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-800">🏢 Nama Project   : {selectedTicket.project_name}</h2>
-                    <p className="text-gray-600 font-medium">⚠️ Issue Report  : {selectedTicket.issue_case}</p>
-                    {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 No. User   : {selectedTicket.customer_phone}</p>}
-                    {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales Project  : {selectedTicket.sales_name}</p>}
-                  </div>
-                  <button onClick={() => exportToPDF(selectedTicket)} className="btn-export">
-                    📄 Export PDF
-                  </button>
-                </div>
-
-                {selectedTicket.description && (
-                  <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
-                    <p className="text-sm">{selectedTicket.description}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  <div className="info-box bg-blue-50 border-blue-300">
-                    <p className="text-xs text-gray-600">Assigned to</p>
-                    <p className="font-bold">👤 {selectedTicket.assigned_to}</p>
-                  </div>
-                  <div className="info-box bg-green-50 border-green-300">
-                    <p className="text-xs text-gray-600">Tanggal</p>
-                    <p className="font-bold">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
-                  </div>
-                </div>
-
-                {/* Activity Log */}
-                <div className="border-t-2 border-gray-300 pt-6 mb-6">
-                  <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
-                      selectedTicket.activity_logs.map((log, idx) => (
-                        <div key={log.id} className="activity-log" style={{ animationDelay: `${idx * 50}ms` }}>
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <p className="font-bold text-gray-800">{log.handler_name}</p>
-                              <p className="text-xs text-gray-500">{formatDateTime(log.created_at)}</p>
-                              {log.handler_username && <p className="text-xs text-blue-600">@{log.handler_username}</p>}
-                            </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[log.new_status]}`}>
-                              {log.new_status}
-                            </span>
-                          </div>
-                          {log.action_taken && (
-                            <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
-                              <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
-                            </div>
-                          )}
-                          <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
-                          {log.file_url && (
-                            <a href={log.file_url} download={log.file_name} className="file-download">
-                              📄 {log.file_name || 'Download Report'}
-                            </a>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Update Form */}
-                <div className="border-t-2 border-gray-300 pt-6">
-                  <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="label-field">Handler</label>
-                      <select value={newActivity.handler_name} onChange={(e) => setNewActivity({...newActivity, handler_name: e.target.value})} className="input-field">
-                        {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label-field">Status Baru</label>
-                      <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
-                        <option value="Pending">Pending</option>
-                        <option value="Process Action">Process Action</option>
-                        <option value="Solved">Solved</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label-field">Action</label>
-                      <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Action yang dilakukan" className="input-field" />
-                    </div>
-                    <div>
-                      <label className="label-field">Notes *</label>
-                      <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Catatan detail..." className="input-field h-20" />
-                    </div>
-                    <div>
-                      <label className="label-field">Upload File Report (PDF)</label>
-                      <input type="file" accept=".pdf" onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} className="input-field" />
-                      {newActivity.file && <p className="text-xs text-green-600 mt-1">📎 {newActivity.file.name}</p>}
-                    </div>
-                    <button onClick={addActivity} disabled={uploading} className="btn-primary w-full">
-                      {uploading ? '⏳ Uploading...' : '💾 Update Status'}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              ))
             )}
           </div>
+
+          {/* Detail */}
+          {selectedTicket && (
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6 animate-scale-in">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-gray-800">🏢 {selectedTicket.project_name}</h2>
+                  <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
+                  {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales: {selectedTicket.sales_name}</p>}
+                  {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 {selectedTicket.customer_phone}</p>}
+                </div>
+                <button onClick={() => exportToPDF(selectedTicket)} className="btn-export">
+                  📄 Export PDF
+                </button>
+              </div>
+
+              {selectedTicket.description && (
+                <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
+                  <p className="text-sm">{selectedTicket.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="info-box bg-blue-50 border-blue-300">
+                  <p className="text-xs text-gray-600">Assigned to</p>
+                  <p className="font-bold">👤 {selectedTicket.assigned_to}</p>
+                </div>
+                <div className="info-box bg-green-50 border-green-300">
+                  <p className="text-xs text-gray-600">Tanggal</p>
+                  <p className="font-bold">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
+                </div>
+              </div>
+
+              {/* Activity Log */}
+              <div className="border-t-2 border-gray-300 pt-6 mb-6">
+                <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
+                    selectedTicket.activity_logs.map((log, idx) => (
+                      <div key={log.id} className="activity-log" style={{ animationDelay: `${idx * 50}ms` }}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-bold text-gray-800">{log.handler_name}</p>
+                            <p className="text-xs text-gray-500">{formatDateTime(log.created_at)}</p>
+                            {log.handler_username && <p className="text-xs text-blue-600">@{log.handler_username}</p>}
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[log.new_status]}`}>
+                            {log.new_status}
+                          </span>
+                        </div>
+                        {log.action_taken && (
+                          <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
+                            <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
+                          </div>
+                        )}
+                        <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
+                        {log.file_url && (
+                          <a href={log.file_url} download={log.file_name} className="file-download">
+                            📄 {log.file_name || 'Download Report'}
+                          </a>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">Belum ada aktivitas</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Update Form */}
+              <div className="border-t-2 border-gray-300 pt-6">
+                <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="label-field">Handler</label>
+                    <select value={newActivity.handler_name} onChange={(e) => setNewActivity({...newActivity, handler_name: e.target.value})} className="input-field">
+                      {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label-field">Status Baru</label>
+                    <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
+                      <option value="Pending">Pending</option>
+                      <option value="Process Action">Process Action</option>
+                      <option value="Solved">Solved</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label-field">Action</label>
+                    <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Action yang dilakukan" className="input-field" />
+                  </div>
+                  <div>
+                    <label className="label-field">Notes *</label>
+                    <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Catatan detail..." className="input-field h-20" />
+                  </div>
+                  <div>
+                    <label className="label-field">Upload File Report (PDF)</label>
+                    <input type="file" accept=".pdf" onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} className="input-field" />
+                    {newActivity.file && <p className="text-xs text-green-600 mt-1">📎 {newActivity.file.name}</p>}
+                  </div>
+                  <button onClick={addActivity} disabled={uploading} className="btn-primary w-full">
+                    {uploading ? '⏳ Uploading...' : '💾 Update Status'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -826,12 +836,6 @@ export default function TicketingSystem() {
         }
         .btn-export {
           @apply bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-bold text-sm transition-all;
-        }
-        .ticket-card {
-          @apply bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up;
-        }
-        .ticket-detail {
-          @apply bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6 animate-scale-in;
         }
         .activity-log {
           @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md animate-slide-down;
@@ -855,6 +859,3 @@ export default function TicketingSystem() {
     </div>
   );
 }
-
-
-
