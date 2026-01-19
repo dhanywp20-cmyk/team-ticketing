@@ -852,7 +852,7 @@ export default function TicketingSystem() {
                     className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-300">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">⚠️ Issue Case *</label>
                   <input 
                     type="text" 
@@ -1120,8 +1120,8 @@ export default function TicketingSystem() {
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                       >
-                        <option value="Pending">Pending</option>
                         <option value="Process Action">Process Action</option>
+                        <option value="Pending">Pending</option>
                         <option value="Solved">Solved</option>
                       </select>
                     </div>
@@ -1249,6 +1249,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
