@@ -821,7 +821,7 @@ export default function TicketingSystem() {
         <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-bold mb-2">🔍 CPencarian</label>
+              <label className="block text-sm font-bold mb-2">🔍 Pencarian</label>
               <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder=" ... " className="input-field" />
             </div>
             <div className="md:w-64">
@@ -837,7 +837,7 @@ export default function TicketingSystem() {
         </div>
 
         {showNewTicket && canCreateTicket && (
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
+          <div className="bg-white/75 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             
            <div className="space-y-4">
@@ -865,7 +865,7 @@ export default function TicketingSystem() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border-2 border-purple-300">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">👤 Nama Sales</label>
                   <input 
                     type="text" 
@@ -875,7 +875,7 @@ export default function TicketingSystem() {
                     className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-300">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📱 Nama & Telepon User</label>
                   <input 
                     type="text" 
@@ -888,7 +888,7 @@ export default function TicketingSystem() {
               </div>
 
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 border-2 border-indigo-300">
+                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📅 Tanggal</label>
                   <input 
                     type="date" 
@@ -897,7 +897,7 @@ export default function TicketingSystem() {
                     className="w-full border-2 border-indigo-400 rounded-lg px-4 py-2.5 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border-2 border-yellow-300">
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">🏷️ Status</label>
                   <select 
                     value={newTicket.status} 
@@ -909,7 +909,7 @@ export default function TicketingSystem() {
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border-2 border-orange-300">
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">👨‍💼 Assign ke</label>
                   <select 
                     value={newTicket.assigned_to} 
@@ -1249,6 +1249,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
