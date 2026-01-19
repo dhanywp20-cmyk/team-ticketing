@@ -818,18 +818,20 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
+        <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-bold mb-2">🔍 Cari Project</label>
-              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="project/sales/issue" className="input-field" />
+              <label className="text-sm font-bold mb-2">🔍 Cari Project</label>
+              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="project/sales/issue" className="input-field"
+              className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-White-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+              />
             </div>
             <div className="md:w-64">
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input-field">
                 <option value="All">Semua Status</option>
-                <option value="Pending">Pending</option>
                 <option value="Process Action">Process Action</option>
+                <option value="Pending">Pending</option>
                 <option value="Solved">Solved</option>
               </select>
             </div>
@@ -842,6 +844,7 @@ export default function TicketingSystem() {
             
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
                   <input 
                     type="text" 
@@ -850,6 +853,7 @@ export default function TicketingSystem() {
                     placeholder="Contoh: Project BCA Cibitung" 
                     className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
                   />
+                </div>
                 <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">⚠️ Issue Case *</label>
                   <input 
@@ -879,7 +883,7 @@ export default function TicketingSystem() {
                     type="text" 
                     value={newTicket.customer_phone} 
                     onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} 
-                    placeholder="08xx-xxxx-xxxx" 
+                    placeholder="Adi - 08xx-xxxx-xxxx" 
                     className="w-full border-2 border-green-400 rounded-lg px-4 py-2.5 focus:border-green-600 focus:ring-2 focus:ring-green-200 transition-all font-medium bg-white"
                   />
                 </div>
@@ -902,8 +906,8 @@ export default function TicketingSystem() {
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
                     className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                   >
-                    <option value="Pending">Pending</option>
                     <option value="Process Action">Process Action</option>
+                    <option value="Pending">Pending</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
@@ -1247,4 +1251,5 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
