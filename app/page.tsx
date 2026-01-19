@@ -497,6 +497,8 @@ export default function TicketingSystem() {
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessSettings = currentUser?.role === 'admin';
+  
+  const guestUsers = users.filter(u => u.role === 'guest');
 
   if (loading) {
     return (
@@ -1308,6 +1310,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
