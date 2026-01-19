@@ -605,6 +605,7 @@ export default function TicketingSystem() {
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
+                  title="Notifikasi"
                 >
                   🔔
                   {notifications.length > 0 && (
@@ -615,30 +616,53 @@ export default function TicketingSystem() {
                 </button>
                 
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-50 max-h-96 overflow-y-auto">
-                    <div className="p-4 border-b-2 border-gray-200">
-                      <h3 className="font-bold text-gray-800">Notifikasi Ticket</h3>
+                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-50 max-h-[32rem] overflow-hidden">
+                    <div className="p-4 border-b-2 border-gray-200 bg-yellow-50">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-bold text-gray-800">🔔 Notifikasi Ticket</h3>
+                        <button 
+                          onClick={() => setShowNotifications(false)}
+                          className="text-gray-500 hover:text-gray-700 font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {notifications.length > 0 && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          {notifications.length} ticket perlu ditangani
+                        </p>
+                      )}
                     </div>
                     {notifications.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
-                        Tidak ada notifikasi
+                      <div className="p-6 text-center text-gray-500">
+                        <div className="text-4xl mb-2">✅</div>
+                        <p className="font-medium">Tidak ada notifikasi</p>
+                        <p className="text-xs mt-1">Semua ticket sudah ditangani</p>
                       </div>
                     ) : (
-                      <div className="p-2">
+                      <div className="max-h-96 overflow-y-auto">
                         {notifications.map(ticket => (
                           <div
                             key={ticket.id}
                             onClick={() => {
                               setSelectedTicket(ticket);
                               setShowNotifications(false);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className={`p-3 mb-2 rounded-lg border-2 cursor-pointer hover:shadow-md transition-all ${statusColors[ticket.status]}`}
+                            className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-all ${statusColors[ticket.status]}`}
                           >
-                            <p className="font-bold text-sm">{ticket.project_name}</p>
-                            <p className="text-xs mb-1">{ticket.issue_case}</p>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-semibold">{ticket.status}</span>
-                              <span className="text-xs text-gray-600">{new Date(ticket.created_at).toLocaleDateString('id-ID')}</span>
+                            <div className="flex justify-between items-start mb-2">
+                              <p className="font-bold text-sm text-gray-800">{ticket.project_name}</p>
+                              <span className={`px-2 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
+                                {ticket.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-700 mb-1">{ticket.issue_case}</p>
+                            <div className="flex justify-between items-center mt-2">
+                              <span className="text-xs text-gray-500">
+                                📅 {new Date(ticket.created_at).toLocaleDateString('id-ID')}
+                              </span>
+                              <span className="text-xs text-blue-600 font-semibold">Klik untuk lihat →</span>
                             </div>
                           </div>
                         ))}
@@ -805,10 +829,10 @@ export default function TicketingSystem() {
         {showNewTicket && canCreateTicket && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">Nama Project *</label>
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">Nama Project *</label>
                   <input 
                     type="text" 
                     value={newTicket.project_name} 
@@ -817,8 +841,8 @@ export default function TicketingSystem() {
                     className="input-field"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">Issue Case *</label>
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">Issue Case *</label>
                   <input 
                     type="text" 
                     value={newTicket.issue_case} 
@@ -829,9 +853,9 @@ export default function TicketingSystem() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">Nama Sales</label>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">Nama Sales</label>
                   <input 
                     type="text" 
                     value={newTicket.sales_name} 
@@ -840,8 +864,8 @@ export default function TicketingSystem() {
                     className="input-field"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">No. Telepon Customer</label>
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">No. Telepon Customer</label>
                   <input 
                     type="text" 
                     value={newTicket.customer_phone} 
@@ -852,9 +876,9 @@ export default function TicketingSystem() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">Tanggal</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">Tanggal</label>
                   <input 
                     type="date" 
                     value={newTicket.date} 
@@ -862,8 +886,8 @@ export default function TicketingSystem() {
                     className="input-field"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">Status</label>
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">Status</label>
                   <select 
                     value={newTicket.status} 
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
@@ -874,8 +898,8 @@ export default function TicketingSystem() {
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold text-gray-800">Assign ke</label>
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">Assign ke</label>
                   <select 
                     value={newTicket.assigned_to} 
                     onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} 
@@ -886,8 +910,8 @@ export default function TicketingSystem() {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <label className="block text-sm font-bold text-gray-800">Deskripsi Detail</label>
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-2">Deskripsi Detail</label>
                 <textarea 
                   value={newTicket.description} 
                   onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} 
@@ -898,11 +922,11 @@ export default function TicketingSystem() {
               </div>
             </div>
             
-            <div className="flex gap-4 mt-6">
-              <button onClick={createTicket} className="flex-1 bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-4 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all text-lg">
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <button onClick={createTicket} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all">
                 💾 Simpan Ticket
               </button>
-              <button onClick={() => setShowNewTicket(false)} className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white px-8 py-4 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all text-lg">
+              <button onClick={() => setShowNewTicket(false)} className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-6 py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all">
                 ✖ Batal
               </button>
             </div>
@@ -1069,9 +1093,9 @@ export default function TicketingSystem() {
               {canUpdateTicket && (
                 <div className="border-t-2 border-gray-300 pt-6 mt-6">
                   <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
-                  <div className="space-y-5">
-                    <div className="space-y-2">
-                      <label className="block text-sm font-bold text-gray-800">Handler (Otomatis dari User Login)</label>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-800 mb-2">Handler (Otomatis dari User Login)</label>
                       <input 
                         type="text" 
                         value={newActivity.handler_name} 
@@ -1079,11 +1103,11 @@ export default function TicketingSystem() {
                         className="input-field bg-gray-200 cursor-not-allowed"
                         title="Handler otomatis sesuai user yang login"
                       />
-                      <p className="text-xs text-gray-500 italic">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
+                      <p className="text-xs text-gray-500 italic mt-1">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                     </div>
                     
-                    <div className="space-y-2">
-                      <label className="block text-sm font-bold text-gray-800">Status Baru *</label>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-800 mb-2">Status Baru *</label>
                       <select 
                         value={newActivity.new_status} 
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
@@ -1095,8 +1119,8 @@ export default function TicketingSystem() {
                       </select>
                     </div>
                     
-                    <div className="space-y-2">
-                      <label className="block text-sm font-bold text-gray-800">Action yang Dilakukan</label>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-800 mb-2">Action yang Dilakukan</label>
                       <input 
                         type="text" 
                         value={newActivity.action_taken} 
@@ -1106,19 +1130,19 @@ export default function TicketingSystem() {
                       />
                     </div>
                     
-                    <div className="space-y-2">
-                      <label className="block text-sm font-bold text-gray-800">Notes Detail *</label>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-800 mb-2">Notes Detail *</label>
                       <textarea 
                         value={newActivity.notes} 
                         onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
                         placeholder="Jelaskan detail ....." 
                         className="input-field resize-none"
-                        rows={6}
+                        rows={5}
                       />
                     </div>
                     
-                    <div className="space-y-2">
-                      <label className="block text-sm font-bold text-gray-800">Upload File Report (PDF)</label>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-800 mb-2">Upload File Report (PDF)</label>
                       <input 
                         type="file" 
                         accept=".pdf" 
@@ -1139,7 +1163,7 @@ export default function TicketingSystem() {
                     <button 
                       onClick={addActivity} 
                       disabled={uploading || !newActivity.notes.trim()} 
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
                     </button>
