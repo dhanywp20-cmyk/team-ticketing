@@ -77,6 +77,10 @@ export default function TicketingSystem() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   
+  // Loading popup states
+  const [showLoadingPopup, setShowLoadingPopup] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
 
@@ -270,6 +274,9 @@ export default function TicketingSystem() {
 
     try {
       setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage('Menyimpan ticket baru...');
+      
       const { error } = await supabase.from('tickets').insert([newTicket]);
       if (error) throw error;
 
@@ -284,11 +291,18 @@ export default function TicketingSystem() {
         status: 'In Progress'
       });
       setShowNewTicket(false);
-      setUploading(false);
+      
       await fetchData();
+      
+      setLoadingMessage('✅ Ticket berhasil disimpan!');
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+      }, 1500);
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      setShowLoadingPopup(false);
       setUploading(false);
+      alert('Error: ' + err.message);
     }
   };
 
@@ -312,10 +326,14 @@ export default function TicketingSystem() {
 
     try {
       setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage('Mengupdate status ticket...');
+      
       let fileUrl = '';
       let fileName = '';
 
       if (newActivity.file) {
+        setLoadingMessage('Mengupload file...');
         const result = await uploadFile(newActivity.file);
         fileUrl = result.url;
         fileName = result.name;
@@ -343,11 +361,18 @@ export default function TicketingSystem() {
         new_status: 'In Progress',
         file: null
       });
-      setUploading(false);
+      
       await fetchData();
+      
+      setLoadingMessage('✅ Status berhasil diupdate!');
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+      }, 1500);
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      setShowLoadingPopup(false);
       setUploading(false);
+      alert('Error: ' + err.message);
     }
   };
 
@@ -613,13 +638,20 @@ export default function TicketingSystem() {
     }
   }, [currentUser]);
 
+  // Re-fetch data when currentUser changes to apply guest filtering
+  useEffect(() => {
+    if (currentUser) {
+      fetchData();
+    }
+  }, [currentUser]);
+
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessSettings = currentUser?.role === 'admin';
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/photo1768838463.jpg)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <div className="bg-white/90 p-8 rounded-2xl shadow-2xl">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
@@ -630,7 +662,7 @@ export default function TicketingSystem() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/photo1768838463.jpg)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
@@ -672,9 +704,25 @@ export default function TicketingSystem() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/images/photo1768838463.jpg)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      {/* Loading Popup Modal */}
+      {showLoadingPopup && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border-4 border-blue-500 animate-scale-in">
+            <div className="flex flex-col items-center">
+              {loadingMessage.includes('✅') ? (
+                <div className="text-6xl mb-4 animate-bounce">✅</div>
+              ) : (
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+              )}
+              <p className="text-xl font-bold text-gray-800 text-center">{loadingMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loading Bar */}
-      {uploading && (
+      {uploading && !showLoadingPopup && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
           <div className="h-full bg-gradient-to-r from-transparent via-white to-transparent animate-pulse"></div>
         </div>
@@ -900,7 +948,7 @@ export default function TicketingSystem() {
 
             <div className="mt-6 bg-purple-50 rounded-xl p-5 border-3 border-purple-300">
               <h3 className="font-bold mb-3 text-lg">👥 Guest Mapping - Akses Ticket untuk Guest</h3>
-              <p className="text-sm text-gray-600 mb-4">Atur username guest mana yang bisa melihat ticket dari nama project tertentu</p>
+              <p className="text-sm text-gray-600 mb-4">Atur username guest mana yang bisa melihat ticket dari nama project tertentu. Admin bisa mapping lebih dari 1 nama project untuk 1 guest.</p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -979,30 +1027,6 @@ export default function TicketingSystem() {
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="mt-6 bg-blue-50 rounded-xl p-5 border-3 border-blue-300">
-              <h3 className="font-bold mb-3 text-blue-900">📋 SQL Database untuk Guest Mapping</h3>
-              <p className="text-sm text-gray-700 mb-3">Jalankan SQL berikut di Supabase SQL Editor:</p>
-              <pre className="bg-white p-4 rounded-lg text-xs overflow-x-auto border-2 border-blue-200">
-{`-- Tabel untuk guest mapping (UPDATED: project_name instead of customer_username)
-CREATE TABLE IF NOT EXISTS guest_mappings (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  guest_username TEXT NOT NULL,
-  project_name TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(guest_username, project_name)
-);
-
--- Index untuk performa
-CREATE INDEX IF NOT EXISTS idx_guest_mappings_guest 
-  ON guest_mappings(guest_username);
-CREATE INDEX IF NOT EXISTS idx_guest_mappings_project 
-  ON guest_mappings(project_name);`}
-              </pre>
-              <p className="text-xs text-gray-600 mt-3">
-                ⚠️ Catatan: Jika Anda sudah memiliki tabel guest_mappings dengan struktur lama (customer_username), Anda perlu drop tabel lama dan buat ulang dengan struktur baru ini.
-              </p>
             </div>
           </div>
         )}
