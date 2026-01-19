@@ -51,6 +51,13 @@ interface Ticket {
   activity_logs?: ActivityLog[];
 }
 
+interface GuestMapping {
+  id: string;
+  guest_username: string;
+  customer_username: string;
+  created_at: string;
+}
+
 export default function TicketingSystem() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -60,6 +67,7 @@ export default function TicketingSystem() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
   
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -76,22 +84,28 @@ export default function TicketingSystem() {
   const [notifications, setNotifications] = useState<Ticket[]>([]);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
+  // Guest mapping form
+  const [newMapping, setNewMapping] = useState({
+    guestUsername: '',
+    customerUsername: ''
+  });
+
   const [newTicket, setNewTicket] = useState({
     project_name: '',
     customer_phone: '',
     sales_name: '',
     issue_case: '',
     description: '',
-    assigned_to: 'Dhany',
+    assigned_to: '',
     date: new Date().toISOString().split('T')[0],
-    status: 'Pending'
+    status: 'In Progress'
   });
 
   const [newActivity, setNewActivity] = useState({
     handler_name: '',
     action_taken: '',
     notes: '',
-    new_status: 'Pending',
+    new_status: 'In Progress',
     file: null as File | null
   });
 
@@ -111,7 +125,7 @@ export default function TicketingSystem() {
 
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
-    'Process Action': 'bg-blue-100 text-blue-800 border-blue-400',
+    'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
     'Solved': 'bg-green-100 text-green-800 border-green-400'
   };
 
@@ -135,7 +149,7 @@ export default function TicketingSystem() {
     
     return tickets.filter(t => 
       t.assigned_to === assignedName && 
-      (t.status === 'Pending' || t.status === 'Process Action')
+      (t.status === 'Pending' || t.status === 'In Progress')
     );
   };
 
@@ -193,6 +207,20 @@ export default function TicketingSystem() {
     localStorage.removeItem('loginTime');
   };
 
+  const fetchGuestMappings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('guest_mappings')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setGuestMappings(data || []);
+    } catch (err: any) {
+      console.error('Error fetching guest mappings:', err);
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [ticketsData, membersData, usersData] = await Promise.all([
@@ -201,7 +229,30 @@ export default function TicketingSystem() {
         supabase.from('users').select('id, username, full_name, role')
       ]);
 
-      if (ticketsData.data) setTickets(ticketsData.data);
+      if (ticketsData.data) {
+        // Filter tickets for guest users based on mappings
+        if (currentUser?.role === 'guest') {
+          const { data: mappings } = await supabase
+            .from('guest_mappings')
+            .select('customer_username')
+            .eq('guest_username', currentUser.username);
+
+          if (mappings && mappings.length > 0) {
+            const allowedCustomerUsernames = mappings.map(m => m.customer_username);
+            const filteredTickets = ticketsData.data.filter((ticket: any) => {
+              // Get ticket creator's username
+              const creatorUsername = users.find(u => u.id === ticket.created_by)?.username;
+              return allowedCustomerUsernames.includes(creatorUsername);
+            });
+            setTickets(filteredTickets);
+          } else {
+            setTickets([]);
+          }
+        } else {
+          setTickets(ticketsData.data);
+        }
+      }
+      
       if (membersData.data) setTeamMembers(membersData.data);
       if (usersData.data) setUsers(usersData.data);
       
@@ -213,12 +264,13 @@ export default function TicketingSystem() {
   };
 
   const createTicket = async () => {
-    if (!newTicket.project_name || !newTicket.issue_case) {
+    if (!newTicket.project_name || !newTicket.issue_case || !newTicket.assigned_to) {
       alert('Project name dan Issue case harus diisi!');
       return;
     }
 
     try {
+      setUploading(true);
       const { error } = await supabase.from('tickets').insert([newTicket]);
       if (error) throw error;
 
@@ -228,14 +280,16 @@ export default function TicketingSystem() {
         sales_name: '',
         issue_case: '',
         description: '',
-        assigned_to: 'Dhany',
+        assigned_to: '',
         date: new Date().toISOString().split('T')[0],
-        status: 'Pending'
+        status: 'In Progress'
       });
       setShowNewTicket(false);
-      fetchData();
+      setUploading(false);
+      await fetchData();
     } catch (err: any) {
       alert('Error: ' + err.message);
+      setUploading(false);
     }
   };
 
@@ -287,11 +341,11 @@ export default function TicketingSystem() {
         handler_name: newActivity.handler_name,
         action_taken: '',
         notes: '',
-        new_status: 'Pending',
+        new_status: 'In Progress',
         file: null
       });
       setUploading(false);
-      fetchData();
+      await fetchData();
     } catch (err: any) {
       alert('Error: ' + err.message);
       setUploading(false);
@@ -319,10 +373,68 @@ export default function TicketingSystem() {
       }
 
       setNewUser({ username: '', password: '', full_name: '', team_member: '', role: 'team' });
-      fetchData();
+      await fetchData();
       alert('User berhasil dibuat!');
     } catch (err: any) {
       alert('Error: ' + err.message);
+    }
+  };
+
+  const addGuestMapping = async () => {
+    if (!newMapping.guestUsername || !newMapping.customerUsername) {
+      alert('Semua field harus diisi!');
+      return;
+    }
+
+    // Validate guest user exists and has guest role
+    const guestUser = users.find(u => u.username === newMapping.guestUsername && u.role === 'guest');
+    if (!guestUser) {
+      alert('Username guest tidak ditemukan atau bukan role guest!');
+      return;
+    }
+
+    // Validate customer user exists
+    const customerUser = users.find(u => u.username === newMapping.customerUsername);
+    if (!customerUser) {
+      alert('Username customer tidak ditemukan!');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const { error } = await supabase.from('guest_mappings').insert([{
+        guest_username: newMapping.guestUsername,
+        customer_username: newMapping.customerUsername
+      }]);
+
+      if (error) throw error;
+
+      setNewMapping({ guestUsername: '', customerUsername: '' });
+      await fetchGuestMappings();
+      setUploading(false);
+      alert('Mapping guest berhasil ditambahkan!');
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+      setUploading(false);
+    }
+  };
+
+  const deleteGuestMapping = async (mappingId: string) => {
+    try {
+      setUploading(true);
+      const { error } = await supabase
+        .from('guest_mappings')
+        .delete()
+        .eq('id', mappingId);
+
+      if (error) throw error;
+
+      await fetchGuestMappings();
+      setUploading(false);
+      alert('Mapping guest berhasil dihapus!');
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+      setUploading(false);
     }
   };
 
@@ -418,15 +530,15 @@ export default function TicketingSystem() {
 
   const stats = useMemo(() => {
     const total = tickets.length;
+	const processing = tickets.filter(t => t.status === 'In Progress').length;
     const pending = tickets.filter(t => t.status === 'Pending').length;
-    const processing = tickets.filter(t => t.status === 'Process Action').length;
     const solved = tickets.filter(t => t.status === 'Solved').length;
     
     return {
       total, pending, processing, solved,
       statusData: [
         { name: 'Pending', value: pending, color: '#FCD34D' },
-        { name: 'Process Action', value: processing, color: '#60A5FA' },
+        { name: 'In Progress', value: processing, color: '#60A5FA' },
         { name: 'Solved', value: solved, color: '#34D399' }
       ].filter(d => d.value > 0),
       handlerData: Object.entries(
@@ -490,13 +602,19 @@ export default function TicketingSystem() {
     return () => clearInterval(interval);
   }, [loginTime]);
 
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      fetchGuestMappings();
+    }
+  }, [currentUser]);
+
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessSettings = currentUser?.role === 'admin';
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Background.jpg)' }}>
         <div className="bg-white/90 p-8 rounded-2xl shadow-2xl">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
@@ -507,7 +625,7 @@ export default function TicketingSystem() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Background.jpg)' }}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
@@ -549,7 +667,14 @@ export default function TicketingSystem() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/images/Background.jpg)' }}>
+      {/* Loading Bar */}
+      {uploading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+          <div className="h-full bg-gradient-to-r from-transparent via-white to-transparent animate-pulse"></div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         {/* Notification Modal Popup */}
         {showNotifications && (
@@ -687,15 +812,38 @@ export default function TicketingSystem() {
               </button>
 
               {canAccessSettings && (
-                <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary">
+                <button 
+                  onClick={() => {
+                    setShowSettings(!showSettings);
+                    setShowDashboard(false);
+                    setShowNewTicket(false);
+                  }} 
+                  className="btn-secondary"
+                >
                   ⚙️ Settings
                 </button>
               )}
-              <button onClick={() => setShowDashboard(!showDashboard)} className="btn-purple">
-                📊 Dashboard
-              </button>
+              {currentUser?.role !== 'guest' && (
+                <button 
+                  onClick={() => {
+                    setShowDashboard(!showDashboard);
+                    setShowSettings(false);
+                    setShowNewTicket(false);
+                  }} 
+                  className="btn-purple"
+                >
+                  📊 Dashboard
+                </button>
+              )}
               {canCreateTicket && (
-                <button onClick={() => setShowNewTicket(!showNewTicket)} className="btn-primary">
+                <button 
+                  onClick={() => {
+                    setShowNewTicket(!showNewTicket);
+                    setShowSettings(false);
+                    setShowDashboard(false);
+                  }} 
+                  className="btn-primary"
+                >
                   + Ticket Baru
                 </button>
               )}
@@ -745,6 +893,70 @@ export default function TicketingSystem() {
               </div>
             </div>
 
+            <div className="mt-6 bg-purple-50 rounded-xl p-5 border-3 border-purple-300">
+              <h3 className="font-bold mb-3 text-lg">👥 Guest Mapping - Akses Ticket untuk Guest</h3>
+              <p className="text-sm text-gray-600 mb-4">Atur username guest mana yang bisa melihat ticket dari username customer tertentu</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Username Guest (Role: Guest)</label>
+                  <select 
+                    value={newMapping.guestUsername} 
+                    onChange={(e) => setNewMapping({...newMapping, guestUsername: e.target.value})} 
+                    className="input-field"
+                  >
+                    <option value="">Pilih Guest User</option>
+                    {users.filter(u => u.role === 'guest').map(u => (
+                      <option key={u.id} value={u.username}>{u.username} - {u.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Username Customer</label>
+                  <select 
+                    value={newMapping.customerUsername} 
+                    onChange={(e) => setNewMapping({...newMapping, customerUsername: e.target.value})} 
+                    className="input-field"
+                  >
+                    <option value="">Pilih Customer User</option>
+                    {users.filter(u => u.role !== 'guest').map(u => (
+                      <option key={u.id} value={u.username}>{u.username} - {u.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <button onClick={addGuestMapping} disabled={uploading} className="btn-primary w-full mb-4">
+                {uploading ? '⏳ Memproses...' : '➕ Tambah Mapping'}
+              </button>
+
+              <div className="bg-white rounded-xl p-4 border-2 border-purple-200">
+                <h4 className="font-semibold mb-3">Daftar Mapping Aktif</h4>
+                {guestMappings.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-4">Belum ada mapping</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {guestMappings.map(mapping => (
+                      <div key={mapping.id} className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border border-purple-200">
+                        <div className="text-sm">
+                          <span className="font-bold text-purple-900">Guest:</span> {mapping.guest_username}
+                          <span className="mx-2 text-gray-400">→</span>
+                          <span className="font-bold text-blue-900">Customer:</span> {mapping.customer_username}
+                        </div>
+                        <button
+                          onClick={() => deleteGuestMapping(mapping.id)}
+                          disabled={uploading}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="mt-6 bg-gray-50 rounded-xl p-5 border-3 border-gray-300">
               <h3 className="font-bold mb-3">Daftar User</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -763,6 +975,30 @@ export default function TicketingSystem() {
                 ))}
               </div>
             </div>
+
+            <div className="mt-6 bg-blue-50 rounded-xl p-5 border-3 border-blue-300">
+              <h3 className="font-bold mb-3 text-blue-900">📋 SQL Database untuk Guest Mapping</h3>
+              <p className="text-sm text-gray-700 mb-3">Jalankan SQL berikut di Supabase SQL Editor:</p>
+              <pre className="bg-white p-4 rounded-lg text-xs overflow-x-auto border-2 border-blue-200">
+{`-- Tabel untuk guest mapping
+CREATE TABLE IF NOT EXISTS guest_mappings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  guest_username TEXT NOT NULL,
+  customer_username TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(guest_username, customer_username)
+);
+
+-- Index untuk performa
+CREATE INDEX IF NOT EXISTS idx_guest_mappings_guest 
+  ON guest_mappings(guest_username);
+CREATE INDEX IF NOT EXISTS idx_guest_mappings_customer 
+  ON guest_mappings(customer_username);`}
+              </pre>
+              <p className="text-xs text-gray-600 mt-3">
+                ⚠️ Catatan: SQL ini hanya menambahkan tabel baru tanpa mengubah data existing. Data Anda aman.
+              </p>
+            </div>
           </div>
         )}
 
@@ -780,7 +1016,7 @@ export default function TicketingSystem() {
                 <p className="text-4xl font-bold">{stats.pending}</p>
               </div>
               <div className="stat-card bg-gradient-to-br from-blue-400 to-blue-600">
-                <p className="text-sm opacity-90">Process</p>
+                <p className="text-sm opacity-90">In Progress</p>
                 <p className="text-4xl font-bold">{stats.processing}</p>
               </div>
               <div className="stat-card bg-gradient-to-br from-green-500 to-green-700">
@@ -828,7 +1064,7 @@ export default function TicketingSystem() {
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input-field">
                 <option value="All">Semua Status</option>
-                <option value="Process Action">Process Action</option>
+                <option value="In Progress">In Progress</option>
                 <option value="Pending">Pending</option>
                 <option value="Solved">Solved</option>
               </select>
@@ -842,7 +1078,7 @@ export default function TicketingSystem() {
             
            <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
                   <input 
                     type="text" 
@@ -904,7 +1140,7 @@ export default function TicketingSystem() {
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
                     className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                   >
-                    <option value="Process Action">Process Action</option>
+                    <option value="In Progress">In Progress</option>
                     <option value="Pending">Pending</option>
                     <option value="Solved">Solved</option>
                   </select>
@@ -934,8 +1170,8 @@ export default function TicketingSystem() {
             </div>
             
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <button onClick={createTicket} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all hover:scale-105">
-                💾 Simpan Ticket
+              <button onClick={createTicket} disabled={uploading} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all hover:scale-105">
+                {uploading ? '⏳ Menyimpan...' : '💾 Simpan Ticket'}
               </button>
               <button onClick={() => setShowNewTicket(false)} className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-6 py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all hover:scale-105">
                 ✖ Batal
@@ -1120,7 +1356,7 @@ export default function TicketingSystem() {
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                       >
-                        <option value="Process Action">Process Action</option>
+                        <option value="In Progress">In Progress</option>
                         <option value="Pending">Pending</option>
                         <option value="Solved">Solved</option>
                       </select>
@@ -1249,9 +1485,3 @@ export default function TicketingSystem() {
     </div>
   );
 }
-
-
-
-
-
-
