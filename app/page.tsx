@@ -48,6 +48,7 @@ interface Ticket {
   status: string;
   date: string;
   created_at: string;
+  created_by?: string;
   activity_logs?: ActivityLog[];
 }
 
@@ -238,8 +239,8 @@ export default function TicketingSystem() {
             .eq('guest_username', currentUser.username);
 
           if (mappings && mappings.length > 0) {
-            const allowedCustomerUsernames = mappings.map(m => m.customer_username);
-            const filteredTickets = ticketsData.data.filter((ticket: any) => {
+            const allowedCustomerUsernames = mappings.map((m: GuestMapping) => m.customer_username);
+            const filteredTickets = ticketsData.data.filter((ticket: Ticket) => {
               // Get ticket creator's username
               const creatorUsername = users.find(u => u.id === ticket.created_by)?.username;
               return allowedCustomerUsernames.includes(creatorUsername);
