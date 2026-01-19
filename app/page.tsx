@@ -595,10 +595,10 @@ export default function TicketingSystem() {
               </p>
             </div>
             <div className="flex gap-3 flex-wrap items-center">
-              <div className="relative">
+              <div className="relative z-[150]">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
+                  className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all z-[151]"
                   title="Notifikasi"
                 >
                   🔔
@@ -612,10 +612,10 @@ export default function TicketingSystem() {
                 {showNotifications && (
                   <>
                     <div 
-                      className="fixed inset-0 z-[100]" 
+                      className="fixed inset-0 z-[200]" 
                       onClick={() => setShowNotifications(false)}
                     ></div>
-                    <div className="absolute left-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-[101] max-h-[32rem] overflow-hidden">
+                    <div className="absolute left-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-2 border-gray-300 z-[201] max-h-[32rem] overflow-hidden">
                       <div className="p-4 border-b-2 border-gray-200 bg-yellow-50">
                         <div className="flex justify-between items-center">
                           <h3 className="font-bold text-gray-800">🔔 Notifikasi Ticket</h3>
@@ -996,7 +996,7 @@ export default function TicketingSystem() {
           </div>
 
           {selectedTicket && (
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6">
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-gray-200 sticky top-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-gray-800 mb-3">🏢 {selectedTicket.project_name}</h2>
@@ -1041,13 +1041,13 @@ export default function TicketingSystem() {
               </div>
 
               {selectedTicket.description && (
-                <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
+                <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
                   <p className="text-sm font-semibold text-gray-600 mb-1">Deskripsi:</p>
                   <p className="text-sm text-gray-800">{selectedTicket.description}</p>
                 </div>
               )}
 
-              <div className="border-t-2 border-gray-300 pt-6 mb-6">
+              <div className="border-t-2 border-gray-200 pt-6 mb-6">
                 <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
@@ -1064,7 +1064,7 @@ export default function TicketingSystem() {
                           </span>
                         </div>
                         {log.action_taken && (
-                          <div className="bg-blue-100 border-l-4 border-blue-600 rounded px-3 py-2 mb-2">
+                          <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-3 py-2 mb-2">
                             <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
                           </div>
                         )}
@@ -1083,28 +1083,28 @@ export default function TicketingSystem() {
               </div>
 
               {canUpdateTicket && (
-                <div className="border-t-2 border-gray-300 pt-6 mt-6">
+                <div className="border-t-2 border-gray-200 pt-6 mt-6">
                   <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
                   
                   <div className="space-y-4">
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
-                      <label className="block text-sm font-bold text-gray-800 mb-2">👤 Handler (Otomatis dari User Login)</label>
+                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Handler (Otomatis dari User Login)</label>
                       <input 
                         type="text" 
                         value={newActivity.handler_name} 
                         disabled 
-                        className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 bg-gray-200 cursor-not-allowed text-gray-700 font-semibold"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-gray-100 cursor-not-allowed text-gray-700 font-semibold"
                         title="Handler otomatis sesuai user yang login"
                       />
                       <p className="text-xs text-gray-500 italic mt-2">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                     </div>
                     
-                    <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border-2 border-yellow-300">
-                      <label className="block text-sm font-bold text-gray-800 mb-2">🏷️ Status Baru *</label>
+                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ Status Baru *</label>
                       <select 
                         value={newActivity.new_status} 
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
-                        className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                       >
                         <option value="Pending">Pending</option>
                         <option value="Process Action">Process Action</option>
@@ -1112,40 +1112,40 @@ export default function TicketingSystem() {
                       </select>
                     </div>
                     
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
-                      <label className="block text-sm font-bold text-gray-800 mb-2">🔧 Action yang Dilakukan</label>
+                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action yang Dilakukan</label>
                       <input 
                         type="text" 
                         value={newActivity.action_taken} 
                         onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
                         placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
-                        className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                       />
                     </div>
                     
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border-2 border-purple-300">
-                      <label className="block text-sm font-bold text-gray-800 mb-2">📝 Notes Detail *</label>
+                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes Detail *</label>
                       <textarea 
                         value={newActivity.notes} 
                         onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
                         placeholder="Jelaskan detail ....." 
-                        className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white resize-none"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
                         rows={4}
                       />
                     </div>
                     
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-300">
-                      <label className="block text-sm font-bold text-gray-800 mb-2">📎 Upload File Report (PDF)</label>
+                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload File Report (PDF)</label>
                       <input 
                         type="file" 
                         accept=".pdf" 
                         onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
-                        className="w-full border-2 border-green-400 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 transition-all"
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
                       />
                       {newActivity.file && (
-                        <div className="mt-3 p-3 bg-white border-2 border-green-400 rounded-lg">
+                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="text-green-700 font-bold">✓ File terpilih:</span>
+                            <span className="text-blue-700 font-bold">✓ File terpilih:</span>
                             <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
                             <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
                           </div>
