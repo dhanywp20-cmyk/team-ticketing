@@ -55,6 +55,7 @@ export default function TicketingSystem() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginTime, setLoginTime] = useState<number | null>(null);
   
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -69,6 +70,11 @@ export default function TicketingSystem() {
   
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+
+  // Notification states
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Ticket[]>([]);
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
   const [newTicket, setNewTicket] = useState({
     project_name: '',
@@ -93,7 +99,8 @@ export default function TicketingSystem() {
     username: '',
     password: '',
     full_name: '',
-    team_member: ''
+    team_member: '',
+    role: 'team'
   });
 
   const [changePassword, setChangePassword] = useState({
@@ -108,11 +115,34 @@ export default function TicketingSystem() {
     'Solved': 'bg-green-100 text-green-800 border-green-400'
   };
 
-  const formatDateTime = (dateString: string) => {
-    // Gunakan timestamp langsung dengan offset manual
-    const date = new Date(dateString);
+  // Check session timeout (6 hours)
+  const checkSessionTimeout = () => {
+    if (loginTime) {
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+      
+      if (now - loginTime > sixHours) {
+        handleLogout();
+        alert('Sesi Anda telah berakhir. Silakan login kembali.');
+      }
+    }
+  };
+
+  // Get notifications for current user
+  const getNotifications = () => {
+    if (!currentUser) return [];
     
-    // Get UTC components
+    const member = teamMembers.find(m => m.username === currentUser.username);
+    const assignedName = member ? member.name : currentUser.full_name;
+    
+    return tickets.filter(t => 
+      t.assigned_to === assignedName && 
+      (t.status === 'Pending' || t.status === 'Process Action')
+    );
+  };
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
     const utcYear = date.getUTCFullYear();
     const utcMonth = date.getUTCMonth();
     const utcDate = date.getUTCDate();
@@ -120,7 +150,6 @@ export default function TicketingSystem() {
     const utcMinutes = date.getUTCMinutes();
     const utcSeconds = date.getUTCSeconds();
     
-    // Create date in Jakarta timezone (UTC+7)
     const jakartaDate = new Date(Date.UTC(utcYear, utcMonth, utcDate, utcHours + 7, utcMinutes, utcSeconds));
     
     const day = String(jakartaDate.getUTCDate()).padStart(2, '0');
@@ -147,9 +176,12 @@ export default function TicketingSystem() {
         return;
       }
 
+      const now = Date.now();
       setCurrentUser(data);
       setIsLoggedIn(true);
+      setLoginTime(now);
       localStorage.setItem('currentUser', JSON.stringify(data));
+      localStorage.setItem('loginTime', now.toString());
     } catch (err) {
       alert('Login gagal!');
     }
@@ -158,7 +190,9 @@ export default function TicketingSystem() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
+    setLoginTime(null);
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('loginTime');
   };
 
   const fetchData = async () => {
@@ -252,7 +286,7 @@ export default function TicketingSystem() {
         .eq('id', selectedTicket.id);
 
       setNewActivity({
-        handler_name: 'Dhany',
+        handler_name: newActivity.handler_name,
         action_taken: '',
         notes: '',
         new_status: 'Pending',
@@ -277,7 +311,7 @@ export default function TicketingSystem() {
         username: newUser.username,
         password: newUser.password,
         full_name: newUser.full_name,
-        role: 'user'
+        role: newUser.role
       }]);
 
       if (newUser.team_member) {
@@ -286,7 +320,7 @@ export default function TicketingSystem() {
           .eq('name', newUser.team_member);
       }
 
-      setNewUser({ username: '', password: '', full_name: '', team_member: '' });
+      setNewUser({ username: '', password: '', full_name: '', team_member: '', role: 'team' });
       fetchData();
       alert('User berhasil dibuat!');
     } catch (err: any) {
@@ -306,7 +340,6 @@ export default function TicketingSystem() {
     }
 
     try {
-      // Verify current password
       const { data: userData } = await supabase
         .from('users')
         .select('password')
@@ -318,12 +351,10 @@ export default function TicketingSystem() {
         return;
       }
 
-      // Update password
       await supabase.from('users')
         .update({ password: changePassword.new })
         .eq('id', currentUser!.id);
 
-      // Update local user state
       const updatedUser = { ...currentUser!, password: changePassword.new };
       setCurrentUser(updatedUser);
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
@@ -411,31 +442,60 @@ export default function TicketingSystem() {
 
   useEffect(() => {
     const saved = localStorage.getItem('currentUser');
-    if (saved) {
+    const savedTime = localStorage.getItem('loginTime');
+    
+    if (saved && savedTime) {
       const user = JSON.parse(saved);
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      // Set handler name berdasarkan user yang login
-      const member = teamMembers.find(m => m.username === user.username);
-      if (member) {
-        setNewActivity(prev => ({ ...prev, handler_name: member.name }));
+      const time = parseInt(savedTime);
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000;
+      
+      if (now - time > sixHours) {
+        handleLogout();
+        alert('Sesi Anda telah berakhir. Silakan login kembali.');
+      } else {
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setLoginTime(time);
       }
     }
     fetchData();
   }, []);
 
   useEffect(() => {
-    // Update handler name saat team members loaded atau user login
     if (currentUser && teamMembers.length > 0) {
       const member = teamMembers.find(m => m.username === currentUser.username);
       if (member) {
         setNewActivity(prev => ({ ...prev, handler_name: member.name }));
       } else {
-        // Jika tidak ada link username, gunakan full_name
         setNewActivity(prev => ({ ...prev, handler_name: currentUser.full_name }));
       }
     }
   }, [currentUser, teamMembers]);
+
+  useEffect(() => {
+    if (isLoggedIn && tickets.length > 0) {
+      const notifs = getNotifications();
+      setNotifications(notifs);
+      
+      if (notifs.length > 0 && !showNotificationPopup) {
+        setShowNotificationPopup(true);
+      }
+    }
+  }, [tickets, isLoggedIn, currentUser]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkSessionTimeout();
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [loginTime]);
+
+  // Permission checks
+  const canCreateTicket = currentUser?.role !== 'guest';
+  const canUpdateTicket = currentUser?.role !== 'guest';
+  const canAccessSettings = currentUser?.role === 'admin';
 
   if (loading) {
     return (
@@ -464,7 +524,7 @@ export default function TicketingSystem() {
                 type="text"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                className="input-field"
+                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200"
                 placeholder="Masukkan username"
               />
             </div>
@@ -474,7 +534,7 @@ export default function TicketingSystem() {
                 type="password"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                className="input-field"
+                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200"
                 placeholder="Masukkan password"
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
               />
@@ -494,26 +554,113 @@ export default function TicketingSystem() {
   return (
     <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="max-w-7xl mx-auto">
+        {/* Notification Popup */}
+        {showNotificationPopup && notifications.length > 0 && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-4xl">🔔</span>
+                <h3 className="text-xl font-bold text-gray-800">Notifikasi Ticket</h3>
+              </div>
+              <p className="text-gray-700 mb-4">
+                Anda memiliki <strong className="text-red-600">{notifications.length}</strong> ticket yang perlu ditangani:
+              </p>
+              <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
+                {notifications.map(ticket => (
+                  <div key={ticket.id} className={`p-3 rounded-lg border-2 ${statusColors[ticket.status]}`}>
+                    <p className="font-bold text-sm">{ticket.project_name}</p>
+                    <p className="text-xs">{ticket.issue_case}</p>
+                    <span className="text-xs font-semibold">{ticket.status}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowNotificationPopup(false)}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600 animate-border-pulse">
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-1">
                 📋 Reminder Troubleshooting Project
               </h1>
               <p className="text-gray-800 font-bold text-lg">PTS IVP</p>
-              <p className="text-sm text-gray-600">Welcome :, <span className="font-bold text-red-600">{currentUser?.full_name}</span></p>
+              <p className="text-sm text-gray-600">
+                Welcome: <span className="font-bold text-red-600">{currentUser?.full_name}</span>
+                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-bold">
+                  {currentUser?.role === 'admin' ? 'Administrator' : currentUser?.role === 'team' ? 'Team' : 'Guest'}
+                </span>
+              </p>
             </div>
-            <div className="flex gap-3 flex-wrap">
-              <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary">
-                ⚙️ Settings
-              </button>
+            <div className="flex gap-3 flex-wrap items-center">
+              {/* Notification Bell */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
+                >
+                  🔔
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+                      {notifications.length}
+                    </span>
+                  )}
+                </button>
+                
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-50 max-h-96 overflow-y-auto">
+                    <div className="p-4 border-b-2 border-gray-200">
+                      <h3 className="font-bold text-gray-800">Notifikasi Ticket</h3>
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        Tidak ada notifikasi
+                      </div>
+                    ) : (
+                      <div className="p-2">
+                        {notifications.map(ticket => (
+                          <div
+                            key={ticket.id}
+                            onClick={() => {
+                              setSelectedTicket(ticket);
+                              setShowNotifications(false);
+                            }}
+                            className={`p-3 mb-2 rounded-lg border-2 cursor-pointer hover:shadow-md transition-all ${statusColors[ticket.status]}`}
+                          >
+                            <p className="font-bold text-sm">{ticket.project_name}</p>
+                            <p className="text-xs mb-1">{ticket.issue_case}</p>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-semibold">{ticket.status}</span>
+                              <span className="text-xs text-gray-600">{new Date(ticket.created_at).toLocaleDateString('id-ID')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {canAccessSettings && (
+                <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary">
+                  ⚙️ Settings
+                </button>
+              )}
               <button onClick={() => setShowDashboard(!showDashboard)} className="btn-purple">
                 📊 Dashboard
               </button>
-              <button onClick={() => setShowNewTicket(!showNewTicket)} className="btn-primary">
-                + Ticket Baru
-              </button>
+              {canCreateTicket && (
+                <button onClick={() => setShowNewTicket(!showNewTicket)} className="btn-primary">
+                  + Ticket Baru
+                </button>
+              )}
               <button onClick={handleLogout} className="btn-danger">
                 🚪 Logout
               </button>
@@ -521,8 +668,8 @@ export default function TicketingSystem() {
           </div>
         </div>
 
-        {/* Settings */}
-        {showSettings && currentUser?.role === 'admin' && (
+        {/* Settings - Only for Admin */}
+        {showSettings && canAccessSettings && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
             
@@ -533,8 +680,13 @@ export default function TicketingSystem() {
                   <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field" />
                   <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field" />
                   <input type="text" placeholder="Nama Lengkap" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="input-field" />
+                  <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="input-field">
+                    <option value="admin">Administrator</option>
+                    <option value="team">Team</option>
+                    <option value="guest">Guest</option>
+                  </select>
                   <select value={newUser.team_member} onChange={(e) => setNewUser({...newUser, team_member: e.target.value})} className="input-field">
-                    <option value="">Pilih Team Member</option>
+                    <option value="">Pilih Team Member (Opsional)</option>
                     {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                   </select>
                   <button onClick={createUser} className="btn-primary w-full">
@@ -550,7 +702,7 @@ export default function TicketingSystem() {
                   <input type="password" placeholder="Password Baru" value={changePassword.new} onChange={(e) => setChangePassword({...changePassword, new: e.target.value})} className="input-field" />
                   <input type="password" placeholder="Konfirmasi Password" value={changePassword.confirm} onChange={(e) => setChangePassword({...changePassword, confirm: e.target.value})} className="input-field" />
                   <button onClick={updatePassword} className="btn-primary w-full">
-                    🔐 Ubah Password
+                    🔒 Ubah Password
                   </button>
                 </div>
               </div>
@@ -563,8 +715,12 @@ export default function TicketingSystem() {
                   <div key={u.id} className="bg-white rounded-xl p-3 border-2 border-gray-300">
                     <p className="font-bold text-sm">{u.full_name}</p>
                     <p className="text-xs text-gray-600">@{u.username}</p>
-                    <span className={`text-xs px-2 py-1 rounded ${u.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {u.role}
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      u.role === 'admin' ? 'bg-red-100 text-red-800' : 
+                      u.role === 'team' ? 'bg-blue-100 text-blue-800' : 
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {u.role === 'admin' ? 'Admin' : u.role === 'team' ? 'Team' : 'Guest'}
                     </span>
                   </div>
                 ))}
@@ -645,8 +801,8 @@ export default function TicketingSystem() {
           </div>
         </div>
 
-        {/* New Ticket Form */}
-        {showNewTicket && (
+        {/* New Ticket Form - Hidden for Guest */}
+        {showNewTicket && canCreateTicket && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             <div className="space-y-4">
@@ -658,7 +814,7 @@ export default function TicketingSystem() {
                     value={newTicket.project_name} 
                     onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} 
                     placeholder="Contoh: Project BCA Cibitung" 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   />
                 </div>
                 <div className="space-y-2">
@@ -668,7 +824,7 @@ export default function TicketingSystem() {
                     value={newTicket.issue_case} 
                     onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} 
                     placeholder="Contoh: Videowall Mati" 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   />
                 </div>
               </div>
@@ -681,7 +837,7 @@ export default function TicketingSystem() {
                     value={newTicket.sales_name} 
                     onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} 
                     placeholder="Nama sales yang handle" 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   />
                 </div>
                 <div className="space-y-2">
@@ -691,7 +847,7 @@ export default function TicketingSystem() {
                     value={newTicket.customer_phone} 
                     onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} 
                     placeholder="08xx-xxxx-xxxx" 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   />
                 </div>
               </div>
@@ -703,7 +859,7 @@ export default function TicketingSystem() {
                     type="date" 
                     value={newTicket.date} 
                     onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   />
                 </div>
                 <div className="space-y-2">
@@ -711,7 +867,7 @@ export default function TicketingSystem() {
                   <select 
                     value={newTicket.status} 
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   >
                     <option value="Pending">Pending</option>
                     <option value="Process Action">Process Action</option>
@@ -723,7 +879,7 @@ export default function TicketingSystem() {
                   <select 
                     value={newTicket.assigned_to} 
                     onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} 
-                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                    className="input-field"
                   >
                     {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                   </select>
@@ -736,7 +892,7 @@ export default function TicketingSystem() {
                   value={newTicket.description} 
                   onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} 
                   placeholder="Jelaskan detail masalah yang terjadi..." 
-                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm resize-none" 
+                  className="input-field resize-none" 
                   rows={5}
                 />
               </div>
@@ -773,10 +929,9 @@ export default function TicketingSystem() {
                 <div
                   key={ticket.id}
                   onClick={() => setSelectedTicket(ticket)}
-                  className={`bg-blue-50/60 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
+                  className={`bg-blue-50/60 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 ${
                     selectedTicket?.id === ticket.id ? 'border-red-600 ring-8 ring-red-300' : 'border-blue-400'
                   }`}
-                  style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
@@ -823,7 +978,7 @@ export default function TicketingSystem() {
 
           {/* Detail */}
           {selectedTicket && (
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6 animate-scale-in">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-gray-800 mb-3">🏢 {selectedTicket.project_name}</h2>
@@ -879,8 +1034,8 @@ export default function TicketingSystem() {
                 <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
-                    selectedTicket.activity_logs.map((log, idx) => (
-                      <div key={log.id} className="activity-log" style={{ animationDelay: `${idx * 50}ms` }}>
+                    selectedTicket.activity_logs.map((log) => (
+                      <div key={log.id} className="activity-log">
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <p className="font-bold text-gray-800">{log.handler_name}</p>
@@ -910,85 +1065,93 @@ export default function TicketingSystem() {
                 </div>
               </div>
 
-              {/* Update Form */}
-              <div className="border-t-2 border-gray-300 pt-6 mt-6">
-                <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-gray-800">Handler (Otomatis dari User Login)</label>
-                    <input 
-                      type="text" 
-                      value={newActivity.handler_name} 
-                      disabled 
-                      className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 bg-gray-200 cursor-not-allowed text-gray-700 font-semibold shadow-sm"
-                      title="Handler otomatis sesuai user yang login"
-                    />
-                    <p className="text-xs text-gray-500 italic">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-gray-800">Status Baru *</label>
-                    <select 
-                      value={newActivity.new_status} 
-                      onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
-                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Process Action">Process Action</option>
-                      <option value="Solved">Solved</option>
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-gray-800">Action yang Dilakukan</label>
-                    <input 
-                      type="text" 
-                      value={newActivity.action_taken} 
-                      onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
-                      placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
-                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-gray-800">Notes Detail *</label>
-                    <textarea 
-                      value={newActivity.notes} 
-                      onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
-                      placeholder="Jelaskan detail ....." 
-                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm resize-none"
-                      rows={6}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="block text-sm font-bold text-gray-800">Upload File Report (PDF)</label>
-                    <input 
-                      type="file" 
-                      accept=".pdf" 
-                      onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
-                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 bg-white shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
-                    />
-                    {newActivity.file && (
-                      <div className="mt-2 p-3 bg-green-50 border-2 border-green-300 rounded-xl">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-green-700 font-bold">✓ File terpilih:</span>
-                          <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
-                          <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+              {/* Update Form - Hidden for Guest */}
+              {canUpdateTicket && (
+                <div className="border-t-2 border-gray-300 pt-6 mt-6">
+                  <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
+                  <div className="space-y-5">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-gray-800">Handler (Otomatis dari User Login)</label>
+                      <input 
+                        type="text" 
+                        value={newActivity.handler_name} 
+                        disabled 
+                        className="input-field bg-gray-200 cursor-not-allowed"
+                        title="Handler otomatis sesuai user yang login"
+                      />
+                      <p className="text-xs text-gray-500 italic">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-gray-800">Status Baru *</label>
+                      <select 
+                        value={newActivity.new_status} 
+                        onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
+                        className="input-field"
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Process Action">Process Action</option>
+                        <option value="Solved">Solved</option>
+                      </select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-gray-800">Action yang Dilakukan</label>
+                      <input 
+                        type="text" 
+                        value={newActivity.action_taken} 
+                        onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
+                        placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
+                        className="input-field"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-gray-800">Notes Detail *</label>
+                      <textarea 
+                        value={newActivity.notes} 
+                        onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
+                        placeholder="Jelaskan detail ....." 
+                        className="input-field resize-none"
+                        rows={6}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-gray-800">Upload File Report (PDF)</label>
+                      <input 
+                        type="file" 
+                        accept=".pdf" 
+                        onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
+                        className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 bg-white shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
+                      />
+                      {newActivity.file && (
+                        <div className="mt-2 p-3 bg-green-50 border-2 border-green-300 rounded-xl">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-green-700 font-bold">✓ File terpilih:</span>
+                            <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
+                            <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    
+                    <button 
+                      onClick={addActivity} 
+                      disabled={uploading || !newActivity.notes.trim()} 
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
+                    </button>
                   </div>
-                  
-                  <button 
-                    onClick={addActivity} 
-                    disabled={uploading || !newActivity.notes.trim()} 
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
-                  </button>
                 </div>
-              </div>
+              )}
+
+              {!canUpdateTicket && (
+                <div className="border-t-2 border-gray-300 pt-6 mt-6 text-center">
+                  <p className="text-gray-500 italic">Anda tidak memiliki akses untuk mengupdate ticket (Guest mode)</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1002,7 +1165,7 @@ export default function TicketingSystem() {
           @apply bg-gradient-to-r from-gray-600 to-gray-800 text-white px-5 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all;
         }
         .btn-purple {
-          @apply bg-gradient-to-r from-purple-600 to-purple-800 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-900 font-bold shadow-lg transition-all animate-button-glow;
+          @apply bg-gradient-to-r from-purple-600 to-purple-800 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-900 font-bold shadow-lg transition-all;
         }
         .btn-danger {
           @apply bg-gradient-to-r from-red-500 to-red-700 text-white px-5 py-3 rounded-xl hover:from-red-600 hover:to-red-800 font-bold shadow-lg transition-all;
@@ -1011,19 +1174,45 @@ export default function TicketingSystem() {
           @apply bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-bold text-sm transition-all;
         }
         .activity-log {
-          @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md animate-slide-down;
+          @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md;
         }
         .stat-card {
-          @apply rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform animate-fade-in;
+          @apply rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform;
         }
         .chart-container {
           @apply bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-3 border-gray-300 shadow-xl;
         }
-        .label-field {
-          @apply block text-sm font-bold mb-2 text-gray-800;
-        }
         .file-download {
           @apply inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-200 transition-all;
+        }
+        .input-field {
+          @apply w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm;
+        }
+        @keyframes scale-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-scale-in {
+          animation: scale-in 0.3s ease-out;
+        }
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out;
         }
       `}</style>
     </div>
