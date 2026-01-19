@@ -82,7 +82,7 @@ export default function TicketingSystem() {
   });
 
   const [newActivity, setNewActivity] = useState({
-    handler_name: 'Dhany',
+    handler_name: '',
     action_taken: '',
     notes: '',
     new_status: 'Pending',
@@ -109,9 +109,11 @@ export default function TicketingSystem() {
   };
 
   const formatDateTime = (dateString: string) => {
+    // Konversi ke waktu Jakarta (WIB/UTC+7)
     const date = new Date(dateString);
+    const jakartaTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    
     return new Intl.DateTimeFormat('id-ID', {
-      timeZone: 'Asia/Jakarta',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -119,7 +121,7 @@ export default function TicketingSystem() {
       minute: '2-digit',
       second: '2-digit',
       hour12: false
-    }).format(date);
+    }).format(jakartaTime);
   };
 
   const handleLogin = async () => {
@@ -401,11 +403,30 @@ export default function TicketingSystem() {
   useEffect(() => {
     const saved = localStorage.getItem('currentUser');
     if (saved) {
-      setCurrentUser(JSON.parse(saved));
+      const user = JSON.parse(saved);
+      setCurrentUser(user);
       setIsLoggedIn(true);
+      // Set handler name berdasarkan user yang login
+      const member = teamMembers.find(m => m.username === user.username);
+      if (member) {
+        setNewActivity(prev => ({ ...prev, handler_name: member.name }));
+      }
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    // Update handler name saat team members loaded atau user login
+    if (currentUser && teamMembers.length > 0) {
+      const member = teamMembers.find(m => m.username === currentUser.username);
+      if (member) {
+        setNewActivity(prev => ({ ...prev, handler_name: member.name }));
+      } else {
+        // Jika tidak ada link username, gunakan full_name
+        setNewActivity(prev => ({ ...prev, handler_name: currentUser.full_name }));
+      }
+    }
+  }, [currentUser, teamMembers]);
 
   if (loading) {
     return (
@@ -622,19 +643,19 @@ export default function TicketingSystem() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="label-field">Nama Project *</label>
-                <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Nama project" className="input-field" />
+                <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Contoh: Project BCA" className="input-field" />
+              </div>
+              <div>
+                <label className="label-field">Issue Case *</label>
+                <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Contoh: Videowall Error" className="input-field" />
               </div>
               <div>
                 <label className="label-field">Nama Sales</label>
-                <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales" className="input-field" />
+                <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales yang handle" className="input-field" />
               </div>
               <div>
                 <label className="label-field">No. Telepon Customer</label>
                 <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} placeholder="08xx-xxxx-xxxx" className="input-field" />
-              </div>
-              <div>
-                <label className="label-field">Issue Case *</label>
-                <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Masalah yang terjadi" className="input-field" />
               </div>
               <div>
                 <label className="label-field">Tanggal</label>
@@ -648,7 +669,7 @@ export default function TicketingSystem() {
                   <option value="Solved">Solved</option>
                 </select>
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="label-field">Assign ke</label>
                 <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} className="input-field">
                   {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
@@ -656,7 +677,7 @@ export default function TicketingSystem() {
               </div>
               <div className="md:col-span-2">
                 <label className="label-field">Deskripsi</label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field h-24" />
+                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field" style={{ minHeight: '120px' }} />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -826,15 +847,19 @@ export default function TicketingSystem() {
               {/* Update Form */}
               <div className="border-t-2 border-gray-300 pt-6">
                 <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
-                    <label className="label-field">Handler</label>
-                    <select value={newActivity.handler_name} onChange={(e) => setNewActivity({...newActivity, handler_name: e.target.value})} className="input-field">
-                      {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                    </select>
+                    <label className="label-field">Handler (Auto)</label>
+                    <input 
+                      type="text" 
+                      value={newActivity.handler_name} 
+                      disabled 
+                      className="input-field bg-gray-100 cursor-not-allowed" 
+                      title="Handler otomatis sesuai user yang login"
+                    />
                   </div>
                   <div>
-                    <label className="label-field">Status Baru</label>
+                    <label className="label-field">Status Baru *</label>
                     <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
                       <option value="Pending">Pending</option>
                       <option value="Process Action">Process Action</option>
@@ -842,19 +867,19 @@ export default function TicketingSystem() {
                     </select>
                   </div>
                   <div>
-                    <label className="label-field">Action</label>
-                    <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Action yang dilakukan" className="input-field" />
+                    <label className="label-field">Action yang Dilakukan</label>
+                    <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Contoh: Cek kabel HDMI dan power" className="input-field" />
                   </div>
                   <div>
                     <label className="label-field">Notes *</label>
-                    <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Catatan detail..." className="input-field h-20" />
+                    <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Detail pekerjaan yang dilakukan..." className="input-field" style={{ minHeight: '150px' }} />
                   </div>
                   <div>
                     <label className="label-field">Upload File Report (PDF)</label>
                     <input type="file" accept=".pdf" onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} className="input-field" />
-                    {newActivity.file && <p className="text-xs text-green-600 mt-1">📎 {newActivity.file.name}</p>}
+                    {newActivity.file && <p className="text-xs text-green-600 mt-1 font-semibold">📎 {newActivity.file.name}</p>}
                   </div>
-                  <button onClick={addActivity} disabled={uploading} className="btn-primary w-full">
+                  <button onClick={addActivity} disabled={uploading} className="btn-primary w-full text-lg py-4">
                     {uploading ? '⏳ Uploading...' : '💾 Update Status'}
                   </button>
                 </div>
