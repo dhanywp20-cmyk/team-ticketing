@@ -693,19 +693,41 @@ export default function TicketingSystem() {
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</h3>
-                      <p className="text-sm text-gray-700 font-medium">⚠️ {ticket.issue_case}</p>
-                      {ticket.sales_name && <p className="text-xs text-gray-600">👤 Sales: {ticket.sales_name}</p>}
-                      {ticket.customer_phone && <p className="text-xs text-gray-600">📞 {ticket.customer_phone}</p>}
+                      <h3 className="font-bold text-lg text-gray-800 mb-2">🏢 {ticket.project_name}</h3>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex">
+                          <span className="text-gray-500 font-medium w-32">Issue</span>
+                          <span className="text-gray-700 font-medium flex-1">: {ticket.issue_case}</span>
+                        </div>
+                        {ticket.sales_name && (
+                          <div className="flex">
+                            <span className="text-gray-500 font-medium w-32">Sales</span>
+                            <span className="text-gray-700 flex-1">: {ticket.sales_name}</span>
+                          </div>
+                        )}
+                        {ticket.customer_phone && (
+                          <div className="flex">
+                            <span className="text-gray-500 font-medium w-32">Phone</span>
+                            <span className="text-gray-700 flex-1">: {ticket.customer_phone}</span>
+                          </div>
+                        )}
+                        <div className="flex">
+                          <span className="text-gray-500 font-medium w-32">Tanggal</span>
+                          <span className="text-gray-700 flex-1">: {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
+                        </div>
+                        <div className="flex">
+                          <span className="text-gray-500 font-medium w-32">Assigned to</span>
+                          <span className="text-gray-700 flex-1">: {ticket.assigned_to}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} ml-3`}>
                       {ticket.status}
                     </span>
                   </div>
-                  <div className="flex gap-3 text-sm text-gray-700 font-medium">
-                    <span>📅 {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
+                  <div className="flex gap-3 text-xs text-gray-600 font-medium mt-3 pt-3 border-t border-gray-300">
                     <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
-                    {ticket.activity_logs?.some(a => a.file_url) && <span>📄 Report</span>}
+                    {ticket.activity_logs?.some(a => a.file_url) && <span className="text-green-600">📄 Ada Report</span>}
                   </div>
                 </div>
               ))
@@ -717,32 +739,53 @@ export default function TicketingSystem() {
             <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6 animate-scale-in">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-gray-800">🏢 {selectedTicket.project_name}</h2>
-                  <p className="text-gray-600 font-medium">⚠️ {selectedTicket.issue_case}</p>
-                  {selectedTicket.sales_name && <p className="text-sm text-gray-600">👤 Sales: {selectedTicket.sales_name}</p>}
-                  {selectedTicket.customer_phone && <p className="text-sm text-gray-600">📞 {selectedTicket.customer_phone}</p>}
+                  <h2 className="text-2xl font-bold text-gray-800 mb-3">🏢 {selectedTicket.project_name}</h2>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex">
+                      <span className="text-gray-600 font-semibold w-40">Issue</span>
+                      <span className="text-gray-800 font-medium flex-1">: {selectedTicket.issue_case}</span>
+                    </div>
+                    {selectedTicket.sales_name && (
+                      <div className="flex">
+                        <span className="text-gray-600 font-semibold w-40">Sales</span>
+                        <span className="text-gray-800 flex-1">: {selectedTicket.sales_name}</span>
+                      </div>
+                    )}
+                    {selectedTicket.customer_phone && (
+                      <div className="flex">
+                        <span className="text-gray-600 font-semibold w-40">No. Telepon</span>
+                        <span className="text-gray-800 flex-1">: {selectedTicket.customer_phone}</span>
+                      </div>
+                    )}
+                    <div className="flex">
+                      <span className="text-gray-600 font-semibold w-40">Assigned to</span>
+                      <span className="text-gray-800 flex-1">: {selectedTicket.assigned_to}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="text-gray-600 font-semibold w-40">Tanggal</span>
+                      <span className="text-gray-800 flex-1">: {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="text-gray-600 font-semibold w-40">Status</span>
+                      <span className="flex-1">
+                        : <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[selectedTicket.status]} ml-2`}>
+                          {selectedTicket.status}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => exportToPDF(selectedTicket)} className="btn-export">
+                <button onClick={() => exportToPDF(selectedTicket)} className="btn-export ml-4">
                   📄 Export PDF
                 </button>
               </div>
 
               {selectedTicket.description && (
                 <div className="bg-gray-50 rounded-xl p-4 mb-4 border-2 border-gray-300">
-                  <p className="text-sm">{selectedTicket.description}</p>
+                  <p className="text-sm font-semibold text-gray-600 mb-1">Deskripsi:</p>
+                  <p className="text-sm text-gray-800">{selectedTicket.description}</p>
                 </div>
               )}
-
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="info-box bg-blue-50 border-blue-300">
-                  <p className="text-xs text-gray-600">Assigned to</p>
-                  <p className="font-bold">👤 {selectedTicket.assigned_to}</p>
-                </div>
-                <div className="info-box bg-green-50 border-green-300">
-                  <p className="text-xs text-gray-600">Tanggal</p>
-                  <p className="font-bold">📅 {new Date(selectedTicket.date).toLocaleDateString('id-ID')}</p>
-                </div>
-              </div>
 
               {/* Activity Log */}
               <div className="border-t-2 border-gray-300 pt-6 mb-6">
@@ -845,9 +888,6 @@ export default function TicketingSystem() {
         }
         .chart-container {
           @apply bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-3 border-gray-300 shadow-xl;
-        }
-        .info-box {
-          @apply rounded-xl p-3 border-2;
         }
         .label-field {
           @apply block text-sm font-bold mb-2 text-gray-800;
