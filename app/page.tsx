@@ -551,6 +551,84 @@ export default function TicketingSystem() {
   return (
     <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="max-w-7xl mx-auto">
+        {/* Notification Modal Popup */}
+        {showNotifications && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
+              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-yellow-400 to-yellow-500">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">🔔</span>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Notifikasi Ticket</h3>
+                      {notifications.length > 0 && (
+                        <p className="text-sm text-white/90">
+                          {notifications.length} ticket perlu ditangani
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowNotifications(false)}
+                    className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              
+              {notifications.length === 0 ? (
+                <div className="p-12 text-center text-gray-500">
+                  <div className="text-6xl mb-4">✅</div>
+                  <p className="text-lg font-medium">Tidak ada notifikasi</p>
+                  <p className="text-sm mt-2">Semua ticket sudah ditangani</p>
+                </div>
+              ) : (
+                <div className="max-h-[calc(80vh-120px)] overflow-y-auto p-4">
+                  <div className="space-y-3">
+                    {notifications.map(ticket => (
+                      <div
+                        key={ticket.id}
+                        onClick={() => {
+                          setSelectedTicket(ticket);
+                          setShowNotifications(false);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <p className="font-bold text-lg text-gray-800">{ticket.project_name}</p>
+                            <p className="text-sm text-gray-600 mt-1">{ticket.issue_case}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} ml-3`}>
+                            {ticket.status}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-3 border-t border-gray-300">
+                          <span className="text-xs text-gray-500">
+                            📅 {new Date(ticket.created_at).toLocaleDateString('id-ID')}
+                          </span>
+                          <span className="text-sm text-blue-600 font-semibold">Klik untuk lihat detail →</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showNotificationPopup && notifications.length > 0 && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
@@ -595,82 +673,18 @@ export default function TicketingSystem() {
               </p>
             </div>
             <div className="flex gap-3 flex-wrap items-center">
-              <div className="relative z-[150]">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all z-[151]"
-                  title="Notifikasi"
-                >
-                  🔔
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-                
-                {showNotifications && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-[200]" 
-                      onClick={() => setShowNotifications(false)}
-                    ></div>
-                    <div className="absolute left-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-2 border-gray-300 z-[201] max-h-[32rem] overflow-hidden">
-                      <div className="p-4 border-b-2 border-gray-200 bg-yellow-50">
-                        <div className="flex justify-between items-center">
-                          <h3 className="font-bold text-gray-800">🔔 Notifikasi Ticket</h3>
-                          <button 
-                            onClick={() => setShowNotifications(false)}
-                            className="text-gray-500 hover:text-gray-700 font-bold"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        {notifications.length > 0 && (
-                          <p className="text-xs text-gray-600 mt-1">
-                            {notifications.length} ticket perlu ditangani
-                          </p>
-                        )}
-                      </div>
-                      {notifications.length === 0 ? (
-                        <div className="p-6 text-center text-gray-500">
-                          <div className="text-4xl mb-2">✅</div>
-                          <p className="font-medium">Tidak ada notifikasi</p>
-                          <p className="text-xs mt-1">Semua ticket sudah ditangani</p>
-                        </div>
-                      ) : (
-                        <div className="max-h-96 overflow-y-auto">
-                          {notifications.map(ticket => (
-                            <div
-                              key={ticket.id}
-                              onClick={() => {
-                                setSelectedTicket(ticket);
-                                setShowNotifications(false);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                              className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-all ${statusColors[ticket.status]}`}
-                            >
-                              <div className="flex justify-between items-start mb-2">
-                                <p className="font-bold text-sm text-gray-800">{ticket.project_name}</p>
-                                <span className={`px-2 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
-                                  {ticket.status}
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-700 mb-1">{ticket.issue_case}</p>
-                              <div className="flex justify-between items-center mt-2">
-                                <span className="text-xs text-gray-500">
-                                  📅 {new Date(ticket.created_at).toLocaleDateString('id-ID')}
-                                </span>
-                                <span className="text-xs text-blue-600 font-semibold">Klik untuk lihat →</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
+                title="Notifikasi"
+              >
+                🔔
+                {notifications.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+                    {notifications.length}
+                  </span>
                 )}
-              </div>
+              </button>
 
               {canAccessSettings && (
                 <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary">
@@ -1087,7 +1101,7 @@ export default function TicketingSystem() {
                   <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
                   
                   <div className="space-y-4">
-                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Handler (Otomatis dari User Login)</label>
                       <input 
                         type="text" 
@@ -1099,7 +1113,7 @@ export default function TicketingSystem() {
                       <p className="text-xs text-gray-500 italic mt-2">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                     </div>
                     
-                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ Status Baru *</label>
                       <select 
                         value={newActivity.new_status} 
@@ -1112,7 +1126,7 @@ export default function TicketingSystem() {
                       </select>
                     </div>
                     
-                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action yang Dilakukan</label>
                       <input 
                         type="text" 
@@ -1123,7 +1137,7 @@ export default function TicketingSystem() {
                       />
                     </div>
                     
-                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes Detail *</label>
                       <textarea 
                         value={newActivity.notes} 
@@ -1134,7 +1148,7 @@ export default function TicketingSystem() {
                       />
                     </div>
                     
-                    <div className="bg-white/60 rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload File Report (PDF)</label>
                       <input 
                         type="file" 
