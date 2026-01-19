@@ -55,7 +55,7 @@ interface Ticket {
 interface GuestMapping {
   id: string;
   guest_username: string;
-  customer_username: string;
+  project_name: string;
   created_at: string;
 }
 
@@ -88,7 +88,7 @@ export default function TicketingSystem() {
   // Guest mapping form
   const [newMapping, setNewMapping] = useState({
     guestUsername: '',
-    customerUsername: ''
+    projectName: ''
   });
 
   const [newTicket, setNewTicket] = useState({
@@ -231,20 +231,18 @@ export default function TicketingSystem() {
       ]);
 
       if (ticketsData.data) {
-        // Filter tickets for guest users based on mappings
+        // Filter tickets for guest users based on project name mappings
         if (currentUser?.role === 'guest') {
           const { data: mappings } = await supabase
             .from('guest_mappings')
-            .select('customer_username')
+            .select('project_name')
             .eq('guest_username', currentUser.username);
 
           if (mappings && mappings.length > 0) {
-            const allowedCustomerUsernames = mappings.map((m: GuestMapping) => m.customer_username);
-            const filteredTickets = ticketsData.data.filter((ticket: Ticket) => {
-              // Get ticket creator's username
-              const creatorUsername = users.find(u => u.id === ticket.created_by)?.username;
-              return allowedCustomerUsernames.includes(creatorUsername);
-            });
+            const allowedProjectNames = mappings.map((m: GuestMapping) => m.project_name);
+            const filteredTickets = ticketsData.data.filter((ticket: Ticket) => 
+              allowedProjectNames.includes(ticket.project_name)
+            );
             setTickets(filteredTickets);
           } else {
             setTickets([]);
@@ -382,7 +380,7 @@ export default function TicketingSystem() {
   };
 
   const addGuestMapping = async () => {
-    if (!newMapping.guestUsername || !newMapping.customerUsername) {
+    if (!newMapping.guestUsername || !newMapping.projectName) {
       alert('Semua field harus diisi!');
       return;
     }
@@ -394,10 +392,10 @@ export default function TicketingSystem() {
       return;
     }
 
-    // Validate customer user exists
-    const customerUser = users.find(u => u.username === newMapping.customerUsername);
-    if (!customerUser) {
-      alert('Username customer tidak ditemukan!');
+    // Validate project exists
+    const projectExists = tickets.some(t => t.project_name === newMapping.projectName);
+    if (!projectExists) {
+      alert('Nama project tidak ditemukan!');
       return;
     }
 
@@ -405,12 +403,12 @@ export default function TicketingSystem() {
       setUploading(true);
       const { error } = await supabase.from('guest_mappings').insert([{
         guest_username: newMapping.guestUsername,
-        customer_username: newMapping.customerUsername
+        project_name: newMapping.projectName
       }]);
 
       if (error) throw error;
 
-      setNewMapping({ guestUsername: '', customerUsername: '' });
+      setNewMapping({ guestUsername: '', projectName: '' });
       await fetchGuestMappings();
       setUploading(false);
       alert('Mapping guest berhasil ditambahkan!');
@@ -551,6 +549,12 @@ export default function TicketingSystem() {
     };
   }, [tickets]);
 
+  // Get unique project names for dropdown
+  const uniqueProjectNames = useMemo(() => {
+    const names = tickets.map(t => t.project_name);
+    return Array.from(new Set(names)).sort();
+  }, [tickets]);
+
   useEffect(() => {
     const saved = localStorage.getItem('currentUser');
     const savedTime = localStorage.getItem('loginTime');
@@ -615,7 +619,7 @@ export default function TicketingSystem() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Background.jpg)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/photo1768838463.jpg)' }}>
         <div className="bg-white/90 p-8 rounded-2xl shadow-2xl">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
@@ -626,7 +630,7 @@ export default function TicketingSystem() {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/Background.jpg)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/photo1768838463.jpg)' }}>
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
@@ -668,7 +672,7 @@ export default function TicketingSystem() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/images/Background.jpg)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/images/photo1768838463.jpg)' }}>
       {/* Loading Bar */}
       {uploading && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
@@ -896,7 +900,7 @@ export default function TicketingSystem() {
 
             <div className="mt-6 bg-purple-50 rounded-xl p-5 border-3 border-purple-300">
               <h3 className="font-bold mb-3 text-lg">👥 Guest Mapping - Akses Ticket untuk Guest</h3>
-              <p className="text-sm text-gray-600 mb-4">Atur username guest mana yang bisa melihat ticket dari username customer tertentu</p>
+              <p className="text-sm text-gray-600 mb-4">Atur username guest mana yang bisa melihat ticket dari nama project tertentu</p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -913,15 +917,15 @@ export default function TicketingSystem() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Username Customer</label>
+                  <label className="block text-sm font-semibold mb-2">Nama Project</label>
                   <select 
-                    value={newMapping.customerUsername} 
-                    onChange={(e) => setNewMapping({...newMapping, customerUsername: e.target.value})} 
+                    value={newMapping.projectName} 
+                    onChange={(e) => setNewMapping({...newMapping, projectName: e.target.value})} 
                     className="input-field"
                   >
-                    <option value="">Pilih Customer User</option>
-                    {users.filter(u => u.role !== 'guest').map(u => (
-                      <option key={u.id} value={u.username}>{u.username} - {u.full_name}</option>
+                    <option value="">Pilih Nama Project</option>
+                    {uniqueProjectNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
                 </div>
@@ -942,7 +946,7 @@ export default function TicketingSystem() {
                         <div className="text-sm">
                           <span className="font-bold text-purple-900">Guest:</span> {mapping.guest_username}
                           <span className="mx-2 text-gray-400">→</span>
-                          <span className="font-bold text-blue-900">Customer:</span> {mapping.customer_username}
+                          <span className="font-bold text-blue-900">Project:</span> {mapping.project_name}
                         </div>
                         <button
                           onClick={() => deleteGuestMapping(mapping.id)}
@@ -981,23 +985,23 @@ export default function TicketingSystem() {
               <h3 className="font-bold mb-3 text-blue-900">📋 SQL Database untuk Guest Mapping</h3>
               <p className="text-sm text-gray-700 mb-3">Jalankan SQL berikut di Supabase SQL Editor:</p>
               <pre className="bg-white p-4 rounded-lg text-xs overflow-x-auto border-2 border-blue-200">
-{`-- Tabel untuk guest mapping
+{`-- Tabel untuk guest mapping (UPDATED: project_name instead of customer_username)
 CREATE TABLE IF NOT EXISTS guest_mappings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   guest_username TEXT NOT NULL,
-  customer_username TEXT NOT NULL,
+  project_name TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(guest_username, customer_username)
+  UNIQUE(guest_username, project_name)
 );
 
 -- Index untuk performa
 CREATE INDEX IF NOT EXISTS idx_guest_mappings_guest 
   ON guest_mappings(guest_username);
-CREATE INDEX IF NOT EXISTS idx_guest_mappings_customer 
-  ON guest_mappings(customer_username);`}
+CREATE INDEX IF NOT EXISTS idx_guest_mappings_project 
+  ON guest_mappings(project_name);`}
               </pre>
               <p className="text-xs text-gray-600 mt-3">
-                ⚠️ Catatan: SQL ini hanya menambahkan tabel baru tanpa mengubah data existing. Data Anda aman.
+                ⚠️ Catatan: Jika Anda sudah memiliki tabel guest_mappings dengan struktur lama (customer_username), Anda perlu drop tabel lama dan buat ulang dengan struktur baru ini.
               </p>
             </div>
           </div>
@@ -1316,10 +1320,12 @@ CREATE INDEX IF NOT EXISTS idx_guest_mappings_customer
                         </div>
                         {log.action_taken && (
                           <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-3 py-2 mb-2">
-                            <p className="text-sm font-semibold text-blue-900">🔧 {log.action_taken}</p>
+							<p className="text-sm font-bold text-blue-900">🔧 Action :</p>
+                            <p className="text-sm font-semibold text-white-900">{log.action_taken}</p>
                           </div>
                         )}
-                        <p className="text-sm text-gray-700 mb-2">{log.notes}</p>
+						<p className="text-sm font-bold text-blue-900">Notes :</p>
+                        <p className="text-sm font-semibold text-white-900">{log.notes}</p>
                         {log.file_url && (
                           <a href={log.file_url} download={log.file_name} className="file-download">
                             📄 {log.file_name || 'Download Report'}
