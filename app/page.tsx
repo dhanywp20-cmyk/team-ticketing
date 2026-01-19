@@ -40,8 +40,8 @@ interface ActivityLog {
 interface Ticket {
   id: string;
   project_name: string;
-  sales_name: string;
   customer_phone: string;
+  sales_name: string;
   issue_case: string;
   description: string;
   assigned_to: string;
@@ -72,8 +72,8 @@ export default function TicketingSystem() {
 
   const [newTicket, setNewTicket] = useState({
     project_name: '',
-    sales_name: '',
     customer_phone: '',
+    sales_name: '',
     issue_case: '',
     description: '',
     assigned_to: 'Dhany',
@@ -109,12 +109,19 @@ export default function TicketingSystem() {
   };
 
   const formatDateTime = (dateString: string) => {
-    // Parse UTC date dan konversi ke Jakarta timezone
-    const utcDate = new Date(dateString);
+    // Gunakan timestamp langsung dengan offset manual
+    const date = new Date(dateString);
     
-    // Tambah 7 jam untuk WIB (UTC+7)
-    const jakartaOffset = 7 * 60 * 60 * 1000;
-    const jakartaDate = new Date(utcDate.getTime() + jakartaOffset);
+    // Get UTC components
+    const utcYear = date.getUTCFullYear();
+    const utcMonth = date.getUTCMonth();
+    const utcDate = date.getUTCDate();
+    const utcHours = date.getUTCHours();
+    const utcMinutes = date.getUTCMinutes();
+    const utcSeconds = date.getUTCSeconds();
+    
+    // Create date in Jakarta timezone (UTC+7)
+    const jakartaDate = new Date(Date.UTC(utcYear, utcMonth, utcDate, utcHours + 7, utcMinutes, utcSeconds));
     
     const day = String(jakartaDate.getUTCDate()).padStart(2, '0');
     const month = String(jakartaDate.getUTCMonth() + 1).padStart(2, '0');
@@ -185,8 +192,8 @@ export default function TicketingSystem() {
 
       setNewTicket({
         project_name: '',
-        sales_name: '',
         customer_phone: '',
+        sales_name: '',
         issue_case: '',
         description: '',
         assigned_to: 'Dhany',
@@ -346,8 +353,8 @@ export default function TicketingSystem() {
           <h2>${ticket.project_name}</h2>
           <table>
             <tr><th>Issue</th><td>${ticket.issue_case}</td></tr>
-            <tr><th>Sales</th><td>${ticket.sales_name || '-'}</td></tr>
             <tr><th>Phone</th><td>${ticket.customer_phone || '-'}</td></tr>
+            <tr><th>Sales</th><td>${ticket.sales_name || '-'}</td></tr>
             <tr><th>Status</th><td>${ticket.status}</td></tr>
             <tr><th>Date</th><td>${ticket.date}</td></tr>
           </table>
@@ -495,7 +502,7 @@ export default function TicketingSystem() {
                 📋 Reminder Troubleshooting Project
               </h1>
               <p className="text-gray-800 font-bold text-lg">PTS IVP</p>
-              <p className="text-sm text-gray-600">Welcome, <span className="font-bold text-red-600">{currentUser?.full_name}</span></p>
+              <p className="text-sm text-gray-600">Welcome :, <span className="font-bold text-red-600">{currentUser?.full_name}</span></p>
             </div>
             <div className="flex gap-3 flex-wrap">
               <button onClick={() => setShowSettings(!showSettings)} className="btn-secondary">
@@ -620,11 +627,11 @@ export default function TicketingSystem() {
         )}
 
         {/* Search & Filter */}
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
+        <div className="bg-white/100 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label className="block text-sm font-bold mb-2">🔍 Cari Project</label>
-              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="Nama project, sales, atau issue..." className="input-field" />
+              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="project/sales/issue" className="input-field" />
             </div>
             <div className="md:w-64">
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
@@ -643,58 +650,105 @@ export default function TicketingSystem() {
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="label-field">Nama Project *</label>
-                  <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Contoh: Project BCA Cibitung" className="input-field" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">Nama Project *</label>
+                  <input 
+                    type="text" 
+                    value={newTicket.project_name} 
+                    onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} 
+                    placeholder="Contoh: Project BCA Cibitung" 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  />
                 </div>
-                <div>
-                  <label className="label-field">Issue Case *</label>
-                  <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Contoh: Videowall Mati" className="input-field" />
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">Issue Case *</label>
+                  <input 
+                    type="text" 
+                    value={newTicket.issue_case} 
+                    onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} 
+                    placeholder="Contoh: Videowall Mati" 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  />
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="label-field">Nama Sales</label>
-                  <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales yang handle" className="input-field" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">Nama Sales</label>
+                  <input 
+                    type="text" 
+                    value={newTicket.sales_name} 
+                    onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} 
+                    placeholder="Nama sales yang handle" 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  />
                 </div>
-                <div>
-                  <label className="label-field">No. Telepon Customer</label>
-                  <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} placeholder="08xx-xxxx-xxxx" className="input-field" />
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">No. Telepon Customer</label>
+                  <input 
+                    type="text" 
+                    value={newTicket.customer_phone} 
+                    onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} 
+                    placeholder="08xx-xxxx-xxxx" 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  />
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="label-field">Tanggal</label>
-                  <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} className="input-field" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">Tanggal</label>
+                  <input 
+                    type="date" 
+                    value={newTicket.date} 
+                    onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  />
                 </div>
-                <div>
-                  <label className="label-field">Status</label>
-                  <select value={newTicket.status} onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} className="input-field">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">Status</label>
+                  <select 
+                    value={newTicket.status} 
+                    onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  >
                     <option value="Pending">Pending</option>
                     <option value="Process Action">Process Action</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
-                <div>
-                  <label className="label-field">Assign ke</label>
-                  <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} className="input-field">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-gray-800">Assign ke</label>
+                  <select 
+                    value={newTicket.assigned_to} 
+                    onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} 
+                    className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm"
+                  >
                     {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                   </select>
                 </div>
               </div>
               
-              <div>
-                <label className="label-field">Deskripsi Detail</label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Jelaskan detail masalah yang terjadi..." className="input-field resize-none" rows={5} />
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-gray-800">Deskripsi Detail</label>
+                <textarea 
+                  value={newTicket.description} 
+                  onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} 
+                  placeholder="Jelaskan detail masalah yang terjadi..." 
+                  className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-green-600 focus:ring-4 focus:ring-green-200 transition-all font-medium bg-white shadow-sm resize-none" 
+                  rows={5}
+                />
               </div>
             </div>
             
-            <div className="flex gap-3 mt-6">
-              <button onClick={createTicket} className="btn-primary flex-1">💾 Simpan Ticket</button>
-              <button onClick={() => setShowNewTicket(false)} className="btn-secondary flex-1">✖ Batal</button>
+            <div className="flex gap-4 mt-6">
+              <button onClick={createTicket} className="flex-1 bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-4 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all text-lg">
+                💾 Simpan Ticket
+              </button>
+              <button onClick={() => setShowNewTicket(false)} className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white px-8 py-4 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all text-lg">
+                ✖ Batal
+              </button>
             </div>
           </div>
         )}
@@ -719,8 +773,8 @@ export default function TicketingSystem() {
                 <div
                   key={ticket.id}
                   onClick={() => setSelectedTicket(ticket)}
-                  className={`bg-blue-50/90 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
-                    selectedTicket?.id === ticket.id ? 'border-red-600 ring-4 ring-red-300' : 'border-blue-400'
+                  className={`bg-blue-50/60 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 animate-slide-up ${
+                    selectedTicket?.id === ticket.id ? 'border-red-600 ring-8 ring-red-300' : 'border-blue-400'
                   }`}
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
@@ -729,19 +783,19 @@ export default function TicketingSystem() {
                       <h3 className="font-bold text-lg text-gray-800 mb-2">🏢 {ticket.project_name}</h3>
                       <div className="space-y-1 text-sm">
                         <div className="flex">
-                          <span className="text-gray-500 font-medium w-32">Issue</span>
+                          <span className="text-gray-500 font-medium w-32">Issue Case</span>
                           <span className="text-gray-700 font-medium flex-1">: {ticket.issue_case}</span>
                         </div>
-                        {ticket.sales_name && (
-                          <div className="flex">
-                            <span className="text-gray-500 font-medium w-32">Sales</span>
-                            <span className="text-gray-700 flex-1">: {ticket.sales_name}</span>
-                          </div>
-                        )}
                         {ticket.customer_phone && (
                           <div className="flex">
-                            <span className="text-gray-500 font-medium w-32">Phone</span>
+                            <span className="text-gray-500 font-medium w-32">Telepon Customer</span>
                             <span className="text-gray-700 flex-1">: {ticket.customer_phone}</span>
+                          </div>
+                        )}
+                        {ticket.sales_name && (
+                          <div className="flex">
+                            <span className="text-gray-500 font-medium w-32">Sales Project</span>
+                            <span className="text-gray-700 flex-1">: {ticket.sales_name}</span>
                           </div>
                         )}
                         <div className="flex">
@@ -775,19 +829,19 @@ export default function TicketingSystem() {
                   <h2 className="text-2xl font-bold text-gray-800 mb-3">🏢 {selectedTicket.project_name}</h2>
                   <div className="space-y-2 text-sm">
                     <div className="flex">
-                      <span className="text-gray-600 font-semibold w-40">Issue</span>
+                      <span className="text-gray-600 font-semibold w-40">Issue Case</span>
                       <span className="text-gray-800 font-medium flex-1">: {selectedTicket.issue_case}</span>
                     </div>
-                    {selectedTicket.sales_name && (
-                      <div className="flex">
-                        <span className="text-gray-600 font-semibold w-40">Sales</span>
-                        <span className="text-gray-800 flex-1">: {selectedTicket.sales_name}</span>
-                      </div>
-                    )}
                     {selectedTicket.customer_phone && (
                       <div className="flex">
-                        <span className="text-gray-600 font-semibold w-40">No. Telepon</span>
+                        <span className="text-gray-600 font-semibold w-40">Telepon Customer</span>
                         <span className="text-gray-800 flex-1">: {selectedTicket.customer_phone}</span>
+                      </div>
+                    )}
+                    {selectedTicket.sales_name && (
+                      <div className="flex">
+                        <span className="text-gray-600 font-semibold w-40">Sales Project</span>
+                        <span className="text-gray-800 flex-1">: {selectedTicket.sales_name}</span>
                       </div>
                     )}
                     <div className="flex">
@@ -858,64 +912,70 @@ export default function TicketingSystem() {
 
               {/* Update Form */}
               <div className="border-t-2 border-gray-300 pt-6 mt-6">
-                <h3 className="font-bold text-lg mb-6 text-gray-800">➕ Update Status</h3>
+                <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
                 <div className="space-y-5">
-                  <div>
-                    <label className="label-field">Handler (Otomatis dari User Login)</label>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-800">Handler (Otomatis dari User Login)</label>
                     <input 
                       type="text" 
                       value={newActivity.handler_name} 
                       disabled 
-                      className="input-field bg-gray-200 cursor-not-allowed text-gray-700 font-semibold" 
+                      className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 bg-gray-200 cursor-not-allowed text-gray-700 font-semibold shadow-sm"
                       title="Handler otomatis sesuai user yang login"
                     />
-                    <p className="text-xs text-gray-500 mt-1">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
+                    <p className="text-xs text-gray-500 italic">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                   </div>
                   
-                  <div>
-                    <label className="label-field">Status Baru *</label>
-                    <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-800">Status Baru *</label>
+                    <select 
+                      value={newActivity.new_status} 
+                      onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
+                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm"
+                    >
                       <option value="Pending">Pending</option>
                       <option value="Process Action">Process Action</option>
                       <option value="Solved">Solved</option>
                     </select>
                   </div>
                   
-                  <div>
-                    <label className="label-field">Action yang Dilakukan</label>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-800">Action yang Dilakukan</label>
                     <input 
                       type="text" 
                       value={newActivity.action_taken} 
                       onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
                       placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
-                      className="input-field" 
+                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm"
                     />
                   </div>
                   
-                  <div>
-                    <label className="label-field">Notes Detail *</label>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-800">Notes Detail *</label>
                     <textarea 
                       value={newActivity.notes} 
                       onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
-                      placeholder="Jelaskan detail pekerjaan yang sudah dilakukan, hasil pemeriksaan, dan solusi yang diterapkan..." 
-                      className="input-field resize-none" 
+                      placeholder="Jelaskan detail ....." 
+                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-4 focus:ring-blue-200 transition-all font-medium bg-white shadow-sm resize-none"
                       rows={6}
                     />
                   </div>
                   
-                  <div>
-                    <label className="label-field">Upload File Report (PDF)</label>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-800">Upload File Report (PDF)</label>
                     <input 
                       type="file" 
                       accept=".pdf" 
                       onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
-                      className="input-field file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                      className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 bg-white shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
                     />
                     {newActivity.file && (
-                      <div className="mt-2 flex items-center gap-2 text-sm">
-                        <span className="text-green-600 font-semibold">✓ File terpilih:</span>
-                        <span className="text-gray-700">{newActivity.file.name}</span>
-                        <span className="text-gray-500">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                      <div className="mt-2 p-3 bg-green-50 border-2 border-green-300 rounded-xl">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-green-700 font-bold">✓ File terpilih:</span>
+                          <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
+                          <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -923,9 +983,9 @@ export default function TicketingSystem() {
                   <button 
                     onClick={addActivity} 
                     disabled={uploading || !newActivity.notes.trim()} 
-                    className="btn-primary w-full text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {uploading ? '⏳ Sedang Upload...' : '💾 Update Status & Simpan'}
+                    {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
                   </button>
                 </div>
               </div>
