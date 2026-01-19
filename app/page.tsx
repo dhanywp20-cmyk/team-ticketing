@@ -71,7 +71,7 @@ export default function TicketingSystem() {
   const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
   
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -208,6 +208,7 @@ export default function TicketingSystem() {
     setIsLoggedIn(false);
     setCurrentUser(null);
     setLoginTime(null);
+    setSelectedTicket(null); // Clear selected ticket on logout
     localStorage.removeItem('currentUser');
     localStorage.removeItem('loginTime');
   };
@@ -248,8 +249,14 @@ export default function TicketingSystem() {
               allowedProjectNames.includes(ticket.project_name)
             );
             setTickets(filteredTickets);
+            
+            // Clear selected ticket if it's not in the allowed list
+            if (selectedTicket && !allowedProjectNames.includes(selectedTicket.project_name)) {
+              setSelectedTicket(null);
+            }
           } else {
             setTickets([]);
+            setSelectedTicket(null);
           }
         } else {
           setTickets(ticketsData.data);
@@ -647,7 +654,7 @@ export default function TicketingSystem() {
 
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
-  const canAccessSettings = currentUser?.role === 'admin';
+  const canAccessAccountSettings = currentUser?.role === 'admin';
 
   if (loading) {
     return (
@@ -667,7 +674,7 @@ export default function TicketingSystem() {
           <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
             Login
           </h1>
-          <p className="text-center text-gray-700 font-bold mb-6">Reminder Troubleshooting Project<br/>PTS IVP</p>
+          <p className="text-center text-gray-700 font-bold mb-6">Reminder Troubleshooting<br/>PTS IVP</p>
           
           <div className="space-y-4">
             <div>
@@ -864,23 +871,23 @@ export default function TicketingSystem() {
                 )}
               </button>
 
-              {canAccessSettings && (
+              {canAccessAccountSettings && (
                 <button 
                   onClick={() => {
-                    setShowSettings(!showSettings);
+                    setShowAccountSettings(!showAccountSettings);
                     setShowDashboard(false);
                     setShowNewTicket(false);
                   }} 
                   className="btn-secondary"
                 >
-                  ⚙️ Settings
+                  ⚙️ Account
                 </button>
               )}
               {currentUser?.role !== 'guest' && (
                 <button 
                   onClick={() => {
                     setShowDashboard(!showDashboard);
-                    setShowSettings(false);
+                    setShowAccountSettings(false);
                     setShowNewTicket(false);
                   }} 
                   className="btn-purple"
@@ -892,7 +899,7 @@ export default function TicketingSystem() {
                 <button 
                   onClick={() => {
                     setShowNewTicket(!showNewTicket);
-                    setShowSettings(false);
+                    setShowAccountSettings(false);
                     setShowDashboard(false);
                   }} 
                   className="btn-primary"
@@ -907,9 +914,9 @@ export default function TicketingSystem() {
           </div>
         </div>
 
-        {showSettings && canAccessSettings && (
+        {showAccountSettings && canAccessAccountSettings && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
-            <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
+            <h2 className="text-2xl font-bold mb-4">⚙️ Account</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-blue-50 rounded-xl p-5 border-3 border-blue-300">
@@ -1345,11 +1352,11 @@ export default function TicketingSystem() {
                         {log.action_taken && (
                           <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-3 py-2 mb-2">
 							<p className="text-sm font-bold text-blue-900">🔧 Action :</p>
-                            <p className="text-sm font-semibold text-white-900">{log.action_taken}</p>
+                            <p className="text-sm text-white-900">{log.action_taken}</p>
                           </div>
                         )}
 						<p className="text-sm font-bold text-blue-900">Notes :</p>
-                        <p className="text-sm font-semibold text-white-900">{log.notes}</p>
+                        <p className="text-sm text-white-900">{log.notes}</p>
                         {log.file_url && (
                           <a href={log.file_url} download={log.file_name} className="file-download">
                             📄 {log.file_name || 'Download Report'}
