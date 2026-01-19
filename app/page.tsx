@@ -821,10 +821,8 @@ export default function TicketingSystem() {
         <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="text-sm font-bold mb-2">🔍 Cari Project</label>
-              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="project/sales/issue" className="input-field"
-              className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-White-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
-              />
+              <label className="block text-sm font-bold mb-2">🔍 CPencarian</label>
+              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder=" ... " className="input-field" />
             </div>
             <div className="md:w-64">
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
@@ -839,12 +837,12 @@ export default function TicketingSystem() {
         </div>
 
         {showNewTicket && canCreateTicket && (
-          <div className="bg-white/50 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             
-            <div className="space-y-4">
+           <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-300">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
                   <input 
                     type="text" 
@@ -890,14 +888,12 @@ export default function TicketingSystem() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 border-2 border-indigo-300">
-                  <label className="block text-sm font-bold text-gray-800 mb-2">📅 Tanggal</label>
+                <div  className="block text-sm font-bold text-gray-800 mb-2">📅 Tanggal</label>
                   <input 
                     type="date" 
                     value={newTicket.date} 
                     onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} 
                     className="w-full border-2 border-indigo-400 rounded-lg px-4 py-2.5 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all font-medium bg-white"
-                  />
                 </div>
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border-2 border-yellow-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">🏷️ Status</label>
@@ -1251,5 +1247,6 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
