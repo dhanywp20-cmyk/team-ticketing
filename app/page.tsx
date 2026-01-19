@@ -109,19 +109,21 @@ export default function TicketingSystem() {
   };
 
   const formatDateTime = (dateString: string) => {
-    // Konversi ke waktu Jakarta (WIB/UTC+7)
-    const date = new Date(dateString);
-    const jakartaTime = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    // Parse UTC date dan konversi ke Jakarta timezone
+    const utcDate = new Date(dateString);
     
-    return new Intl.DateTimeFormat('id-ID', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    }).format(jakartaTime);
+    // Tambah 7 jam untuk WIB (UTC+7)
+    const jakartaOffset = 7 * 60 * 60 * 1000;
+    const jakartaDate = new Date(utcDate.getTime() + jakartaOffset);
+    
+    const day = String(jakartaDate.getUTCDate()).padStart(2, '0');
+    const month = String(jakartaDate.getUTCMonth() + 1).padStart(2, '0');
+    const year = jakartaDate.getUTCFullYear();
+    const hours = String(jakartaDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(jakartaDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(jakartaDate.getUTCSeconds()).padStart(2, '0');
+    
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
   };
 
   const handleLogin = async () => {
@@ -639,50 +641,60 @@ export default function TicketingSystem() {
         {/* New Ticket Form */}
         {showNewTicket && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
-            <h2 className="text-2xl font-bold mb-4">📝 Buat Ticket Baru</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="label-field">Nama Project *</label>
-                <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Contoh: Project BCA" className="input-field" />
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label-field">Nama Project *</label>
+                  <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} placeholder="Contoh: Project BCA Cibitung" className="input-field" />
+                </div>
+                <div>
+                  <label className="label-field">Issue Case *</label>
+                  <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Contoh: Videowall Mati" className="input-field" />
+                </div>
               </div>
-              <div>
-                <label className="label-field">Issue Case *</label>
-                <input type="text" value={newTicket.issue_case} onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} placeholder="Contoh: Videowall Error" className="input-field" />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label-field">Nama Sales</label>
+                  <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales yang handle" className="input-field" />
+                </div>
+                <div>
+                  <label className="label-field">No. Telepon Customer</label>
+                  <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} placeholder="08xx-xxxx-xxxx" className="input-field" />
+                </div>
               </div>
-              <div>
-                <label className="label-field">Nama Sales</label>
-                <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} placeholder="Nama sales yang handle" className="input-field" />
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="label-field">Tanggal</label>
+                  <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} className="input-field" />
+                </div>
+                <div>
+                  <label className="label-field">Status</label>
+                  <select value={newTicket.status} onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} className="input-field">
+                    <option value="Pending">Pending</option>
+                    <option value="Process Action">Process Action</option>
+                    <option value="Solved">Solved</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label-field">Assign ke</label>
+                  <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} className="input-field">
+                    {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                  </select>
+                </div>
               </div>
+              
               <div>
-                <label className="label-field">No. Telepon Customer</label>
-                <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} placeholder="08xx-xxxx-xxxx" className="input-field" />
-              </div>
-              <div>
-                <label className="label-field">Tanggal</label>
-                <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} className="input-field" />
-              </div>
-              <div>
-                <label className="label-field">Status</label>
-                <select value={newTicket.status} onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} className="input-field">
-                  <option value="Pending">Pending</option>
-                  <option value="Process Action">Process Action</option>
-                  <option value="Solved">Solved</option>
-                </select>
-              </div>
-              <div>
-                <label className="label-field">Assign ke</label>
-                <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} className="input-field">
-                  {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="label-field">Deskripsi</label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Detail masalah..." className="input-field" style={{ minHeight: '120px' }} />
+                <label className="label-field">Deskripsi Detail</label>
+                <textarea value={newTicket.description} onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} placeholder="Jelaskan detail masalah yang terjadi..." className="input-field resize-none" rows={5} />
               </div>
             </div>
+            
             <div className="flex gap-3 mt-6">
-              <button onClick={createTicket} className="btn-primary">💾 Simpan Ticket</button>
-              <button onClick={() => setShowNewTicket(false)} className="btn-secondary">✖ Batal</button>
+              <button onClick={createTicket} className="btn-primary flex-1">💾 Simpan Ticket</button>
+              <button onClick={() => setShowNewTicket(false)} className="btn-secondary flex-1">✖ Batal</button>
             </div>
           </div>
         )}
@@ -845,19 +857,21 @@ export default function TicketingSystem() {
               </div>
 
               {/* Update Form */}
-              <div className="border-t-2 border-gray-300 pt-6">
-                <h3 className="font-bold text-lg mb-4">➕ Update Status</h3>
-                <div className="space-y-4">
+              <div className="border-t-2 border-gray-300 pt-6 mt-6">
+                <h3 className="font-bold text-lg mb-6 text-gray-800">➕ Update Status</h3>
+                <div className="space-y-5">
                   <div>
-                    <label className="label-field">Handler (Auto)</label>
+                    <label className="label-field">Handler (Otomatis dari User Login)</label>
                     <input 
                       type="text" 
                       value={newActivity.handler_name} 
                       disabled 
-                      className="input-field bg-gray-100 cursor-not-allowed" 
+                      className="input-field bg-gray-200 cursor-not-allowed text-gray-700 font-semibold" 
                       title="Handler otomatis sesuai user yang login"
                     />
+                    <p className="text-xs text-gray-500 mt-1">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                   </div>
+                  
                   <div>
                     <label className="label-field">Status Baru *</label>
                     <select value={newActivity.new_status} onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} className="input-field">
@@ -866,21 +880,52 @@ export default function TicketingSystem() {
                       <option value="Solved">Solved</option>
                     </select>
                   </div>
+                  
                   <div>
                     <label className="label-field">Action yang Dilakukan</label>
-                    <input type="text" value={newActivity.action_taken} onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} placeholder="Contoh: Cek kabel HDMI dan power" className="input-field" />
+                    <input 
+                      type="text" 
+                      value={newActivity.action_taken} 
+                      onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
+                      placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
+                      className="input-field" 
+                    />
                   </div>
+                  
                   <div>
-                    <label className="label-field">Notes *</label>
-                    <textarea value={newActivity.notes} onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} placeholder="Detail pekerjaan yang dilakukan..." className="input-field" style={{ minHeight: '150px' }} />
+                    <label className="label-field">Notes Detail *</label>
+                    <textarea 
+                      value={newActivity.notes} 
+                      onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
+                      placeholder="Jelaskan detail pekerjaan yang sudah dilakukan, hasil pemeriksaan, dan solusi yang diterapkan..." 
+                      className="input-field resize-none" 
+                      rows={6}
+                    />
                   </div>
+                  
                   <div>
                     <label className="label-field">Upload File Report (PDF)</label>
-                    <input type="file" accept=".pdf" onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} className="input-field" />
-                    {newActivity.file && <p className="text-xs text-green-600 mt-1 font-semibold">📎 {newActivity.file.name}</p>}
+                    <input 
+                      type="file" 
+                      accept=".pdf" 
+                      onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
+                      className="input-field file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                    />
+                    {newActivity.file && (
+                      <div className="mt-2 flex items-center gap-2 text-sm">
+                        <span className="text-green-600 font-semibold">✓ File terpilih:</span>
+                        <span className="text-gray-700">{newActivity.file.name}</span>
+                        <span className="text-gray-500">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                      </div>
+                    )}
                   </div>
-                  <button onClick={addActivity} disabled={uploading} className="btn-primary w-full text-lg py-4">
-                    {uploading ? '⏳ Uploading...' : '💾 Update Status'}
+                  
+                  <button 
+                    onClick={addActivity} 
+                    disabled={uploading || !newActivity.notes.trim()} 
+                    className="btn-primary w-full text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploading ? '⏳ Sedang Upload...' : '💾 Update Status & Simpan'}
                   </button>
                 </div>
               </div>
