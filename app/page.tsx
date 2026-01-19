@@ -818,7 +818,7 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        <div className="bg-white/100 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label className="block text-sm font-bold mb-2">🔍 Cari Project</label>
@@ -837,12 +837,11 @@ export default function TicketingSystem() {
         </div>
 
         {showNewTicket && canCreateTicket && (
-          <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
+          <div className="bg-white/50 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
                   <input 
                     type="text" 
@@ -851,7 +850,6 @@ export default function TicketingSystem() {
                     placeholder="Contoh: Project BCA Cibitung" 
                     className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
                   />
-                </div>
                 <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">⚠️ Issue Case *</label>
                   <input 
@@ -876,7 +874,7 @@ export default function TicketingSystem() {
                   />
                 </div>
                 <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-300">
-                  <label className="block text-sm font-bold text-gray-800 mb-2">📱 No. Telepon Customer</label>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">📱 Nama & Telepon User</label>
                   <input 
                     type="text" 
                     value={newTicket.customer_phone} 
@@ -1249,3 +1247,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
