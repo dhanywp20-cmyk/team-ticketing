@@ -75,7 +75,11 @@ export default function TicketingSystem() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Ticket[]>([]);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
-
+  
+  // Guest access management
+  const [selectedGuestUser, setSelectedGuestUser] = useState('');
+  const [newCustomerName, setNewCustomerName] = useState('');
+  
   const [newTicket, setNewTicket] = useState({
     project_name: '',
     customer_phone: '',
@@ -1304,6 +1308,7 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
 
 
 
