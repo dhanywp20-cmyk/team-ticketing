@@ -75,18 +75,14 @@ export default function TicketingSystem() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Ticket[]>([]);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
-  
-  // Guest access management
-  const [selectedGuestUser, setSelectedGuestUser] = useState('');
-  const [newCustomerName, setNewCustomerName] = useState('');
-  
+
   const [newTicket, setNewTicket] = useState({
     project_name: '',
     customer_phone: '',
     sales_name: '',
     issue_case: '',
     description: '',
-    assigned_to: '',
+    assigned_to: 'Dhany',
     date: new Date().toISOString().split('T')[0],
     status: 'Pending'
   });
@@ -217,8 +213,8 @@ export default function TicketingSystem() {
   };
 
   const createTicket = async () => {
-    if (!newTicket.project_name || !newTicket.issue_case || !newTicket.assigned_to) {
-      alert('Project name, Issue case, & Assign to harus diisi!');
+    if (!newTicket.project_name || !newTicket.issue_case) {
+      alert('Project name dan Issue case harus diisi!');
       return;
     }
 
@@ -232,9 +228,9 @@ export default function TicketingSystem() {
         sales_name: '',
         issue_case: '',
         description: '',
-        assigned_to: '',
+        assigned_to: 'Dhany',
         date: new Date().toISOString().split('T')[0],
-        status: ''
+        status: 'Pending'
       });
       setShowNewTicket(false);
       fetchData();
@@ -497,8 +493,6 @@ export default function TicketingSystem() {
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessSettings = currentUser?.role === 'admin';
-  
-  const guestUsers = users.filter(u => u.role === 'guest');
 
   if (loading) {
     return (
@@ -750,62 +744,7 @@ export default function TicketingSystem() {
                 </div>
               </div>
             </div>
-            
-            <div className="mt-6 bg-purple-50 rounded-xl p-5 border-3 border-purple-300">
-              <h3 className="font-bold mb-3">🔐 Guest Access Management</h3>
-              <p className="text-sm text-gray-600 mb-4">Atur customer mana yang bisa dilihat oleh guest user tertentu</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <select 
-                  value={selectedGuestUser} 
-                  onChange={(e) => setSelectedGuestUser(e.target.value)} 
-                  className="input-field"
-                >
-                  <option value="">Pilih Guest User</option>
-                  {guestUsers.map(u => (
-                    <option key={u.id} value={u.username}>{u.full_name} (@{u.username})</option>
-                  ))}
-                </select>
-                <input 
-                  type="text" 
-                  placeholder="Nama Customer (dari telepon)" 
-                  value={newCustomerName} 
-                  onChange={(e) => setNewCustomerName(e.target.value)} 
-                  className="input-field"
-                />
-                <button onClick={addGuestAccess} className="btn-primary">
-                  ➕ Tambah Mapping
-                </button>
-              </div>
 
-              <div className="bg-white rounded-xl p-4 max-h-80 overflow-y-auto">
-                <h4 className="font-semibold mb-3">Daftar Mapping</h4>
-                {guestAccesses.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">Belum ada mapping</p>
-                ) : (
-                  <div className="space-y-2">
-                    {guestAccesses.map(ga => {
-                      const user = users.find(u => u.username === ga.guest_username);
-                      return (
-                        <div key={ga.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div>
-                            <p className="font-bold text-sm">{user?.full_name || ga.guest_username}</p>
-                            <p className="text-xs text-gray-600">dapat melihat: <span className="font-semibold text-purple-600">{ga.customer_name}</span></p>
-                          </div>
-                          <button 
-                            onClick={() => deleteGuestAccess(ga.id)}
-                            className="text-red-600 hover:bg-red-100 px-3 py-1 rounded-lg font-bold text-sm transition-all"
-                          >
-                            🗑️ Hapus
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-            
             <div className="mt-6 bg-gray-50 rounded-xl p-5 border-3 border-gray-300">
               <h3 className="font-bold mb-3">Daftar User</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1310,9 +1249,6 @@ export default function TicketingSystem() {
     </div>
   );
 }
-
-
-
 
 
 
