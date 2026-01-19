@@ -115,11 +115,10 @@ export default function TicketingSystem() {
     'Solved': 'bg-green-100 text-green-800 border-green-400'
   };
 
-  // Check session timeout (6 hours)
   const checkSessionTimeout = () => {
     if (loginTime) {
       const now = Date.now();
-      const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+      const sixHours = 6 * 60 * 60 * 1000;
       
       if (now - loginTime > sixHours) {
         handleLogout();
@@ -128,7 +127,6 @@ export default function TicketingSystem() {
     }
   };
 
-  // Get notifications for current user
   const getNotifications = () => {
     if (!currentUser) return [];
     
@@ -487,12 +485,11 @@ export default function TicketingSystem() {
   useEffect(() => {
     const interval = setInterval(() => {
       checkSessionTimeout();
-    }, 60000); // Check every minute
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [loginTime]);
 
-  // Permission checks
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessSettings = currentUser?.role === 'admin';
@@ -554,7 +551,6 @@ export default function TicketingSystem() {
   return (
     <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="max-w-7xl mx-auto">
-        {/* Notification Popup */}
         {showNotificationPopup && notifications.length > 0 && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
@@ -584,7 +580,6 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* Header */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
@@ -599,8 +594,7 @@ export default function TicketingSystem() {
                 </span>
               </p>
             </div>
-            <div className="flex gap-3 flex-wrap items-center relative z-50">
-              {/* Notification Bell */}
+            <div className="flex gap-3 flex-wrap items-center">
               <div className="relative">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
@@ -618,10 +612,10 @@ export default function TicketingSystem() {
                 {showNotifications && (
                   <>
                     <div 
-                      className="fixed inset-0 z-40" 
+                      className="fixed inset-0 z-[100]" 
                       onClick={() => setShowNotifications(false)}
                     ></div>
-                    <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-50 max-h-[32rem] overflow-hidden">
+                    <div className="absolute left-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-[101] max-h-[32rem] overflow-hidden">
                       <div className="p-4 border-b-2 border-gray-200 bg-yellow-50">
                         <div className="flex justify-between items-center">
                           <h3 className="font-bold text-gray-800">🔔 Notifikasi Ticket</h3>
@@ -698,7 +692,6 @@ export default function TicketingSystem() {
           </div>
         </div>
 
-        {/* Settings - Only for Admin */}
         {showSettings && canAccessSettings && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
@@ -759,7 +752,6 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* Dashboard */}
         {showDashboard && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-purple-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6">📊 Dashboard</h2>
@@ -812,7 +804,6 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* Search & Filter */}
         <div className="bg-white/100 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
@@ -831,13 +822,11 @@ export default function TicketingSystem() {
           </div>
         </div>
 
-        {/* New Ticket Form - Hidden for Guest */}
         {showNewTicket && canCreateTicket && (
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
+          <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             
             <div className="space-y-4">
-              {/* Row 1: Project Name & Issue Case */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
@@ -861,7 +850,6 @@ export default function TicketingSystem() {
                 </div>
               </div>
 
-              {/* Row 2: Sales Name & Customer Phone */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border-2 border-purple-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">👤 Nama Sales</label>
@@ -885,7 +873,6 @@ export default function TicketingSystem() {
                 </div>
               </div>
 
-              {/* Row 3: Date, Status, Assign */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 border-2 border-indigo-300">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📅 Tanggal</label>
@@ -920,7 +907,6 @@ export default function TicketingSystem() {
                 </div>
               </div>
 
-              {/* Row 4: Description */}
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
                 <label className="block text-sm font-bold text-gray-800 mb-2">📝 Deskripsi Detail</label>
                 <textarea 
@@ -944,9 +930,7 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* Tickets List & Detail */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* List */}
           <div className="space-y-4">
             <div className="bg-blue-600/80 backdrop-blur-md rounded-2xl shadow-xl p-4 border-3 border-blue-700">
               <h2 className="text-2xl font-bold text-white">📋 Daftar Ticket ({filteredTickets.length})</h2>
@@ -1011,9 +995,8 @@ export default function TicketingSystem() {
             )}
           </div>
 
-          {/* Detail */}
           {selectedTicket && (
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6">
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-3 border-red-500 sticky top-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-gray-800 mb-3">🏢 {selectedTicket.project_name}</h2>
@@ -1064,7 +1047,6 @@ export default function TicketingSystem() {
                 </div>
               )}
 
-              {/* Activity Log */}
               <div className="border-t-2 border-gray-300 pt-6 mb-6">
                 <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -1100,13 +1082,11 @@ export default function TicketingSystem() {
                 </div>
               </div>
 
-              {/* Update Form - Hidden for Guest */}
               {canUpdateTicket && (
                 <div className="border-t-2 border-gray-300 pt-6 mt-6">
                   <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
                   
                   <div className="space-y-4">
-                    {/* Handler */}
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
                       <label className="block text-sm font-bold text-gray-800 mb-2">👤 Handler (Otomatis dari User Login)</label>
                       <input 
@@ -1119,7 +1099,6 @@ export default function TicketingSystem() {
                       <p className="text-xs text-gray-500 italic mt-2">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                     </div>
                     
-                    {/* Status Baru */}
                     <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border-2 border-yellow-300">
                       <label className="block text-sm font-bold text-gray-800 mb-2">🏷️ Status Baru *</label>
                       <select 
@@ -1133,7 +1112,6 @@ export default function TicketingSystem() {
                       </select>
                     </div>
                     
-                    {/* Action yang Dilakukan */}
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
                       <label className="block text-sm font-bold text-gray-800 mb-2">🔧 Action yang Dilakukan</label>
                       <input 
@@ -1145,7 +1123,6 @@ export default function TicketingSystem() {
                       />
                     </div>
                     
-                    {/* Notes Detail */}
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border-2 border-purple-300">
                       <label className="block text-sm font-bold text-gray-800 mb-2">📝 Notes Detail *</label>
                       <textarea 
@@ -1157,7 +1134,6 @@ export default function TicketingSystem() {
                       />
                     </div>
                     
-                    {/* Upload File */}
                     <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-300">
                       <label className="block text-sm font-bold text-gray-800 mb-2">📎 Upload File Report (PDF)</label>
                       <input 
@@ -1177,7 +1153,6 @@ export default function TicketingSystem() {
                       )}
                     </div>
                     
-                    {/* Submit Button */}
                     <button 
                       onClick={addActivity} 
                       disabled={uploading || !newActivity.notes.trim()} 
