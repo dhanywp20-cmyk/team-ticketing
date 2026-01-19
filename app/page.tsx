@@ -599,7 +599,7 @@ export default function TicketingSystem() {
                 </span>
               </p>
             </div>
-            <div className="flex gap-3 flex-wrap items-center">
+            <div className="flex gap-3 flex-wrap items-center relative z-50">
               {/* Notification Bell */}
               <div className="relative">
                 <button
@@ -616,59 +616,65 @@ export default function TicketingSystem() {
                 </button>
                 
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-50 max-h-[32rem] overflow-hidden">
-                    <div className="p-4 border-b-2 border-gray-200 bg-yellow-50">
-                      <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-gray-800">🔔 Notifikasi Ticket</h3>
-                        <button 
-                          onClick={() => setShowNotifications(false)}
-                          className="text-gray-500 hover:text-gray-700 font-bold"
-                        >
-                          ✕
-                        </button>
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowNotifications(false)}
+                    ></div>
+                    <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border-3 border-gray-300 z-50 max-h-[32rem] overflow-hidden">
+                      <div className="p-4 border-b-2 border-gray-200 bg-yellow-50">
+                        <div className="flex justify-between items-center">
+                          <h3 className="font-bold text-gray-800">🔔 Notifikasi Ticket</h3>
+                          <button 
+                            onClick={() => setShowNotifications(false)}
+                            className="text-gray-500 hover:text-gray-700 font-bold"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {notifications.length > 0 && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {notifications.length} ticket perlu ditangani
+                          </p>
+                        )}
                       </div>
-                      {notifications.length > 0 && (
-                        <p className="text-xs text-gray-600 mt-1">
-                          {notifications.length} ticket perlu ditangani
-                        </p>
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">
+                          <div className="text-4xl mb-2">✅</div>
+                          <p className="font-medium">Tidak ada notifikasi</p>
+                          <p className="text-xs mt-1">Semua ticket sudah ditangani</p>
+                        </div>
+                      ) : (
+                        <div className="max-h-96 overflow-y-auto">
+                          {notifications.map(ticket => (
+                            <div
+                              key={ticket.id}
+                              onClick={() => {
+                                setSelectedTicket(ticket);
+                                setShowNotifications(false);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-all ${statusColors[ticket.status]}`}
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <p className="font-bold text-sm text-gray-800">{ticket.project_name}</p>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
+                                  {ticket.status}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-700 mb-1">{ticket.issue_case}</p>
+                              <div className="flex justify-between items-center mt-2">
+                                <span className="text-xs text-gray-500">
+                                  📅 {new Date(ticket.created_at).toLocaleDateString('id-ID')}
+                                </span>
+                                <span className="text-xs text-blue-600 font-semibold">Klik untuk lihat →</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-gray-500">
-                        <div className="text-4xl mb-2">✅</div>
-                        <p className="font-medium">Tidak ada notifikasi</p>
-                        <p className="text-xs mt-1">Semua ticket sudah ditangani</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-96 overflow-y-auto">
-                        {notifications.map(ticket => (
-                          <div
-                            key={ticket.id}
-                            onClick={() => {
-                              setSelectedTicket(ticket);
-                              setShowNotifications(false);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-all ${statusColors[ticket.status]}`}
-                          >
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="font-bold text-sm text-gray-800">{ticket.project_name}</p>
-                              <span className={`px-2 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
-                                {ticket.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-700 mb-1">{ticket.issue_case}</p>
-                            <div className="flex justify-between items-center mt-2">
-                              <span className="text-xs text-gray-500">
-                                📅 {new Date(ticket.created_at).toLocaleDateString('id-ID')}
-                              </span>
-                              <span className="text-xs text-blue-600 font-semibold">Klik untuk lihat →</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  </>
                 )}
               </div>
 
@@ -829,104 +835,109 @@ export default function TicketingSystem() {
         {showNewTicket && canCreateTicket && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Nama Project *</label>
+            
+            <div className="space-y-4">
+              {/* Row 1: Project Name & Issue Case */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
                   <input 
                     type="text" 
                     value={newTicket.project_name} 
                     onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} 
                     placeholder="Contoh: Project BCA Cibitung" 
-                    className="input-field"
+                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Issue Case *</label>
+                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border-2 border-red-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">⚠️ Issue Case *</label>
                   <input 
                     type="text" 
                     value={newTicket.issue_case} 
                     onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} 
                     placeholder="Contoh: Videowall Mati" 
-                    className="input-field"
+                    className="w-full border-2 border-red-400 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-200 transition-all font-medium bg-white"
                   />
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Nama Sales</label>
+
+              {/* Row 2: Sales Name & Customer Phone */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border-2 border-purple-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">👤 Nama Sales</label>
                   <input 
                     type="text" 
                     value={newTicket.sales_name} 
                     onChange={(e) => setNewTicket({...newTicket, sales_name: e.target.value})} 
                     placeholder="Nama sales yang handle" 
-                    className="input-field"
+                    className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">No. Telepon Customer</label>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">📱 No. Telepon Customer</label>
                   <input 
                     type="text" 
                     value={newTicket.customer_phone} 
                     onChange={(e) => setNewTicket({...newTicket, customer_phone: e.target.value})} 
                     placeholder="08xx-xxxx-xxxx" 
-                    className="input-field"
+                    className="w-full border-2 border-green-400 rounded-lg px-4 py-2.5 focus:border-green-600 focus:ring-2 focus:ring-green-200 transition-all font-medium bg-white"
                   />
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Tanggal</label>
+
+              {/* Row 3: Date, Status, Assign */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 border-2 border-indigo-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">📅 Tanggal</label>
                   <input 
                     type="date" 
                     value={newTicket.date} 
                     onChange={(e) => setNewTicket({...newTicket, date: e.target.value})} 
-                    className="input-field"
+                    className="w-full border-2 border-indigo-400 rounded-lg px-4 py-2.5 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Status</label>
+                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border-2 border-yellow-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">🏷️ Status</label>
                   <select 
                     value={newTicket.status} 
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
-                    className="input-field"
+                    className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                   >
                     <option value="Pending">Pending</option>
                     <option value="Process Action">Process Action</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-800 mb-2">Assign ke</label>
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border-2 border-orange-300">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">👨‍💼 Assign ke</label>
                   <select 
                     value={newTicket.assigned_to} 
                     onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} 
-                    className="input-field"
+                    className="w-full border-2 border-orange-400 rounded-lg px-4 py-2.5 focus:border-orange-600 focus:ring-2 focus:ring-orange-200 transition-all font-medium bg-white"
                   >
                     {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                   </select>
                 </div>
               </div>
-              
-              <div>
-                <label className="block text-sm font-bold text-gray-800 mb-2">Deskripsi Detail</label>
+
+              {/* Row 4: Description */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
+                <label className="block text-sm font-bold text-gray-800 mb-2">📝 Deskripsi Detail</label>
                 <textarea 
                   value={newTicket.description} 
                   onChange={(e) => setNewTicket({...newTicket, description: e.target.value})} 
                   placeholder="Jelaskan detail masalah yang terjadi..." 
-                  className="input-field resize-none" 
-                  rows={5}
+                  className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 focus:border-gray-600 focus:ring-2 focus:ring-gray-200 transition-all font-medium bg-white resize-none" 
+                  rows={4}
                 />
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <button onClick={createTicket} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all">
+              <button onClick={createTicket} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all hover:scale-105">
                 💾 Simpan Ticket
               </button>
-              <button onClick={() => setShowNewTicket(false)} className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-6 py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all">
+              <button onClick={() => setShowNewTicket(false)} className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-6 py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all hover:scale-105">
                 ✖ Batal
               </button>
             </div>
@@ -1093,25 +1104,28 @@ export default function TicketingSystem() {
               {canUpdateTicket && (
                 <div className="border-t-2 border-gray-300 pt-6 mt-6">
                   <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
+                  
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-800 mb-2">Handler (Otomatis dari User Login)</label>
+                    {/* Handler */}
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
+                      <label className="block text-sm font-bold text-gray-800 mb-2">👤 Handler (Otomatis dari User Login)</label>
                       <input 
                         type="text" 
                         value={newActivity.handler_name} 
                         disabled 
-                        className="input-field bg-gray-200 cursor-not-allowed"
+                        className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 bg-gray-200 cursor-not-allowed text-gray-700 font-semibold"
                         title="Handler otomatis sesuai user yang login"
                       />
-                      <p className="text-xs text-gray-500 italic mt-1">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
+                      <p className="text-xs text-gray-500 italic mt-2">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-bold text-gray-800 mb-2">Status Baru *</label>
+                    {/* Status Baru */}
+                    <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border-2 border-yellow-300">
+                      <label className="block text-sm font-bold text-gray-800 mb-2">🏷️ Status Baru *</label>
                       <select 
                         value={newActivity.new_status} 
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
-                        className="input-field"
+                        className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                       >
                         <option value="Pending">Pending</option>
                         <option value="Process Action">Process Action</option>
@@ -1119,38 +1133,41 @@ export default function TicketingSystem() {
                       </select>
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-bold text-gray-800 mb-2">Action yang Dilakukan</label>
+                    {/* Action yang Dilakukan */}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
+                      <label className="block text-sm font-bold text-gray-800 mb-2">🔧 Action yang Dilakukan</label>
                       <input 
                         type="text" 
                         value={newActivity.action_taken} 
                         onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
                         placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
-                        className="input-field"
+                        className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
                       />
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-bold text-gray-800 mb-2">Notes Detail *</label>
+                    {/* Notes Detail */}
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border-2 border-purple-300">
+                      <label className="block text-sm font-bold text-gray-800 mb-2">📝 Notes Detail *</label>
                       <textarea 
                         value={newActivity.notes} 
                         onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
                         placeholder="Jelaskan detail ....." 
-                        className="input-field resize-none"
-                        rows={5}
+                        className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white resize-none"
+                        rows={4}
                       />
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-bold text-gray-800 mb-2">Upload File Report (PDF)</label>
+                    {/* Upload File */}
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border-2 border-green-300">
+                      <label className="block text-sm font-bold text-gray-800 mb-2">📎 Upload File Report (PDF)</label>
                       <input 
                         type="file" 
                         accept=".pdf" 
                         onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
-                        className="w-full border-3 border-gray-400 rounded-xl px-4 py-3 bg-white shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
+                        className="w-full border-2 border-green-400 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 transition-all"
                       />
                       {newActivity.file && (
-                        <div className="mt-2 p-3 bg-green-50 border-2 border-green-300 rounded-xl">
+                        <div className="mt-3 p-3 bg-white border-2 border-green-400 rounded-lg">
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-green-700 font-bold">✓ File terpilih:</span>
                             <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
@@ -1160,10 +1177,11 @@ export default function TicketingSystem() {
                       )}
                     </div>
                     
+                    {/* Submit Button */}
                     <button 
                       onClick={addActivity} 
                       disabled={uploading || !newActivity.notes.trim()} 
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
                     >
                       {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
                     </button>
