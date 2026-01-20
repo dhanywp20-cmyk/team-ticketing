@@ -72,24 +72,22 @@ export default function TicketingSystem() {
   
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showGuestMapping, setShowGuestMapping] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   
-  // Loading popup states
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
 
-  // Notification states
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Ticket[]>([]);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
-  // Guest mapping form
   const [newMapping, setNewMapping] = useState({
     guestUsername: '',
     projectName: ''
@@ -103,14 +101,14 @@ export default function TicketingSystem() {
     description: '',
     assigned_to: '',
     date: new Date().toISOString().split('T')[0],
-    status: 'In Progress'
+    status: 'Pending'
   });
 
   const [newActivity, setNewActivity] = useState({
     handler_name: '',
     action_taken: '',
     notes: '',
-    new_status: 'In Progress',
+    new_status: 'Pending',
     file: null as File | null
   });
 
@@ -208,7 +206,7 @@ export default function TicketingSystem() {
     setIsLoggedIn(false);
     setCurrentUser(null);
     setLoginTime(null);
-    setSelectedTicket(null); // Clear selected ticket on logout
+    setSelectedTicket(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('loginTime');
   };
@@ -236,7 +234,6 @@ export default function TicketingSystem() {
       ]);
 
       if (ticketsData.data) {
-        // Filter tickets for guest users based on project name mappings
         if (currentUser?.role === 'guest') {
           const { data: mappings } = await supabase
             .from('guest_mappings')
@@ -250,7 +247,6 @@ export default function TicketingSystem() {
             );
             setTickets(filteredTickets);
             
-            // Clear selected ticket if it's not in the allowed list
             if (selectedTicket && !allowedProjectNames.includes(selectedTicket.project_name)) {
               setSelectedTicket(null);
             }
@@ -275,7 +271,13 @@ export default function TicketingSystem() {
 
   const createTicket = async () => {
     if (!newTicket.project_name || !newTicket.issue_case || !newTicket.assigned_to) {
-      alert('Project name dan Issue case harus diisi!');
+      alert('Project name, Issue case, dan Assigned to harus diisi!');
+      return;
+    }
+
+    const validStatuses = ['Pending', 'In Progress', 'Solved'];
+    if (!validStatuses.includes(newTicket.status)) {
+      alert('Status tidak valid! Gunakan: Pending, In Progress, atau Solved');
       return;
     }
 
@@ -284,8 +286,23 @@ export default function TicketingSystem() {
       setShowLoadingPopup(true);
       setLoadingMessage('Menyimpan ticket baru...');
       
-      const { error } = await supabase.from('tickets').insert([newTicket]);
-      if (error) throw error;
+      const ticketData = {
+        project_name: newTicket.project_name,
+        customer_phone: newTicket.customer_phone || null,
+        sales_name: newTicket.sales_name || null,
+        issue_case: newTicket.issue_case,
+        description: newTicket.description || null,
+        assigned_to: newTicket.assigned_to,
+        date: newTicket.date,
+        status: newTicket.status,
+        created_by: currentUser?.username || null
+      };
+
+      const { error } = await supabase.from('tickets').insert([ticketData]);
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       setNewTicket({
         project_name: '',
@@ -295,7 +312,7 @@ export default function TicketingSystem() {
         description: '',
         assigned_to: '',
         date: new Date().toISOString().split('T')[0],
-        status: 'In Progress'
+        status: 'Pending'
       });
       setShowNewTicket(false);
       
@@ -331,6 +348,12 @@ export default function TicketingSystem() {
       return;
     }
 
+    const validStatuses = ['Pending', 'In Progress', 'Solved'];
+    if (!validStatuses.includes(newActivity.new_status)) {
+      alert('Status tidak valid! Gunakan: Pending, In Progress, atau Solved');
+      return;
+    }
+
     try {
       setUploading(true);
       setShowLoadingPopup(true);
@@ -350,11 +373,11 @@ export default function TicketingSystem() {
         ticket_id: selectedTicket.id,
         handler_name: newActivity.handler_name,
         handler_username: currentUser?.username,
-        action_taken: newActivity.action_taken,
+        action_taken: newActivity.action_taken || null,
         notes: newActivity.notes,
         new_status: newActivity.new_status,
-        file_url: fileUrl,
-        file_name: fileName
+        file_url: fileUrl || null,
+        file_name: fileName || null
       }]);
 
       await supabase.from('tickets')
@@ -365,7 +388,7 @@ export default function TicketingSystem() {
         handler_name: newActivity.handler_name,
         action_taken: '',
         notes: '',
-        new_status: 'In Progress',
+        new_status: 'Pending',
         file: null
       });
       
@@ -417,14 +440,12 @@ export default function TicketingSystem() {
       return;
     }
 
-    // Validate guest user exists and has guest role
     const guestUser = users.find(u => u.username === newMapping.guestUsername && u.role === 'guest');
     if (!guestUser) {
       alert('Username guest tidak ditemukan atau bukan role guest!');
       return;
     }
 
-    // Validate project exists
     const projectExists = tickets.some(t => t.project_name === newMapping.projectName);
     if (!projectExists) {
       alert('Nama project tidak ditemukan!');
@@ -561,7 +582,7 @@ export default function TicketingSystem() {
 
   const stats = useMemo(() => {
     const total = tickets.length;
-	const processing = tickets.filter(t => t.status === 'In Progress').length;
+    const processing = tickets.filter(t => t.status === 'In Progress').length;
     const pending = tickets.filter(t => t.status === 'Pending').length;
     const solved = tickets.filter(t => t.status === 'Solved').length;
     
@@ -581,7 +602,6 @@ export default function TicketingSystem() {
     };
   }, [tickets]);
 
-  // Get unique project names for dropdown
   const uniqueProjectNames = useMemo(() => {
     const names = tickets.map(t => t.project_name);
     return Array.from(new Set(names)).sort();
@@ -645,7 +665,6 @@ export default function TicketingSystem() {
     }
   }, [currentUser]);
 
-  // Re-fetch data when currentUser changes to apply guest filtering
   useEffect(() => {
     if (currentUser) {
       fetchData();
@@ -712,7 +731,6 @@ export default function TicketingSystem() {
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      {/* Loading Popup Modal */}
       {showLoadingPopup && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border-4 border-blue-500 animate-scale-in">
@@ -728,7 +746,6 @@ export default function TicketingSystem() {
         </div>
       )}
 
-      {/* Loading Bar */}
       {uploading && !showLoadingPopup && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
           <div className="h-full bg-gradient-to-r from-transparent via-white to-transparent animate-pulse"></div>
@@ -736,7 +753,6 @@ export default function TicketingSystem() {
       )}
 
       <div className="max-w-7xl mx-auto">
-        {/* Notification Modal Popup */}
         {showNotifications && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
@@ -875,6 +891,7 @@ export default function TicketingSystem() {
                 <button 
                   onClick={() => {
                     setShowAccountSettings(!showAccountSettings);
+                    setShowGuestMapping(false);
                     setShowDashboard(false);
                     setShowNewTicket(false);
                   }} 
@@ -883,11 +900,25 @@ export default function TicketingSystem() {
                   ⚙️ Account
                 </button>
               )}
+              {canAccessAccountSettings && (
+                <button 
+                  onClick={() => {
+                    setShowGuestMapping(!showGuestMapping);
+                    setShowAccountSettings(false);
+                    setShowDashboard(false);
+                    setShowNewTicket(false);
+                  }} 
+                  className="btn-teal"
+                >
+                  👥 Guest Mapping
+                </button>
+              )}
               {currentUser?.role !== 'guest' && (
                 <button 
                   onClick={() => {
                     setShowDashboard(!showDashboard);
                     setShowAccountSettings(false);
+                    setShowGuestMapping(false);
                     setShowNewTicket(false);
                   }} 
                   className="btn-purple"
@@ -900,6 +931,7 @@ export default function TicketingSystem() {
                   onClick={() => {
                     setShowNewTicket(!showNewTicket);
                     setShowAccountSettings(false);
+                    setShowGuestMapping(false);
                     setShowDashboard(false);
                   }} 
                   className="btn-primary"
@@ -916,7 +948,7 @@ export default function TicketingSystem() {
 
         {showAccountSettings && canAccessAccountSettings && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-gray-500 animate-slide-down">
-            <h2 className="text-2xl font-bold mb-4">⚙️ Account</h2>
+            <h2 className="text-2xl font-bold mb-4">⚙️ Account Settings</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-blue-50 rounded-xl p-5 border-3 border-blue-300">
@@ -953,70 +985,6 @@ export default function TicketingSystem() {
               </div>
             </div>
 
-            <div className="mt-6 bg-purple-50 rounded-xl p-5 border-3 border-purple-300">
-              <h3 className="font-bold mb-3 text-lg">👥 Guest Mapping - Akses Ticket untuk Guest</h3>
-              <p className="text-sm text-gray-600 mb-4">Atur username guest mana yang bisa melihat ticket dari nama project tertentu. Admin bisa mapping lebih dari 1 nama project untuk 1 guest.</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Username Guest (Role: Guest)</label>
-                  <select 
-                    value={newMapping.guestUsername} 
-                    onChange={(e) => setNewMapping({...newMapping, guestUsername: e.target.value})} 
-                    className="input-field"
-                  >
-                    <option value="">Pilih Guest User</option>
-                    {users.filter(u => u.role === 'guest').map(u => (
-                      <option key={u.id} value={u.username}>{u.username} - {u.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Nama Project</label>
-                  <select 
-                    value={newMapping.projectName} 
-                    onChange={(e) => setNewMapping({...newMapping, projectName: e.target.value})} 
-                    className="input-field"
-                  >
-                    <option value="">Pilih Nama Project</option>
-                    {uniqueProjectNames.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <button onClick={addGuestMapping} disabled={uploading} className="btn-primary w-full mb-4">
-                {uploading ? '⏳ Memproses...' : '➕ Tambah Mapping'}
-              </button>
-
-              <div className="bg-white rounded-xl p-4 border-2 border-purple-200">
-                <h4 className="font-semibold mb-3">Daftar Mapping Aktif</h4>
-                {guestMappings.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-4">Belum ada mapping</p>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {guestMappings.map(mapping => (
-                      <div key={mapping.id} className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border border-purple-200">
-                        <div className="text-sm">
-                          <span className="font-bold text-purple-900">Guest:</span> {mapping.guest_username}
-                          <span className="mx-2 text-gray-400">→</span>
-                          <span className="font-bold text-blue-900">Project:</span> {mapping.project_name}
-                        </div>
-                        <button
-                          onClick={() => deleteGuestMapping(mapping.id)}
-                          disabled={uploading}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all"
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
             <div className="mt-6 bg-gray-50 rounded-xl p-5 border-3 border-gray-300">
               <h3 className="font-bold mb-3">Daftar User</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1034,6 +1002,111 @@ export default function TicketingSystem() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {showGuestMapping && canAccessAccountSettings && (
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-teal-500 animate-slide-down">
+            <h2 className="text-2xl font-bold mb-4 text-teal-800">👥 Guest Mapping - Akses Project</h2>
+            <p className="text-gray-600 mb-6">Kelola akses guest user ke project tertentu. Satu guest bisa memiliki akses ke beberapa project.</p>
+            
+            <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-6 border-3 border-teal-300 mb-6">
+              <h3 className="font-bold mb-4 text-lg text-teal-900">➕ Tambah Mapping Baru</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Username Guest</label>
+                  <select 
+                    value={newMapping.guestUsername} 
+                    onChange={(e) => setNewMapping({...newMapping, guestUsername: e.target.value})} 
+                    className="input-field"
+                  >
+                    <option value="">Pilih Guest User</option>
+                    {users.filter(u => u.role === 'guest').map(u => (
+                      <option key={u.id} value={u.username}>{u.username} - {u.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Nama Project</label>
+                  <select 
+                    value={newMapping.projectName} 
+                    onChange={(e) => setNewMapping({...newMapping, projectName: e.target.value})} 
+                    className="input-field"
+                  >
+                    <option value="">Pilih Nama Project</option>
+                    {uniqueProjectNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <button onClick={addGuestMapping} disabled={uploading} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-xl transition-all disabled:opacity-50">
+                {uploading ? '⏳ Memproses...' : '➕ Tambah Mapping'}
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 border-3 border-gray-300 shadow-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-lg text-gray-800">📋 Daftar Mapping Aktif</h3>
+                <span className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm font-bold">
+                  {guestMappings.length} mapping
+                </span>
+              </div>
+              
+              {guestMappings.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📭</div>
+                  <p className="text-gray-500 font-medium">Belum ada mapping</p>
+                  <p className="text-sm text-gray-400 mt-2">Tambahkan mapping untuk memberikan akses guest ke project</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {guestMappings.map(mapping => (
+                    <div key={mapping.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-teal-50 to-blue-50 rounded-xl border-2 border-teal-200 hover:shadow-md transition-all">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-lg text-sm font-bold">
+                            👤 {mapping.guest_username}
+                          </span>
+                          <span className="text-gray-400 font-bold">→</span>
+                          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm font-bold">
+                            🏢 {mapping.project_name}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Dibuat: {new Date(mapping.created_at).toLocaleDateString('id-ID', { 
+                            day: '2-digit', 
+                            month: 'long', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => deleteGuestMapping(mapping.id)}
+                        disabled={uploading}
+                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold transition-all disabled:opacity-50 ml-4 hover:scale-105"
+                      >
+                        🗑️ Hapus
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+              <h4 className="font-bold text-sm text-blue-900 mb-2">ℹ️ Informasi</h4>
+              <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                <li>Guest user hanya bisa melihat ticket dari project yang sudah dimapping</li>
+                <li>Satu guest bisa memiliki akses ke beberapa project berbeda</li>
+                <li>Guest tidak bisa membuat atau mengupdate ticket</li>
+                <li>Hapus mapping untuk mencabut akses guest ke project tertentu</li>
+              </ul>
             </div>
           </div>
         )}
@@ -1112,7 +1185,7 @@ export default function TicketingSystem() {
           <div className="bg-white/75 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-green-500 animate-slide-down">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">📝 Buat Ticket Baru</h2>
             
-           <div className="space-y-4">
+            <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Nama Project *</label>
@@ -1159,7 +1232,7 @@ export default function TicketingSystem() {
                 </div>
               </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📅 Tanggal</label>
                   <input 
@@ -1176,18 +1249,19 @@ export default function TicketingSystem() {
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
                     className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                   >
-                    <option value="In Progress">In Progress</option>
                     <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
                 <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4">
-                  <label className="block text-sm font-bold text-gray-800 mb-2">👨‍💼 Assign ke</label>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">👨‍💼 Assign ke *</label>
                   <select 
                     value={newTicket.assigned_to} 
                     onChange={(e) => setNewTicket({...newTicket, assigned_to: e.target.value})} 
                     className="w-full border-2 border-orange-400 rounded-lg px-4 py-2.5 focus:border-orange-600 focus:ring-2 focus:ring-orange-200 transition-all font-medium bg-white"
                   >
+                    <option value="">Pilih Handler</option>
                     {teamMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                   </select>
                 </div>
@@ -1351,12 +1425,12 @@ export default function TicketingSystem() {
                         </div>
                         {log.action_taken && (
                           <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-3 py-2 mb-2">
-							<p className="text-sm font-bold text-blue-900">🔧 Action :</p>
-                            <p className="text-sm text-white-900">{log.action_taken}</p>
+                            <p className="text-sm font-bold text-blue-900">🔧 Action :</p>
+                            <p className="text-sm text-gray-900">{log.action_taken}</p>
                           </div>
                         )}
-						<p className="text-sm font-bold text-blue-900">Notes :</p>
-                        <p className="text-sm text-white-900">{log.notes}</p>
+                        <p className="text-sm font-bold text-blue-900">Notes :</p>
+                        <p className="text-sm text-gray-900">{log.notes}</p>
                         {log.file_url && (
                           <a href={log.file_url} download={log.file_name} className="file-download">
                             📄 {log.file_name || 'Download Report'}
@@ -1394,8 +1468,8 @@ export default function TicketingSystem() {
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                       >
-                        <option value="In Progress">In Progress</option>
                         <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
                         <option value="Solved">Solved</option>
                       </select>
                     </div>
@@ -1468,6 +1542,9 @@ export default function TicketingSystem() {
         }
         .btn-secondary {
           @apply bg-gradient-to-r from-gray-600 to-gray-800 text-white px-5 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all;
+        }
+        .btn-teal {
+          @apply bg-gradient-to-r from-teal-600 to-teal-800 text-white px-5 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-lg transition-all;
         }
         .btn-purple {
           @apply bg-gradient-to-r from-purple-600 to-purple-800 text-white px-5 py-3 rounded-xl hover:from-purple-700 hover:to-purple-900 font-bold shadow-lg transition-all;
