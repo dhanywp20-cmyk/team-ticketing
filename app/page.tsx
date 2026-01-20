@@ -101,14 +101,14 @@ export default function TicketingSystem() {
     description: '',
     assigned_to: '',
     date: new Date().toISOString().split('T')[0],
-    status: 'Pending'
+    status: 'In Progress'
   });
 
   const [newActivity, setNewActivity] = useState({
     handler_name: '',
     action_taken: '',
     notes: '',
-    new_status: 'Pending',
+    new_status: 'In Progress',
     file: null as File | null
   });
 
@@ -135,7 +135,7 @@ export default function TicketingSystem() {
   const checkSessionTimeout = () => {
     if (loginTime) {
       const now = Date.now();
-      const sixHours = 6 * 60 * 60 * 1000;
+      const sixHours = 1 * 60 * 60 * 1000;
       
       if (now - loginTime > sixHours) {
         handleLogout();
@@ -275,7 +275,7 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Pending', 'In Progress', 'Solved'];
+    const validStatuses = ['In Progress', 'Pending', 'Solved'];
     if (!validStatuses.includes(newTicket.status)) {
       alert('Status tidak valid! Gunakan: Pending, In Progress, atau Solved');
       return;
@@ -312,7 +312,7 @@ export default function TicketingSystem() {
         description: '',
         assigned_to: '',
         date: new Date().toISOString().split('T')[0],
-        status: 'Pending'
+        status: 'In Progress'
       });
       setShowNewTicket(false);
       
@@ -348,7 +348,7 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Pending', 'In Progress', 'Solved'];
+    const validStatuses = ['In Progress', 'Pending', 'Solved'];
     if (!validStatuses.includes(newActivity.new_status)) {
       alert('Status tidak valid! Gunakan: Pending, In Progress, atau Solved');
       return;
@@ -587,10 +587,10 @@ export default function TicketingSystem() {
     const solved = tickets.filter(t => t.status === 'Solved').length;
     
     return {
-      total, pending, processing, solved,
+      total, processing, pending, solved,
       statusData: [
-        { name: 'Pending', value: pending, color: '#FCD34D' },
         { name: 'In Progress', value: processing, color: '#60A5FA' },
+        { name: 'Pending', value: pending, color: '#FCD34D' },
         { name: 'Solved', value: solved, color: '#34D399' }
       ].filter(d => d.value > 0),
       handlerData: Object.entries(
@@ -863,7 +863,7 @@ export default function TicketingSystem() {
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-1">
-                📋 Reminder Troubleshooting Project
+                📋Reminder Troubleshooting
               </h1>
               <p className="text-gray-800 font-bold text-lg">PTS IVP</p>
               <p className="text-sm text-gray-600">
@@ -940,7 +940,7 @@ export default function TicketingSystem() {
                 </button>
               )}
               <button onClick={handleLogout} className="btn-danger">
-                🚪 Logout
+                🚶Logout
               </button>
             </div>
           </div>
@@ -1012,7 +1012,7 @@ export default function TicketingSystem() {
             <p className="text-gray-600 mb-6">Kelola akses guest user ke project tertentu. Satu guest bisa memiliki akses ke beberapa project.</p>
             
             <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-6 border-3 border-teal-300 mb-6">
-              <h3 className="font-bold mb-4 text-lg text-teal-900">➕ Tambah Mapping Baru</h3>
+              <h3 className="font-bold mb-4 text-lg text-teal-900">➕ Mapping Baru</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -1050,7 +1050,7 @@ export default function TicketingSystem() {
 
             <div className="bg-white rounded-xl p-6 border-3 border-gray-300 shadow-lg">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-lg text-gray-800">📋 Daftar Mapping Aktif</h3>
+                <h3 className="font-bold text-lg text-gray-800">📋 Daftar Map</h3>
                 <span className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm font-bold">
                   {guestMappings.length} mapping
                 </span>
@@ -1120,13 +1120,13 @@ export default function TicketingSystem() {
                 <p className="text-sm opacity-90">Total</p>
                 <p className="text-4xl font-bold">{stats.total}</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-yellow-500 to-yellow-700">
-                <p className="text-sm opacity-90">Pending</p>
-                <p className="text-4xl font-bold">{stats.pending}</p>
-              </div>
               <div className="stat-card bg-gradient-to-br from-blue-400 to-blue-600">
                 <p className="text-sm opacity-90">In Progress</p>
                 <p className="text-4xl font-bold">{stats.processing}</p>
+              </div>
+              <div className="stat-card bg-gradient-to-br from-yellow-500 to-yellow-700">
+                <p className="text-sm opacity-90">Pending</p>
+                <p className="text-4xl font-bold">{stats.pending}</p>
               </div>
               <div className="stat-card bg-gradient-to-br from-green-500 to-green-700">
                 <p className="text-sm opacity-90">Solved</p>
@@ -1249,8 +1249,8 @@ export default function TicketingSystem() {
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
                     className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                   >
-                    <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
+                    <option value="Pending">Pending</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
@@ -1468,8 +1468,8 @@ export default function TicketingSystem() {
                         onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
                         className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                       >
-                        <option value="Pending">Pending</option>
                         <option value="In Progress">In Progress</option>
+                        <option value="Pending">Pending</option>
                         <option value="Solved">Solved</option>
                       </select>
                     </div>
