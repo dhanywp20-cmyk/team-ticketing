@@ -1363,11 +1363,11 @@ export default function TicketingSystem() {
                 onClick={() => setShowTicketList(!showTicketList)}
                 className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
               >
-                <span className="text-2xl">{showTicketList ? '🔼' : '🔽'}</span>
+                <span className="text-2xl">{showTicketList ? '🔽' : '🔽'}</span>
               </button>
             </div>
             {showTicketList && (
-              <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+              <div className="max-h-[1200px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                 {filteredTickets.length === 0 ? (
                   <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-8 text-center border-3 border-gray-400">
                     <p className="text-gray-600 font-medium">
@@ -1382,7 +1382,7 @@ export default function TicketingSystem() {
                       key={ticket.id}
                       onClick={() => setSelectedTicket(ticket)}
                       className={`bg-blue-50/60 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 ${
-                        selectedTicket?.id === ticket.id ? 'border-red-600 ring-8 ring-red-300' : 'border-blue-400'
+                        selectedTicket?.id === ticket.id ? 'border-red-600 ring-8 ring-red-180' : 'border-blue-400'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-3">
@@ -1699,3 +1699,4 @@ export default function TicketingSystem() {
     </div>
   );
 }
+
