@@ -87,6 +87,8 @@ export default function TicketingSystem() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Ticket[]>([]);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [showTicketList, setShowTicketList] = useState(true);
 
   const [newMapping, setNewMapping] = useState({
     guestUsername: '',
@@ -398,6 +400,7 @@ export default function TicketingSystem() {
       setTimeout(() => {
         setShowLoadingPopup(false);
         setUploading(false);
+        setShowUpdateForm(false);
       }, 1500);
     } catch (err: any) {
       setShowLoadingPopup(false);
@@ -1058,7 +1061,7 @@ export default function TicketingSystem() {
               
               {guestMappings.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="text-6xl mb-4">📭</div>
+                  <div className="text-6xl mb-4">🔭</div>
                   <p className="text-gray-500 font-medium">Belum ada mapping</p>
                   <p className="text-sm text-gray-400 mt-2">Tambahkan mapping untuk memberikan akses guest ke project</p>
                 </div>
@@ -1113,49 +1116,111 @@ export default function TicketingSystem() {
 
         {showDashboard && (
           <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-3 border-purple-500 animate-slide-down">
-            <h2 className="text-2xl font-bold mb-6">📊 Dashboard</h2>
+            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="stat-card bg-gradient-to-br from-blue-500 to-blue-700">
-                <p className="text-sm opacity-90">Total</p>
-                <p className="text-4xl font-bold">{stats.total}</p>
+              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
+                  <span className="text-2xl">📊</span>
+                </div>
+                <p className="text-4xl font-bold mb-1">{stats.total}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
+                  <div className="h-full bg-white rounded-full" style={{width: '100%'}}></div>
+                </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-yellow-500 to-yellow-700">
-                <p className="text-sm opacity-90">Pending</p>
-                <p className="text-4xl font-bold">{stats.pending}</p>
+              <div className="stat-card bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Pending</p>
+                  <span className="text-2xl">⏳</span>
+                </div>
+                <p className="text-4xl font-bold mb-1">{stats.pending}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
+                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.pending/stats.total*100) : 0}%`}}></div>
+                </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-blue-400 to-blue-600">
-                <p className="text-sm opacity-90">In Progress</p>
-                <p className="text-4xl font-bold">{stats.processing}</p>
+              <div className="stat-card bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">In Progress</p>
+                  <span className="text-2xl">🔄</span>
+                </div>
+                <p className="text-4xl font-bold mb-1">{stats.processing}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
+                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
+                </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-green-500 to-green-700">
-                <p className="text-sm opacity-90">Solved</p>
-                <p className="text-4xl font-bold">{stats.solved}</p>
+              <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Solved</p>
+                  <span className="text-2xl">✅</span>
+                </div>
+                <p className="text-4xl font-bold mb-1">{stats.solved}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
+                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solved/stats.total*100) : 0}%`}}></div>
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="chart-container">
-                <h3 className="font-bold mb-4">Status Distribution</h3>
+              <div className="chart-container bg-gradient-to-br from-white to-gray-50">
+                <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
+                  <span className="text-xl">🥧</span>
+                  Status Distribution
+                </h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={stats.statusData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={90} dataKey="value">
+                    <Pie 
+                      data={stats.statusData} 
+                      cx="50%" 
+                      cy="50%" 
+                      labelLine={false} 
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} 
+                      outerRadius={90} 
+                      dataKey="value"
+                      onClick={(data) => {
+                        const statusMap: Record<string, string> = {
+                          'Pending': 'Pending',
+                          'In Progress': 'In Progress',
+                          'Solved': 'Solved'
+                        };
+                        setFilterStatus(statusMap[data.name] || 'All');
+                        setShowDashboard(false);
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
                       {stats.statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
+                <p className="text-xs text-center text-gray-500 mt-2 italic">Klik pada chart untuk filter status</p>
               </div>
 
-              <div className="chart-container">
-                <h3 className="font-bold mb-4">Tickets per Handler</h3>
+              <div className="chart-container bg-gradient-to-br from-white to-gray-50">
+                <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
+                  <span className="text-xl">📊</span>
+                  Tickets per Handler
+                </h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={stats.handlerData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                     <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="tickets" fill="#EF4444" radius={[10, 10, 0, 0]} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: '2px solid #6366f1',
+                        borderRadius: '12px',
+                        fontWeight: 'bold'
+                      }}
+                    />
+                    <Bar dataKey="tickets" fill="url(#colorGradient)" radius={[10, 10, 0, 0]} />
+                    <defs>
+                      <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8b5cf6" />
+                        <stop offset="100%" stopColor="#6366f1" />
+                      </linearGradient>
+                    </defs>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1292,66 +1357,76 @@ export default function TicketingSystem() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <div className="bg-blue-600/80 backdrop-blur-md rounded-2xl shadow-xl p-4 border-3 border-blue-700">
+            <div className="bg-blue-600/80 backdrop-blur-md rounded-2xl shadow-xl p-4 border-3 border-blue-700 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-white">📋 Daftar Ticket ({filteredTickets.length})</h2>
+              <button
+                onClick={() => setShowTicketList(!showTicketList)}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+              >
+                <span className="text-2xl">{showTicketList ? '🔼' : '🔽'}</span>
+              </button>
             </div>
-            {filteredTickets.length === 0 ? (
-              <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-8 text-center border-3 border-gray-400">
-                <p className="text-gray-600 font-medium">
-                  {searchProject || filterStatus !== 'All' 
-                    ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
-                    : 'Belum ada ticket. Buat ticket pertama Anda!'}
-                </p>
-              </div>
-            ) : (
-              filteredTickets.map((ticket, idx) => (
-                <div
-                  key={ticket.id}
-                  onClick={() => setSelectedTicket(ticket)}
-                  className={`bg-blue-50/60 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 ${
-                    selectedTicket?.id === ticket.id ? 'border-red-600 ring-8 ring-red-300' : 'border-blue-400'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-800 mb-2">🏢 {ticket.project_name}</h3>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex">
-                          <span className="text-gray-500 font-medium w-32">Issue Case</span>
-                          <span className="text-gray-700 font-medium flex-1">: {ticket.issue_case}</span>
-                        </div>
-                        {ticket.customer_phone && (
-                          <div className="flex">
-                            <span className="text-gray-500 font-medium w-32">Telepon Customer</span>
-                            <span className="text-gray-700 flex-1">: {ticket.customer_phone}</span>
+            {showTicketList && (
+              <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                {filteredTickets.length === 0 ? (
+                  <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl p-8 text-center border-3 border-gray-400">
+                    <p className="text-gray-600 font-medium">
+                      {searchProject || filterStatus !== 'All' 
+                        ? 'Tidak ada ticket yang sesuai dengan pencarian.' 
+                        : 'Belum ada ticket. Buat ticket pertama Anda!'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredTickets.map((ticket, idx) => (
+                    <div
+                      key={ticket.id}
+                      onClick={() => setSelectedTicket(ticket)}
+                      className={`bg-blue-50/60 backdrop-blur-sm rounded-2xl shadow-xl p-5 cursor-pointer hover:shadow-2xl transition-all border-3 transform hover:scale-102 ${
+                        selectedTicket?.id === ticket.id ? 'border-red-600 ring-8 ring-red-300' : 'border-blue-400'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg text-gray-800 mb-2">🏢 {ticket.project_name}</h3>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex">
+                              <span className="text-gray-500 font-medium w-32">Issue Case</span>
+                              <span className="text-gray-700 font-medium flex-1">: {ticket.issue_case}</span>
+                            </div>
+                            {ticket.customer_phone && (
+                              <div className="flex">
+                                <span className="text-gray-500 font-medium w-32">Telepon Customer</span>
+                                <span className="text-gray-700 flex-1">: {ticket.customer_phone}</span>
+                              </div>
+                            )}
+                            {ticket.sales_name && (
+                              <div className="flex">
+                                <span className="text-gray-500 font-medium w-32">Sales Project</span>
+                                <span className="text-gray-700 flex-1">: {ticket.sales_name}</span>
+                              </div>
+                            )}
+                            <div className="flex">
+                              <span className="text-gray-500 font-medium w-32">Tanggal</span>
+                              <span className="text-gray-700 flex-1">: {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
+                            </div>
+                            <div className="flex">
+                              <span className="text-gray-500 font-medium w-32">Assigned to</span>
+                              <span className="text-gray-700 flex-1">: {ticket.assigned_to}</span>
+                            </div>
                           </div>
-                        )}
-                        {ticket.sales_name && (
-                          <div className="flex">
-                            <span className="text-gray-500 font-medium w-32">Sales Project</span>
-                            <span className="text-gray-700 flex-1">: {ticket.sales_name}</span>
-                          </div>
-                        )}
-                        <div className="flex">
-                          <span className="text-gray-500 font-medium w-32">Tanggal</span>
-                          <span className="text-gray-700 flex-1">: {new Date(ticket.date).toLocaleDateString('id-ID')}</span>
                         </div>
-                        <div className="flex">
-                          <span className="text-gray-500 font-medium w-32">Assigned to</span>
-                          <span className="text-gray-700 flex-1">: {ticket.assigned_to}</span>
-                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} ml-3`}>
+                          {ticket.status}
+                        </span>
+                      </div>
+                      <div className="flex gap-3 text-xs text-gray-600 font-medium mt-3 pt-3 border-t border-gray-300">
+                        <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
+                        {ticket.activity_logs?.some(a => a.file_url) && <span className="text-green-600">📄 Ada Report</span>}
                       </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]} ml-3`}>
-                      {ticket.status}
-                    </span>
-                  </div>
-                  <div className="flex gap-3 text-xs text-gray-600 font-medium mt-3 pt-3 border-t border-gray-300">
-                    <span>💬 {ticket.activity_logs?.length || 0} aktivitas</span>
-                    {ticket.activity_logs?.some(a => a.file_url) && <span className="text-green-600">📄 Ada Report</span>}
-                  </div>
-                </div>
-              ))
+                  ))
+                )}
+              </div>
             )}
           </div>
 
@@ -1446,83 +1521,93 @@ export default function TicketingSystem() {
 
               {canUpdateTicket && (
                 <div className="border-t-2 border-gray-200 pt-6 mt-6">
-                  <h3 className="font-bold text-xl mb-6 text-gray-800">➕ Update Status</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Handler (Otomatis dari User Login)</label>
-                      <input 
-                        type="text" 
-                        value={newActivity.handler_name} 
-                        disabled 
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-gray-100 cursor-not-allowed text-gray-700 font-semibold"
-                        title="Handler otomatis sesuai user yang login"
-                      />
-                      <p className="text-xs text-gray-500 italic mt-2">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
-                    </div>
-                    
-                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ Status Baru *</label>
-                      <select 
-                        value={newActivity.new_status} 
-                        onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Solved">Solved</option>
-                      </select>
-                    </div>
-                    
-                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action yang Dilakukan</label>
-                      <input 
-                        type="text" 
-                        value={newActivity.action_taken} 
-                        onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
-                        placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                      />
-                    </div>
-                    
-                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes Detail *</label>
-                      <textarea 
-                        value={newActivity.notes} 
-                        onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
-                        placeholder="Jelaskan detail ....." 
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
-                        rows={4}
-                      />
-                    </div>
-                    
-                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload File Report (PDF)</label>
-                      <input 
-                        type="file" 
-                        accept=".pdf" 
-                        onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
-                        className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
-                      />
-                      {newActivity.file && (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-blue-700 font-bold">✓ File terpilih:</span>
-                            <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
-                            <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <button 
-                      onClick={addActivity} 
-                      disabled={uploading || !newActivity.notes.trim()} 
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-xl text-gray-800">➕ Update Status</h3>
+                    <button
+                      onClick={() => setShowUpdateForm(!showUpdateForm)}
+                      className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all flex items-center gap-2"
                     >
-                      {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
+                      <span>{showUpdateForm ? '🔼 Hide Form' : '🔽 Show Form'}</span>
                     </button>
                   </div>
+                  
+                  {showUpdateForm && (
+                    <div className="space-y-4 animate-slide-down">
+                      <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Handler (Otomatis dari User Login)</label>
+                        <input 
+                          type="text" 
+                          value={newActivity.handler_name} 
+                          disabled 
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-gray-100 cursor-not-allowed text-gray-700 font-semibold"
+                          title="Handler otomatis sesuai user yang login"
+                        />
+                        <p className="text-xs text-gray-500 italic mt-2">* Handler tidak dapat diubah, otomatis dari akun yang login</p>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ Status Baru *</label>
+                        <select 
+                          value={newActivity.new_status} 
+                          onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Solved">Solved</option>
+                        </select>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action yang Dilakukan</label>
+                        <input 
+                          type="text" 
+                          value={newActivity.action_taken} 
+                          onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
+                          placeholder="Contoh: Cek kabel HDMI dan power, restart system" 
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                        />
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes Detail *</label>
+                        <textarea 
+                          value={newActivity.notes} 
+                          onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
+                          placeholder="Jelaskan detail ....." 
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
+                          rows={4}
+                        />
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload File Report (PDF)</label>
+                        <input 
+                          type="file" 
+                          accept=".pdf" 
+                          onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
+                        />
+                        {newActivity.file && (
+                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-blue-700 font-bold">✓ File terpilih:</span>
+                              <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
+                              <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <button 
+                        onClick={addActivity} 
+                        disabled={uploading || !newActivity.notes.trim()} 
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+                      >
+                        {uploading ? '⏳ Sedang Upload & Simpan...' : '💾 Update Status & Simpan'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1563,6 +1648,20 @@ export default function TicketingSystem() {
         }
         .chart-container {
           @apply bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-3 border-gray-300 shadow-xl;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #888;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #555;
         }
         .file-download {
           @apply inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-200 transition-all;
