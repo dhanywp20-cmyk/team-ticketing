@@ -94,6 +94,7 @@ export default function TicketingSystem() {
   
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [selectedHandlerTeam, setSelectedHandlerTeam] = useState<'PTS' | 'Services'>('PTS');
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Ticket[]>([]);
@@ -1645,36 +1646,60 @@ Error Code: ${activityError.code}`;
               </div>
 
               <div className="chart-container bg-gradient-to-br from-white to-gray-50 flex flex-col gap-6">
-                <div>
-                  <h3 className="font-bold mb-2 text-gray-800 flex items-center gap-2">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
                     <span className="text-xl">📊</span>
-                    Team PTS Handlers
+                    Team Handlers
                   </h3>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.handlerData.filter(h => h.team === 'Team PTS')}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Bar dataKey="tickets" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="flex bg-gray-200 rounded-lg p-1">
+                    <button
+                      onClick={() => setSelectedHandlerTeam('PTS')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                        selectedHandlerTeam === 'PTS'
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      PTS
+                    </button>
+                    <button
+                      onClick={() => setSelectedHandlerTeam('Services')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                        selectedHandlerTeam === 'Services'
+                          ? 'bg-white text-pink-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Services
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold mb-2 text-gray-800 flex items-center gap-2">
-                    <span className="text-xl">📊</span>
-                    Team Services Handlers
-                  </h3>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.handlerData.filter(h => h.team === 'Team Services')}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Bar dataKey="tickets" fill="#ec4899" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+
+                {selectedHandlerTeam === 'PTS' ? (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={stats.handlerData.filter(h => h.team === 'Team PTS')}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="tickets" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={stats.handlerData.filter(h => h.team === 'Team Services')}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="tickets" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </div>
           </div>
