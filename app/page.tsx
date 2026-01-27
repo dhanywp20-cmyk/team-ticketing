@@ -127,6 +127,7 @@ export default function TicketingSystem() {
     action_taken: '',
     notes: '',
     new_status: 'Pending',
+    sn_unit: '',
     file: null as File | null,
     photo: null as File | null,
     assign_to_services: false,
@@ -507,6 +508,10 @@ Error Code: ${activityError.code}`;
 
       // Update ticket status
       const updateData: any = {};
+
+      if (newActivity.sn_unit) {
+        updateData.sn_unit = newActivity.sn_unit;
+      }
       
       if (teamType === 'Team PTS') {
         updateData.status = newActivity.new_status;
@@ -550,6 +555,7 @@ Error Code: ${activityError.code}`;
         action_taken: '',
         notes: '',
         new_status: 'Pending',
+        sn_unit: '',
         file: null,
         photo: null,
         assign_to_services: false,
@@ -1324,7 +1330,12 @@ Error Code: ${activityError.code}`;
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-xl text-gray-800">➕ Update Status</h3>
                         <button
-                          onClick={() => setShowUpdateForm(!showUpdateForm)}
+                          onClick={() => {
+                            if (!showUpdateForm) {
+                              setNewActivity(prev => ({ ...prev, sn_unit: selectedTicket.sn_unit || '' }));
+                            }
+                            setShowUpdateForm(!showUpdateForm);
+                          }}
                           className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all flex items-center gap-2"
                         >
                           <span>{showUpdateForm ? '🔼 Hide Form' : '🔽 Show Form'}</span>
@@ -1345,6 +1356,17 @@ Error Code: ${activityError.code}`;
                             <p className="text-xs text-gray-500 italic mt-2">* Handler cannot be changed, auto-filled from logged account</p>
                           </div>
                           
+                          <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">🔢 No SN Unit</label>
+                            <input 
+                              type="text" 
+                              value={newActivity.sn_unit} 
+                              onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})} 
+                              placeholder="Update SN Unit..." 
+                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                            />
+                          </div>
+
                           <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ New Status *</label>
                             <select 
