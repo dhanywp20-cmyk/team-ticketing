@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Reminder Troubleshooting PTS IVP',
-  description: 'Sistem ticketing untuk tim support IndoVisual',
+  title: 'Dashboard PTS IVP - IndoVisual',
+  description: 'Portal Terpadu Support IndoVisual',
 };
 
 export default function RootLayout({
@@ -16,4 +16,3 @@ export default function RootLayout({
     </html>
   );
 }
-
