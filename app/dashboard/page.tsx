@@ -118,7 +118,8 @@ export default function Dashboard() {
           name: 'Access Database',
           url: 'https://1drv.ms/f/c/25d404c0b5ee2b43/IgBDK-61wATUIIAlAgQAAAAAARPyRqbKPJAap5G_Ol5NmA8?e=fFU8wh',
           icon: '🗃️',
-          embed: true
+          embed: false,
+          external: true
         }
       ]
     },
