@@ -117,9 +117,8 @@ export default function Dashboard() {
         {
           name: 'Access Database',
           url: 'https://1drv.ms/f/c/25d404c0b5ee2b43/IgBDK-61wATUIIAlAgQAAAAAARPyRqbKPJAap5G_Ol5NmA8?e=fFU8wh',
-          icon: '🗄',
-          embed: false,
-          external: true
+          icon: '🗃️',
+          embed: true
         }
       ]
     },
@@ -279,11 +278,11 @@ export default function Dashboard() {
   // DASHBOARD UTAMA
   if (!showSidebar) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed" 
+      <div className="min-h-screen flex flex-col bg-cover bg-center bg-fixed" 
            style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         {/* Header - Full Width */}
         <div className="bg-white/75 backdrop-blur-sm shadow-xl border-b border-slate-200">
-          <div className="max-w-[1800px] mx-auto px-8 py-6">
+          <div className="max-w-[2000px] mx-auto px-6 py-6">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
               <div className="flex items-center gap-6">
                 <div className="hidden md:block w-16 h-16 bg-gradient-to-br from-rose-600 to-rose-700 rounded-lg shadow-lg flex items-center justify-center">
@@ -314,10 +313,12 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="max-w-[1800px] mx-auto px-8 py-6">{/* Welcome Banner */}
+        {/* Main Content Area */}
+        <div className="flex-1">
+          <div className="max-w-[2000px] mx-auto px-6 py-8">{/* Welcome Banner */}
 
           {/* Welcome Banner */}
-          <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-500 rounded-lg shadow-xl p-8 mb-6 text-white border border-slate-700 relative overflow-hidden">
+          <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-500 rounded-lg shadow-xl p-8 mb-8 text-white border border-slate-700 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24"></div>
             <div className="relative z-10">
@@ -329,14 +330,14 @@ export default function Dashboard() {
                 </div>
                 <h2 className="text-2xl font-bold tracking-tight">Welcome to Your Portal</h2>
               </div>
-              <p className="text-white/75 text-lg font-medium">
+              <p className="text-white/80 text-lg font-medium">
                 Access all your essential tools and resources in one centralized platform. Select a module below to begin.
               </p>
             </div>
           </div>
 
-          {/* Main Menu Grid - OPTIMIZED SIZE */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-5">
+          {/* Main Menu Grid - LARGER SIZE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {menuItems.map((menu, index) => (
               <div
                 key={index}
@@ -346,37 +347,37 @@ export default function Dashboard() {
                 }}
               >
                 {/* Menu Header */}
-                <div className={`bg-gradient-to-r ${menu.gradient} p-5 text-white relative overflow-hidden`}>
-                  <div className="absolute top-0 right-0 text-7xl opacity-10 -mr-3 -mt-3 transition-transform group-hover:scale-110 duration-300">
+                <div className={`bg-gradient-to-r ${menu.gradient} p-6 text-white relative overflow-hidden`}>
+                  <div className="absolute top-0 right-0 text-8xl opacity-10 -mr-4 -mt-4 transition-transform group-hover:scale-110 duration-300">
                     {menu.icon}
                   </div>
                   <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="text-3xl">{menu.icon}</div>
-                      <h3 className="text-lg font-bold tracking-tight">{menu.title}</h3>
+                      <div className="text-4xl">{menu.icon}</div>
+                      <h3 className="text-xl font-bold tracking-tight">{menu.title}</h3>
                     </div>
-                    <p className="text-white/90 text-xs font-medium line-clamp-2">{menu.description}</p>
+                    <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
                   </div>
                 </div>
 
                 {/* Menu Items */}
-                <div className="p-4 space-y-2">
+                <div className="p-5 space-y-3">
                   {menu.items.map((item, itemIndex) => (
                     <button
                       key={itemIndex}
                       onClick={() => handleMenuClick(item, menu.title)}
-                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-4 py-3 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-left flex items-center gap-3 group/item"
+                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-left flex items-center gap-4 group/item"
                     >
-                      <div className="w-9 h-9 bg-white rounded-md shadow-sm flex items-center justify-center text-lg border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
+                      <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
                         {item.icon}
                       </div>
                       <span className="flex-1 text-sm tracking-wide">{item.name}</span>
                       {item.external && !item.embed ? (
-                        <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       ) : (
-                        <svg className="w-4 h-4 text-slate-400 transition-transform group-hover/item:translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       )}
@@ -386,12 +387,12 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-
-          {/* Footer - Full Width */}
+          </div>
         </div>
         
-        <div className="bg-white/65 backdrop-blur-sm border-t border-slate-200 shadow-lg mt-8">
-          <div className="max-w-[1800px] mx-auto px-8 py-6">
+        {/* Footer - Full Width Locked at Bottom */}
+        <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
+          <div className="max-w-[2000px] mx-auto px-6 py-5">
             <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">
               © 2026 IndoVisual - Portal Terpadu Support (PTS IVP)
             </p>
@@ -420,7 +421,7 @@ export default function Dashboard() {
          style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       
       {/* Sidebar Navigation */}
-      <div className={`bg-white/60 backdrop-blur-sm shadow-2xl transition-all duration-300 ${
+      <div className={`bg-white/75 backdrop-blur-sm shadow-2xl transition-all duration-300 ${
         sidebarCollapsed ? 'w-20' : 'w-80'
       } flex flex-col border-r border-slate-200`}>
         
@@ -462,7 +463,7 @@ export default function Dashboard() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            {!sidebarCollapsed && <span>Main Menu</span>}
+            {!sidebarCollapsed && <span>Dashboard Home</span>}
           </button>
 
           {menuItems.map((menu, index) => (
@@ -516,7 +517,7 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         
         {/* Top Bar */}
-        <div className="bg-white/80 backdrop-blur-sm shadow-lg p-6 border-b border-slate-200">
+        <div className="bg-white/75 backdrop-blur-sm shadow-lg p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
