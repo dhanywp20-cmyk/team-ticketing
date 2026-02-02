@@ -56,6 +56,7 @@ export default function Dashboard() {
           name: 'Input Form',
           url: 'https://portal.indovisual.co.id/form-review-demo-produk-bast-pts/',
           icon: '✍️',
+          internal: true,
           embed: true
         },
         {
