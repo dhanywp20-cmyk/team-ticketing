@@ -95,7 +95,7 @@ export default function Dashboard() {
         },
         {
           name: 'View Database',
-          url: '<iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&amp;single=true&amp;widget=true&amp;headers=false"></iframe>',
+          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&single=true',
           icon: '📑',
           embed: true
         },
@@ -137,7 +137,7 @@ export default function Dashboard() {
         },
         {
           name: 'View Database',
-          url: 'https://docs.google.com/spreadsheets/d/1AO9-kBblzEst-z2_wGnMQe6EEK8CgwY3ABI9otG1Y8s/edit?usp=sharing',
+          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true',
           icon: '📑',
           embed: true
         }
