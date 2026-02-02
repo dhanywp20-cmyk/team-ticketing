@@ -95,7 +95,7 @@ export default function Dashboard() {
         },
         {
           name: 'View Database',
-          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&single=true',
+          url: '<iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&amp;single=true&amp;widget=true&amp;headers=false"></iframe>',
           icon: '📑',
           embed: true
         },
