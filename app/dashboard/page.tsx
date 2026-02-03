@@ -102,7 +102,7 @@ export default function Dashboard() {
         },
         {
           name: 'View Summary',
-          url: 'https://1drv.ms/x/c/25d404c0b5ee2b43/IQSJgi4jzvzqR6FWF5SHnmK8ARpxzxup7sGZlK7tg4H6GDU?em=2&wdAllowInteractivity=False&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&waccluster=PSG4&edaebp=&edaebf=ctrl',
+          url: 'https://1drv.ms/x/c/25d404c0b5ee2b43/IQSJgi4jzvzqR6FWF5SHnmK8ARpxzxup7sGZlK7tg4H6GDU?em=2&AllowTyping=True&ActiveCell='Report'!H3&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&wdInConfigurator=True&edaebf=ctrl',
           icon: '📊',
           embed: true
         }
