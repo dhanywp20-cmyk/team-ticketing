@@ -102,10 +102,9 @@ export default function Dashboard() {
         },
         {
           name: 'View Summary',
-          url: 'https://1drv.ms/x/c/25d404c0b5ee2b43/IQCJgi4jzvzqR6FWF5SHnmK8ASY5gGnpq_9QNyTXzkOh1HQ?e=KTJqG6',
+          url: 'https://1drv.ms/x/c/25d404c0b5ee2b43/IQSJgi4jzvzqR6FWF5SHnmK8ARpxzxup7sGZlK7tg4H6GDU?em=2&wdAllowInteractivity=False&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&waccluster=PSG4&edaebp=&edaebf=ctrl',
           icon: '📊',
-          embed: false,
-          external: true
+          embed: true
         }
       ]
     },
