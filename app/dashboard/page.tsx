@@ -102,7 +102,7 @@ export default function Dashboard() {
         },
         {
           name: 'View Summary',
-          url: 'https://1drv.ms/x/c/25d404c0b5ee2b43/IQSJgi4jzvzqR6FWF5SHnmK8ARpxzxup7sGZlK7tg4H6GDU?em=2&AllowTyping=True&ActiveCell='Report'!H3&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&wdInConfigurator=True&edaebf=ctrl',
+          url: 'https://onedrive.live.com/edit?cid=25d404c0b5ee2b43&id=25D404C0B5EE2B43!s232e8289fcce47eaa1561794879e62bc&resid=25D404C0B5EE2B43!s232e8289fcce47eaa1561794879e62bc&ithint=file%2Cxlsx&embed=1&em=2&AllowTyping=True&ActiveCell=%27Report%27!H3&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True%2CTrue&edaebf=ctrl&migratedtospo=true&redeem=aHR0cHM6Ly8xZHJ2Lm1zL3gvYy8yNWQ0MDRjMGI1ZWUyYjQzL0lRU0pnaTRqenZ6cVI2RldGNVNIbm1LOEFScHh6eHVwN3NHWmxLN3RnNEg2R0RVP2VtPTImQWxsb3dUeXBpbmc9VHJ1ZSZBY3RpdmVDZWxsPSdSZXBvcnQnIUgzJndkSGlkZUdyaWRsaW5lcz1UcnVlJndkSGlkZUhlYWRlcnM9VHJ1ZSZ3ZERvd25sb2FkQnV0dG9uPVRydWUmd2RJbkNvbmZpZ3VyYXRvcj1UcnVlJndkSW5Db25maWd1cmF0b3I9VHJ1ZSZlZGFlYmY9Y3RybA&wdo=2',
           icon: '📊',
           embed: true
         }
