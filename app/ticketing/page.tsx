@@ -2113,6 +2113,7 @@ Error Code: ${activityError.code}`;
                 <thead>
                   <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                     <th className="px-4 py-3 text-left font-bold">Project Name</th>
+					<th className="px-4 py-3 text-left font-bold">SN Unit</th>
                     <th className="px-4 py-3 text-left font-bold">Issue</th>
                     <th className="px-4 py-3 text-left font-bold">Assigned</th>
                     <th className="px-4 py-3 text-left font-bold">Status</th>
@@ -2129,6 +2130,9 @@ Error Code: ${activityError.code}`;
                       <td className="px-4 py-3">
                         <div className="font-bold text-gray-800">{ticket.project_name}</div>
                         <div className="text-xs text-gray-500">{ticket.date ? new Date(ticket.date).toLocaleDateString('id-ID') : '-'}</div>
+                      </td>
+					  <td className="px-4 py-3">
+                        <div className="font-bold text-gray-800">{ticket.sn_unit}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{ticket.issue_case}</td>
                       <td className="px-4 py-3">
