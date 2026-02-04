@@ -211,19 +211,16 @@ export default function Dashboard() {
     setLoading(false);
   }, []);
 
-  // Fetch unread emails count dari cPanel email
   useEffect(() => {
     if (isLoggedIn) {
       const fetchUnreadEmails = async () => {
         try {
-          // Gunakan API endpoint backend Anda untuk check IMAP
           const response = await fetch('/api/check-email', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              // Ganti dengan kredensial email Anda
               email: 'your-email@yourdomain.com',
               password: 'your-email-password',
               imapHost: 'srv184.niagahoster.com',
@@ -237,13 +234,11 @@ export default function Dashboard() {
           }
         } catch (error) {
           console.error('Error fetching emails:', error);
-          // Fallback simulasi jika API belum ready
           setUnreadEmails(Math.floor(Math.random() * 10));
         }
       };
 
       fetchUnreadEmails();
-      // Refresh setiap 5 menit
       const interval = setInterval(fetchUnreadEmails, 300000);
       return () => clearInterval(interval);
     }
@@ -319,7 +314,6 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex flex-col bg-cover bg-center bg-fixed" 
            style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        {/* Header - Full Width */}
         <div className="bg-white/75 backdrop-blur-sm shadow-xl border-b border-slate-200">
           <div className="max-w-[2000px] mx-auto px-6 py-6">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
@@ -352,10 +346,8 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Main Content Area */}
         <div className="flex-1">
           <div className="max-w-[2000px] mx-auto px-6 py-8">
-          {/* Welcome Banner */}
           <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-500 rounded-lg shadow-xl p-8 mb-8 text-white border border-slate-700 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24"></div>
@@ -374,7 +366,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Main Menu Grid - LARGER SIZE */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {menuItems.map((menu, index) => (
               <div
@@ -384,7 +375,6 @@ export default function Dashboard() {
                   animation: `fadeInUp 0.5s ease-out ${index * 100}ms both`
                 }}
               >
-                {/* Menu Header */}
                 <div className={`bg-gradient-to-r ${menu.gradient} p-6 text-white relative overflow-hidden`}>
                   <div className="absolute top-0 right-0 text-8xl opacity-10 -mr-4 -mt-4 transition-transform group-hover:scale-110 duration-300">
                     {menu.icon}
@@ -398,27 +388,27 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Menu Items */}
+                {/* Menu Items - RATA KANAN */}
                 <div className="p-5 space-y-3">
                   {menu.items.map((item, itemIndex) => (
                     <button
                       key={itemIndex}
                       onClick={() => handleMenuClick(item, menu.title)}
-                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-left flex items-center gap-4 group/item"
+                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item"
                     >
-                      <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
-                        {item.icon}
-                      </div>
-                      <span className="flex-1 text-sm tracking-wide">{item.name}</span>
                       {item.external && !item.embed ? (
                         <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       ) : (
-                        <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                       )}
+                      <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
+                      <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
+                        {item.icon}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -428,7 +418,6 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Footer - Full Width Locked at Bottom */}
         <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
           <div className="max-w-[2000px] mx-auto px-6 py-5">
             <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">
@@ -448,17 +437,8 @@ export default function Dashboard() {
               transform: translateY(0);
             }
           }
-          @keyframes pulse {
-            0%, 100% {
-              opacity: 1;
-            }
-            50% {
-              opacity: 0.5;
-            }
-          }
         `}</style>
 
-        {/* Floating Email Notification Button */}
         <div className="fixed bottom-6 left-6 z-50">
           <a
             href="https://srv184.niagahoster.com:2096/cpsess6840729072/3rdparty/roundcube/"
@@ -471,7 +451,6 @@ export default function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               
-              {/* Badge Notification */}
               {unreadEmails > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
                   {unreadEmails > 9 ? '9+' : unreadEmails}
@@ -479,7 +458,6 @@ export default function Dashboard() {
               )}
             </button>
             
-            {/* Tooltip */}
             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
               {unreadEmails > 0 ? `${unreadEmails} pesan baru` : 'Buka Outlook'}
               <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
@@ -490,17 +468,15 @@ export default function Dashboard() {
     );
   }
 
-  // VIEW DENGAN SIDEBAR - UPDATED WITH FOOTER
+  // VIEW DENGAN SIDEBAR
   return (
     <div className="flex h-screen overflow-hidden bg-cover bg-center bg-fixed" 
          style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       
-      {/* Sidebar Navigation */}
       <div className={`bg-white/75 backdrop-blur-sm shadow-2xl transition-all duration-300 ${
         sidebarCollapsed ? 'w-20' : 'w-80'
       } flex flex-col border-r border-slate-200`}>
         
-        {/* Sidebar Header */}
         <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-700 to-slate-600">
           <div className="flex items-center justify-between">
             {!sidebarCollapsed && (
@@ -526,9 +502,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Sidebar Menu */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {/* Dashboard Home Button */}
           <button
             onClick={handleBackToDashboard}
             className={`w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${
@@ -543,28 +517,41 @@ export default function Dashboard() {
 
           {menuItems.map((menu, index) => (
             <div key={index} className="space-y-1">
-              {/* Menu Title */}
-              {!sidebarCollapsed && (
+              {!sidebarCollapsed ? (
                 <div className={`bg-gradient-to-r ${menu.gradient} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm`}>
                   <span className="text-lg">{menu.icon}</span>
                   <span className="tracking-wide">{menu.title}</span>
                 </div>
+              ) : (
+                <div className={`bg-gradient-to-r ${menu.gradient} text-white px-2 py-2 rounded-md font-semibold text-sm flex items-center justify-center shadow-sm opacity-30 hover:opacity-100 transition-opacity relative group`}>
+                  <span className="text-lg">{menu.icon}</span>
+                  <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                    {menu.title}
+                    <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
+                  </div>
+                </div>
               )}
               
-              {/* Menu Items */}
               {menu.items.map((item, itemIndex) => {
                 const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
                 return (
                   <button
                     key={itemIndex}
                     onClick={() => handleMenuClick(item, menu.title)}
-                    className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 p-3 rounded-md font-medium shadow-sm transition-all flex items-center gap-3 ${
-                      sidebarCollapsed ? 'justify-center text-xl' : ''
-                    } ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200' : 'border-slate-200 hover:border-slate-300'}`}
+                    className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 p-3 rounded-md font-medium shadow-sm transition-all flex items-center gap-3 relative group ${
+                      sidebarCollapsed ? 'justify-center text-xl opacity-30 hover:opacity-100' : ''
+                    } ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200 opacity-100' : 'border-slate-200 hover:border-slate-300'}`}
                     title={sidebarCollapsed ? item.name : ''}
                   >
                     <span className="text-lg">{item.icon}</span>
                     {!sidebarCollapsed && <span className="text-sm tracking-wide">{item.name}</span>}
+                    
+                    {sidebarCollapsed && (
+                      <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                        {item.name}
+                        <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
+                      </div>
+                    )}
                   </button>
                 );
               })}
@@ -572,7 +559,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-200">
           <button
             onClick={handleLogout}
@@ -588,10 +574,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Content Area with Footer */}
       <div className="flex-1 flex flex-col overflow-hidden">
         
-        {/* Top Bar */}
         <div className="bg-white/75 backdrop-blur-sm shadow-lg p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
@@ -614,7 +598,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-hidden bg-white">
           {showTicketing ? (
             <div className="w-full h-full overflow-auto">
@@ -635,7 +618,6 @@ export default function Dashboard() {
           ) : null}
         </div>
 
-        {/* Footer - ADDED HERE FOR SIDEBAR VIEW */}
         <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
           <div className="px-6 py-5">
             <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">
@@ -645,7 +627,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Floating Email Notification Button - Sidebar View */}
       <div className="fixed bottom-6 left-6 z-50">
         <a
           href="https://srv184.niagahoster.com:2096/cpsess6840729072/3rdparty/roundcube/"
@@ -658,7 +639,6 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             
-            {/* Badge Notification */}
             {unreadEmails > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
                 {unreadEmails > 9 ? '9+' : unreadEmails}
@@ -666,7 +646,6 @@ export default function Dashboard() {
             )}
           </button>
           
-          {/* Tooltip */}
           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
             {unreadEmails > 0 ? `${unreadEmails} pesan baru` : 'Buka Outlook'}
             <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
