@@ -468,7 +468,7 @@ export default function Dashboard() {
     );
   }
 
-  // VIEW DENGAN SIDEBAR
+  // VIEW DENGAN SIDEBAR - ELEGAN & ANIMATIF
   return (
     <div className="flex h-screen overflow-hidden bg-cover bg-center bg-fixed" 
          style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
@@ -517,40 +517,76 @@ export default function Dashboard() {
 
           {menuItems.map((menu, index) => (
             <div key={index} className="space-y-1">
+              {/* Menu Title - TETAP DI KIRI */}
               {!sidebarCollapsed ? (
                 <div className={`bg-gradient-to-r ${menu.gradient} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm`}>
                   <span className="text-lg">{menu.icon}</span>
                   <span className="tracking-wide">{menu.title}</span>
                 </div>
               ) : (
-                <div className={`bg-gradient-to-r ${menu.gradient} text-white px-2 py-2 rounded-md font-semibold text-sm flex items-center justify-center shadow-sm opacity-30 hover:opacity-100 transition-opacity relative group`}>
-                  <span className="text-lg">{menu.icon}</span>
-                  <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                <div className={`bg-gradient-to-r ${menu.gradient} text-white px-2 py-2 rounded-md font-semibold text-sm flex items-center justify-center shadow-sm relative group overflow-hidden`}>
+                  {/* Background text samar untuk kategori */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-15 group-hover:opacity-25 transition-opacity duration-300">
+                    <span className="text-[9px] font-black tracking-tighter whitespace-nowrap transform rotate-0 group-hover:scale-105 transition-transform duration-300">
+                      {menu.title}
+                    </span>
+                  </div>
+                  
+                  <span className="text-lg relative z-10 transform group-hover:scale-110 transition-transform duration-300">{menu.icon}</span>
+                  
+                  {/* Tooltip */}
+                  <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none z-50 shadow-xl">
                     {menu.title}
                     <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
                   </div>
                 </div>
               )}
               
+              {/* Menu Items - RATA KANAN DENGAN TEKS SAMAR ELEGAN */}
               {menu.items.map((item, itemIndex) => {
                 const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
                 return (
                   <button
                     key={itemIndex}
                     onClick={() => handleMenuClick(item, menu.title)}
-                    className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 p-3 rounded-md font-medium shadow-sm transition-all flex items-center gap-3 relative group ${
-                      sidebarCollapsed ? 'justify-center text-xl opacity-30 hover:opacity-100' : ''
-                    } ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200 opacity-100' : 'border-slate-200 hover:border-slate-300'}`}
-                    title={sidebarCollapsed ? item.name : ''}
+                    className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 rounded-md font-medium shadow-sm transition-all flex items-center relative group overflow-hidden ${
+                      sidebarCollapsed ? 'p-3 justify-center' : 'p-3 justify-end gap-3'
+                    } ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200' : 'border-slate-200 hover:border-slate-300'}`}
                   >
-                    <span className="text-lg">{item.icon}</span>
-                    {!sidebarCollapsed && <span className="text-sm tracking-wide">{item.name}</span>}
+                    {/* EXPANDED: Text di kiri, Icon di kanan */}
+                    {!sidebarCollapsed && (
+                      <>
+                        <span className="text-sm tracking-wide text-right flex-1">{item.name}</span>
+                        <span className="text-lg flex-shrink-0 transform group-hover:scale-110 transition-transform duration-300">{item.icon}</span>
+                      </>
+                    )}
                     
+                    {/* COLLAPSED: Icon dengan teks samar-samar di background */}
                     {sidebarCollapsed && (
-                      <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                        {item.name}
-                        <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
-                      </div>
+                      <>
+                        {/* Teks samar-samar di background - ELEGAN */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                          <span className="text-[8px] font-bold text-slate-400/20 tracking-tight whitespace-nowrap transform group-hover:scale-105 transition-transform duration-500">
+                            {item.name}
+                          </span>
+                        </div>
+                        
+                        {/* Teks samar permanen (sangat tipis) */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <span className="text-[8px] font-bold text-slate-400/8 tracking-tight whitespace-nowrap">
+                            {item.name}
+                          </span>
+                        </div>
+                        
+                        {/* Icon utama dengan animasi */}
+                        <span className="text-xl relative z-10 transform group-hover:scale-125 group-hover:rotate-6 transition-all duration-300">{item.icon}</span>
+                        
+                        {/* Tooltip yang muncul saat hover */}
+                        <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none z-50 shadow-xl transform group-hover:translate-x-1">
+                          {item.name}
+                          <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
+                        </div>
+                      </>
                     )}
                   </button>
                 );
