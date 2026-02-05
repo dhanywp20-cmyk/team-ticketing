@@ -388,7 +388,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Menu Items - RATA KANAN */}
                 <div className="p-5 space-y-3">
                   {menu.items.map((item, itemIndex) => (
                     <button
@@ -468,7 +467,7 @@ export default function Dashboard() {
     );
   }
 
-  // VIEW DENGAN SIDEBAR - ELEGAN & ANIMATIF
+  // VIEW DENGAN SIDEBAR - CLEAN DESIGN
   return (
     <div className="flex h-screen overflow-hidden bg-cover bg-center bg-fixed" 
          style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
@@ -502,7 +501,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <button
             onClick={handleBackToDashboard}
             className={`w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${
@@ -516,81 +515,74 @@ export default function Dashboard() {
           </button>
 
           {menuItems.map((menu, index) => (
-            <div key={index} className="space-y-1">
-              {/* Menu Title - TETAP DI KIRI */}
-              {!sidebarCollapsed ? (
-                <div className={`bg-gradient-to-r ${menu.gradient} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm`}>
-                  <span className="text-lg">{menu.icon}</span>
-                  <span className="tracking-wide">{menu.title}</span>
-                </div>
-              ) : (
-                <div className={`bg-gradient-to-r ${menu.gradient} text-white px-2 py-2 rounded-md font-semibold text-sm flex items-center justify-center shadow-sm relative group overflow-hidden`}>
-                  {/* Background text samar untuk kategori */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-15 group-hover:opacity-25 transition-opacity duration-300">
-                    <span className="text-[9px] font-black tracking-tighter whitespace-nowrap transform rotate-0 group-hover:scale-105 transition-transform duration-300">
-                      {menu.title}
-                    </span>
+            <div key={index}>
+              {/* COLLAPSED: 1 Kotak dengan Icon Kategori + Submenu Icons dalam Stack */}
+              {sidebarCollapsed ? (
+                <div className={`bg-gradient-to-br ${menu.gradient} rounded-lg p-3 shadow-md hover:shadow-lg transition-all group relative`}>
+                  {/* Icon Kategori Besar di Atas */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-3xl transform group-hover:scale-110 transition-transform">
+                      {menu.icon}
+                    </div>
+                    
+                    {/* Submenu Icons dalam Stack Horizontal */}
+                    <div className="flex gap-1 flex-wrap justify-center">
+                      {menu.items.map((item, itemIndex) => {
+                        const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
+                        return (
+                          <button
+                            key={itemIndex}
+                            onClick={() => handleMenuClick(item, menu.title)}
+                            className={`w-8 h-8 rounded flex items-center justify-center text-base transition-all ${
+                              isActive 
+                                ? 'bg-white text-slate-800 shadow-md ring-2 ring-white/50' 
+                                : 'bg-white/20 hover:bg-white/40 text-white'
+                            }`}
+                            title={`${menu.title} - ${item.name}`}
+                          >
+                            {item.icon}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  
-                  <span className="text-lg relative z-10 transform group-hover:scale-110 transition-transform duration-300">{menu.icon}</span>
                   
                   {/* Tooltip */}
-                  <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none z-50 shadow-xl">
-                    {menu.title}
-                    <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
+                  <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl">
+                    <div className="font-bold mb-1">{menu.title}</div>
+                    {menu.items.map((item, idx) => (
+                      <div key={idx} className="text-slate-300 text-[10px]">• {item.name}</div>
+                    ))}
+                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
                   </div>
                 </div>
-              )}
-              
-              {/* Menu Items - RATA KANAN DENGAN TEKS SAMAR ELEGAN */}
-              {menu.items.map((item, itemIndex) => {
-                const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
-                return (
-                  <button
-                    key={itemIndex}
-                    onClick={() => handleMenuClick(item, menu.title)}
-                    className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 rounded-md font-medium shadow-sm transition-all flex items-center relative group overflow-hidden ${
-                      sidebarCollapsed ? 'p-3 justify-center' : 'p-3 justify-end gap-3'
-                    } ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200' : 'border-slate-200 hover:border-slate-300'}`}
-                  >
-                    {/* EXPANDED: Text di kiri, Icon di kanan */}
-                    {!sidebarCollapsed && (
-                      <>
+              ) : (
+                /* EXPANDED: Kategori + Submenu Normal */
+                <div className="space-y-1">
+                  {/* Header Kategori */}
+                  <div className={`bg-gradient-to-r ${menu.gradient} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm`}>
+                    <span className="text-lg">{menu.icon}</span>
+                    <span className="tracking-wide">{menu.title}</span>
+                  </div>
+                  
+                  {/* Submenu Items - RATA KANAN */}
+                  {menu.items.map((item, itemIndex) => {
+                    const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
+                    return (
+                      <button
+                        key={itemIndex}
+                        onClick={() => handleMenuClick(item, menu.title)}
+                        className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 p-3 rounded-md font-medium shadow-sm transition-all flex items-center justify-end gap-3 ${
+                          isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200' : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
                         <span className="text-sm tracking-wide text-right flex-1">{item.name}</span>
-                        <span className="text-lg flex-shrink-0 transform group-hover:scale-110 transition-transform duration-300">{item.icon}</span>
-                      </>
-                    )}
-                    
-                    {/* COLLAPSED: Icon dengan teks samar-samar di background */}
-                    {sidebarCollapsed && (
-                      <>
-                        {/* Teks samar-samar di background - ELEGAN */}
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
-                          <span className="text-[8px] font-bold text-slate-400/20 tracking-tight whitespace-nowrap transform group-hover:scale-105 transition-transform duration-500">
-                            {item.name}
-                          </span>
-                        </div>
-                        
-                        {/* Teks samar permanen (sangat tipis) */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <span className="text-[8px] font-bold text-slate-400/8 tracking-tight whitespace-nowrap">
-                            {item.name}
-                          </span>
-                        </div>
-                        
-                        {/* Icon utama dengan animasi */}
-                        <span className="text-xl relative z-10 transform group-hover:scale-125 group-hover:rotate-6 transition-all duration-300">{item.icon}</span>
-                        
-                        {/* Tooltip yang muncul saat hover */}
-                        <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none z-50 shadow-xl transform group-hover:translate-x-1">
-                          {item.name}
-                          <div className="absolute right-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
-                        </div>
-                      </>
-                    )}
-                  </button>
-                );
-              })}
+                        <span className="text-lg">{item.icon}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>
