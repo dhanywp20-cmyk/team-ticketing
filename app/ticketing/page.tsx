@@ -59,6 +59,8 @@ interface Ticket {
   created_by?: string;
   current_team: string;
   services_status?: string;
+  photo_url?: string;
+  photo_name?: string;
   activity_logs?: ActivityLog[];
 }
 
@@ -119,7 +121,8 @@ export default function TicketingSystem() {
     assigned_to: '',
     date: new Date().toISOString().split('T')[0],
     status: 'Pending',
-    current_team: 'Team PTS'
+    current_team: 'Team PTS',
+    photo: null as File | null
   });
 
   const [newActivity, setNewActivity] = useState({
@@ -312,6 +315,24 @@ export default function TicketingSystem() {
       setShowLoadingPopup(true);
       setLoadingMessage('Saving new ticket...');
       
+      let photoUrl = '';
+      let photoName = '';
+
+      // Upload photo if provided
+      if (newTicket.photo) {
+        setLoadingMessage('Uploading photo...');
+        try {
+          const result = await uploadFile(newTicket.photo, 'ticket-photos');
+          photoUrl = result.url;
+          photoName = result.name;
+        } catch (uploadErr: any) {
+          console.error('Photo upload error:', uploadErr);
+          throw new Error(`Failed to upload photo: ${uploadErr.message}`);
+        }
+      }
+      
+      setLoadingMessage('Saving ticket data...');
+      
       const ticketData = {
         project_name: newTicket.project_name,
         address: newTicket.address || null,
@@ -325,7 +346,9 @@ export default function TicketingSystem() {
         status: newTicket.status,
         current_team: 'Team PTS',
         services_status: null,
-        created_by: currentUser?.username || null
+        created_by: currentUser?.username || null,
+        photo_url: photoUrl || null,
+        photo_name: photoName || null
       };
 
       const { error } = await supabase.from('tickets').insert([ticketData]);
@@ -345,7 +368,8 @@ export default function TicketingSystem() {
         assigned_to: '',
         date: new Date().toISOString().split('T')[0],
         status: 'Pending',
-        current_team: 'Team PTS'
+        current_team: 'Team PTS',
+        photo: null
       });
       setShowNewTicket(false);
       
@@ -778,6 +802,10 @@ Error Code: ${activityError.code}`;
             <tr><th>Current Team :</th><td>${ticket.current_team}</td></tr>
             <tr><th>Date :</th><td>${ticket.date}</td></tr>
           </table>
+          ${ticket.photo_url ? `
+            <h3>Ticket Photo:</h3>
+            <img src="${ticket.photo_url}" class="photo-thumbnail" alt="Ticket photo"/>
+          ` : ''}
           <h3>Activity Log :</h3>
           ${ticket.activity_logs?.map(log => `
             <div class="activity">
@@ -1264,6 +1292,18 @@ Error Code: ${activityError.code}`;
                     <div className="bg-gray-50 rounded-xl p-4">
                       <p className="text-sm font-semibold text-gray-600 mb-1">Description:</p>
                       <p className="text-sm text-gray-800">{selectedTicket.description}</p>
+                    </div>
+                  )}
+
+                  {selectedTicket.photo_url && (
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-gray-600 mb-3">📷 Ticket Photo:</p>
+                      <img 
+                        src={selectedTicket.photo_url} 
+                        alt={selectedTicket.photo_name || 'Ticket photo'} 
+                        className="max-w-md w-full rounded-lg border-2 border-blue-300 shadow-md cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => window.open(selectedTicket.photo_url, '_blank')}
+                      />
                     </div>
                   )}
 
@@ -2072,6 +2112,19 @@ Error Code: ${activityError.code}`;
                   className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 focus:border-gray-600 focus:ring-2 focus:ring-gray-200 transition-all font-medium bg-white resize-none" 
                   rows={4}
                 />
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
+                <label className="block text-sm font-bold text-gray-800 mb-2">📷 Photo (Optional)</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={(e) => setNewTicket({...newTicket, photo: e.target.files?.[0] || null})} 
+                  className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+                />
+                {newTicket.photo && (
+                  <p className="text-sm text-blue-600 mt-2">📎 {newTicket.photo.name}</p>
+                )}
               </div>
             </div>
             
