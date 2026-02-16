@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -15,661 +14,873 @@ interface User {
   role: string;
 }
 
-interface MenuItem {
-  title: string;
-  icon: string;
-  gradient: string;
-  description: string;
-  items: {
-    name: string;
-    url: string;
-    icon: string;
-    external?: boolean;
-    embed?: boolean;
-    internal?: boolean;
-  }[];
+interface OverdueSetting {
+  ticket_id: string;
+  overdue_hours: number; // jam batas overdue per ticket
+  enabled: boolean;
 }
 
-export default function Dashboard() {
-  const navigate = useNavigate();
+interface Ticket {
+  id: string;
+  title: string;
+  description: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  created_by: string;
+  assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+  category: string;
+  overdue_hours?: number;   // setting overdue per-ticket (jam)
+  overdue_enabled?: boolean; // apakah overdue aktif untuk ticket ini
+}
+
+interface Comment {
+  id: string;
+  ticket_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  username?: string;
+  full_name?: string;
+}
+
+export default function Ticketing() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
-  const [iframeTitle, setIframeTitle] = useState<string>('');
-  const [showTicketing, setShowTicketing] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [unreadEmails, setUnreadEmails] = useState(0);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
+  const [newComment, setNewComment] = useState('');
+  const [activeTab, setActiveTab] = useState<'details' | 'comments'>('details');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const menuItems: MenuItem[] = [
-    {
-      title: 'Form BAST & Demo',
-      icon: '📋',
-      gradient: 'from-slate-700 via-slate-600 to-slate-500',
-      description: 'Product review & handover documentation',
-      items: [
-        {
-          name: 'Input Form',
-          url: 'https://portal.indovisual.co.id/form-review-demo-produk-bast-pts/',
-          icon: '✍️',
-          embed: true
-        },
-        {
-          name: 'View Database',
-          url: 'https://docs.google.com/spreadsheets/d/1hIpMsZIadnJu85FiJ5Qojn_fOcYLl3iMsBagzZI4LYM/edit?usp=sharing',
-          icon: '📑',
-          embed: true
-        }
-      ]
-    },
-    {
-      title: 'Ticket Troubleshooting',
-      icon: '🎫',
-      gradient: 'from-rose-700 via-rose-600 to-rose-500',
-      description: 'Technical support & issue tracking',
-      items: [
-        {
-          name: 'Ticket Management',
-          url: '/ticketing',
-          icon: '🔧',
-          internal: true,
-          embed: true
-        }
-      ]
-    },
-    {
-      title: 'Daily Report',
-      icon: '📈',
-      gradient: 'from-emerald-700 via-emerald-600 to-emerald-500',
-      description: 'Activity tracking & performance metrics',
-      items: [
-        {
-          name: 'Submit Report',
-          url: 'https://docs.google.com/forms/d/e/1FAIpQLSf2cCEPlQQcCR1IZ3GRx-ImgdJJ15rMxAoph77aNYmbl15gvw/viewform?embedded=true', 
-          icon: '✍️',
-          embed: true
-        },
-        {
-          name: 'View Database',
-          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&single=true',
-          icon: '📑',
-          embed: true
-        },
-        {
-          name: 'View Summary',
-          url: 'https://1drv.ms/x/c/25d404c0b5ee2b43/IQSJgi4jzvzqR6FWF5SHnmK8ARpxzxup7sGZlK7tg4H6GDU?em=2&wdAllowInteractivity=False&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&waccluster=PSG4&edaebp=&edaebf=ctrl',
-          icon: '📊',
-          embed: true
-        }
-      ]
-    },
-    {
-      title: 'Database PTS',
-      icon: '💼',
-      gradient: 'from-indigo-700 via-indigo-600 to-indigo-500',
-      description: 'Central repository & documentation',
-      items: [
-        {
-          name: 'Access Database',
-          url: 'https://1drv.ms/f/c/25d404c0b5ee2b43/IgBDK-61wATUIIAlAgQAAAAAARPyRqbKPJAap5G_Ol5NmA8?e=fFU8wh',
-          icon: '🗃️',
-          embed: false,
-          external: true
-        }
-      ]
-    },
-    {
-      title: 'Unit Movement Log',
-      icon: '🚚',
-      gradient: 'from-amber-700 via-amber-600 to-amber-500',
-      description: 'Equipment check-in & check-out tracking',
-      items: [
-        {
-          name: 'Submit Movement',
-          url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true',
-          icon: '✍️',
-          embed: true
-        },
-        {
-          name: 'View Database',
-          url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true',
-          icon: '📑',
-          embed: true
-        }
-      ]
+  // State untuk overdue setting per-ticket (admin only)
+  const [editingOverdue, setEditingOverdue] = useState<string | null>(null); // ticket_id yang sedang diedit
+  const [overdueInput, setOverdueInput] = useState<{ hours: string; enabled: boolean }>({ hours: '24', enabled: true });
+
+  const [newTicket, setNewTicket] = useState({
+    title: '',
+    description: '',
+    priority: 'medium' as Ticket['priority'],
+    category: '',
+    assigned_to: '',
+    overdue_hours: 24,
+    overdue_enabled: true,
+  });
+
+  const [users, setUsers] = useState<User[]>([]);
+  const commentEndRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = currentUser?.role === 'admin';
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  const isOverdue = (ticket: Ticket): boolean => {
+    if (!ticket.overdue_enabled) return false;
+    if (ticket.status === 'resolved' || ticket.status === 'closed') return false;
+    const hours = ticket.overdue_hours ?? 24;
+    const created = new Date(ticket.created_at).getTime();
+    const now = Date.now();
+    const diffHours = (now - created) / (1000 * 60 * 60);
+    return diffHours >= hours;
+  };
+
+  const getTimeElapsed = (ticket: Ticket): string => {
+    const created = new Date(ticket.created_at).getTime();
+    const now = Date.now();
+    const diffMs = now - created;
+    const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffM = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (diffH >= 24) {
+      const days = Math.floor(diffH / 24);
+      const remH = diffH % 24;
+      return `${days}d ${remH}h`;
     }
-  ];
-
-  const handleLogin = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', loginForm.username)
-        .eq('password', loginForm.password)
-        .single();
-
-      if (error || !data) {
-        alert('Username atau password salah!');
-        return;
-      }
-
-      setCurrentUser(data);
-      setIsLoggedIn(true);
-      localStorage.setItem('currentUser', JSON.stringify(data));
-    } catch (err) {
-      alert('Login gagal!');
-    }
+    return `${diffH}h ${diffM}m`;
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    setShowSidebar(false);
-    setIframeUrl(null);
-    setShowTicketing(false);
-    navigate('/dashboard');
+  const getOverdueLabel = (ticket: Ticket): string => {
+    if (!ticket.overdue_enabled) return '';
+    const hours = ticket.overdue_hours ?? 24;
+    if (hours >= 24 && hours % 24 === 0) return `${hours / 24}d`;
+    return `${hours}h`;
   };
 
-  const handleMenuClick = (item: MenuItem['items'][0], menuTitle: string) => {
-    setIframeUrl(null);
-    setShowTicketing(false);
-
-    if (item.internal) {
-      setShowSidebar(true);
-      setShowTicketing(true);
-      setIframeTitle(`${menuTitle} - ${item.name}`);
-    } else if (item.external && !item.embed) {
-      window.open(item.url, '_blank');
-    } else if (item.embed) {
-      setShowSidebar(true);
-      setIframeUrl(item.url);
-      setIframeTitle(`${menuTitle} - ${item.name}`);
-    }
-  };
-
-  const handleBackToDashboard = () => {
-    setShowSidebar(false);
-    setIframeUrl(null);
-    setShowTicketing(false);
-    setIframeTitle('');
-  };
+  // ─── Data fetching ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      const user = JSON.parse(saved);
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-    }
-    setLoading(false);
+    if (saved) setCurrentUser(JSON.parse(saved));
   }, []);
 
-  // Fetch unread emails count dari cPanel email
   useEffect(() => {
-    if (isLoggedIn) {
-      const fetchUnreadEmails = async () => {
-        try {
-          // Gunakan API endpoint backend Anda untuk check IMAP
-          const response = await fetch('/api/check-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              // Ganti dengan kredensial email Anda
-              email: 'your-email@yourdomain.com',
-              password: 'your-email-password',
-              imapHost: 'srv184.niagahoster.com',
-              imapPort: 993
-            })
-          });
-          
-          const data = await response.json();
-          if (data.success) {
-            setUnreadEmails(data.unreadCount);
-          }
-        } catch (error) {
-          console.error('Error fetching emails:', error);
-          // Fallback simulasi jika API belum ready
-          setUnreadEmails(Math.floor(Math.random() * 10));
-        }
-      };
-
-      fetchUnreadEmails();
-      // Refresh setiap 5 menit
-      const interval = setInterval(fetchUnreadEmails, 300000);
-      return () => clearInterval(interval);
+    if (currentUser) {
+      fetchTickets();
+      fetchUsers();
     }
-  }, [isLoggedIn]);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (selectedTicket) fetchComments(selectedTicket.id);
+  }, [selectedTicket]);
+
+  useEffect(() => {
+    commentEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [comments]);
+
+  const fetchTickets = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) setTickets(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    const { data } = await supabase.from('users').select('*');
+    if (data) setUsers(data);
+  };
+
+  const fetchComments = async (ticketId: string) => {
+    const { data } = await supabase
+      .from('ticket_comments')
+      .select('*, users(username, full_name)')
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: true });
+    if (data) {
+      setComments(
+        data.map((c: any) => ({
+          ...c,
+          username: c.users?.username,
+          full_name: c.users?.full_name,
+        }))
+      );
+    }
+  };
+
+  // ─── Actions ───────────────────────────────────────────────────────────────
+
+  const handleCreateTicket = async () => {
+    if (!newTicket.title || !newTicket.description) {
+      alert('Title dan description wajib diisi!');
+      return;
+    }
+    const payload: any = {
+      title: newTicket.title,
+      description: newTicket.description,
+      priority: newTicket.priority,
+      category: newTicket.category,
+      assigned_to: newTicket.assigned_to || null,
+      status: 'open',
+      created_by: currentUser?.id,
+      overdue_hours: newTicket.overdue_hours,
+      overdue_enabled: newTicket.overdue_enabled,
+    };
+    const { error } = await supabase.from('tickets').insert([payload]);
+    if (!error) {
+      setShowCreateForm(false);
+      setNewTicket({ title: '', description: '', priority: 'medium', category: '', assigned_to: '', overdue_hours: 24, overdue_enabled: true });
+      fetchTickets();
+    } else {
+      alert('Gagal membuat ticket!');
+    }
+  };
+
+  const handleUpdateStatus = async (ticketId: string, status: Ticket['status']) => {
+    await supabase.from('tickets').update({ status, updated_at: new Date().toISOString() }).eq('id', ticketId);
+    fetchTickets();
+    if (selectedTicket?.id === ticketId) setSelectedTicket(prev => prev ? { ...prev, status } : null);
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedTicket) return;
+    await supabase.from('ticket_comments').insert([{
+      ticket_id: selectedTicket.id,
+      user_id: currentUser?.id,
+      content: newComment.trim(),
+    }]);
+    setNewComment('');
+    fetchComments(selectedTicket.id);
+  };
+
+  // ─── Overdue Setting per-ticket (admin only) ───────────────────────────────
+
+  const openOverdueSetting = (ticket: Ticket) => {
+    setEditingOverdue(ticket.id);
+    setOverdueInput({
+      hours: String(ticket.overdue_hours ?? 24),
+      enabled: ticket.overdue_enabled ?? true,
+    });
+  };
+
+  const saveOverdueSetting = async (ticketId: string) => {
+    const hours = parseInt(overdueInput.hours, 10);
+    if (isNaN(hours) || hours < 1) {
+      alert('Masukkan jam yang valid (minimal 1 jam)!');
+      return;
+    }
+    const { error } = await supabase
+      .from('tickets')
+      .update({
+        overdue_hours: hours,
+        overdue_enabled: overdueInput.enabled,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', ticketId);
+    if (!error) {
+      setEditingOverdue(null);
+      fetchTickets();
+      if (selectedTicket?.id === ticketId) {
+        setSelectedTicket(prev => prev ? { ...prev, overdue_hours: hours, overdue_enabled: overdueInput.enabled } : null);
+      }
+    } else {
+      alert('Gagal menyimpan setting overdue!');
+    }
+  };
+
+  // ─── Filter & search ───────────────────────────────────────────────────────
+
+  const filteredTickets = tickets.filter(t => {
+    const matchStatus = filterStatus === 'all' || t.status === filterStatus;
+    const matchPriority = filterPriority === 'all' || t.priority === filterPriority;
+    const matchSearch =
+      !searchQuery ||
+      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.id.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchStatus && matchPriority && matchSearch;
+  });
+
+  const overdueCount = tickets.filter(t => isOverdue(t)).length;
+
+  // ─── UI Helpers ────────────────────────────────────────────────────────────
+
+  const priorityConfig: Record<string, { color: string; bg: string; label: string }> = {
+    low:      { color: 'text-slate-600',  bg: 'bg-slate-100',  label: 'Low' },
+    medium:   { color: 'text-amber-700',  bg: 'bg-amber-50',   label: 'Medium' },
+    high:     { color: 'text-orange-700', bg: 'bg-orange-50',  label: 'High' },
+    critical: { color: 'text-red-700',    bg: 'bg-red-50',     label: 'Critical' },
+  };
+
+  const statusConfig: Record<string, { color: string; bg: string; label: string; dot: string }> = {
+    open:        { color: 'text-blue-700',   bg: 'bg-blue-50',   label: 'Open',        dot: 'bg-blue-500' },
+    in_progress: { color: 'text-amber-700',  bg: 'bg-amber-50',  label: 'In Progress', dot: 'bg-amber-500' },
+    resolved:    { color: 'text-emerald-700',bg: 'bg-emerald-50',label: 'Resolved',     dot: 'bg-emerald-500' },
+    closed:      { color: 'text-slate-600',  bg: 'bg-slate-100', label: 'Closed',      dot: 'bg-slate-400' },
+  };
+
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" 
-           style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <div className="bg-white/75 backdrop-blur-sm p-12 rounded-lg shadow-2xl border border-slate-200">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 border-4 border-slate-300 border-t-rose-600 rounded-full animate-spin"></div>
-            <p className="text-lg font-medium text-slate-700 tracking-wide">Loading Portal...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-rose-600 rounded-full animate-spin" />
+          <p className="text-slate-600 font-medium">Loading Tickets...</p>
         </div>
       </div>
     );
   }
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed p-4" 
-           style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <div className="bg-white/75 backdrop-blur-sm rounded-lg shadow-2xl p-10 w-full max-w-md border border-slate-200">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-rose-600 to-rose-700 rounded-full mb-4 shadow-lg">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">
-              Portal Terpadu
-            </h1>
-            <p className="text-slate-600 font-medium">Support System - IndoVisual</p>
-          </div>
-          
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">USERNAME</label>
-              <input
-                type="text"
-                value={loginForm.username}
-                onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Enter your username"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">PASSWORD</label>
-              <input
-                type="password"
-                value={loginForm.password}
-                onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Enter your password"
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-              />
-            </div>
-            <button
-              onClick={handleLogin}
-              className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-4 rounded-md hover:from-rose-700 hover:to-rose-800 font-semibold shadow-lg hover:shadow-xl transition-all tracking-wide"
-            >
-              Sign In to Portal
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // DASHBOARD UTAMA
-  if (!showSidebar) {
-    return (
-      <div className="min-h-screen flex flex-col bg-cover bg-center bg-fixed" 
-           style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        {/* Header - Full Width */}
-        <div className="bg-white/75 backdrop-blur-sm shadow-xl border-b border-slate-200">
-          <div className="max-w-[2000px] mx-auto px-6 py-6">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
-              <div className="flex items-center gap-6">
-                <div className="hidden md:block w-16 h-16 bg-gradient-to-br from-rose-600 to-rose-700 rounded-lg shadow-lg flex items-center justify-center">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold text-slate-800 mb-1 tracking-tight">
-                    Dashboard PTS IVP
-                  </h1>
-                  <p className="text-slate-600 font-medium">Support System - IndoVisual Professional Tools</p>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Welcome back, <span className="font-semibold text-rose-600">{currentUser?.full_name}</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="bg-slate-700 hover:bg-slate-800 text-white px-8 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 justify-center"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        {/* Main Content Area */}
-        <div className="flex-1">
-          <div className="max-w-[2000px] mx-auto px-6 py-8">
-          {/* Welcome Banner */}
-          <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-500 rounded-lg shadow-xl p-8 mb-8 text-white border border-slate-700 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24"></div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight">Welcome to Your Portal</h2>
-              </div>
-              <p className="text-white/80 text-lg font-medium">
-                Access all your essential tools and resources in one centralized platform. Select a module below to begin.
-              </p>
-            </div>
-          </div>
-
-          {/* Main Menu Grid - LARGER SIZE */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {menuItems.map((menu, index) => (
-              <div
-                key={index}
-                className="bg-white/75 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] group"
-                style={{ 
-                  animation: `fadeInUp 0.5s ease-out ${index * 100}ms both`
-                }}
-              >
-                {/* Menu Header */}
-                <div className={`bg-gradient-to-r ${menu.gradient} p-6 text-white relative overflow-hidden`}>
-                  <div className="absolute top-0 right-0 text-8xl opacity-10 -mr-4 -mt-4 transition-transform group-hover:scale-110 duration-300">
-                    {menu.icon}
-                  </div>
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="text-4xl">{menu.icon}</div>
-                      <h3 className="text-xl font-bold tracking-tight">{menu.title}</h3>
-                    </div>
-                    <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
-                  </div>
-                </div>
-
-                {/* Menu Items */}
-                <div className="p-5 space-y-3">
-                  {menu.items.map((item, itemIndex) => (
-                    <button
-                      key={itemIndex}
-                      onClick={() => handleMenuClick(item, menu.title)}
-                      className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-left flex items-center gap-4 group/item"
-                    >
-                      <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
-                        {item.icon}
-                      </div>
-                      <span className="flex-1 text-sm tracking-wide">{item.name}</span>
-                      {item.external && !item.embed ? (
-                        <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          </div>
-        </div>
-        
-        {/* Footer - Full Width Locked at Bottom */}
-        <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-          <div className="max-w-[2000px] mx-auto px-6 py-5">
-            <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">
-              © 2026 IndoVisual - Portal Terpadu Support (PTS IVP)
-            </p>
-          </div>
-        </div>
-
-        <style jsx>{`
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(30px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-          @keyframes pulse {
-            0%, 100% {
-              opacity: 1;
-            }
-            50% {
-              opacity: 0.5;
-            }
-          }
-        `}</style>
-
-        {/* Floating Email Notification Button */}
-        <div className="fixed bottom-6 left-6 z-50">
-          <a
-            href="https://srv184.niagahoster.com:2096/cpsess6840729072/3rdparty/roundcube/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative group"
-          >
-            <button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-110 flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              
-              {/* Badge Notification */}
-              {unreadEmails > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-                  {unreadEmails > 9 ? '9+' : unreadEmails}
-                </span>
-              )}
-            </button>
-            
-            {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-              {unreadEmails > 0 ? `${unreadEmails} pesan baru` : 'Buka Outlook'}
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
-            </div>
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  // VIEW DENGAN SIDEBAR - UPDATED WITH FOOTER
   return (
-    <div className="flex h-screen overflow-hidden bg-cover bg-center bg-fixed" 
-         style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      
-      {/* Sidebar Navigation */}
-      <div className={`bg-white/75 backdrop-blur-sm shadow-2xl transition-all duration-300 ${
-        sidebarCollapsed ? 'w-20' : 'w-80'
-      } flex flex-col border-r border-slate-200`}>
-        
-        {/* Sidebar Header */}
-        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-700 to-slate-600">
-          <div className="flex items-center justify-between">
-            {!sidebarCollapsed && (
-              <div className="flex-1">
-                <h2 className="text-lg font-bold text-white tracking-tight">PTS Portal</h2>
-                <p className="text-xs text-white/80 font-medium">{currentUser?.full_name}</p>
-              </div>
-            )}
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-md transition-all"
-            >
-              {sidebarCollapsed ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-            </button>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+
+      {/* ── TOP BAR ── */}
+      <div className="bg-white border-b border-slate-200 shadow-sm px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-rose-600 to-rose-700 rounded-lg flex items-center justify-center">
+            <span className="text-white text-lg">🎫</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Ticket Troubleshooting</h1>
+            <p className="text-xs text-slate-500">{filteredTickets.length} ticket ditampilkan</p>
           </div>
         </div>
 
-        {/* Sidebar Menu */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {/* Dashboard Home Button */}
-          <button
-            onClick={handleBackToDashboard}
-            className={`w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${
-              sidebarCollapsed ? 'justify-center' : ''
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            {!sidebarCollapsed && <span>Main Menu</span>}
-          </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Overdue notification badge - visible semua user */}
+          {overdueCount > 0 && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm font-semibold animate-pulse">
+              <span className="text-base">⚠️</span>
+              <span>{overdueCount} Ticket Overdue!</span>
+            </div>
+          )}
 
-          {menuItems.map((menu, index) => (
-            <div key={index} className="space-y-1">
-              {/* Menu Title */}
-              {!sidebarCollapsed && (
-                <div className={`bg-gradient-to-r ${menu.gradient} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm`}>
-                  <span className="text-lg">{menu.icon}</span>
-                  <span className="tracking-wide">{menu.title}</span>
+          <button
+            onClick={() => { setShowCreateForm(true); setSelectedTicket(null); }}
+            className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow-sm flex items-center gap-2 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Buat Ticket
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── LEFT PANEL: TICKET LIST ── */}
+        <div className="w-full md:w-2/5 lg:w-1/3 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
+
+          {/* Filter bar */}
+          <div className="p-4 space-y-3 border-b border-slate-100">
+            <input
+              type="text"
+              placeholder="Cari ticket..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 bg-slate-50"
+            />
+            <div className="flex gap-2">
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+              >
+                <option value="all">Semua Status</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+              <select
+                value={filterPriority}
+                onChange={e => setFilterPriority(e.target.value)}
+                className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+              >
+                <option value="all">Semua Prioritas</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Ticket list */}
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+            {filteredTickets.length === 0 ? (
+              <div className="p-8 text-center text-slate-400">
+                <div className="text-4xl mb-2">🎫</div>
+                <p className="font-medium">Tidak ada ticket</p>
+              </div>
+            ) : (
+              filteredTickets.map(ticket => {
+                const overdue = isOverdue(ticket);
+                const sc = statusConfig[ticket.status];
+                const pc = priorityConfig[ticket.priority];
+                const isSelected = selectedTicket?.id === ticket.id;
+
+                return (
+                  <div
+                    key={ticket.id}
+                    onClick={() => { setSelectedTicket(ticket); setShowCreateForm(false); setActiveTab('details'); }}
+                    className={`p-4 cursor-pointer transition-all hover:bg-slate-50 ${isSelected ? 'bg-rose-50 border-l-4 border-rose-500' : ''} ${overdue ? 'border-l-4 border-red-500' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="font-semibold text-slate-800 text-sm leading-snug flex-1">{ticket.title}</span>
+                      {/* Overdue badge - visible semua user */}
+                      {overdue && (
+                        <span className="flex-shrink-0 text-xs bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+                          OVERDUE
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-500 line-clamp-1 mb-2">{ticket.description}</p>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Status */}
+                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${sc.bg} ${sc.color}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                        {sc.label}
+                      </span>
+                      {/* Priority */}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pc.bg} ${pc.color}`}>
+                        {pc.label}
+                      </span>
+                      {/* Time elapsed */}
+                      <span className={`text-xs ml-auto font-mono ${overdue ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+                        ⏱ {getTimeElapsed(ticket)}
+                      </span>
+                    </div>
+
+                    {/* Overdue setting info - hanya admin yang bisa lihat setting-nya */}
+                    {isAdmin && ticket.overdue_enabled && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400">
+                          ⚙️ Overdue limit: <span className="font-semibold text-slate-500">{getOverdueLabel(ticket)}</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* ── RIGHT PANEL: DETAIL / CREATE ── */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+
+          {/* CREATE FORM */}
+          {showCreateForm && (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold text-slate-800">Buat Ticket Baru</h2>
+                  <button onClick={() => setShowCreateForm(false)} className="text-slate-400 hover:text-slate-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Judul *</label>
+                    <input
+                      type="text"
+                      value={newTicket.title}
+                      onChange={e => setNewTicket({ ...newTicket, title: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                      placeholder="Judul ticket..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Deskripsi *</label>
+                    <textarea
+                      value={newTicket.description}
+                      onChange={e => setNewTicket({ ...newTicket, description: e.target.value })}
+                      rows={4}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 resize-none"
+                      placeholder="Deskripsikan masalah..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Prioritas</label>
+                      <select
+                        value={newTicket.priority}
+                        onChange={e => setNewTicket({ ...newTicket, priority: e.target.value as Ticket['priority'] })}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 bg-white"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Kategori</label>
+                      <input
+                        type="text"
+                        value={newTicket.category}
+                        onChange={e => setNewTicket({ ...newTicket, category: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                        placeholder="e.g. Hardware, Software..."
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Assign Ke</label>
+                    <select
+                      value={newTicket.assigned_to}
+                      onChange={e => setNewTicket({ ...newTicket, assigned_to: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 bg-white"
+                    >
+                      <option value="">-- Tidak Assign --</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.full_name} ({u.username})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ── OVERDUE SETTING (tampil saat create, admin only bisa edit) ── */}
+                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">⏰</span>
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Overdue Setting</span>
+                        {!isAdmin && (
+                          <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-semibold">Admin Only</span>
+                        )}
+                      </div>
+                      {isAdmin && (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <span className="text-xs text-slate-500">Aktif</span>
+                          <div
+                            onClick={() => setNewTicket({ ...newTicket, overdue_enabled: !newTicket.overdue_enabled })}
+                            className={`w-10 h-5 rounded-full transition-all cursor-pointer flex items-center px-0.5 ${newTicket.overdue_enabled ? 'bg-rose-500' : 'bg-slate-300'}`}
+                          >
+                            <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${newTicket.overdue_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </div>
+                        </label>
+                      )}
+                    </div>
+                    {isAdmin ? (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs text-slate-500 mb-1">Batas Waktu (Jam)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={newTicket.overdue_hours}
+                            onChange={e => setNewTicket({ ...newTicket, overdue_hours: parseInt(e.target.value) || 24 })}
+                            disabled={!newTicket.overdue_enabled}
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 bg-white disabled:opacity-40 disabled:bg-slate-100"
+                            placeholder="24"
+                          />
+                        </div>
+                        <div className="text-xs text-slate-400 pt-5">
+                          = {Math.floor((newTicket.overdue_hours || 24) / 24) > 0
+                            ? `${Math.floor((newTicket.overdue_hours || 24) / 24)}h ${(newTicket.overdue_hours || 24) % 24}j`
+                            : `${newTicket.overdue_hours || 24} jam`}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">Setting overdue hanya dapat dikonfigurasi oleh admin.</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleCreateTicket}
+                      className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-lg font-semibold text-sm transition-all shadow-sm"
+                    >
+                      Buat Ticket
+                    </button>
+                    <button
+                      onClick={() => setShowCreateForm(false)}
+                      className="px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-lg font-semibold text-sm transition-all"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TICKET DETAIL */}
+          {selectedTicket && !showCreateForm && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Tab bar */}
+              <div className="bg-white border-b border-slate-200 px-6 flex gap-0">
+                {(['details', 'comments'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all capitalize ${
+                      activeTab === tab
+                        ? 'border-rose-500 text-rose-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {tab === 'details' ? 'Detail' : `Komentar (${comments.length})`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Detail tab */}
+              {activeTab === 'details' && (
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="max-w-2xl mx-auto space-y-5">
+
+                    {/* Overdue alert banner - semua user bisa lihat */}
+                    {isOverdue(selectedTicket) && (
+                      <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 flex items-start gap-3">
+                        <span className="text-xl flex-shrink-0">⚠️</span>
+                        <div>
+                          <p className="font-bold text-red-700 text-sm">Ticket Overdue!</p>
+                          <p className="text-xs text-red-600 mt-0.5">
+                            Ticket ini telah melewati batas waktu penanganan
+                            {selectedTicket.overdue_enabled && selectedTicket.overdue_hours
+                              ? ` (${getOverdueLabel(selectedTicket)})`
+                              : ''}.
+                            Segera tindak lanjuti.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Header card */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <h2 className="text-lg font-bold text-slate-800 leading-snug">{selectedTicket.title}</h2>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${statusConfig[selectedTicket.status].bg} ${statusConfig[selectedTicket.status].color}`}>
+                            {statusConfig[selectedTicket.status].label}
+                          </span>
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${priorityConfig[selectedTicket.priority].bg} ${priorityConfig[selectedTicket.priority].color}`}>
+                            {priorityConfig[selectedTicket.priority].label}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-600 leading-relaxed">{selectedTicket.description}</p>
+                    </div>
+
+                    {/* Meta info */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Informasi</h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">ID Ticket</p>
+                          <p className="font-mono text-xs text-slate-600">#{selectedTicket.id.slice(0, 8)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Kategori</p>
+                          <p className="font-medium text-slate-700">{selectedTicket.category || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Dibuat</p>
+                          <p className="font-medium text-slate-700">{formatDate(selectedTicket.created_at)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Update Terakhir</p>
+                          <p className="font-medium text-slate-700">{formatDate(selectedTicket.updated_at || selectedTicket.created_at)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Waktu Berlalu</p>
+                          <p className={`font-bold ${isOverdue(selectedTicket) ? 'text-red-600' : 'text-slate-700'}`}>
+                            ⏱ {getTimeElapsed(selectedTicket)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Assign To</p>
+                          <p className="font-medium text-slate-700">
+                            {users.find(u => u.id === selectedTicket.assigned_to)?.full_name || '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── OVERDUE SETTING PER-TICKET (hanya admin yang bisa lihat & edit) ── */}
+                    {isAdmin && (
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">⏰</span>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Overdue Setting</h3>
+                            <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full font-semibold border border-rose-200">Admin Only</span>
+                          </div>
+                          {editingOverdue !== selectedTicket.id && (
+                            <button
+                              onClick={() => openOverdueSetting(selectedTicket)}
+                              className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                              Edit
+                            </button>
+                          )}
+                        </div>
+
+                        {editingOverdue === selectedTicket.id ? (
+                          /* EDIT MODE */
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-slate-700">Aktifkan Overdue</span>
+                              <div
+                                onClick={() => setOverdueInput(prev => ({ ...prev, enabled: !prev.enabled }))}
+                                className={`w-12 h-6 rounded-full transition-all cursor-pointer flex items-center px-1 ${overdueInput.enabled ? 'bg-rose-500' : 'bg-slate-300'}`}
+                              >
+                                <div className={`w-4 h-4 bg-white rounded-full shadow transition-all ${overdueInput.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                              </div>
+                            </div>
+                            <div className={`${!overdueInput.enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                              <label className="block text-xs text-slate-500 mb-1">Batas Waktu (Jam)</label>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={overdueInput.hours}
+                                  onChange={e => setOverdueInput(prev => ({ ...prev, hours: e.target.value }))}
+                                  className="w-28 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                />
+                                <span className="text-xs text-slate-400">
+                                  {parseInt(overdueInput.hours) >= 24
+                                    ? `= ${Math.floor(parseInt(overdueInput.hours) / 24)} hari ${parseInt(overdueInput.hours) % 24} jam`
+                                    : `= ${overdueInput.hours} jam`}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Preset buttons */}
+                            <div className="flex flex-wrap gap-2">
+                              {[1, 4, 8, 12, 24, 48, 72].map(h => (
+                                <button
+                                  key={h}
+                                  onClick={() => setOverdueInput(prev => ({ ...prev, hours: String(h) }))}
+                                  disabled={!overdueInput.enabled}
+                                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-all disabled:opacity-40 ${
+                                    overdueInput.hours === String(h)
+                                      ? 'bg-rose-500 text-white border-rose-500'
+                                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-rose-300 hover:text-rose-600'
+                                  }`}
+                                >
+                                  {h >= 24 ? `${h / 24}d` : `${h}h`}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="flex gap-3 pt-1">
+                              <button
+                                onClick={() => saveOverdueSetting(selectedTicket.id)}
+                                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2 rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Simpan Setting
+                              </button>
+                              <button
+                                onClick={() => setEditingOverdue(null)}
+                                className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2 rounded-lg font-semibold text-sm transition-all"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* VIEW MODE (admin only) */
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-full ${selectedTicket.overdue_enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                              <span className="text-sm text-slate-600">
+                                {selectedTicket.overdue_enabled ? 'Aktif' : 'Nonaktif'}
+                              </span>
+                            </div>
+                            {selectedTicket.overdue_enabled && (
+                              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-lg">
+                                <span className="text-sm">⏰</span>
+                                <span className="text-sm font-bold">{getOverdueLabel(selectedTicket)}</span>
+                                <span className="text-xs text-rose-500">batas overdue</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Status update */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Update Status</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['open', 'in_progress', 'resolved', 'closed'] as const).map(status => {
+                          const sc = statusConfig[status];
+                          const isActive = selectedTicket.status === status;
+                          return (
+                            <button
+                              key={status}
+                              onClick={() => handleUpdateStatus(selectedTicket.id, status)}
+                              className={`py-2.5 rounded-lg text-sm font-semibold border-2 transition-all ${
+                                isActive
+                                  ? `${sc.bg} ${sc.color} border-current shadow-sm`
+                                  : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
+                                {sc.label}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-              
-              {/* Menu Items */}
-              {menu.items.map((item, itemIndex) => {
-                const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
-                return (
-                  <button
-                    key={itemIndex}
-                    onClick={() => handleMenuClick(item, menu.title)}
-                    className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 p-3 rounded-md font-medium shadow-sm transition-all flex items-center gap-3 ${
-                      sidebarCollapsed ? 'justify-center text-xl' : ''
-                    } ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200' : 'border-slate-200 hover:border-slate-300'}`}
-                    title={sidebarCollapsed ? item.name : ''}
-                  >
-                    <span className="text-lg">{item.icon}</span>
-                    {!sidebarCollapsed && <span className="text-sm tracking-wide">{item.name}</span>}
-                  </button>
-                );
-              })}
+
+              {/* Comments tab */}
+              {activeTab === 'comments' && (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                    {comments.length === 0 ? (
+                      <div className="text-center text-slate-400 py-12">
+                        <div className="text-4xl mb-2">💬</div>
+                        <p className="font-medium text-sm">Belum ada komentar</p>
+                      </div>
+                    ) : (
+                      comments.map(comment => (
+                        <div
+                          key={comment.id}
+                          className={`flex gap-3 ${comment.user_id === currentUser?.id ? 'flex-row-reverse' : ''}`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {(comment.full_name || comment.username || '?')[0].toUpperCase()}
+                          </div>
+                          <div className={`max-w-xs ${comment.user_id === currentUser?.id ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                            <span className="text-xs text-slate-400">
+                              {comment.full_name || comment.username} · {formatDate(comment.created_at)}
+                            </span>
+                            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                              comment.user_id === currentUser?.id
+                                ? 'bg-rose-600 text-white rounded-tr-sm'
+                                : 'bg-white text-slate-700 border border-slate-200 rounded-tl-sm shadow-sm'
+                            }`}>
+                              {comment.content}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    <div ref={commentEndRef} />
+                  </div>
+                  <div className="p-4 bg-white border-t border-slate-200">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAddComment()}
+                        placeholder="Tulis komentar..."
+                        className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 bg-slate-50"
+                      />
+                      <button
+                        onClick={handleAddComment}
+                        disabled={!newComment.trim()}
+                        className="bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all"
+                      >
+                        Kirim
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+          )}
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-200">
-          <button
-            onClick={handleLogout}
-            className={`w-full bg-slate-700 hover:bg-slate-800 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${
-              sidebarCollapsed ? 'justify-center' : ''
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            {!sidebarCollapsed && <span>Sign Out</span>}
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content Area with Footer */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        
-        {/* Top Bar */}
-        <div className="bg-white/75 backdrop-blur-sm shadow-lg p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
-                {iframeTitle}
-              </h1>
-              <p className="text-sm text-slate-600 font-medium mt-1">
-                Use the sidebar to navigate or return to the dashboard
-              </p>
+          {/* EMPTY STATE */}
+          {!selectedTicket && !showCreateForm && (
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="text-center text-slate-400 max-w-xs">
+                <div className="text-6xl mb-4">🎫</div>
+                <h3 className="font-bold text-slate-600 text-lg mb-2">Pilih Ticket</h3>
+                <p className="text-sm">Klik ticket di sebelah kiri untuk melihat detail, atau buat ticket baru.</p>
+                {overdueCount > 0 && (
+                  <div className="mt-4 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm font-semibold">
+                    ⚠️ Ada {overdueCount} ticket overdue yang perlu segera ditangani!
+                  </div>
+                )}
+              </div>
             </div>
-            <button
-              onClick={handleBackToDashboard}
-              className="bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white px-6 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Dashboard
-            </button>
-          </div>
+          )}
         </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-hidden bg-white">
-          {showTicketing ? (
-            <div className="w-full h-full overflow-auto">
-              <iframe
-                src="/ticketing"
-                className="w-full h-full border-0"
-                title="Ticketing System"
-              />
-            </div>
-          ) : iframeUrl ? (
-            <iframe
-              src={iframeUrl}
-              className="w-full h-full border-0"
-              title={iframeTitle}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          ) : null}
-        </div>
-
-        {/* Footer - ADDED HERE FOR SIDEBAR VIEW */}
-        <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-          <div className="px-6 py-5">
-            <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">
-              © 2026 IndoVisual - Portal Terpadu Support (PTS IVP)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating Email Notification Button - Sidebar View */}
-      <div className="fixed bottom-6 left-6 z-50">
-        <a
-          href="https://srv184.niagahoster.com:2096/cpsess6840729072/3rdparty/roundcube/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative group"
-        >
-          <button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-110 flex items-center justify-center">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            
-            {/* Badge Notification */}
-            {unreadEmails > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-                {unreadEmails > 9 ? '9+' : unreadEmails}
-              </span>
-            )}
-          </button>
-          
-          {/* Tooltip */}
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            {unreadEmails > 0 ? `${unreadEmails} pesan baru` : 'Buka Outlook'}
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
-          </div>
-        </a>
       </div>
     </div>
   );
