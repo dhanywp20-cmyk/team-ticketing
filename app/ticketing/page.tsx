@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+'use client';
+
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || '',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 interface User {
@@ -12,12 +15,14 @@ interface User {
   password: string;
   full_name: string;
   role: string;
+  team_type?: string;
 }
 
-interface OverdueSetting {
-  ticket_id: string;
-  overdue_hours: number; // jam batas overdue per ticket
-  enabled: boolean;
+interface OverdueSettings {
+  id?: string;
+  overdue_hours: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Ticket {
