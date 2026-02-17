@@ -235,39 +235,49 @@ export default function TicketingSystem() {
   const saveCronSchedule = async () => {
     setReminderSaving(true);
     try {
-      // Hitung UTC hour dari WIB (WIB = UTC+7)
-      const wibHour = parseInt(reminderSchedule.hour_wib);
-      const utcHour = (wibHour - 7 + 24) % 24;
+      const hour = parseInt(reminderSchedule.hour_wib);
       const minute = parseInt(reminderSchedule.minute) || 0;
 
-      // Build cron expression
+      // Build day-of-week expression
       let dayOfWeek = '*';
       if (reminderSchedule.frequency === 'weekdays') {
-        dayOfWeek = '1-5'; // Senin-Jumat
+        dayOfWeek = '1-5';
       } else if (reminderSchedule.frequency === 'custom' && reminderSchedule.custom_days.length > 0) {
         dayOfWeek = reminderSchedule.custom_days.join(',');
       }
 
-      const cronExpression = `${minute} ${utcHour} * * ${dayOfWeek}`;
+      // Kirim dalam WIB — SQL function yang akan konversi ke UTC
+      const { error } = await supabase.rpc('update_reminder_cron', {
+        p_hour_wib: hour,
+        p_minute: minute,
+        p_day_of_week: dayOfWeek,
+        p_active: reminderSchedule.active
+      });
 
-      // Simpan setting ke app_settings
+      // Simpan setting
       await supabase.from('app_settings').upsert({
         key: 'reminder_schedule',
         value: reminderSchedule
       }, { onConflict: 'key' });
 
-      // Update cron via SQL function
-      const { error } = await supabase.rpc('update_reminder_cron', {
-        p_schedule: cronExpression,
-        p_active: reminderSchedule.active
-      });
-
       if (error) {
-        // Fallback: tampilkan SQL yang perlu dijalankan manual
-        const sqlText = `-- Jalankan di SQL Editor:\nSELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\nSELECT cron.schedule('daily-reminder', '${cronExpression}', $$\n  SELECT net.http_post(\n    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n    body := '{}'::jsonb\n  );\n$$);`;
-        alert(`Setting disimpan! ✅\n\nUntuk mengaktifkan jadwal, jalankan SQL ini di Supabase SQL Editor:\n\n${sqlText}`);
+        // Hitung UTC untuk fallback SQL
+        const utcHour = (hour - 7 + 24) % 24;
+        const cronExpr = `${minute} ${utcHour} * * ${dayOfWeek}`;
+        alert(
+          `Setting disimpan! ✅\n\n` +
+          `Jalankan SQL ini di SQL Editor untuk mengaktifkan:\n\n` +
+          `SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\n` +
+          `SELECT cron.schedule('daily-reminder', '${cronExpr}', $$\n` +
+          `  SELECT net.http_post(\n` +
+          `    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n` +
+          `    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n` +
+          `    body := '{}'::jsonb\n` +
+          `  );\n` +
+          `$$);`
+        );
       } else {
-        alert(`✅ Jadwal reminder berhasil diubah!\nSetiap hari jam ${reminderSchedule.hour_wib.padStart(2,'0')}:${reminderSchedule.minute.padStart(2,'0')} WIB`);
+        alert(`✅ Jadwal reminder berhasil diubah!\n${getCronDisplay()}`);
       }
 
       setShowReminderSchedule(false);
