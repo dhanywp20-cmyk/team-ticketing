@@ -1045,8 +1045,10 @@ Error Code: ${activityError.code}`;
         }, {} as Record<string, number>)
       ).map(([id, tickets]) => {
         const member = teamMembers.find(m => m.id === id);
-        const name = member ? member.name : (users.find(u => u.id === id)?.full_name || id);
-        return { id, name, tickets, team: member?.team_type || 'Team PTS' };
+        const user = users.find(u => u.id === id);
+        const name = member ? member.name : (user?.full_name || id);
+        const team = member?.team_type || user?.team_type || 'Team PTS';
+        return { id, name, tickets, team };
       })
     };
   }, [tickets, overdueSettings]);
