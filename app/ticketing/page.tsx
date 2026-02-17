@@ -92,7 +92,7 @@ export default function TicketingSystem() {
   const [overdueSettings, setOverdueSettings] = useState<OverdueSetting[]>([]);
   const [showOverdueSetting, setShowOverdueSetting] = useState(false);
   const [overdueTargetTicket, setOverdueTargetTicket] = useState<Ticket | null>(null);
-  const [overdueForm, setOverdueForm] = useState({ due_date: '', due_hours: '' });
+  const [overdueForm, setOverdueForm] = useState({ due_hours: '48' });
   const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
   
   const [showNewTicket, setShowNewTicket] = useState(false);
@@ -220,16 +220,16 @@ export default function TicketingSystem() {
 
   const saveOverdueSetting = async () => {
     if (!overdueTargetTicket) return;
-    if (!overdueForm.due_date && !overdueForm.due_hours) {
-      alert('Isi tanggal atau jumlah jam overdue!'); return;
+    if (!overdueForm.due_hours || parseInt(overdueForm.due_hours) < 1) {
+      alert('Isi jumlah jam overdue (minimal 1 jam)!'); return;
     }
     try {
       const existing = getOverdueSetting(overdueTargetTicket.id);
       const payload: any = {
         ticket_id: overdueTargetTicket.id,
         set_by: currentUser?.username || '',
-        due_date: overdueForm.due_date || null,
-        due_hours: overdueForm.due_hours ? parseInt(overdueForm.due_hours) : null
+        due_date: null,
+        due_hours: parseInt(overdueForm.due_hours)
       };
       if (existing) {
         await supabase.from('overdue_settings').update(payload).eq('id', existing.id);
@@ -238,7 +238,7 @@ export default function TicketingSystem() {
       }
       await fetchOverdueSettings();
       setShowOverdueSetting(false);
-      setOverdueForm({ due_date: '', due_hours: '' });
+      setOverdueForm({ due_hours: '48' });
       setOverdueTargetTicket(null);
     } catch (e: any) { alert('Error: ' + e.message); }
   };
@@ -2328,7 +2328,7 @@ Error Code: ${activityError.code}`;
                           )}
                           {canAccessAccountSettings && overdueSetting && (
                             <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700 border border-orange-300">
-                              ⚙️ {overdueSetting.due_date ? `Due: ${new Date(overdueSetting.due_date).toLocaleDateString('id-ID')}` : `${overdueSetting.due_hours}h`}
+                              ⚙️ {overdueSetting.due_hours}h overdue
                             </span>
                           )}
                         </div>
@@ -2368,8 +2368,7 @@ Error Code: ${activityError.code}`;
                                 setOverdueTargetTicket(ticket);
                                 const existing = getOverdueSetting(ticket.id);
                                 setOverdueForm({
-                                  due_date: existing?.due_date ? existing.due_date.split('T')[0] : '',
-                                  due_hours: existing?.due_hours ? String(existing.due_hours) : ''
+                                  due_hours: existing?.due_hours ? String(existing.due_hours) : '48'
                                 });
                                 setShowOverdueSetting(true);
                               }}
@@ -2410,30 +2409,30 @@ Error Code: ${activityError.code}`;
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-bold mb-1 text-gray-700">📅 Tanggal Jatuh Tempo</label>
-                <input
-                  type="datetime-local"
-                  value={overdueForm.due_date}
-                  onChange={(e) => setOverdueForm({ ...overdueForm, due_date: e.target.value, due_hours: '' })}
-                  className="w-full border-2 border-orange-300 rounded-lg px-3 py-2 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-gray-200"></div>
-                <span className="text-xs text-gray-400 font-medium">ATAU</span>
-                <div className="flex-1 h-px bg-gray-200"></div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold mb-1 text-gray-700">⏱️ Overdue Setelah (jam)</label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Contoh: 48"
-                  value={overdueForm.due_hours}
-                  onChange={(e) => setOverdueForm({ ...overdueForm, due_hours: e.target.value, due_date: '' })}
-                  className="w-full border-2 border-orange-300 rounded-lg px-3 py-2 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                />
-                <p className="text-xs text-gray-400 mt-1">Dihitung dari waktu ticket dibuat</p>
+                <label className="block text-sm font-bold mb-1 text-gray-700">⏱️ Overdue Setelah Berapa Jam?</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    value={overdueForm.due_hours}
+                    onChange={(e) => setOverdueForm({ due_hours: e.target.value })}
+                    className="flex-1 border-2 border-orange-300 rounded-lg px-3 py-2.5 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 text-lg font-bold text-center"
+                  />
+                  <span className="text-gray-600 font-semibold text-sm">jam</span>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  {[24, 48, 72, 96].map(h => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setOverdueForm({ due_hours: String(h) })}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`}
+                    >
+                      {h}j{h === 48 ? ' (default)' : ''}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">⏰ Dihitung dari waktu ticket pertama kali dibuat</p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
@@ -2443,7 +2442,7 @@ Error Code: ${activityError.code}`;
                   💾 Simpan
                 </button>
                 <button
-                  onClick={() => { setShowOverdueSetting(false); setOverdueTargetTicket(null); setOverdueForm({ due_date: '', due_hours: '' }); }}
+                  onClick={() => { setShowOverdueSetting(false); setOverdueTargetTicket(null); setOverdueForm({ due_hours: '48' }); }}
                   className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   ✕ Batal
