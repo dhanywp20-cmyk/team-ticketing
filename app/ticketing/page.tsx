@@ -14,7 +14,6 @@ interface User {
   username: string;
   password: string;
   full_name: string;
-  phone_number?: string;
   role: string;
   team_type?: string;
 }
@@ -152,7 +151,6 @@ export default function TicketingSystem() {
     username: '',
     password: '',
     full_name: '',
-    phone_number: '',
     team_member: '',
     role: 'team',
     team_type: 'Team PTS'
@@ -198,10 +196,10 @@ export default function TicketingSystem() {
     if (!currentUser) return [];
     
     const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
-    const assignedId = member ? member.id : currentUser.id;
+    const assignedName = member ? member.name : currentUser.full_name;
     
     return tickets.filter(t => {
-      const isAssignedToMe = t.assigned_to === assignedId;
+      const isAssignedToMe = t.assigned_to === assignedName;
       const isOverdue = isTicketOverdue(t);
       
       if (member?.team_type === 'Team Services') {
@@ -232,7 +230,7 @@ export default function TicketingSystem() {
     if (!currentUser) return [];
     
     const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
-    const assignedId = member ? member.id : currentUser.id;
+    const assignedName = member ? member.name : currentUser.full_name;
     
     return tickets.filter(t => {
       const isPending = t.status === 'Pending' || t.status === 'In Progress';
@@ -240,9 +238,9 @@ export default function TicketingSystem() {
       const isOverdue = isTicketOverdue(t);
       
       if (member?.team_type === 'Team Services') {
-        return t.assigned_to === assignedId && (isServicesAndPending || isOverdue);
+        return t.assigned_to === assignedName && (isServicesAndPending || isOverdue);
       } else {
-        return t.assigned_to === assignedId && (isPending || isOverdue);
+        return t.assigned_to === assignedName && (isPending || isOverdue);
       }
     });
   };
@@ -617,13 +615,12 @@ Error Code: ${activityError.code}`;
           updateData.assigned_to = newActivity.services_assignee;
 
           // Trigger Email Notification (Backend Function)
-          const assigneeName = teamServicesMembers.find(m => m.id === newActivity.services_assignee)?.name || newActivity.services_assignee;
           supabase.functions.invoke('send-email', {
             body: {
               ticketId: selectedTicket.id,
               projectName: selectedTicket.project_name,
               issueCase: selectedTicket.issue_case,
-              assignedTo: assigneeName,
+              assignedTo: newActivity.services_assignee,
               snUnit: selectedTicket.sn_unit || '-',
               customerPhone: selectedTicket.customer_phone || '-',
               salesName: selectedTicket.sales_name || '-',
@@ -701,7 +698,6 @@ Error Code: ${activityError.code}`;
         username: lowerUsername,
         password: newUser.password,
         full_name: newUser.full_name,
-        phone_number: newUser.phone_number,
         role: newUser.role,
         team_type: finalTeamType
       }]);
@@ -724,7 +720,7 @@ Error Code: ${activityError.code}`;
         }
       }
 
-      setNewUser({ username: '', password: '', full_name: '', phone_number: '', team_member: '', role: 'team', team_type: 'Team PTS' });
+      setNewUser({ username: '', password: '', full_name: '', team_member: '', role: 'team', team_type: 'Team PTS' });
       await fetchData();
       alert('User created successfully!');
     } catch (err: any) {
@@ -960,7 +956,7 @@ Error Code: ${activityError.code}`;
         return [
           t.project_name,
           t.issue_case,
-          users.find(u => u.id === t.assigned_to)?.full_name || t.assigned_to,
+          t.assigned_to,
           t.status,
           t.date,
           t.created_by,
@@ -1032,9 +1028,8 @@ Error Code: ${activityError.code}`;
           acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
-      ).map(([id, tickets]) => {
-        const member = teamMembers.find(m => m.id === id);
-        const name = member ? member.name : (users.find(u => u.id === id)?.full_name || id);
+      ).map(([name, tickets]) => {
+        const member = teamMembers.find(m => m.name.trim().toLowerCase() === name.trim().toLowerCase());
         return { name, tickets, team: member?.team_type || 'Team PTS' };
       })
     };
@@ -1593,7 +1588,7 @@ Error Code: ${activityError.code}`;
                                   >
                                     <option value="">-- Select Handler --</option>
                                     {teamServicesMembers.map(m => (
-                                      <option key={m.id} value={m.id}>{m.name}</option>
+                                      <option key={m.id} value={m.name}>{m.name}</option>
                                     ))}
                                   </select>
                                 </div>
@@ -1934,7 +1929,6 @@ Error Code: ${activityError.code}`;
                   <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field-simple" />
                   <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field-simple" />
                   <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="input-field-simple" />
-                  <input type="text" placeholder="Phone Number (e.g. 628...)" value={newUser.phone_number} onChange={(e) => setNewUser({...newUser, phone_number: e.target.value})} className="input-field-simple" />
                   <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="input-field-simple">
                     <option value="admin">Administrator</option>
                     <option value="team">Team</option>
@@ -2295,7 +2289,7 @@ Error Code: ${activityError.code}`;
                   >
                     <option value="">Select Handler</option>
                     <optgroup label="Team PTS">
-                      {teamPTSMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      {teamPTSMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </optgroup>
                   </select>
                 </div>
@@ -2388,9 +2382,7 @@ Error Code: ${activityError.code}`;
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{ticket.issue_case}</td>
                       <td className="px-4 py-3">
-                        <div className="text-sm font-semibold text-gray-800">
-                          {users.find(u => u.id === ticket.assigned_to)?.full_name || ticket.assigned_to}
-                        </div>
+                        <div className="text-sm font-semibold text-gray-800">{ticket.assigned_to}</div>
                         <div className="text-xs text-purple-600">{ticket.current_team}</div>
                       </td>
                       <td className="px-4 py-3">
