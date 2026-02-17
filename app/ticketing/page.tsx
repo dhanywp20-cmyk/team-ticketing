@@ -14,6 +14,7 @@ interface User {
   username: string;
   password: string;
   full_name: string;
+  phone_number?: string;
   role: string;
   team_type?: string;
 }
@@ -106,6 +107,7 @@ export default function TicketingSystem() {
   
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterHandler, setFilterHandler] = useState('');
   const [selectedHandlerTeam, setSelectedHandlerTeam] = useState<'PTS' | 'Services'>('PTS');
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -151,6 +153,7 @@ export default function TicketingSystem() {
     username: '',
     password: '',
     full_name: '',
+    phone_number: '',
     team_member: '',
     role: 'team',
     team_type: 'Team PTS'
@@ -196,10 +199,10 @@ export default function TicketingSystem() {
     if (!currentUser) return [];
     
     const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
-    const assignedName = member ? member.name : currentUser.full_name;
+    const assignedId = member ? member.id : currentUser.id;
     
     return tickets.filter(t => {
-      const isAssignedToMe = t.assigned_to === assignedName;
+      const isAssignedToMe = t.assigned_to === assignedId;
       const isOverdue = isTicketOverdue(t);
       
       if (member?.team_type === 'Team Services') {
@@ -230,7 +233,7 @@ export default function TicketingSystem() {
     if (!currentUser) return [];
     
     const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
-    const assignedName = member ? member.name : currentUser.full_name;
+    const assignedId = member ? member.id : currentUser.id;
     
     return tickets.filter(t => {
       const isPending = t.status === 'Pending' || t.status === 'In Progress';
@@ -238,9 +241,9 @@ export default function TicketingSystem() {
       const isOverdue = isTicketOverdue(t);
       
       if (member?.team_type === 'Team Services') {
-        return t.assigned_to === assignedName && (isServicesAndPending || isOverdue);
+        return t.assigned_to === assignedId && (isServicesAndPending || isOverdue);
       } else {
-        return t.assigned_to === assignedName && (isPending || isOverdue);
+        return t.assigned_to === assignedId && (isPending || isOverdue);
       }
     });
   };
@@ -615,12 +618,13 @@ Error Code: ${activityError.code}`;
           updateData.assigned_to = newActivity.services_assignee;
 
           // Trigger Email Notification (Backend Function)
+          const assigneeName = teamServicesMembers.find(m => m.id === newActivity.services_assignee)?.name || newActivity.services_assignee;
           supabase.functions.invoke('send-email', {
             body: {
               ticketId: selectedTicket.id,
               projectName: selectedTicket.project_name,
               issueCase: selectedTicket.issue_case,
-              assignedTo: newActivity.services_assignee,
+              assignedTo: assigneeName,
               snUnit: selectedTicket.sn_unit || '-',
               customerPhone: selectedTicket.customer_phone || '-',
               salesName: selectedTicket.sales_name || '-',
@@ -698,6 +702,7 @@ Error Code: ${activityError.code}`;
         username: lowerUsername,
         password: newUser.password,
         full_name: newUser.full_name,
+        phone_number: newUser.phone_number,
         role: newUser.role,
         team_type: finalTeamType
       }]);
@@ -720,7 +725,7 @@ Error Code: ${activityError.code}`;
         }
       }
 
-      setNewUser({ username: '', password: '', full_name: '', team_member: '', role: 'team', team_type: 'Team PTS' });
+      setNewUser({ username: '', password: '', full_name: '', phone_number: '', team_member: '', role: 'team', team_type: 'Team PTS' });
       await fetchData();
       alert('User created successfully!');
     } catch (err: any) {
@@ -956,7 +961,7 @@ Error Code: ${activityError.code}`;
         return [
           t.project_name,
           t.issue_case,
-          t.assigned_to,
+          users.find(u => u.id === t.assigned_to)?.full_name || t.assigned_to,
           t.status,
           t.date,
           t.created_by,
@@ -995,7 +1000,17 @@ Error Code: ${activityError.code}`;
       const match = projectName.toLowerCase().includes(searchProject.toLowerCase()) ||
                     issueCase.toLowerCase().includes(searchProject.toLowerCase()) ||
                     salesName.toLowerCase().includes(searchProject.toLowerCase());
-      const statusMatch = filterStatus === 'All' || t.status === filterStatus;
+      
+      let statusMatch = false;
+      if (filterStatus === 'All') {
+        statusMatch = true;
+      } else if (filterStatus === 'Overdue') {
+        statusMatch = isTicketOverdue(t);
+      } else {
+        statusMatch = t.status === filterStatus;
+      }
+
+      const handlerMatch = !filterHandler || t.assigned_to === filterHandler;
       
       // Team Visibility Logic
       let teamVisibility = true;
@@ -1004,9 +1019,9 @@ Error Code: ${activityError.code}`;
         teamVisibility = t.current_team === 'Team Services' || !!t.services_status;
       }
       
-      return match && statusMatch && teamVisibility;
+      return match && statusMatch && handlerMatch && teamVisibility;
     });
-  }, [tickets, searchProject, filterStatus, currentUserTeamType]);
+  }, [tickets, searchProject, filterStatus, filterHandler, currentUserTeamType]);
 
   const stats = useMemo(() => {
     const total = tickets.length;
@@ -1028,9 +1043,10 @@ Error Code: ${activityError.code}`;
           acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
-      ).map(([name, tickets]) => {
-        const member = teamMembers.find(m => m.name.trim().toLowerCase() === name.trim().toLowerCase());
-        return { name, tickets, team: member?.team_type || 'Team PTS' };
+      ).map(([id, tickets]) => {
+        const member = teamMembers.find(m => m.id === id);
+        const name = member ? member.name : (users.find(u => u.id === id)?.full_name || id);
+        return { id, name, tickets, team: member?.team_type || 'Team PTS' };
       })
     };
   }, [tickets, overdueSettings]);
@@ -1588,7 +1604,7 @@ Error Code: ${activityError.code}`;
                                   >
                                     <option value="">-- Select Handler --</option>
                                     {teamServicesMembers.map(m => (
-                                      <option key={m.id} value={m.name}>{m.name}</option>
+                                      <option key={m.id} value={m.id}>{m.name}</option>
                                     ))}
                                   </select>
                                 </div>
@@ -1829,14 +1845,15 @@ Error Code: ${activityError.code}`;
                       cx="50%" 
                       cy="50%" 
                       labelLine={false} 
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} 
+                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`} 
                       outerRadius={90} 
                       dataKey="value"
                       onClick={(data) => {
                         const statusMap: Record<string, string> = {
                           'Pending': 'Pending',
                           'In Progress': 'In Progress',
-                          'Solved': 'Solved'
+                          'Solved': 'Solved',
+                          'Overdue': 'Overdue'
                         };
                         setFilterStatus(statusMap[data.name] || 'All');
                         ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1856,6 +1873,14 @@ Error Code: ${activityError.code}`;
                   <h3 className="font-bold text-gray-800 flex items-center gap-2">
                     <span className="text-xl">📊</span>
                     Team Handlers
+                    {filterHandler && (
+                      <button 
+                        onClick={() => setFilterHandler('')}
+                        className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
+                      >
+                        Clear Filter
+                      </button>
+                    )}
                   </h3>
                   <div className="flex bg-gray-200 rounded-lg p-1">
                     <button
@@ -1889,7 +1914,16 @@ Error Code: ${activityError.code}`;
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                         <YAxis allowDecimals={false} />
                         <Tooltip />
-                        <Bar dataKey="tickets" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="tickets" 
+                          fill="#8b5cf6" 
+                          radius={[4, 4, 0, 0]} 
+                          onClick={(data) => {
+                            setFilterHandler(data.id === filterHandler ? '' : data.id);
+                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          cursor="pointer"
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1901,7 +1935,16 @@ Error Code: ${activityError.code}`;
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                         <YAxis allowDecimals={false} />
                         <Tooltip />
-                        <Bar dataKey="tickets" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="tickets" 
+                          fill="#ec4899" 
+                          radius={[4, 4, 0, 0]} 
+                          onClick={(data) => {
+                            setFilterHandler(data.id === filterHandler ? '' : data.id);
+                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          cursor="pointer"
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1929,6 +1972,7 @@ Error Code: ${activityError.code}`;
                   <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field-simple" />
                   <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field-simple" />
                   <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="input-field-simple" />
+                  <input type="text" placeholder="Phone Number (e.g. 628...)" value={newUser.phone_number} onChange={(e) => setNewUser({...newUser, phone_number: e.target.value})} className="input-field-simple" />
                   <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="input-field-simple">
                     <option value="admin">Administrator</option>
                     <option value="team">Team</option>
@@ -2289,7 +2333,7 @@ Error Code: ${activityError.code}`;
                   >
                     <option value="">Select Handler</option>
                     <optgroup label="Team PTS">
-                      {teamPTSMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      {teamPTSMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </optgroup>
                   </select>
                 </div>
@@ -2382,7 +2426,9 @@ Error Code: ${activityError.code}`;
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{ticket.issue_case}</td>
                       <td className="px-4 py-3">
-                        <div className="text-sm font-semibold text-gray-800">{ticket.assigned_to}</div>
+                        <div className="text-sm font-semibold text-gray-800">
+                          {users.find(u => u.id === ticket.assigned_to)?.full_name || teamMembers.find(m => m.id === ticket.assigned_to)?.name || ticket.assigned_to}
+                        </div>
                         <div className="text-xs text-purple-600">{ticket.current_team}</div>
                       </td>
                       <td className="px-4 py-3">
