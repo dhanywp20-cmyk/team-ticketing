@@ -14,7 +14,6 @@ interface User {
   username: string;
   password: string;
   full_name: string;
-  phone_number?: string;
   role: string;
   team_type?: string;
 }
@@ -60,17 +59,7 @@ interface Ticket {
   created_by?: string;
   current_team: string;
   services_status?: string;
-  photo_url?: string;
-  photo_name?: string;
-  overdue_hours?: number;
   activity_logs?: ActivityLog[];
-}
-
-interface OverdueSettings {
-  id?: string;
-  overdue_hours: number;
-  created_at?: string;
-  updated_at?: string;
 }
 
 interface GuestMapping {
@@ -91,12 +80,10 @@ export default function TicketingSystem() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
-  const [overdueSettings, setOverdueSettings] = useState<OverdueSettings>({ overdue_hours: 2 });
   
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showGuestMapping, setShowGuestMapping] = useState(false);
-  const [showOverdueSettings, setShowOverdueSettings] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showTicketDetailPopup, setShowTicketDetailPopup] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -107,7 +94,6 @@ export default function TicketingSystem() {
   
   const [searchProject, setSearchProject] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [filterHandler, setFilterHandler] = useState('');
   const [selectedHandlerTeam, setSelectedHandlerTeam] = useState<'PTS' | 'Services'>('PTS');
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -133,8 +119,7 @@ export default function TicketingSystem() {
     assigned_to: '',
     date: new Date().toISOString().split('T')[0],
     status: 'Pending',
-    current_team: 'Team PTS',
-    photo: null as File | null
+    current_team: 'Team PTS'
   });
 
   const [newActivity, setNewActivity] = useState({
@@ -153,7 +138,6 @@ export default function TicketingSystem() {
     username: '',
     password: '',
     full_name: '',
-    phone_number: '',
     team_member: '',
     role: 'team',
     team_type: 'Team PTS'
@@ -168,8 +152,7 @@ export default function TicketingSystem() {
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
-    'Solved': 'bg-green-100 text-green-800 border-green-400',
-    'Overdue': 'bg-red-100 text-red-800 border-red-400'
+    'Solved': 'bg-green-100 text-green-800 border-green-400'
   };
 
   const checkSessionTimeout = () => {
@@ -184,66 +167,20 @@ export default function TicketingSystem() {
     }
   };
 
-  const isTicketOverdue = (ticket: Ticket): boolean => {
-    if (ticket.status === 'Solved') return false;
-    
-    const now = new Date();
-    const createdAt = new Date(ticket.created_at);
-    const hoursDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-    
-    const limit = ticket.overdue_hours || overdueSettings.overdue_hours;
-    return hoursDiff > limit;
-  };
-
-  const getOverdueNotifications = () => {
-    if (!currentUser) return [];
-    
-    const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
-    const assignedId = member ? member.id : currentUser.id;
-    
-    return tickets.filter(t => {
-      const isAssignedToMe = t.assigned_to === assignedId;
-      const isOverdue = isTicketOverdue(t);
-      
-      if (member?.team_type === 'Team Services') {
-        const isServicesNotSolved = t.services_status && t.services_status !== 'Solved';
-        return isAssignedToMe && isServicesNotSolved && isOverdue;
-      } else {
-        const isNotSolved = t.status !== 'Solved';
-        return isAssignedToMe && isNotSolved && isOverdue;
-      }
-    });
-  };
-
-  const getTicketStatusDisplay = (ticket: Ticket, isServicesView: boolean = false): { label: string; color: string } => {
-    const status = isServicesView ? (ticket.services_status || 'Pending') : ticket.status;
-    
-    if (status === 'Solved') {
-      return { label: 'Solved', color: statusColors['Solved'] };
-    }
-    
-    if (isTicketOverdue(ticket)) {
-      return { label: 'Overdue', color: statusColors['Overdue'] };
-    }
-    
-    return { label: status, color: statusColors[status] };
-  };
-
   const getNotifications = () => {
     if (!currentUser) return [];
     
     const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
-    const assignedId = member ? member.id : currentUser.id;
+    const assignedName = member ? member.name : currentUser.full_name;
     
     return tickets.filter(t => {
       const isPending = t.status === 'Pending' || t.status === 'In Progress';
       const isServicesAndPending = t.services_status && (t.services_status === 'Pending' || t.services_status === 'In Progress');
-      const isOverdue = isTicketOverdue(t);
       
       if (member?.team_type === 'Team Services') {
-        return t.assigned_to === assignedId && (isServicesAndPending || isOverdue);
+        return t.assigned_to === assignedName && isServicesAndPending;
       } else {
-        return t.assigned_to === assignedId && (isPending || isOverdue);
+        return t.assigned_to === assignedName && isPending;
       }
     });
   };
@@ -316,11 +253,10 @@ export default function TicketingSystem() {
 
   const fetchData = async () => {
     try {
-      const [ticketsData, membersData, usersData, overdueData] = await Promise.all([
+      const [ticketsData, membersData, usersData] = await Promise.all([
         supabase.from('tickets').select('*, activity_logs(*)').order('created_at', { ascending: false }),
         supabase.from('team_members').select('*').order('name'),
-        supabase.from('users').select('id, username, full_name, role, team_type'),
-        supabase.from('overdue_settings').select('*').limit(1).single()
+        supabase.from('users').select('id, username, full_name, role, team_type')
       ]);
 
       if (ticketsData.data) {
@@ -351,17 +287,6 @@ export default function TicketingSystem() {
       
       if (membersData.data) setTeamMembers(membersData.data);
       if (usersData.data) setUsers(usersData.data);
-      if (overdueData.data) {
-        setOverdueSettings(overdueData.data);
-      } else {
-        // Create default settings if not exists
-        const { data: newSettings } = await supabase
-          .from('overdue_settings')
-          .insert({ overdue_hours: 2 })
-          .select()
-          .single();
-        if (newSettings) setOverdueSettings(newSettings);
-      }
       
       setLoading(false);
     } catch (err: any) {
@@ -387,24 +312,6 @@ export default function TicketingSystem() {
       setShowLoadingPopup(true);
       setLoadingMessage('Saving new ticket...');
       
-      let photoUrl = '';
-      let photoName = '';
-
-      // Upload photo if provided
-      if (newTicket.photo) {
-        setLoadingMessage('Uploading photo...');
-        try {
-          const result = await uploadFile(newTicket.photo, 'ticket-photos');
-          photoUrl = result.url;
-          photoName = result.name;
-        } catch (uploadErr: any) {
-          console.error('Photo upload error:', uploadErr);
-          throw new Error(`Failed to upload photo: ${uploadErr.message}`);
-        }
-      }
-      
-      setLoadingMessage('Saving ticket data...');
-      
       const ticketData = {
         project_name: newTicket.project_name,
         address: newTicket.address || null,
@@ -418,9 +325,7 @@ export default function TicketingSystem() {
         status: newTicket.status,
         current_team: 'Team PTS',
         services_status: null,
-        created_by: currentUser?.username || null,
-        photo_url: photoUrl || null,
-        photo_name: photoName || null
+        created_by: currentUser?.username || null
       };
 
       const { error } = await supabase.from('tickets').insert([ticketData]);
@@ -440,8 +345,7 @@ export default function TicketingSystem() {
         assigned_to: '',
         date: new Date().toISOString().split('T')[0],
         status: 'Pending',
-        current_team: 'Team PTS',
-        photo: null
+        current_team: 'Team PTS'
       });
       setShowNewTicket(false);
       
@@ -618,13 +522,12 @@ Error Code: ${activityError.code}`;
           updateData.assigned_to = newActivity.services_assignee;
 
           // Trigger Email Notification (Backend Function)
-          const assigneeName = teamServicesMembers.find(m => m.id === newActivity.services_assignee)?.name || newActivity.services_assignee;
           supabase.functions.invoke('send-email', {
             body: {
               ticketId: selectedTicket.id,
               projectName: selectedTicket.project_name,
               issueCase: selectedTicket.issue_case,
-              assignedTo: assigneeName,
+              assignedTo: newActivity.services_assignee,
               snUnit: selectedTicket.sn_unit || '-',
               customerPhone: selectedTicket.customer_phone || '-',
               salesName: selectedTicket.sales_name || '-',
@@ -702,7 +605,6 @@ Error Code: ${activityError.code}`;
         username: lowerUsername,
         password: newUser.password,
         full_name: newUser.full_name,
-        phone_number: newUser.phone_number,
         role: newUser.role,
         team_type: finalTeamType
       }]);
@@ -725,7 +627,7 @@ Error Code: ${activityError.code}`;
         }
       }
 
-      setNewUser({ username: '', password: '', full_name: '', phone_number: '', team_member: '', role: 'team', team_type: 'Team PTS' });
+      setNewUser({ username: '', password: '', full_name: '', team_member: '', role: 'team', team_type: 'Team PTS' });
       await fetchData();
       alert('User created successfully!');
     } catch (err: any) {
@@ -791,42 +693,6 @@ Error Code: ${activityError.code}`;
       alert('Guest mapping deleted successfully!');
     } catch (err: any) {
       alert('Error: ' + err.message);
-      setUploading(false);
-    }
-  };
-
-  const updateOverdueSettings = async (hours: number) => {
-    if (hours <= 0) {
-      alert('Overdue hours must be greater than 0!');
-      return;
-    }
-
-    try {
-      setUploading(true);
-      
-      if (overdueSettings.id) {
-        // Update existing settings
-        const { error } = await supabase
-          .from('overdue_settings')
-          .update({ overdue_hours: hours, updated_at: new Date().toISOString() })
-          .eq('id', overdueSettings.id);
-
-        if (error) throw error;
-      } else {
-        // Insert new settings
-        const { error } = await supabase
-          .from('overdue_settings')
-          .insert({ overdue_hours: hours });
-
-        if (error) throw error;
-      }
-
-      setOverdueSettings({ ...overdueSettings, overdue_hours: hours });
-      setUploading(false);
-      alert('Overdue settings updated successfully!');
-      setShowOverdueSettings(false);
-    } catch (err: any) {
-      alert('Error updating overdue settings: ' + err.message);
       setUploading(false);
     }
   };
@@ -912,10 +778,6 @@ Error Code: ${activityError.code}`;
             <tr><th>Current Team :</th><td>${ticket.current_team}</td></tr>
             <tr><th>Date :</th><td>${ticket.date}</td></tr>
           </table>
-          ${ticket.photo_url ? `
-            <h3>Ticket Photo:</h3>
-            <img src="${ticket.photo_url}" class="photo-thumbnail" alt="Ticket photo"/>
-          ` : ''}
           <h3>Activity Log :</h3>
           ${ticket.activity_logs?.map(log => `
             <div class="activity">
@@ -961,7 +823,7 @@ Error Code: ${activityError.code}`;
         return [
           t.project_name,
           t.issue_case,
-          users.find(u => u.id === t.assigned_to)?.full_name || t.assigned_to,
+          t.assigned_to,
           t.status,
           t.date,
           t.created_by,
@@ -1000,17 +862,7 @@ Error Code: ${activityError.code}`;
       const match = projectName.toLowerCase().includes(searchProject.toLowerCase()) ||
                     issueCase.toLowerCase().includes(searchProject.toLowerCase()) ||
                     salesName.toLowerCase().includes(searchProject.toLowerCase());
-      
-      let statusMatch = false;
-      if (filterStatus === 'All') {
-        statusMatch = true;
-      } else if (filterStatus === 'Overdue') {
-        statusMatch = isTicketOverdue(t);
-      } else {
-        statusMatch = t.status === filterStatus;
-      }
-
-      const handlerMatch = !filterHandler || t.assigned_to === filterHandler;
+      const statusMatch = filterStatus === 'All' || t.status === filterStatus;
       
       // Team Visibility Logic
       let teamVisibility = true;
@@ -1019,39 +871,34 @@ Error Code: ${activityError.code}`;
         teamVisibility = t.current_team === 'Team Services' || !!t.services_status;
       }
       
-      return match && statusMatch && handlerMatch && teamVisibility;
+      return match && statusMatch && teamVisibility;
     });
-  }, [tickets, searchProject, filterStatus, filterHandler, currentUserTeamType]);
+  }, [tickets, searchProject, filterStatus, currentUserTeamType]);
 
   const stats = useMemo(() => {
     const total = tickets.length;
     const processing = tickets.filter(t => t.status === 'In Progress').length;
     const pending = tickets.filter(t => t.status === 'Pending').length;
     const solved = tickets.filter(t => t.status === 'Solved').length;
-    const overdue = tickets.filter(t => isTicketOverdue(t)).length;
     
     return {
-      total, pending, processing, solved, overdue,
+      total, pending, processing, solved,
       statusData: [
         { name: 'Pending', value: pending, color: '#FCD34D' },
         { name: 'In Progress', value: processing, color: '#60A5FA' },
-        { name: 'Solved', value: solved, color: '#34D399' },
-        { name: 'Overdue', value: overdue, color: '#F87171' }
+        { name: 'Solved', value: solved, color: '#34D399' }
       ].filter(d => d.value > 0),
       handlerData: Object.entries(
         tickets.reduce((acc, t) => {
           acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
-      ).map(([id, tickets]) => {
-        const member = teamMembers.find(m => m.id === id);
-        const user = users.find(u => u.id === id);
-        const name = member ? member.name : (user?.full_name || id);
-        const team = member?.team_type || user?.team_type || 'Team PTS';
-        return { id, name, tickets, team };
+      ).map(([name, tickets]) => {
+        const member = teamMembers.find(m => m.name.trim().toLowerCase() === name.trim().toLowerCase());
+        return { name, tickets, team: member?.team_type || 'Team PTS' };
       })
     };
-  }, [tickets, overdueSettings]);
+  }, [tickets]);
 
   const uniqueProjectNames = useMemo(() => {
     const names = tickets.map(t => t.project_name);
@@ -1304,39 +1151,26 @@ Error Code: ${activityError.code}`;
                 You have <strong className="text-red-600">{notifications.length}</strong> tickets that need attention:
               </p>
               <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
-                {notifications.map(ticket => {
-                  const statusDisplay = getTicketStatusDisplay(ticket, currentUserTeamType === 'Team Services');
-                  const isOverdue = isTicketOverdue(ticket);
-                  
-                  return (
-                    <div 
-                      key={ticket.id} 
-                      onClick={() => {
-                        setSelectedTicket(ticket);
-                        setShowNotificationPopup(false);
-                        setShowTicketDetailPopup(true);
-                      }}
-                      className={`p-3 rounded-lg border-2 cursor-pointer hover:bg-gray-50 transition-colors ${statusDisplay.color}`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-bold text-sm flex-1">{ticket.project_name}</p>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
-                          {ticket.current_team}
-                        </span>
-                      </div>
-                      <p className="text-xs mb-1">{ticket.issue_case}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold">{statusDisplay.label}</span>
-                        {isOverdue && (
-                          <span className="text-xs text-red-600 font-bold flex items-center gap-1">
-                            <span>⚠️</span>
-                            <span>OVERDUE!</span>
-                          </span>
-                        )}
-                      </div>
+                {notifications.map(ticket => (
+                  <div 
+                    key={ticket.id} 
+                    onClick={() => {
+                      setSelectedTicket(ticket);
+                      setShowNotificationPopup(false);
+                      setShowTicketDetailPopup(true);
+                    }}
+                    className={`p-3 rounded-lg border-2 cursor-pointer hover:bg-gray-50 transition-colors ${statusColors[currentUserTeamType === 'Team Services' ? (ticket.services_status || 'Pending') : ticket.status]}`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-bold text-sm flex-1">{ticket.project_name}</p>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                        {ticket.current_team}
+                      </span>
                     </div>
-                  );
-                })}
+                    <p className="text-xs">{ticket.issue_case}</p>
+                    <span className="text-xs font-semibold">{currentUserTeamType === 'Team Services' ? (ticket.services_status || 'Pending') : ticket.status}</span>
+                  </div>
+                ))}
               </div>
               <button
                 onClick={() => setShowNotificationPopup(false)}
@@ -1430,18 +1264,6 @@ Error Code: ${activityError.code}`;
                     <div className="bg-gray-50 rounded-xl p-4">
                       <p className="text-sm font-semibold text-gray-600 mb-1">Description:</p>
                       <p className="text-sm text-gray-800">{selectedTicket.description}</p>
-                    </div>
-                  )}
-
-                  {selectedTicket.photo_url && (
-                    <div className="bg-blue-50 rounded-xl p-4">
-                      <p className="text-sm font-semibold text-gray-600 mb-3">📷 Ticket Photo:</p>
-                      <img 
-                        src={selectedTicket.photo_url} 
-                        alt={selectedTicket.photo_name || 'Ticket photo'} 
-                        className="max-w-md w-full rounded-lg border-2 border-blue-300 shadow-md cursor-pointer hover:scale-105 transition-transform"
-                        onClick={() => window.open(selectedTicket.photo_url, '_blank')}
-                      />
                     </div>
                   )}
 
@@ -1606,7 +1428,7 @@ Error Code: ${activityError.code}`;
                                   >
                                     <option value="">-- Select Handler --</option>
                                     {teamServicesMembers.map(m => (
-                                      <option key={m.id} value={m.id}>{m.name}</option>
+                                      <option key={m.id} value={m.name}>{m.name}</option>
                                     ))}
                                   </select>
                                 </div>
@@ -1738,23 +1560,10 @@ Error Code: ${activityError.code}`;
                     setShowGuestMapping(!showGuestMapping);
                     setShowAccountSettings(false);
                     setShowNewTicket(false);
-                    setShowOverdueSettings(false);
                   }} 
                   className="btn-teal"
                 >
                   👥 Guest Mapping
-                </button>
-              )}
-              {currentUser?.role === 'admin' && (
-                <button 
-                  onClick={() => {
-                    setShowAccountSettings(false);
-                    setShowGuestMapping(false);
-                    setShowNewTicket(false);
-                  }} 
-                  className="bg-gradient-to-r from-orange-600 to-orange-800 text-white px-5 py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold shadow-lg transition-all hidden"
-                >
-                  ⏰ Overdue Settings
                 </button>
               )}
               {canCreateTicket && (
@@ -1763,7 +1572,6 @@ Error Code: ${activityError.code}`;
                     setShowNewTicket(!showNewTicket);
                     setShowAccountSettings(false);
                     setShowGuestMapping(false);
-                    setShowOverdueSettings(false);
                   }} 
                   className="btn-primary"
                 >
@@ -1781,7 +1589,7 @@ Error Code: ${activityError.code}`;
           <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
             <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
@@ -1812,16 +1620,6 @@ Error Code: ${activityError.code}`;
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-red-400 via-red-500 to-red-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Overdue</p>
-                  <span className="text-2xl">⚠️</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.overdue}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.overdue/stats.total*100) : 0}%`}}></div>
-                </div>
-              </div>
               <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">Solved</p>
@@ -1847,15 +1645,14 @@ Error Code: ${activityError.code}`;
                       cx="50%" 
                       cy="50%" 
                       labelLine={false} 
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`} 
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} 
                       outerRadius={90} 
                       dataKey="value"
                       onClick={(data) => {
                         const statusMap: Record<string, string> = {
                           'Pending': 'Pending',
                           'In Progress': 'In Progress',
-                          'Solved': 'Solved',
-                          'Overdue': 'Overdue'
+                          'Solved': 'Solved'
                         };
                         setFilterStatus(statusMap[data.name] || 'All');
                         ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1875,14 +1672,6 @@ Error Code: ${activityError.code}`;
                   <h3 className="font-bold text-gray-800 flex items-center gap-2">
                     <span className="text-xl">📊</span>
                     Team Handlers
-                    {filterHandler && (
-                      <button 
-                        onClick={() => setFilterHandler('')}
-                        className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
-                      >
-                        Clear Filter
-                      </button>
-                    )}
                   </h3>
                   <div className="flex bg-gray-200 rounded-lg p-1">
                     <button
@@ -1916,16 +1705,7 @@ Error Code: ${activityError.code}`;
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                         <YAxis allowDecimals={false} />
                         <Tooltip />
-                        <Bar 
-                          dataKey="tickets" 
-                          fill="#8b5cf6" 
-                          radius={[4, 4, 0, 0]} 
-                          onClick={(data) => {
-                            setFilterHandler(data.id === filterHandler ? '' : data.id);
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                          cursor="pointer"
-                        />
+                        <Bar dataKey="tickets" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1937,16 +1717,7 @@ Error Code: ${activityError.code}`;
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                         <YAxis allowDecimals={false} />
                         <Tooltip />
-                        <Bar 
-                          dataKey="tickets" 
-                          fill="#ec4899" 
-                          radius={[4, 4, 0, 0]} 
-                          onClick={(data) => {
-                            setFilterHandler(data.id === filterHandler ? '' : data.id);
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                          cursor="pointer"
-                        />
+                        <Bar dataKey="tickets" fill="#ec4899" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1974,7 +1745,6 @@ Error Code: ${activityError.code}`;
                   <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field-simple" />
                   <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field-simple" />
                   <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="input-field-simple" />
-                  <input type="text" placeholder="Phone Number (e.g. 628...)" value={newUser.phone_number} onChange={(e) => setNewUser({...newUser, phone_number: e.target.value})} className="input-field-simple" />
                   <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="input-field-simple">
                     <option value="admin">Administrator</option>
                     <option value="team">Team</option>
@@ -2160,54 +1930,6 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        {showOverdueSettings && currentUser?.role === 'admin' && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-orange-500 animate-scale-in relative">
-              <button 
-                onClick={() => setShowOverdueSettings(false)}
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
-              >
-                ✕
-              </button>
-              <h2 className="text-2xl font-bold mb-6 text-gray-800">⏰ Overdue Settings</h2>
-              
-              <div className="space-y-4">
-                <div className="bg-orange-50 rounded-xl p-4 border-2 border-orange-300">
-                  <label className="block text-sm font-bold text-gray-800 mb-2">⏱️ Overdue Time Limit (Hours)</label>
-                  <p className="text-xs text-gray-600 mb-3">Tickets will be marked as OVERDUE after this time period</p>
-                  <input 
-                    type="number" 
-                    min="1"
-                    step="0.5"
-                    value={overdueSettings.overdue_hours}
-                    onChange={(e) => setOverdueSettings({...overdueSettings, overdue_hours: parseFloat(e.target.value)})}
-                    className="w-full border-2 border-orange-400 rounded-lg px-4 py-2.5 focus:border-orange-600 focus:ring-2 focus:ring-orange-200 transition-all font-medium bg-white"
-                  />
-                  <p className="text-xs text-gray-500 mt-2 italic">Current setting: <span className="font-bold text-orange-600">{overdueSettings.overdue_hours} hours</span></p>
-                </div>
-
-                <div className="bg-red-50 rounded-xl p-4 border-2 border-red-300">
-                  <h3 className="font-bold text-red-800 mb-2">⚠️ Important Notes:</h3>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    <li>• Tickets will show <span className="font-bold text-red-600">RED label</span> when overdue</li>
-                    <li>• Handlers will receive <span className="font-bold text-red-600">RED notifications</span></li>
-                    <li>• Only affects Pending and In Progress tickets</li>
-                    <li>• Solved tickets are never marked as overdue</li>
-                  </ul>
-                </div>
-
-                <button 
-                  onClick={() => updateOverdueSettings(overdueSettings.overdue_hours)}
-                  disabled={uploading}
-                  className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all disabled:opacity-50"
-                >
-                  {uploading ? '⏳ Saving...' : '💾 Save Settings'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
@@ -2335,7 +2057,7 @@ Error Code: ${activityError.code}`;
                   >
                     <option value="">Select Handler</option>
                     <optgroup label="Team PTS">
-                      {teamPTSMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      {teamPTSMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </optgroup>
                   </select>
                 </div>
@@ -2350,19 +2072,6 @@ Error Code: ${activityError.code}`;
                   className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 focus:border-gray-600 focus:ring-2 focus:ring-gray-200 transition-all font-medium bg-white resize-none" 
                   rows={4}
                 />
-              </div>
-
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-300">
-                <label className="block text-sm font-bold text-gray-800 mb-2">📷 Photo (Optional)</label>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={(e) => setNewTicket({...newTicket, photo: e.target.files?.[0] || null})} 
-                  className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
-                />
-                {newTicket.photo && (
-                  <p className="text-sm text-blue-600 mt-2">📎 {newTicket.photo.name}</p>
-                )}
               </div>
             </div>
             
@@ -2408,7 +2117,6 @@ Error Code: ${activityError.code}`;
                     <th className="px-4 py-3 text-left font-bold">Issue</th>
                     <th className="px-4 py-3 text-left font-bold">Assigned</th>
                     <th className="px-4 py-3 text-left font-bold">Status</th>
-                    {currentUser?.role === 'admin' && <th className="px-4 py-3 text-center font-bold">Overdue (Hrs)</th>}
                     <th className="px-4 py-3 text-center font-bold">Activity</th>
                     <th className="px-4 py-3 text-center font-bold">Actions</th>
                   </tr>
@@ -2428,59 +2136,21 @@ Error Code: ${activityError.code}`;
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{ticket.issue_case}</td>
                       <td className="px-4 py-3">
-                        <div className="text-sm font-semibold text-gray-800">
-                          {users.find(u => u.id === ticket.assigned_to)?.full_name || teamMembers.find(m => m.id === ticket.assigned_to)?.name || ticket.assigned_to}
-                        </div>
+                        <div className="text-sm font-semibold text-gray-800">{ticket.assigned_to}</div>
                         <div className="text-xs text-purple-600">{ticket.current_team}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1 items-start">
-                          {(() => {
-                            const ptsStatus = getTicketStatusDisplay(ticket, false);
-                            return (
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${ptsStatus.color}`}>
-                                {ptsStatus.label}
-                              </span>
-                            );
-                          })()}
-                          {ticket.services_status && (() => {
-                            const servicesStatus = getTicketStatusDisplay(ticket, true);
-                            return (
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${servicesStatus.color}`}>
-                                Services: {servicesStatus.label}
-                              </span>
-                            );
-                          })()}
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.status]}`}>
+                            {ticket.status}
+                          </span>
+                          {ticket.services_status && (
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.services_status]}`}>
+                              Services: {ticket.services_status}
+                            </span>
+                          )}
                         </div>
                       </td>
-                      {currentUser?.role === 'admin' && (
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="number"
-                            min="1"
-                            step="0.5"
-                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded text-center font-bold text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                            value={ticket.overdue_hours || overdueSettings.overdue_hours}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={async (e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              if (val < 0.5) return;
-                              
-                              const updatedTickets = tickets.map(t => t.id === ticket.id ? { ...t, overdue_hours: val } : t);
-                              setTickets(updatedTickets);
-                              
-                              const { error } = await supabase
-                                .from('tickets')
-                                .update({ overdue_hours: val })
-                                .eq('id', ticket.id);
-                                
-                              if (error) {
-                                alert('Failed to update overdue setting');
-                              }
-                            }}
-                          />
-                        </td>
-                      )}
                       <td className="px-4 py-3 text-center">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
                           <div className="flex items-center justify-center gap-1">
