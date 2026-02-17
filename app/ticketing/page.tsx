@@ -94,6 +94,15 @@ export default function TicketingSystem() {
   const [overdueTargetTicket, setOverdueTargetTicket] = useState<Ticket | null>(null);
   const [overdueForm, setOverdueForm] = useState({ due_hours: '48' });
   const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
+  const [showReminderSchedule, setShowReminderSchedule] = useState(false);
+  const [reminderSchedule, setReminderSchedule] = useState({
+    hour_wib: '8',
+    minute: '0',
+    frequency: 'daily' as 'daily' | 'weekdays' | 'custom',
+    custom_days: [] as number[],
+    active: true
+  });
+  const [reminderSaving, setReminderSaving] = useState(false);
   
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
@@ -206,6 +215,81 @@ export default function TicketingSystem() {
 
   const getOverdueSetting = (ticketId: string) =>
     overdueSettings.find(o => o.ticket_id === ticketId);
+
+  // ── REMINDER SCHEDULE ────────────────────────────────────────
+  const loadReminderSchedule = async () => {
+    try {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'reminder_schedule')
+        .single();
+      if (data?.value) {
+        setReminderSchedule(data.value);
+      }
+    } catch (e) {
+      // table mungkin belum ada, pakai default
+    }
+  };
+
+  const saveCronSchedule = async () => {
+    setReminderSaving(true);
+    try {
+      // Hitung UTC hour dari WIB (WIB = UTC+7)
+      const wibHour = parseInt(reminderSchedule.hour_wib);
+      const utcHour = (wibHour - 7 + 24) % 24;
+      const minute = parseInt(reminderSchedule.minute) || 0;
+
+      // Build cron expression
+      let dayOfWeek = '*';
+      if (reminderSchedule.frequency === 'weekdays') {
+        dayOfWeek = '1-5'; // Senin-Jumat
+      } else if (reminderSchedule.frequency === 'custom' && reminderSchedule.custom_days.length > 0) {
+        dayOfWeek = reminderSchedule.custom_days.join(',');
+      }
+
+      const cronExpression = `${minute} ${utcHour} * * ${dayOfWeek}`;
+
+      // Simpan setting ke app_settings
+      await supabase.from('app_settings').upsert({
+        key: 'reminder_schedule',
+        value: reminderSchedule
+      }, { onConflict: 'key' });
+
+      // Update cron via SQL function
+      const { error } = await supabase.rpc('update_reminder_cron', {
+        p_schedule: cronExpression,
+        p_active: reminderSchedule.active
+      });
+
+      if (error) {
+        // Fallback: tampilkan SQL yang perlu dijalankan manual
+        const sqlText = `-- Jalankan di SQL Editor:\nSELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\nSELECT cron.schedule('daily-reminder', '${cronExpression}', $$\n  SELECT net.http_post(\n    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n    body := '{}'::jsonb\n  );\n$$);`;
+        alert(`Setting disimpan! ✅\n\nUntuk mengaktifkan jadwal, jalankan SQL ini di Supabase SQL Editor:\n\n${sqlText}`);
+      } else {
+        alert(`✅ Jadwal reminder berhasil diubah!\nSetiap hari jam ${reminderSchedule.hour_wib.padStart(2,'0')}:${reminderSchedule.minute.padStart(2,'0')} WIB`);
+      }
+
+      setShowReminderSchedule(false);
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setReminderSaving(false);
+    }
+  };
+
+  const getCronDisplay = () => {
+    const h = reminderSchedule.hour_wib.padStart(2, '0');
+    const m = reminderSchedule.minute.padStart(2, '0');
+    const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    let freq = 'Setiap hari';
+    if (reminderSchedule.frequency === 'weekdays') freq = 'Senin–Jumat';
+    else if (reminderSchedule.frequency === 'custom' && reminderSchedule.custom_days.length > 0) {
+      freq = reminderSchedule.custom_days.map(d => days[d]).join(', ');
+    }
+    return `${freq}, jam ${h}:${m} WIB`;
+  };
+  // ──────────────────────────────────────────────────────────────
 
   const fetchOverdueSettings = async () => {
     if (!currentUser || currentUser.role !== 'admin') return;
@@ -1055,6 +1139,7 @@ Error Code: ${activityError.code}`;
     if (currentUser?.role === 'admin') {
       fetchGuestMappings();
       fetchOverdueSettings();
+      loadReminderSchedule();
     }
   }, [currentUser]);
 
@@ -1677,6 +1762,20 @@ Error Code: ${activityError.code}`;
                   className="btn-primary"
                 >
                   + New Ticket
+                </button>
+              )}
+              {canAccessAccountSettings && (
+                <button
+                  onClick={() => {
+                    setShowReminderSchedule(true);
+                    setShowAccountSettings(false);
+                    setShowGuestMapping(false);
+                    setShowNewTicket(false);
+                  }}
+                  className="bg-gradient-to-r from-violet-600 to-violet-800 text-white px-5 py-3 rounded-xl hover:from-violet-700 hover:to-violet-900 font-bold shadow-lg transition-all"
+                  title={`Reminder: ${getCronDisplay()}`}
+                >
+                  ⏰ Reminder
                 </button>
               )}
               <button onClick={handleLogout} className="btn-danger">
@@ -2390,6 +2489,153 @@ Error Code: ${activityError.code}`;
           )}
         </div>
       </div>
+
+      {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
+      {showReminderSchedule && canAccessAccountSettings && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-violet-500 animate-scale-in">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">⏰</span>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Jadwal WA Reminder</h3>
+                  <p className="text-xs text-gray-500">Kirim reminder otomatis ke semua handler</p>
+                </div>
+              </div>
+              <button onClick={() => setShowReminderSchedule(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+
+            {/* Active toggle */}
+            <div className="flex items-center justify-between bg-violet-50 rounded-xl p-3 mb-4 border border-violet-200">
+              <div>
+                <p className="text-sm font-bold text-violet-800">Status Reminder</p>
+                <p className="text-xs text-violet-600">{reminderSchedule.active ? 'Aktif — akan kirim WA otomatis' : 'Nonaktif — tidak ada WA dikirim'}</p>
+              </div>
+              <button
+                onClick={() => setReminderSchedule(prev => ({ ...prev, active: !prev.active }))}
+                className={`relative w-12 h-6 rounded-full transition-colors ${reminderSchedule.active ? 'bg-violet-600' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${reminderSchedule.active ? 'translate-x-6' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+
+            {/* Jam */}
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-gray-700 mb-2">🕐 Jam Pengiriman (WIB)</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={reminderSchedule.hour_wib}
+                  onChange={(e) => setReminderSchedule(prev => ({ ...prev, hour_wib: e.target.value }))}
+                  className="flex-1 border-2 border-violet-300 rounded-lg px-3 py-2.5 font-bold text-center text-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                >
+                  {Array.from({length: 24}, (_, i) => (
+                    <option key={i} value={String(i)}>{String(i).padStart(2,'0')}:00</option>
+                  ))}
+                </select>
+                <span className="text-gray-500 font-semibold">:</span>
+                <select
+                  value={reminderSchedule.minute}
+                  onChange={(e) => setReminderSchedule(prev => ({ ...prev, minute: e.target.value }))}
+                  className="w-24 border-2 border-violet-300 rounded-lg px-3 py-2.5 font-bold text-center text-lg focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                >
+                  {['00','15','30','45'].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span className="text-sm font-bold text-gray-600">WIB</span>
+              </div>
+              {/* Quick time buttons */}
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {[{label:'07:00',h:'7',m:'0'},{label:'08:00',h:'8',m:'0'},{label:'09:00',h:'9',m:'0'},{label:'13:00',h:'13',m:'0'}].map(t => (
+                  <button
+                    key={t.label}
+                    onClick={() => setReminderSchedule(prev => ({ ...prev, hour_wib: t.h, minute: t.m }))}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                      reminderSchedule.hour_wib === t.h && reminderSchedule.minute === t.m
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Frekuensi */}
+            <div className="mb-5">
+              <label className="block text-sm font-bold text-gray-700 mb-2">📅 Frekuensi</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { val: 'daily', label: '📆 Setiap Hari' },
+                  { val: 'weekdays', label: '💼 Senin–Jumat' },
+                  { val: 'custom', label: '✏️ Pilih Hari' }
+                ].map(f => (
+                  <button
+                    key={f.val}
+                    onClick={() => setReminderSchedule(prev => ({ ...prev, frequency: f.val as any }))}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${
+                      reminderSchedule.frequency === f.val
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom day picker */}
+              {reminderSchedule.frequency === 'custom' && (
+                <div className="mt-3 flex gap-1.5 flex-wrap">
+                  {['Min','Sen','Sel','Rab','Kam','Jum','Sab'].map((day, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        const days = reminderSchedule.custom_days.includes(idx)
+                          ? reminderSchedule.custom_days.filter(d => d !== idx)
+                          : [...reminderSchedule.custom_days, idx].sort();
+                        setReminderSchedule(prev => ({ ...prev, custom_days: days }));
+                      }}
+                      className={`w-10 h-10 rounded-full text-xs font-bold border-2 transition-all ${
+                        reminderSchedule.custom_days.includes(idx)
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-violet-400'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Preview */}
+            <div className="bg-gray-50 rounded-xl p-3 mb-5 border border-gray-200">
+              <p className="text-xs text-gray-500 mb-1">Preview jadwal:</p>
+              <p className="text-sm font-bold text-gray-800">📬 {getCronDisplay()}</p>
+              <p className="text-xs text-gray-400 mt-1">Reminder dikirim ke WA semua handler dengan ticket Pending/In Progress</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={saveCronSchedule}
+                disabled={reminderSaving}
+                className="bg-gradient-to-r from-violet-600 to-violet-800 text-white py-3 rounded-xl font-bold hover:from-violet-700 hover:to-violet-900 transition-all disabled:opacity-50"
+              >
+                {reminderSaving ? '⏳ Menyimpan...' : '💾 Simpan'}
+              </button>
+              <button
+                onClick={() => setShowReminderSchedule(false)}
+                className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+              >
+                ✕ Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────── */}
 
       {/* ── OVERDUE SETTING MODAL ───────────────────────── */}
       {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
