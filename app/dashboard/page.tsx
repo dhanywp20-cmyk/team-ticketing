@@ -655,7 +655,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="fixed bottom-6 left-6 z-50">
+      <div className="fixed bottom-6 right-6 z-50">
         <a
           href="https://srv184.niagahoster.com:2096/cpsess6840729072/3rdparty/roundcube/"
           target="_blank"
@@ -676,7 +676,7 @@ export default function Dashboard() {
           
           <div className="absolute bottom-full right-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
             {unreadEmails > 0 ? `${unreadEmails} pesan baru` : 'Buka Outlook'}
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+            <div className="absolute top-full right-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
           </div>
         </a>
       </div>
