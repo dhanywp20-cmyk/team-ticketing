@@ -2260,10 +2260,27 @@ Error Code: ${activityError.code}`;
                   <input 
                     type="text" 
                     value={newTicket.issue_case} 
-                    onChange={(e) => setNewTicket({...newTicket, issue_case: e.target.value})} 
-                    placeholder="Example: Videowall Not Working" 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const words = val.trim().split(/\s+/).filter(Boolean);
+                      // Allow typing if current word count <= 4, or if user is editing within existing words
+                      if (words.length < 4 || (words.length === 4 && !val.endsWith(' '))) {
+                        setNewTicket({...newTicket, issue_case: val});
+                      }
+                    }}
+                    placeholder="Maks. 4 kata, contoh: Videowall Not Working"
                     className="w-full border-2 border-red-400 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-200 transition-all font-medium bg-white"
                   />
+                  <div className="flex justify-between items-center mt-1.5">
+                    <span className="text-xs text-gray-500">Maksimal 4 kata</span>
+                    <span className={`text-xs font-bold ${
+                      newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length >= 4
+                        ? 'text-red-500'
+                        : 'text-gray-400'
+                    }`}>
+                      {newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length}/4 kata
+                    </span>
+                  </div>
                 </div>
               </div>
 
