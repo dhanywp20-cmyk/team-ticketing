@@ -95,6 +95,9 @@ export default function TicketingSystem() {
   const [overdueForm, setOverdueForm] = useState({ due_hours: '48' });
   const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
   const [showReminderSchedule, setShowReminderSchedule] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalTicket, setApprovalTicket] = useState<Ticket | null>(null);
+  const [approvalAssignee, setApprovalAssignee] = useState('');
   const [reminderSchedule, setReminderSchedule] = useState({
     hour_wib: '8',
     minute: '0',
@@ -176,7 +179,8 @@ export default function TicketingSystem() {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
     'Solved': 'bg-green-100 text-green-800 border-green-400',
-    'Overdue': 'bg-red-100 text-red-800 border-red-500'
+    'Overdue': 'bg-red-100 text-red-800 border-red-500',
+    'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400'
   };
 
   const checkSessionTimeout = () => {
@@ -473,13 +477,20 @@ export default function TicketingSystem() {
   };
 
   const createTicket = async () => {
-    if (!newTicket.project_name || !newTicket.issue_case || !newTicket.assigned_to) {
-      alert('Project name, Issue case, and Assigned to must be filled!');
+    if (!newTicket.project_name || !newTicket.issue_case) {
+      alert('Project name and Issue case must be filled!');
+      return;
+    }
+
+    // Non-admin harus menunggu approval Superadmin, tidak perlu assign dulu
+    const isAdmin = currentUser?.role === 'admin';
+    if (isAdmin && !newTicket.assigned_to) {
+      alert('Please assign to a Team PTS member!');
       return;
     }
 
     const validStatuses = ['Pending', 'In Progress', 'Solved'];
-    if (!validStatuses.includes(newTicket.status)) {
+    if (isAdmin && !validStatuses.includes(newTicket.status)) {
       alert('Invalid status! Use: Pending, In Progress, or Solved');
       return;
     }
@@ -488,6 +499,10 @@ export default function TicketingSystem() {
       setUploading(true);
       setShowLoadingPopup(true);
       setLoadingMessage('Saving new ticket...');
+
+      // Jika bukan admin, ticket masuk ke "Waiting Approval"
+      const ticketStatus = isAdmin ? newTicket.status : 'Waiting Approval';
+      const ticketAssignedTo = isAdmin ? newTicket.assigned_to : '';
       
       const ticketData = {
         project_name: newTicket.project_name,
@@ -497,9 +512,9 @@ export default function TicketingSystem() {
         sn_unit: newTicket.sn_unit || null,
         issue_case: newTicket.issue_case,
         description: newTicket.description || null,
-        assigned_to: newTicket.assigned_to,
+        assigned_to: ticketAssignedTo,
         date: newTicket.date,
-        status: newTicket.status,
+        status: ticketStatus,
         current_team: 'Team PTS',
         services_status: null,
         created_by: currentUser?.username || null
@@ -528,7 +543,10 @@ export default function TicketingSystem() {
       
       await fetchData();
       
-      setLoadingMessage('✅ Ticket saved successfully!');
+      const successMsg = isAdmin 
+        ? '✅ Ticket saved successfully!' 
+        : '✅ Ticket submitted! Waiting for Superadmin approval.';
+      setLoadingMessage(successMsg);
       setTimeout(() => {
         setShowLoadingPopup(false);
         setUploading(false);
@@ -537,6 +555,64 @@ export default function TicketingSystem() {
       setShowLoadingPopup(false);
       setUploading(false);
       alert('Error: ' + err.message);
+    }
+  };
+
+  const approveTicket = async () => {
+    if (!approvalTicket || !approvalAssignee) {
+      alert('Please select a Team PTS member to assign!');
+      return;
+    }
+    try {
+      setUploading(true);
+      const { error } = await supabase
+        .from('tickets')
+        .update({ status: 'Pending', assigned_to: approvalAssignee })
+        .eq('id', approvalTicket.id);
+      if (error) throw error;
+
+      // Log approval activity
+      await supabase.from('activity_logs').insert([{
+        ticket_id: approvalTicket.id,
+        handler_name: currentUser?.full_name || 'Superadmin',
+        handler_username: currentUser?.username || '',
+        action_taken: 'Ticket Approved',
+        notes: `Ticket disetujui oleh Superadmin dan di-assign ke ${approvalAssignee}`,
+        new_status: 'Pending',
+        team_type: 'Team PTS',
+        assigned_to_services: false,
+        file_url: '',
+        file_name: '',
+        photo_url: '',
+        photo_name: ''
+      }]);
+
+      setShowApprovalModal(false);
+      setApprovalTicket(null);
+      setApprovalAssignee('');
+      await fetchData();
+      alert(`✅ Ticket approved & assigned to ${approvalAssignee}`);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const rejectTicket = async (ticket: Ticket) => {
+    if (!confirm(`Reject ticket "${ticket.project_name} - ${ticket.issue_case}"? Ticket will be deleted.`)) return;
+    try {
+      setUploading(true);
+      // Delete activity logs first
+      await supabase.from('activity_logs').delete().eq('ticket_id', ticket.id);
+      const { error } = await supabase.from('tickets').delete().eq('id', ticket.id);
+      if (error) throw error;
+      await fetchData();
+      alert('Ticket rejected and removed.');
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -1053,6 +1129,12 @@ Error Code: ${activityError.code}`;
         // Services team only sees tickets assigned to them (current_team is Services OR services_status is active)
         teamVisibility = t.current_team === 'Team Services' || !!t.services_status;
       }
+
+      // Non-admin tidak bisa melihat ticket "Waiting Approval" milik orang lain
+      if (t.status === 'Waiting Approval' && currentUser?.role !== 'admin') {
+        // Hanya tampilkan jika created by current user
+        teamVisibility = teamVisibility && t.created_by === currentUser?.username;
+      }
       
       return match && statusMatch && teamVisibility && handlerMatch;
     });
@@ -1162,6 +1244,12 @@ Error Code: ${activityError.code}`;
   const canCreateTicket = currentUser?.role !== 'guest';
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessAccountSettings = currentUser?.role === 'admin';
+
+  // Tickets waiting for Superadmin approval
+  const pendingApprovalTickets = useMemo(() => {
+    if (currentUser?.role !== 'admin') return [];
+    return tickets.filter(t => t.status === 'Waiting Approval');
+  }, [tickets, currentUser]);
 
 
 
@@ -1521,7 +1609,27 @@ Error Code: ${activityError.code}`;
                     </div>
                   </div>
 
-                  {canUpdateTicket && (
+                  {selectedTicket.status === 'Waiting Approval' && (
+                    <div className="border-t-2 border-gray-200 pt-4">
+                      <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4 flex items-center gap-3">
+                        <span className="text-3xl">⏳</span>
+                        <div>
+                          <p className="font-bold text-orange-800">Menunggu Persetujuan Superadmin</p>
+                          <p className="text-sm text-orange-700 mt-0.5">Ticket ini sedang menunggu review dan assignment dari Superadmin sebelum dapat diproses.</p>
+                          {canAccessAccountSettings && (
+                            <button
+                              onClick={() => { setApprovalTicket(selectedTicket); setApprovalAssignee(''); setShowApprovalModal(true); setShowTicketDetailPopup(false); }}
+                              className="mt-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                            >
+                              ✅ Approve & Assign sekarang
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && (
                     <div className="border-t-2 border-gray-200 pt-4">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-xl text-gray-800">➕ Update Status</h3>
@@ -1738,6 +1846,18 @@ Error Code: ${activityError.code}`;
                 )}
               </button>
 
+              {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
+                <button
+                  onClick={() => setShowApprovalModal(true)}
+                  className="relative bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-3 rounded-xl hover:from-orange-600 hover:to-orange-700 font-bold shadow-lg transition-all animate-pulse"
+                  title="Tickets waiting for approval"
+                >
+                  ⏳ Approval
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                    {pendingApprovalTickets.length}
+                  </span>
+                </button>
+              )}
               {canAccessAccountSettings && (
                 <button 
                   onClick={() => {
@@ -2234,6 +2354,15 @@ Error Code: ${activityError.code}`;
             <h2 className="text-2xl font-bold mb-6 text-gray-800">🎫 Create New Ticket</h2>
             
             <div className="space-y-4">
+              {currentUser?.role !== 'admin' && (
+                <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4 flex items-start gap-3">
+                  <span className="text-2xl">⏳</span>
+                  <div>
+                    <p className="font-bold text-orange-800">Perlu Persetujuan Superadmin</p>
+                    <p className="text-sm text-orange-700 mt-0.5">Ticket yang Anda buat akan masuk ke antrian approval Superadmin terlebih dahulu. Setelah disetujui, Superadmin akan assign ticket ke Tim PTS yang tersedia.</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Project Name *</label>
@@ -2333,12 +2462,14 @@ Error Code: ${activityError.code}`;
                     value={newTicket.status} 
                     onChange={(e) => setNewTicket({...newTicket, status: e.target.value})} 
                     className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
+                    disabled={currentUser?.role !== 'admin'}
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
+                {currentUser?.role === 'admin' ? (
                 <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">👨‍💼 Assign to *</label>
                   <select 
@@ -2352,6 +2483,14 @@ Error Code: ${activityError.code}`;
                     </optgroup>
                   </select>
                 </div>
+                ) : (
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-200">
+                  <label className="block text-sm font-bold text-gray-500 mb-2">👨‍💼 Assign to</label>
+                  <div className="w-full border-2 border-gray-300 rounded-lg px-4 py-2.5 bg-gray-100 text-gray-500 text-sm font-medium">
+                    🔒 Ditentukan oleh Superadmin setelah approval
+                  </div>
+                </div>
+                )}
               </div>
 
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300">
@@ -2462,8 +2601,8 @@ Error Code: ${activityError.code}`;
                       </td>
                       <td className="px-3 py-3 border-r border-gray-200 align-top">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${overdue ? statusColors['Overdue'] : statusColors[ticket.status]}`}>
-                            {overdue ? '🚨 Overdue' : ticket.status}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${overdue ? statusColors['Overdue'] : (statusColors[ticket.status] || statusColors['Pending'])}`}>
+                            {overdue ? '🚨 Overdue' : ticket.status === 'Waiting Approval' ? '⏳ Waiting Approval' : ticket.status}
                           </span>
                           {ticket.services_status && (
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>
@@ -2509,6 +2648,14 @@ Error Code: ${activityError.code}`;
                           >
                             👁️ View
                           </button>
+                          {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
+                            <button
+                              onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
+                              className="bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
+                            >
+                              ✅ Approve
+                            </button>
+                          )}
                           <button
                             onClick={() => exportToPDF(ticket)}
                             className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
@@ -2543,6 +2690,94 @@ Error Code: ${activityError.code}`;
           )}
         </div>
       </div>
+
+      {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
+      {/* ── APPROVAL MODAL ──────────────────────────────────── */}
+      {showApprovalModal && canAccessAccountSettings && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border-2 border-orange-500">
+            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">⏳</span>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Ticket Approval</h3>
+                    <p className="text-sm text-white/90">{pendingApprovalTickets.length} ticket menunggu persetujuan</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(85vh-80px)] overflow-y-auto p-4 space-y-4">
+              {pendingApprovalTickets.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-5xl mb-3">✅</div>
+                  <p className="text-gray-500 font-medium">Tidak ada ticket yang menunggu approval</p>
+                </div>
+              ) : (
+                pendingApprovalTickets.map(ticket => (
+                  <div key={ticket.id} className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p>
+                        <p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>
+                        {ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}
+                        <div className="flex gap-2 mt-2 flex-wrap text-xs text-gray-500">
+                          {ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}
+                          {ticket.sales_name && <span>💼 {ticket.sales_name}</span>}
+                          {ticket.sn_unit && <span>🔢 {ticket.sn_unit}</span>}
+                        </div>
+                        <p className="text-xs text-orange-700 font-semibold mt-2">
+                          Dibuat oleh: @{ticket.created_by || '-'} • {ticket.date}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-orange-100 text-orange-800 border-orange-400 whitespace-nowrap ml-2">
+                        ⏳ Waiting Approval
+                      </span>
+                    </div>
+
+                    <div className="mt-3 border-t border-orange-200 pt-3">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">👨‍💼 Assign ke Team PTS:</label>
+                      <div className="flex gap-2">
+                        <select
+                          className="flex-1 border-2 border-orange-300 rounded-lg px-3 py-2 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 text-sm font-medium"
+                          value={approvalTicket?.id === ticket.id ? approvalAssignee : ''}
+                          onChange={(e) => { setApprovalTicket(ticket); setApprovalAssignee(e.target.value); }}
+                        >
+                          <option value="">Pilih anggota Team PTS</option>
+                          {teamPTSMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                        </select>
+                        <button
+                          onClick={async () => {
+                            if (!approvalAssignee || approvalTicket?.id !== ticket.id) {
+                              alert('Pilih anggota Team PTS terlebih dahulu!');
+                              return;
+                            }
+                            await approveTicket();
+                          }}
+                          disabled={uploading || !(approvalTicket?.id === ticket.id && approvalAssignee)}
+                          className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                        >
+                          ✅ Approve
+                        </button>
+                        <button
+                          onClick={() => rejectTicket(ticket)}
+                          disabled={uploading}
+                          className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm"
+                        >
+                          ❌ Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────── */}
 
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {showReminderSchedule && canAccessAccountSettings && (
