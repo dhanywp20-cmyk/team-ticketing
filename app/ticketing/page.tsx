@@ -2382,71 +2382,89 @@ Error Code: ${activityError.code}`;
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full backdrop-blur-sm bg-white/20">
+            <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
+              <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
+                <colgroup>
+                  <col style={{width: '18%'}} />
+                  <col style={{width: '10%'}} />
+                  <col style={{width: '16%'}} />
+                  <col style={{width: '11%'}} />
+                  <col style={{width: '13%'}} />
+                  <col style={{width: '8%'}} />
+                  <col style={{width: '12%'}} />
+                  <col style={{width: '12%'}} />
+                </colgroup>
                 <thead>
                   <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                    <th className="px-4 py-3 text-left font-bold">Project Name</th>
-					<th className="px-4 py-3 text-left font-bold">SN Unit</th>
-                    <th className="px-4 py-3 text-left font-bold">Issue</th>
-                    <th className="px-4 py-3 text-left font-bold">Assigned</th>
-                    <th className="px-4 py-3 text-left font-bold">Status</th>
-                    <th className="px-4 py-3 text-center font-bold">Activity</th>
-                    <th className="px-4 py-3 text-center font-bold">Actions</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Project Name</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">SN Unit</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Issue</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Assigned</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Status</th>
+                    <th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Created By</th>
+                    <th className="px-3 py-3 text-center font-bold text-sm">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTickets.map((ticket, index) => {
                     const overdue = isTicketOverdue(ticket);
                     const overdueSetting = getOverdueSetting(ticket.id);
+                    // Find creator info
+                    const creatorUser = users.find(u => u.username === ticket.created_by);
+                    const creatorLabel = creatorUser
+                      ? creatorUser.full_name
+                      : (ticket.created_by || '-');
                     return (
                     <tr 
                       key={ticket.id} 
-                      className={`border-b border-white/50 hover:bg-blue-500/45 transition-colors ${
-                        overdue ? 'bg-red-100/70 border-l-4 border-l-red-500' :
-                        index % 2 === 0 ? 'bg-white/45' : 'bg-gray-45'
+                      className={`border-b border-gray-200 hover:bg-blue-500/20 transition-colors ${
+                        overdue ? 'bg-red-50/80 border-l-4 border-l-red-500' :
+                        index % 2 === 0 ? 'bg-white/50' : 'bg-blue-50/30'
                       }`}
                     >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {overdue && <span className="text-red-500 text-sm" title="Overdue!">🚨</span>}
-                          <div className="font-bold text-gray-800">{ticket.project_name}</div>
+                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                        <div className="flex items-start gap-1">
+                          {overdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
+                          <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                         </div>
-                        <div className="text-xs text-gray-500">{ticket.date ? new Date(ticket.date).toLocaleDateString('id-ID') : '-'}</div>
+                        <div className="text-xs text-gray-500 mt-1">{ticket.date ? new Date(ticket.date).toLocaleDateString('id-ID') : '-'}</div>
                         {overdue && (
                           <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-gray-800">{ticket.sn_unit}</div>
+                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                        <div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || '—'}</div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{ticket.issue_case}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-semibold text-gray-800">{ticket.assigned_to}</div>
-                        <div className="text-xs text-purple-600">{ticket.current_team}</div>
+                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                        <div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                        <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div>
+                        <div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div>
+                      </td>
+                      <td className="px-3 py-3 border-r border-gray-200 align-top">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${overdue ? statusColors['Overdue'] : statusColors[ticket.status]}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${overdue ? statusColors['Overdue'] : statusColors[ticket.status]}`}>
                             {overdue ? '🚨 Overdue' : ticket.status}
                           </span>
                           {ticket.services_status && (
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${statusColors[ticket.services_status]}`}>
-                              Services: {ticket.services_status}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>
+                              Svc: {ticket.services_status}
                             </span>
                           )}
                           {canAccessAccountSettings && overdueSetting && (
-                            <span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700 border border-orange-300">
-                              ⚙️ {overdueSetting.due_hours}h overdue
+                            <span className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 border border-orange-300 whitespace-nowrap">
+                              ⚙️ {overdueSetting.due_hours}h
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-3 border-r border-gray-200 text-center align-top">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
                           <div className="flex items-center justify-center gap-1">
-                            <span className="text-lg">📝</span>
-                            <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                            <span className="text-base">📝</span>
+                            <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                               {ticket.activity_logs.length}
                             </span>
                           </div>
@@ -2454,20 +2472,29 @@ Error Code: ${activityError.code}`;
                           <span className="text-gray-400 text-sm">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex gap-2 justify-center flex-wrap">
+                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                        <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
+                        {ticket.created_by && (
+                          <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>
+                        )}
+                        {ticket.created_at && (
+                          <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center align-top">
+                        <div className="flex flex-col gap-1.5 items-center">
                           <button
                             onClick={() => {
                               setSelectedTicket(ticket);
                               setShowTicketDetailPopup(true);
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition-all"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
                           >
                             👁️ View
                           </button>
                           <button
                             onClick={() => exportToPDF(ticket)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition-all"
+                            className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
                           >
                             📄 PDF
                           </button>
@@ -2481,7 +2508,7 @@ Error Code: ${activityError.code}`;
                                 });
                                 setShowOverdueSetting(true);
                               }}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full ${
                                 overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                               }`}
                             >
