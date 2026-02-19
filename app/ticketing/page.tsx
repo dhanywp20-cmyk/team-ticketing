@@ -447,18 +447,16 @@ export default function TicketingSystem() {
             .select('project_name')
             .eq('guest_username', currentUser.username);
 
-          if (mappings && mappings.length > 0) {
-            const allowedProjectNames = mappings.map((m: GuestMapping) => m.project_name);
-            const filteredTickets = ticketsData.data.filter((ticket: Ticket) => 
-              allowedProjectNames.includes(ticket.project_name)
-            );
-            setTickets(filteredTickets);
-            
-            if (selectedTicket && !allowedProjectNames.includes(selectedTicket.project_name)) {
-              setSelectedTicket(null);
-            }
-          } else {
-            setTickets([]);
+          const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
+
+          // Guest bisa lihat: ticket dari project yang di-mapping ATAU ticket Waiting Approval yang dia buat sendiri
+          const filteredTickets = ticketsData.data.filter((ticket: Ticket) =>
+            allowedProjectNames.includes(ticket.project_name) ||
+            (ticket.status === 'Waiting Approval' && ticket.created_by === currentUser.username)
+          );
+          setTickets(filteredTickets);
+
+          if (selectedTicket && !filteredTickets.find((t: Ticket) => t.id === selectedTicket.id)) {
             setSelectedTicket(null);
           }
         } else {
@@ -486,12 +484,6 @@ export default function TicketingSystem() {
     const isAdmin = currentUser?.role === 'admin';
     if (isAdmin && !newTicket.assigned_to) {
       alert('Please assign to a Team PTS member!');
-      return;
-    }
-
-    const validStatuses = ['Pending', 'In Progress', 'Solved'];
-    if (isAdmin && !validStatuses.includes(newTicket.status)) {
-      alert('Invalid status! Use: Pending, In Progress, or Solved');
       return;
     }
 
@@ -1126,13 +1118,11 @@ Error Code: ${activityError.code}`;
       // Team Visibility Logic
       let teamVisibility = true;
       if (currentUserTeamType === 'Team Services') {
-        // Services team only sees tickets assigned to them (current_team is Services OR services_status is active)
         teamVisibility = t.current_team === 'Team Services' || !!t.services_status;
       }
 
-      // Non-admin tidak bisa melihat ticket "Waiting Approval" milik orang lain
+      // Semua role selain admin: Waiting Approval hanya tampil jika mereka yang buat
       if (t.status === 'Waiting Approval' && currentUser?.role !== 'admin') {
-        // Hanya tampilkan jika created by current user
         teamVisibility = teamVisibility && t.created_by === currentUser?.username;
       }
       
@@ -1209,7 +1199,7 @@ Error Code: ${activityError.code}`;
   }, [currentUser, teamMembers]);
 
   useEffect(() => {
-    if (isLoggedIn && tickets.length > 0) {
+    if (isLoggedIn && tickets.length > 0 && currentUser?.role !== 'guest') {
       const notifs = getNotifications();
       setNotifications(notifs);
       
@@ -1241,7 +1231,7 @@ Error Code: ${activityError.code}`;
     }
   }, [currentUser]);
 
-  const canCreateTicket = currentUser?.role !== 'guest';
+  const canCreateTicket = true; // semua role bisa create ticket (Guest & Team → masuk Waiting Approval)
   const canUpdateTicket = currentUser?.role !== 'guest';
   const canAccessAccountSettings = currentUser?.role === 'admin';
 
@@ -1833,6 +1823,7 @@ Error Code: ${activityError.code}`;
               </p>
             </div>
             <div className="flex gap-3 flex-wrap items-center">
+              {currentUser?.role !== 'guest' && (
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
@@ -1845,6 +1836,7 @@ Error Code: ${activityError.code}`;
                   </span>
                 )}
               </button>
+              )}
 
               {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
                 <button
@@ -2359,7 +2351,10 @@ Error Code: ${activityError.code}`;
                   <span className="text-2xl">⏳</span>
                   <div>
                     <p className="font-bold text-orange-800">Perlu Persetujuan Superadmin</p>
-                    <p className="text-sm text-orange-700 mt-0.5">Ticket yang Anda buat akan masuk ke antrian approval Superadmin terlebih dahulu. Setelah disetujui, Superadmin akan assign ticket ke Tim PTS yang tersedia.</p>
+                    <p className="text-sm text-orange-700 mt-0.5">
+                      Ticket yang Anda buat akan masuk ke antrian approval Superadmin terlebih dahulu. 
+                      Setelah disetujui, Superadmin akan assign ticket ke Tim PTS yang tersedia.
+                    </p>
                   </div>
                 </div>
               )}
