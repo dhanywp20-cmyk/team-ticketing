@@ -666,9 +666,9 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Pending', 'In Progress', 'Call', 'Onsite', 'Solved'];
+    const validStatuses = ['Pending', 'Call', 'Onsite', 'In Progress', 'Solved'];
     if (!validStatuses.includes(newActivity.new_status)) {
-      alert('Invalid status! Use: Pending, In Progress, Call, Onsite, or Solved');
+      alert('Invalid status! Use: Pending, Call, Onsite, In Progress, or Solved');
       return;
     }
 
@@ -1732,9 +1732,9 @@ Error Code: ${activityError.code}`;
                               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                             >
                               <option value="Pending">Pending</option>
+                              <option value="Call">Call</option>
+                              <option value="Onsite">Onsite</option>
                               <option value="In Progress">In Progress</option>
-                              <option value="Call">📞 Call</option>
-                              <option value="Onsite">🏢 Onsite</option>
                               <option value="Solved">Solved</option>
                             </select>
                           </div>
