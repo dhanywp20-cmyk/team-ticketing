@@ -129,6 +129,8 @@ export default function TicketingSystem() {
   const [notifications, setNotifications] = useState<Ticket[]>([]);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [showActivitySummary, setShowActivitySummary] = useState(false);
+  const [summaryTicket, setSummaryTicket] = useState<Ticket | null>(null);
 
   const [selectedUserForPassword, setSelectedUserForPassword] = useState('');
 
@@ -180,11 +182,13 @@ export default function TicketingSystem() {
   });
 
   const statusColors: Record<string, string> = {
+    'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400',
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
+    'Call': 'bg-sky-100 text-sky-800 border-sky-400',
+    'Onsite': 'bg-purple-100 text-purple-800 border-purple-400',
     'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
     'Solved': 'bg-green-100 text-green-800 border-green-400',
     'Overdue': 'bg-red-100 text-red-800 border-red-500',
-    'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400'
   };
 
   const checkSessionTimeout = () => {
@@ -599,25 +603,6 @@ export default function TicketingSystem() {
         .eq('id', approvalTicket.id);
       if (error) throw error;
 
-      // Log assign activity - tanpa info superadmin, hanya info assign ke team
-      const now = new Date();
-      const tanggal = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-      const jam = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      await supabase.from('activity_logs').insert([{
-        ticket_id: approvalTicket.id,
-        handler_name: approvalAssignee,
-        handler_username: '',
-        action_taken: '',
-        notes: `Ticket telah di-assign ke ${approvalAssignee} (Team PTS) pada ${tanggal} pukul ${jam} WIB.`,
-        new_status: 'Pending',
-        team_type: 'Team PTS',
-        assigned_to_services: false,
-        file_url: '',
-        file_name: '',
-        photo_url: '',
-        photo_name: ''
-      }]);
-
       setShowApprovalModal(false);
       setApprovalTicket(null);
       setApprovalAssignee('');
@@ -665,7 +650,7 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Pending', 'In Progress', 'Solved'];
+    const validStatuses = ['Waiting Approval', 'Pending', 'Call', 'Onsite', 'In Progress', 'Solved'];
     if (!validStatuses.includes(newActivity.new_status)) {
       alert('Invalid status! Use: Pending, In Progress, or Solved');
       return;
@@ -1933,9 +1918,12 @@ Error Code: ${activityError.code}`;
                               onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
                               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                             >
-                              <option value="Pending">Pending</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Solved">Solved</option>
+                              <option value="Waiting Approval">⏳ Waiting Approval</option>
+                              <option value="Pending">🟡 Pending</option>
+                              <option value="Call">📞 Call</option>
+                              <option value="Onsite">🚗 Onsite</option>
+                              <option value="In Progress">🔵 In Progress</option>
+                              <option value="Solved">✅ Solved</option>
                             </select>
                           </div>
                           
@@ -1961,7 +1949,7 @@ Error Code: ${activityError.code}`;
                             />
                           </div>
 
-                          {currentUserTeamType === 'Team PTS' && newActivity.new_status === 'Solved' && (
+                          {currentUserTeamType === 'Team PTS' && (newActivity.new_status === 'Solved' || newActivity.new_status === 'In Progress' || newActivity.new_status === 'Onsite') && (
                             <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border-2 border-red-300 shadow-sm">
                               <div className="flex items-start gap-3 mb-3">
                                 <input 
@@ -2588,9 +2576,12 @@ Error Code: ${activityError.code}`;
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
               <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field">
                 <option value="All">All Status</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Pending">Pending</option>
-                <option value="Solved">Solved</option>
+                <option value="Waiting Approval">⏳ Waiting Approval</option>
+                <option value="Pending">🟡 Pending</option>
+                <option value="Call">📞 Call</option>
+                <option value="Onsite">🚗 Onsite</option>
+                <option value="In Progress">🔵 In Progress</option>
+                <option value="Solved">✅ Solved</option>
                 <option value="Overdue">🚨 Overdue</option>
                 <option value="Solved Overdue">⚠️ Solved Overdue</option>
               </select>
@@ -2743,9 +2734,11 @@ Error Code: ${activityError.code}`;
                     className="w-full border-2 border-yellow-400 rounded-lg px-4 py-2.5 focus:border-yellow-600 focus:ring-2 focus:ring-yellow-200 transition-all font-medium bg-white"
                     disabled={currentUser?.role !== 'admin'}
                   >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Solved">Solved</option>
+                    <option value="Pending">🟡 Pending</option>
+                    <option value="Call">📞 Call</option>
+                    <option value="Onsite">🚗 Onsite</option>
+                    <option value="In Progress">🔵 In Progress</option>
+                    <option value="Solved">✅ Solved</option>
                   </select>
                 </div>
                 {currentUser?.role === 'admin' ? (
@@ -2999,6 +2992,15 @@ Error Code: ${activityError.code}`;
                             className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
                           >
                             👁️ View
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSummaryTicket(ticket);
+                              setShowActivitySummary(true);
+                            }}
+                            className="bg-violet-600 hover:bg-violet-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                          >
+                            🔄 Flow
                           </button>
                           {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                             <button
@@ -3343,6 +3345,194 @@ Error Code: ${activityError.code}`;
                   🗑️ Hapus Setting Overdue
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────── */}
+
+      {/* ── ACTIVITY SUMMARY / FLOWCHART MODAL ─────────────── */}
+      {showActivitySummary && summaryTicket && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-scale-in border-2 border-blue-500">
+            {/* Header */}
+            <div className="p-5 border-b-2 border-gray-200 bg-gradient-to-r from-blue-600 to-blue-800">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🔄</span>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Activity Summary</h3>
+                    <p className="text-sm text-blue-100 font-medium">{summaryTicket.project_name}</p>
+                    <p className="text-xs text-blue-200">{summaryTicket.issue_case}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }}
+                  className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all text-lg"
+                >✕</button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto max-h-[calc(90vh-140px)] p-5">
+              {/* Ticket Info Strip */}
+              <div className="flex flex-wrap gap-2 mb-5 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs">
+                <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span> <span className="font-bold">{summaryTicket.assigned_to || '-'}</span></span>
+                <span className="text-gray-300">|</span>
+                <span className="flex items-center gap-1"><span className="text-gray-500">📅 Tgl:</span> <span className="font-bold">{summaryTicket.date || '-'}</span></span>
+                <span className="text-gray-300">|</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.status]}`}>{summaryTicket.status}</span>
+                {summaryTicket.services_status && (
+                  <>
+                    <span className="text-gray-300">|</span>
+                    <span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.services_status]}`}>Svc: {summaryTicket.services_status}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Flowchart */}
+              {(!summaryTicket.activity_logs || summaryTicket.activity_logs.length === 0) ? (
+                <div className="text-center py-10 text-gray-400">
+                  <div className="text-5xl mb-3">📭</div>
+                  <p className="font-semibold">Belum ada activity yang tercatat</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Start node */}
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="flex flex-col items-center">
+                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shadow-md">🎫</div>
+                    </div>
+                    <div className="flex-1 bg-blue-50 border-2 border-blue-300 rounded-xl px-4 py-2">
+                      <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Ticket Dibuat</p>
+                      <p className="text-sm font-semibold text-gray-800">{summaryTicket.project_name}</p>
+                      <p className="text-xs text-gray-500">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* Activity steps */}
+                  {[...summaryTicket.activity_logs]
+                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                    .map((log, idx, arr) => {
+                      const isLast = idx === arr.length - 1;
+                      const isSolved = log.new_status === 'Solved';
+                      const isServices = log.assigned_to_services;
+
+                      const nodeColor = isSolved
+                        ? 'bg-green-500'
+                        : isServices
+                        ? 'bg-red-500'
+                        : log.new_status === 'In Progress'
+                        ? 'bg-blue-500'
+                        : 'bg-yellow-500';
+
+                      const cardBorder = isSolved
+                        ? 'border-green-300 bg-green-50'
+                        : isServices
+                        ? 'border-red-300 bg-red-50'
+                        : log.new_status === 'In Progress'
+                        ? 'border-blue-300 bg-blue-50'
+                        : 'border-yellow-300 bg-yellow-50';
+
+                      return (
+                        <div key={log.id}>
+                          {/* Connector line */}
+                          <div className="flex items-stretch gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className="w-0.5 bg-gray-300 flex-1 mx-auto" style={{ minHeight: '16px' }}></div>
+                            </div>
+                            <div className="flex-1" />
+                          </div>
+
+                          <div className="flex items-start gap-3">
+                            {/* Step circle */}
+                            <div className="flex flex-col items-center flex-shrink-0">
+                              <div className={`w-9 h-9 rounded-full ${nodeColor} flex items-center justify-center text-white text-xs font-bold shadow-md`}>
+                                {isSolved ? '✅' : isServices ? '🔄' : idx + 1}
+                              </div>
+                              {!isLast && <div className="w-0.5 bg-gray-300 flex-1" style={{ minHeight: '12px' }}></div>}
+                            </div>
+
+                            {/* Step card */}
+                            <div className={`flex-1 border-2 rounded-xl px-4 py-3 mb-1 ${cardBorder}`}>
+                              <div className="flex justify-between items-start mb-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-bold text-gray-800">{log.handler_name}</span>
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">{log.team_type}</span>
+                                </div>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold border flex-shrink-0 ml-2 ${statusColors[log.new_status] || 'bg-gray-100 text-gray-700 border-gray-300'}`}>
+                                  {log.new_status}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mb-2">{formatDateTime(log.created_at)}</p>
+
+                              {log.action_taken && (
+                                <div className="bg-white/70 rounded-lg px-3 py-1.5 mb-2 border border-gray-200">
+                                  <p className="text-xs font-bold text-blue-700">🔧 Action:</p>
+                                  <p className="text-xs text-gray-800">{log.action_taken}</p>
+                                </div>
+                              )}
+
+                              <div className="bg-white/70 rounded-lg px-3 py-1.5 border border-gray-200">
+                                <p className="text-xs font-bold text-gray-600">📝 Notes:</p>
+                                <p className="text-xs text-gray-800 whitespace-pre-line">{log.notes}</p>
+                              </div>
+
+                              {isServices && (
+                                <div className="mt-2 flex items-center gap-1 text-xs font-bold text-red-700 bg-red-100 rounded-lg px-2 py-1">
+                                  <span>🔄</span> Diteruskan ke Team Services
+                                </div>
+                              )}
+                              {log.photo_url && (
+                                <div className="mt-2">
+                                  <img
+                                    src={log.photo_url}
+                                    alt="bukti"
+                                    className="max-h-28 rounded-lg border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => window.open(log.photo_url, '_blank')}
+                                  />
+                                </div>
+                              )}
+                              {log.file_url && (
+                                <a href={log.file_url} download={log.file_name} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-100 rounded-lg px-2 py-1 hover:bg-blue-200 transition-colors">
+                                  📎 {log.file_name || 'Download Report'}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* End node */}
+                  <div className="flex items-stretch gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-0.5 bg-gray-300 mx-auto" style={{ minHeight: '16px' }}></div>
+                    </div>
+                    <div className="flex-1" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-base shadow-md flex-shrink-0 ${summaryTicket.status === 'Solved' ? 'bg-green-600' : 'bg-gray-400'}`}>
+                      {summaryTicket.status === 'Solved' ? '🏁' : '⏳'}
+                    </div>
+                    <div className={`flex-1 rounded-xl px-4 py-2 border-2 ${summaryTicket.status === 'Solved' ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-300'}`}>
+                      <p className={`text-xs font-bold uppercase tracking-wide ${summaryTicket.status === 'Solved' ? 'text-green-700' : 'text-gray-500'}`}>
+                        {summaryTicket.status === 'Solved' ? '✅ Ticket Selesai' : `⏳ Status: ${summaryTicket.status}`}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{summaryTicket.activity_logs?.length || 0} aktivitas tercatat</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+              <button
+                onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition-all"
+              >
+                ✕ Tutup
+              </button>
             </div>
           </div>
         </div>
