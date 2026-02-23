@@ -113,6 +113,7 @@ export default function TicketingSystem() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showTicketDetailPopup, setShowTicketDetailPopup] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
@@ -434,6 +435,7 @@ export default function TicketingSystem() {
 
   const fetchData = async () => {
     try {
+      setTicketsLoading(true);
       const [ticketsData, membersData, usersData] = await Promise.all([
         supabase.from('tickets').select('*, activity_logs(*)').order('created_at', { ascending: false }),
         supabase.from('team_members').select('*').order('name'),
@@ -449,7 +451,6 @@ export default function TicketingSystem() {
 
           const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
 
-          // Guest bisa lihat: ticket dari project yang di-mapping ATAU ticket Waiting Approval yang dia buat sendiri
           const filteredTickets = ticketsData.data.filter((ticket: Ticket) =>
             allowedProjectNames.includes(ticket.project_name) ||
             (ticket.status === 'Waiting Approval' && ticket.created_by === currentUser.username)
@@ -468,9 +469,11 @@ export default function TicketingSystem() {
       if (usersData.data) setUsers(usersData.data);
       
       setLoading(false);
+      setTicketsLoading(false);
     } catch (err: any) {
       console.error('Error:', err);
       setLoading(false);
+      setTicketsLoading(false);
     }
   };
 
@@ -563,13 +566,16 @@ export default function TicketingSystem() {
         .eq('id', approvalTicket.id);
       if (error) throw error;
 
-      // Log approval activity
+      // Log assign activity - tanpa info superadmin, hanya info assign ke team
+      const now = new Date();
+      const tanggal = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+      const jam = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
       await supabase.from('activity_logs').insert([{
         ticket_id: approvalTicket.id,
-        handler_name: currentUser?.full_name || 'Superadmin',
-        handler_username: currentUser?.username || '',
-        action_taken: 'Ticket Approved',
-        notes: `Ticket disetujui oleh Superadmin dan di-assign ke ${approvalAssignee}`,
+        handler_name: approvalAssignee,
+        handler_username: '',
+        action_taken: '',
+        notes: `Ticket telah di-assign ke ${approvalAssignee} (Team PTS) pada ${tanggal} pukul ${jam} WIB.`,
         new_status: 'Pending',
         team_type: 'Team PTS',
         assigned_to_services: false,
@@ -2514,7 +2520,7 @@ Error Code: ${activityError.code}`;
 
         <div ref={ticketListRef} className="bg-white/40 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-2 border-blue-250">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">📋 Ticket List ({filteredTickets.length})</h2>
+            <h2 className="text-2xl font-bold text-gray-800">📋 Ticket List ({ticketsLoading ? '...' : filteredTickets.length})</h2>
             <button
               onClick={exportToExcel}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2"
@@ -2523,7 +2529,27 @@ Error Code: ${activityError.code}`;
             </button>
           </div>
           
-          {filteredTickets.length === 0 ? (
+          {ticketsLoading ? (
+            <div className="space-y-3 py-2">
+              {/* Skeleton loading rows */}
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-2/5"></div>
+                    <div className="h-3 bg-gray-100 rounded w-1/4"></div>
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/5"></div>
+                  <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                  <div className="h-8 bg-gray-200 rounded-lg w-16"></div>
+                </div>
+              ))}
+              <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                <span className="text-sm font-medium">Memuat daftar ticket...</span>
+              </div>
+            </div>
+          ) : filteredTickets.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📭</div>
               <p className="text-gray-600 font-medium">
