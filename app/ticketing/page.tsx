@@ -182,8 +182,6 @@ export default function TicketingSystem() {
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
-    'Call': 'bg-cyan-100 text-cyan-800 border-cyan-400',
-    'Onsite': 'bg-indigo-100 text-indigo-800 border-indigo-400',
     'Solved': 'bg-green-100 text-green-800 border-green-400',
     'Overdue': 'bg-red-100 text-red-800 border-red-500',
     'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400'
@@ -226,10 +224,11 @@ export default function TicketingSystem() {
         ?.filter(l => l.new_status === 'Solved')
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       if (solvedLog) return new Date(solvedLog.created_at) > deadline;
+      // Fallback: jika tidak ada log, anggap solved tepat waktu
       return false;
     }
 
-    // Pending / In Progress / Call / Onsite — cek terhadap waktu sekarang
+    // Pending / In Progress — cek terhadap waktu sekarang
     return new Date() > deadline;
   };
 
@@ -290,7 +289,7 @@ export default function TicketingSystem() {
           `SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\n` +
           `SELECT cron.schedule('daily-reminder', '${cronExpr}', $$\n` +
           `  SELECT net.http_post(\n` +
-          `    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder-wa',\n` +
+          `    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n` +
           `    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n` +
           `    body := '{}'::jsonb\n` +
           `  );\n` +
@@ -372,8 +371,8 @@ export default function TicketingSystem() {
     return tickets.filter(t => {
       if (t.assigned_to !== assignedName) return false;
       const overdue = isTicketOverdue(t) && t.status !== 'Solved'; // solved overdue tidak perlu notif aktif
-      const isPending = t.status === 'Pending' || t.status === 'In Progress' || t.status === 'Call' || t.status === 'Onsite';
-      const isServicesAndPending = t.services_status && (t.services_status === 'Pending' || t.services_status === 'In Progress' || t.services_status === 'Call' || t.services_status === 'Onsite');
+      const isPending = t.status === 'Pending' || t.status === 'In Progress';
+      const isServicesAndPending = t.services_status && (t.services_status === 'Pending' || t.services_status === 'In Progress');
       if (member?.team_type === 'Team Services') {
         return isServicesAndPending || overdue;
       } else {
@@ -666,9 +665,9 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Pending', 'Call', 'Onsite', 'In Progress', 'Solved'];
+    const validStatuses = ['Pending', 'In Progress', 'Solved'];
     if (!validStatuses.includes(newActivity.new_status)) {
-      alert('Invalid status! Use: Pending, Call, Onsite, In Progress, or Solved');
+      alert('Invalid status! Use: Pending, In Progress, or Solved');
       return;
     }
 
@@ -806,8 +805,8 @@ Error Code: ${activityError.code}`;
           updateData.services_status = 'Pending';
           updateData.assigned_to = newActivity.services_assignee;
 
-          // Trigger WhatsApp Notification via Meta WhatsApp Business API
-          supabase.functions.invoke('send-whatsapp', {
+          // Trigger Email Notification (Backend Function)
+          supabase.functions.invoke('send-email', {
             body: {
               ticketId: selectedTicket.id,
               projectName: selectedTicket.project_name,
@@ -817,10 +816,9 @@ Error Code: ${activityError.code}`;
               customerPhone: selectedTicket.customer_phone || '-',
               salesName: selectedTicket.sales_name || '-',
               activityLog: newActivity.notes || '-'
-              // recipientPhone otomatis dari env WA_DEFAULT_RECIPIENT atau bisa diisi manual
             }
           }).then(({ error }) => {
-            if (error) console.error('Failed to send WhatsApp:', error);
+            if (error) console.error('Failed to send email:', error);
           });
         }
       } else if (teamType === 'Team Services') {
@@ -1086,50 +1084,258 @@ Error Code: ${activityError.code}`;
   };
 
   const exportToExcel = () => {
-    // Dashboard Analytics Summary
-    const summary = [
-      ['Dashboard Analytics'],
-      ['Total Tickets', stats.total],
-      ['Pending', stats.pending],
-      ['In Progress', stats.processing],
-      ['Solved', stats.solved],
-      [''],
-      ['Ticket Report Data']
-    ].map(row => row.join(',')).join('\n');
+    // Dynamically load SheetJS from CDN if not bundled
+    const runExport = (XLSX: any) => {
+      // ── style helpers ──────────────────────────────────────
+      const border = {
+        top:    { style: 'thin', color: { rgb: 'D1D5DB' } },
+        bottom: { style: 'thin', color: { rgb: 'D1D5DB' } },
+        left:   { style: 'thin', color: { rgb: 'D1D5DB' } },
+        right:  { style: 'thin', color: { rgb: 'D1D5DB' } },
+      };
+      const boldBorder = {
+        top:    { style: 'thin', color: { rgb: '000000' } },
+        bottom: { style: 'thin', color: { rgb: '000000' } },
+        left:   { style: 'thin', color: { rgb: '000000' } },
+        right:  { style: 'thin', color: { rgb: '000000' } },
+      };
 
-    const headers = ['Project Name', 'Issue Case', 'Assigned To', 'Status', 'Date', 'Created By', 'Current Team', 'Services Status', 'Activity Logs'];
-    const csvContent = [
-      summary,
-      headers.join(','),
-      ...tickets.map(t => {
-        const activities = t.activity_logs?.map(log => 
-          `[${new Date(log.created_at).toLocaleString('id-ID')}] ${log.handler_name} (${log.new_status}): ${log.notes} ${log.action_taken ? `| Action: ${log.action_taken}` : ''}`
-        ).join('\n') || '-';
+      const hdrStyle = {
+        font: { name: 'Arial', bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '1E3A5F' }, patternType: 'solid' },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: boldBorder,
+      };
+      const secHdrStyle = {
+        font: { name: 'Arial', bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '2563EB' }, patternType: 'solid' },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: boldBorder,
+      };
+      const cellStyle = {
+        font: { name: 'Arial', sz: 10 },
+        alignment: { vertical: 'center', wrapText: true },
+        border,
+      };
+      const altStyle = {
+        ...cellStyle,
+        fill: { fgColor: { rgb: 'EFF6FF' }, patternType: 'solid' },
+      };
+      const titleStyle = {
+        font: { name: 'Arial', bold: true, sz: 15, color: { rgb: '1E3A5F' } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+      };
+      const statusStyles: Record<string, object> = {
+        'Solved':           { ...cellStyle, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '166534' } }, fill: { fgColor: { rgb: 'DCFCE7' }, patternType: 'solid' } },
+        'In Progress':      { ...cellStyle, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '1E40AF' } }, fill: { fgColor: { rgb: 'DBEAFE' }, patternType: 'solid' } },
+        'Pending':          { ...cellStyle, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '92400E' } }, fill: { fgColor: { rgb: 'FEF3C7' }, patternType: 'solid' } },
+        'Overdue':          { ...cellStyle, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '991B1B' } }, fill: { fgColor: { rgb: 'FEE2E2' }, patternType: 'solid' } },
+        'Waiting Approval': { ...cellStyle, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '9A3412' } }, fill: { fgColor: { rgb: 'FFEDD5' }, patternType: 'solid' } },
+      };
 
-        return [
-          t.project_name,
-          t.issue_case,
-          t.assigned_to,
-          t.status,
-          t.date,
-          t.created_by,
-          t.current_team,
-          t.services_status,
-          activities
-        ].map(e => `"${(e || '').toString().replace(/"/g, '""')}"`).join(',');
-      })
-    ].join('\n');
+      const c = (v: any, s: object) => ({ v, s, t: typeof v === 'number' ? 'n' : 's' });
+      const empty = () => ({ v: '', s: cellStyle, t: 's' });
+      const row = (cells: number) => Array(cells).fill(empty());
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Ticket_Report_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const wb = XLSX.utils.book_new();
+      const exportDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+      // ── SHEET 1 : DASHBOARD ────────────────────────────────
+      {
+        const COLS = 5;
+        const data: any[][] = [
+          [c('📊 TICKET REPORT — DASHBOARD ANALYTICS', titleStyle), ...row(COLS - 1)],
+          [c(`Tanggal Export: ${exportDate}`, { font: { name: 'Arial', sz: 10, color: { rgb: '6B7280' } } }), ...row(COLS - 1)],
+          row(COLS),
+          [c('RINGKASAN STATISTIK', secHdrStyle), ...row(COLS - 1)],
+          [c('Kategori', hdrStyle), c('Jumlah', hdrStyle), c('Persentase', hdrStyle), c('', hdrStyle), c('', hdrStyle)],
+        ];
+
+        const statItems = [
+          { label: 'Total Tickets', value: stats.total,      color: '1E3A5F' },
+          { label: 'Pending',       value: stats.pending,    color: '92400E' },
+          { label: 'In Progress',   value: stats.processing, color: '1E40AF' },
+          { label: 'Solved',        value: stats.solved,     color: '166534' },
+        ];
+        statItems.forEach((item, i) => {
+          const pct = stats.total > 0 ? ((item.value / stats.total) * 100).toFixed(1) + '%' : '0%';
+          const rs = { ...cellStyle, ...(i % 2 ? { fill: { fgColor: { rgb: 'EFF6FF' }, patternType: 'solid' } } : {}) };
+          data.push([
+            c(item.label, { ...rs, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: item.color } } }),
+            c(item.value, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
+            c(pct,        { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
+            empty(), empty(),
+          ]);
+        });
+
+        data.push(row(COLS));
+
+        // Handler breakdown
+        const handlerMap: Record<string, number> = {};
+        tickets.forEach(t => { if (t.assigned_to) handlerMap[t.assigned_to] = (handlerMap[t.assigned_to] || 0) + 1; });
+
+        data.push([c('HANDLER', hdrStyle), c('JUMLAH TICKET', hdrStyle), c('PERSENTASE', hdrStyle), c('', hdrStyle), c('', hdrStyle)]);
+        Object.entries(handlerMap).forEach(([handler, count], i) => {
+          const pct = stats.total > 0 ? ((count / stats.total) * 100).toFixed(1) + '%' : '0%';
+          const rs = i % 2 === 0 ? cellStyle : altStyle;
+          data.push([
+            c(handler, rs),
+            c(count, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
+            c(pct,   { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
+            empty(), empty(),
+          ]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws['!merges'] = [
+          { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+          { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+          { s: { r: 3, c: 0 }, e: { r: 3, c: COLS - 1 } },
+        ];
+        ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+        ws['!rows'] = [{ hpt: 30 }, { hpt: 18 }, { hpt: 8 }];
+        XLSX.utils.book_append_sheet(wb, ws, '📊 Dashboard');
+      }
+
+      // ── SHEET 2 : SEMUA TICKET ─────────────────────────────
+      {
+        const headers = [
+          'No.', 'Project Name', 'Alamat', 'Nama & Telepon Customer',
+          'Sales', 'Issue / Masalah', 'Deskripsi', 'SN Unit',
+          'Handler (Assigned To)', 'Status PTS', 'Status Services',
+          'Current Team', 'Tgl Ticket', 'Dibuat Oleh', 'Dibuat Pada',
+          'Jumlah Activity Log',
+        ];
+        const COLS = headers.length;
+
+        const data: any[][] = [
+          [c('📋 DATA SEMUA TICKET', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E3A5F' } } }), ...row(COLS - 1)],
+          row(COLS),
+          headers.map(h => c(h, hdrStyle)),
+        ];
+
+        tickets.forEach((t, idx) => {
+          const rs = idx % 2 === 0 ? cellStyle : altStyle;
+          const overdue = isTicketOverdue(t);
+          const effectiveStatus = overdue && t.status !== 'Solved' ? 'Overdue' : t.status;
+          const statusDisplay = overdue && t.status !== 'Solved' ? `${t.status} (OVERDUE)` : t.status;
+          const ctr = { ...rs, alignment: { horizontal: 'center', vertical: 'center' } };
+
+          data.push([
+            c(idx + 1,                                              ctr),
+            c(t.project_name || '-',                               rs),
+            c(t.address || '-',                                    rs),
+            c(t.customer_phone || '-',                             rs),
+            c(t.sales_name || '-',                                 rs),
+            c(t.issue_case || '-',                                 rs),
+            c(t.description || '-',                                rs),
+            c(t.sn_unit || '-',                                    ctr),
+            c(t.assigned_to || '-',                                rs),
+            c(statusDisplay,                                        statusStyles[effectiveStatus] || rs),
+            c(t.services_status || '-',                            t.services_status ? (statusStyles[t.services_status] || rs) : rs),
+            c(t.current_team || '-',                               rs),
+            c(t.date || '-',                                       ctr),
+            c(t.created_by || '-',                                 rs),
+            c(t.created_at ? formatDateTime(t.created_at) : '-',  ctr),
+            c(t.activity_logs?.length || 0,                        ctr),
+          ]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }];
+        ws['!cols'] = [
+          { wch: 5 }, { wch: 28 }, { wch: 30 }, { wch: 28 },
+          { wch: 22 }, { wch: 28 }, { wch: 38 }, { wch: 18 },
+          { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 18 },
+          { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 10 },
+        ];
+        ws['!rows'] = [{ hpt: 28 }, { hpt: 6 }, { hpt: 32 }];
+        XLSX.utils.book_append_sheet(wb, ws, '📋 Semua Ticket');
+      }
+
+      // ── SHEET 3 : ACTIVITY LOGS ───────────────────────────
+      {
+        const headers = [
+          'No.', 'Project Name', 'Issue', 'Status Ticket',
+          'Handler', 'Team', 'Action Taken', 'Notes',
+          'Status Baru', 'Ke Services?', 'File Lampiran', 'Waktu Activity',
+        ];
+        const COLS = headers.length;
+
+        const data: any[][] = [
+          [c('📝 DETAIL ACTIVITY LOG', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E3A5F' } } }), ...row(COLS - 1)],
+          row(COLS),
+          headers.map(h => c(h, hdrStyle)),
+        ];
+
+        let rowIdx = 0;
+        tickets.forEach(ticket => {
+          if (!ticket.activity_logs || ticket.activity_logs.length === 0) {
+            const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
+            data.push([
+              c(rowIdx + 1, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
+              c(ticket.project_name || '-', rs),
+              c(ticket.issue_case || '-', rs),
+              c(ticket.status || '-', statusStyles[ticket.status] || rs),
+              c('-', rs), c('-', rs), c('-', rs),
+              c('(Belum ada activity log)', { ...rs, font: { name: 'Arial', sz: 10, color: { rgb: '9CA3AF' } } }),
+              c('-', rs), c('-', rs), c('-', rs), c('-', rs),
+            ]);
+            rowIdx++;
+            return;
+          }
+
+          [...ticket.activity_logs]
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .forEach(log => {
+              const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
+              const ctr = { ...rs, alignment: { horizontal: 'center', vertical: 'center' } };
+              data.push([
+                c(rowIdx + 1,                                          ctr),
+                c(ticket.project_name || '-',                         rs),
+                c(ticket.issue_case || '-',                           rs),
+                c(ticket.status || '-',                               statusStyles[ticket.status] || rs),
+                c(log.handler_name || '-',                            rs),
+                c(log.team_type || '-',                               rs),
+                c(log.action_taken || '-',                            rs),
+                c(log.notes || '-',                                   { ...rs, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } }),
+                c(log.new_status || '-',                              statusStyles[log.new_status] || rs),
+                c(log.assigned_to_services ? '✅ Ya' : 'Tidak',      {
+                  ...ctr,
+                  font: { name: 'Arial', sz: 10, bold: !!log.assigned_to_services, color: { rgb: log.assigned_to_services ? '166534' : '374151' } },
+                }),
+                c(log.file_name || '-',                               rs),
+                c(log.created_at ? formatDateTime(log.created_at) : '-', ctr),
+              ]);
+              rowIdx++;
+            });
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }];
+        ws['!cols'] = [
+          { wch: 5 }, { wch: 26 }, { wch: 24 }, { wch: 18 },
+          { wch: 22 }, { wch: 16 }, { wch: 28 }, { wch: 40 },
+          { wch: 16 }, { wch: 12 }, { wch: 24 }, { wch: 22 },
+        ];
+        ws['!rows'] = [{ hpt: 28 }, { hpt: 6 }, { hpt: 32 }];
+        XLSX.utils.book_append_sheet(wb, ws, '📝 Activity Logs');
+      }
+
+      // ── WRITE FILE ─────────────────────────────────────────
+      const fileName = `Ticket_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', type: 'binary', cellStyles: true });
+    };
+
+    // Load SheetJS from CDN if window.XLSX not available
+    if ((window as any).XLSX) {
+      runExport((window as any).XLSX);
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.onload = () => runExport((window as any).XLSX);
+      script.onerror = () => alert('Gagal memuat library Excel. Coba lagi atau periksa koneksi internet.');
+      document.head.appendChild(script);
     }
   };
 
@@ -1176,19 +1382,15 @@ Error Code: ${activityError.code}`;
     const total = tickets.length;
     const processing = tickets.filter(t => t.status === 'In Progress').length;
     const pending = tickets.filter(t => t.status === 'Pending').length;
-    const call = tickets.filter(t => t.status === 'Call').length;
-    const onsite = tickets.filter(t => t.status === 'Onsite').length;
     const solved = tickets.filter(t => t.status === 'Solved').length;
     const overdue = tickets.filter(t => isTicketOverdue(t) && t.status !== 'Solved').length;
     const solvedOverdue = tickets.filter(t => isTicketOverdue(t) && t.status === 'Solved').length;
     
     return {
-      total, pending, processing, call, onsite, solved, overdue, solvedOverdue,
+      total, pending, processing, solved, overdue, solvedOverdue,
       statusData: [
         { name: 'Pending', value: pending, color: '#FCD34D' },
         { name: 'In Progress', value: processing, color: '#60A5FA' },
-        { name: 'Call', value: call, color: '#22d3ee' },
-        { name: 'Onsite', value: onsite, color: '#818cf8' },
         { name: 'Solved', value: solved, color: '#34D399' },
         ...(overdue > 0 ? [{ name: 'Overdue', value: overdue, color: '#EF4444' }] : []),
         ...(solvedOverdue > 0 ? [{ name: 'Solved (Overdue)', value: solvedOverdue, color: '#9333ea' }] : [])
@@ -1732,8 +1934,6 @@ Error Code: ${activityError.code}`;
                               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                             >
                               <option value="Pending">Pending</option>
-                              <option value="Call">Call</option>
-                              <option value="Onsite">Onsite</option>
                               <option value="In Progress">In Progress</option>
                               <option value="Solved">Solved</option>
                             </select>
@@ -1976,70 +2176,44 @@ Error Code: ${activityError.code}`;
           <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
             <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
-              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 col-span-1">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Total</p>
-                  <span className="text-xl">📊</span>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
+              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
+                  <span className="text-2xl">📊</span>
                 </div>
-                <p className="text-3xl font-bold mb-1">{stats.total}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-1">
+                <p className="text-4xl font-bold mb-1">{stats.total}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: '100%'}}></div>
                 </div>
               </div>
               <div className="stat-card bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Pending</p>
-                  <span className="text-xl">⏳</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Pending</p>
+                  <span className="text-2xl">⏳</span>
                 </div>
-                <p className="text-3xl font-bold mb-1">{stats.pending}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-1">
+                <p className="text-4xl font-bold mb-1">{stats.pending}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.pending/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
               <div className="stat-card bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">In Progress</p>
-                  <span className="text-xl">🔄</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">In Progress</p>
+                  <span className="text-2xl">🔄</span>
                 </div>
-                <p className="text-3xl font-bold mb-1">{stats.processing}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-1">
+                <p className="text-4xl font-bold mb-1">{stats.processing}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
-              <div
-                className="stat-card bg-gradient-to-br from-cyan-400 via-cyan-500 to-cyan-600 cursor-pointer"
-                onClick={() => { setFilterStatus('Call'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Call</p>
-                  <span className="text-xl">📞</span>
-                </div>
-                <p className="text-3xl font-bold mb-1">{stats.call}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-1">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.call/stats.total*100) : 0}%`}}></div>
-                </div>
-              </div>
-              <div
-                className="stat-card bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 cursor-pointer"
-                onClick={() => { setFilterStatus('Onsite'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Onsite</p>
-                  <span className="text-xl">🏢</span>
-                </div>
-                <p className="text-3xl font-bold mb-1">{stats.onsite}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-1">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.onsite/stats.total*100) : 0}%`}}></div>
-                </div>
-              </div>
               <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Solved</p>
-                  <span className="text-xl">✅</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Solved</p>
+                  <span className="text-2xl">✅</span>
                 </div>
-                <p className="text-3xl font-bold mb-1">{stats.solved}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-1">
+                <p className="text-4xl font-bold mb-1">{stats.solved}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solved/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
@@ -2047,12 +2221,12 @@ Error Code: ${activityError.code}`;
                 className="stat-card bg-gradient-to-br from-red-500 via-red-600 to-red-700 cursor-pointer"
                 onClick={() => { setFilterStatus('Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Overdue</p>
-                  <span className="text-xl">🚨</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Overdue</p>
+                  <span className="text-2xl">🚨</span>
                 </div>
-                <p className="text-3xl font-bold mb-1">{stats.overdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-1">
+                <p className="text-4xl font-bold mb-1">{stats.overdue}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.overdue/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
@@ -2061,16 +2235,17 @@ Error Code: ${activityError.code}`;
                 onClick={() => { setFilterStatus('Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
                 title="Ticket yang sudah Solved namun diselesaikan melewati batas waktu"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs opacity-90 font-semibold">Solved OD</p>
-                  <span className="text-xl">⚠️</span>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Solved Overdue</p>
+                  <span className="text-2xl">⚠️</span>
                 </div>
-                <p className="text-3xl font-bold mb-1">{stats.solvedOverdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-1">
+                <p className="text-4xl font-bold mb-1">{stats.solvedOverdue}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solvedOverdue/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
             </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="chart-container bg-gradient-to-br from-white to-gray-50">
                 <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
@@ -2413,10 +2588,8 @@ Error Code: ${activityError.code}`;
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
               <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field">
                 <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
                 <option value="In Progress">In Progress</option>
-                <option value="Call">📞 Call</option>
-                <option value="Onsite">🏢 Onsite</option>
+                <option value="Pending">Pending</option>
                 <option value="Solved">Solved</option>
                 <option value="Overdue">🚨 Overdue</option>
                 <option value="Solved Overdue">⚠️ Solved Overdue</option>
@@ -2572,8 +2745,6 @@ Error Code: ${activityError.code}`;
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
-                    <option value="Call">📞 Call</option>
-                    <option value="Onsite">🏢 Onsite</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
