@@ -182,6 +182,8 @@ export default function TicketingSystem() {
   const statusColors: Record<string, string> = {
     'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
     'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
+    'Call': 'bg-cyan-100 text-cyan-800 border-cyan-400',
+    'Onsite': 'bg-indigo-100 text-indigo-800 border-indigo-400',
     'Solved': 'bg-green-100 text-green-800 border-green-400',
     'Overdue': 'bg-red-100 text-red-800 border-red-500',
     'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400'
@@ -224,11 +226,10 @@ export default function TicketingSystem() {
         ?.filter(l => l.new_status === 'Solved')
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       if (solvedLog) return new Date(solvedLog.created_at) > deadline;
-      // Fallback: jika tidak ada log, anggap solved tepat waktu
       return false;
     }
 
-    // Pending / In Progress — cek terhadap waktu sekarang
+    // Pending / In Progress / Call / Onsite — cek terhadap waktu sekarang
     return new Date() > deadline;
   };
 
@@ -289,7 +290,7 @@ export default function TicketingSystem() {
           `SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\n` +
           `SELECT cron.schedule('daily-reminder', '${cronExpr}', $$\n` +
           `  SELECT net.http_post(\n` +
-          `    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n` +
+          `    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder-wa',\n` +
           `    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n` +
           `    body := '{}'::jsonb\n` +
           `  );\n` +
@@ -371,8 +372,8 @@ export default function TicketingSystem() {
     return tickets.filter(t => {
       if (t.assigned_to !== assignedName) return false;
       const overdue = isTicketOverdue(t) && t.status !== 'Solved'; // solved overdue tidak perlu notif aktif
-      const isPending = t.status === 'Pending' || t.status === 'In Progress';
-      const isServicesAndPending = t.services_status && (t.services_status === 'Pending' || t.services_status === 'In Progress');
+      const isPending = t.status === 'Pending' || t.status === 'In Progress' || t.status === 'Call' || t.status === 'Onsite';
+      const isServicesAndPending = t.services_status && (t.services_status === 'Pending' || t.services_status === 'In Progress' || t.services_status === 'Call' || t.services_status === 'Onsite');
       if (member?.team_type === 'Team Services') {
         return isServicesAndPending || overdue;
       } else {
@@ -665,9 +666,9 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Pending', 'In Progress', 'Solved'];
+    const validStatuses = ['Pending', 'In Progress', 'Call', 'Onsite', 'Solved'];
     if (!validStatuses.includes(newActivity.new_status)) {
-      alert('Invalid status! Use: Pending, In Progress, or Solved');
+      alert('Invalid status! Use: Pending, In Progress, Call, Onsite, or Solved');
       return;
     }
 
@@ -805,8 +806,8 @@ Error Code: ${activityError.code}`;
           updateData.services_status = 'Pending';
           updateData.assigned_to = newActivity.services_assignee;
 
-          // Trigger Email Notification (Backend Function)
-          supabase.functions.invoke('send-email', {
+          // Trigger WhatsApp Notification via Meta WhatsApp Business API
+          supabase.functions.invoke('send-whatsapp', {
             body: {
               ticketId: selectedTicket.id,
               projectName: selectedTicket.project_name,
@@ -816,9 +817,10 @@ Error Code: ${activityError.code}`;
               customerPhone: selectedTicket.customer_phone || '-',
               salesName: selectedTicket.sales_name || '-',
               activityLog: newActivity.notes || '-'
+              // recipientPhone otomatis dari env WA_DEFAULT_RECIPIENT atau bisa diisi manual
             }
           }).then(({ error }) => {
-            if (error) console.error('Failed to send email:', error);
+            if (error) console.error('Failed to send WhatsApp:', error);
           });
         }
       } else if (teamType === 'Team Services') {
@@ -1174,15 +1176,19 @@ Error Code: ${activityError.code}`;
     const total = tickets.length;
     const processing = tickets.filter(t => t.status === 'In Progress').length;
     const pending = tickets.filter(t => t.status === 'Pending').length;
+    const call = tickets.filter(t => t.status === 'Call').length;
+    const onsite = tickets.filter(t => t.status === 'Onsite').length;
     const solved = tickets.filter(t => t.status === 'Solved').length;
     const overdue = tickets.filter(t => isTicketOverdue(t) && t.status !== 'Solved').length;
     const solvedOverdue = tickets.filter(t => isTicketOverdue(t) && t.status === 'Solved').length;
     
     return {
-      total, pending, processing, solved, overdue, solvedOverdue,
+      total, pending, processing, call, onsite, solved, overdue, solvedOverdue,
       statusData: [
         { name: 'Pending', value: pending, color: '#FCD34D' },
         { name: 'In Progress', value: processing, color: '#60A5FA' },
+        { name: 'Call', value: call, color: '#22d3ee' },
+        { name: 'Onsite', value: onsite, color: '#818cf8' },
         { name: 'Solved', value: solved, color: '#34D399' },
         ...(overdue > 0 ? [{ name: 'Overdue', value: overdue, color: '#EF4444' }] : []),
         ...(solvedOverdue > 0 ? [{ name: 'Solved (Overdue)', value: solvedOverdue, color: '#9333ea' }] : [])
@@ -1727,6 +1733,8 @@ Error Code: ${activityError.code}`;
                             >
                               <option value="Pending">Pending</option>
                               <option value="In Progress">In Progress</option>
+                              <option value="Call">📞 Call</option>
+                              <option value="Onsite">🏢 Onsite</option>
                               <option value="Solved">Solved</option>
                             </select>
                           </div>
@@ -1968,44 +1976,70 @@ Error Code: ${activityError.code}`;
           <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
             <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
-                  <span className="text-2xl">📊</span>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
+              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 col-span-1">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Total</p>
+                  <span className="text-xl">📊</span>
                 </div>
-                <p className="text-4xl font-bold mb-1">{stats.total}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
+                <p className="text-3xl font-bold mb-1">{stats.total}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-1">
                   <div className="h-full bg-white rounded-full" style={{width: '100%'}}></div>
                 </div>
               </div>
               <div className="stat-card bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Pending</p>
-                  <span className="text-2xl">⏳</span>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Pending</p>
+                  <span className="text-xl">⏳</span>
                 </div>
-                <p className="text-4xl font-bold mb-1">{stats.pending}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
+                <p className="text-3xl font-bold mb-1">{stats.pending}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-1">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.pending/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
               <div className="stat-card bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">In Progress</p>
-                  <span className="text-2xl">🔄</span>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">In Progress</p>
+                  <span className="text-xl">🔄</span>
                 </div>
-                <p className="text-4xl font-bold mb-1">{stats.processing}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
+                <p className="text-3xl font-bold mb-1">{stats.processing}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-1">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Solved</p>
-                  <span className="text-2xl">✅</span>
+              <div
+                className="stat-card bg-gradient-to-br from-cyan-400 via-cyan-500 to-cyan-600 cursor-pointer"
+                onClick={() => { setFilterStatus('Call'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Call</p>
+                  <span className="text-xl">📞</span>
                 </div>
-                <p className="text-4xl font-bold mb-1">{stats.solved}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
+                <p className="text-3xl font-bold mb-1">{stats.call}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-1">
+                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.call/stats.total*100) : 0}%`}}></div>
+                </div>
+              </div>
+              <div
+                className="stat-card bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 cursor-pointer"
+                onClick={() => { setFilterStatus('Onsite'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Onsite</p>
+                  <span className="text-xl">🏢</span>
+                </div>
+                <p className="text-3xl font-bold mb-1">{stats.onsite}</p>
+                <div className="h-1 bg-white/30 rounded-full mt-1">
+                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.onsite/stats.total*100) : 0}%`}}></div>
+                </div>
+              </div>
+              <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Solved</p>
+                  <span className="text-xl">✅</span>
+                </div>
+                <p className="text-3xl font-bold mb-1">{stats.solved}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-1">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solved/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
@@ -2013,12 +2047,12 @@ Error Code: ${activityError.code}`;
                 className="stat-card bg-gradient-to-br from-red-500 via-red-600 to-red-700 cursor-pointer"
                 onClick={() => { setFilterStatus('Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Overdue</p>
-                  <span className="text-2xl">🚨</span>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Overdue</p>
+                  <span className="text-xl">🚨</span>
                 </div>
-                <p className="text-4xl font-bold mb-1">{stats.overdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
+                <p className="text-3xl font-bold mb-1">{stats.overdue}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-1">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.overdue/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
@@ -2027,17 +2061,16 @@ Error Code: ${activityError.code}`;
                 onClick={() => { setFilterStatus('Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
                 title="Ticket yang sudah Solved namun diselesaikan melewati batas waktu"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Solved Overdue</p>
-                  <span className="text-2xl">⚠️</span>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs opacity-90 font-semibold">Solved OD</p>
+                  <span className="text-xl">⚠️</span>
                 </div>
-                <p className="text-4xl font-bold mb-1">{stats.solvedOverdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
+                <p className="text-3xl font-bold mb-1">{stats.solvedOverdue}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-1">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solvedOverdue/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="chart-container bg-gradient-to-br from-white to-gray-50">
                 <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
@@ -2380,8 +2413,10 @@ Error Code: ${activityError.code}`;
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
               <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field">
                 <option value="All">All Status</option>
-                <option value="In Progress">In Progress</option>
                 <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Call">📞 Call</option>
+                <option value="Onsite">🏢 Onsite</option>
                 <option value="Solved">Solved</option>
                 <option value="Overdue">🚨 Overdue</option>
                 <option value="Solved Overdue">⚠️ Solved Overdue</option>
@@ -2537,6 +2572,8 @@ Error Code: ${activityError.code}`;
                   >
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
+                    <option value="Call">📞 Call</option>
+                    <option value="Onsite">🏢 Onsite</option>
                     <option value="Solved">Solved</option>
                   </select>
                 </div>
