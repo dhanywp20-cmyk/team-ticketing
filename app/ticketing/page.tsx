@@ -59,6 +59,8 @@ interface Ticket {
   created_by?: string;
   current_team: string;
   services_status?: string;
+  photo_url?: string;
+  photo_name?: string;
   activity_logs?: ActivityLog[];
 }
 
@@ -146,7 +148,8 @@ export default function TicketingSystem() {
     assigned_to: '',
     date: new Date().toISOString().split('T')[0],
     status: 'Pending',
-    current_team: 'Team PTS'
+    current_team: 'Team PTS',
+    photo: null as File | null
   });
 
   const [newActivity, setNewActivity] = useState({
@@ -506,6 +509,22 @@ export default function TicketingSystem() {
       setShowLoadingPopup(true);
       setLoadingMessage('Saving new ticket...');
 
+      // Upload foto jika ada
+      let photoUrl = '';
+      let photoName = '';
+      if (newTicket.photo) {
+        setLoadingMessage('Uploading photo...');
+        try {
+          const result = await uploadFile(newTicket.photo, 'photos');
+          photoUrl = result.url;
+          photoName = result.name;
+        } catch (uploadErr: any) {
+          throw new Error(`Failed to upload photo: ${uploadErr.message}`);
+        }
+      }
+
+      setLoadingMessage('Saving new ticket...');
+
       // Jika bukan admin, ticket masuk ke "Waiting Approval"
       const ticketStatus = isAdmin ? newTicket.status : 'Waiting Approval';
       const ticketAssignedTo = isAdmin ? newTicket.assigned_to : '';
@@ -523,7 +542,9 @@ export default function TicketingSystem() {
         status: ticketStatus,
         current_team: 'Team PTS',
         services_status: null,
-        created_by: currentUser?.username || null
+        created_by: currentUser?.username || null,
+        photo_url: photoUrl || null,
+        photo_name: photoName || null
       };
 
       const { error } = await supabase.from('tickets').insert([ticketData]);
@@ -543,7 +564,8 @@ export default function TicketingSystem() {
         assigned_to: '',
         date: new Date().toISOString().split('T')[0],
         status: 'Pending',
-        current_team: 'Team PTS'
+        current_team: 'Team PTS',
+        photo: null
       });
       setShowNewTicket(false);
       
@@ -1561,6 +1583,21 @@ Error Code: ${activityError.code}`;
                     </div>
                   )}
 
+                  {selectedTicket.photo_url && (
+                    <div className="bg-pink-50 rounded-xl p-4 border-2 border-pink-200">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">📷 Foto Awal Masalah:</p>
+                      <img
+                        src={selectedTicket.photo_url}
+                        alt={selectedTicket.photo_name || 'Foto ticket'}
+                        className="w-full max-h-72 object-cover rounded-lg border-2 border-pink-200 shadow-md cursor-pointer hover:scale-[1.02] transition-transform"
+                        onClick={() => window.open(selectedTicket.photo_url, '_blank')}
+                      />
+                      {selectedTicket.photo_name && (
+                        <p className="text-xs text-gray-500 mt-2">📎 {selectedTicket.photo_name}</p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="border-t-2 border-gray-200 pt-4">
                     <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -2536,6 +2573,41 @@ Error Code: ${activityError.code}`;
                   className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 focus:border-gray-600 focus:ring-2 focus:ring-gray-200 transition-all font-medium bg-white resize-none" 
                   rows={4}
                 />
+              </div>
+
+              {/* Upload Foto Optional */}
+              <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-4 border-2 border-pink-300">
+                <label className="block text-sm font-bold text-gray-800 mb-1">
+                  📷 Upload Foto <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-3">Foto pendukung kondisi awal / bukti masalah</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setNewTicket({...newTicket, photo: e.target.files?.[0] || null})}
+                  className="w-full border border-pink-300 rounded-lg px-4 py-2.5 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200 transition-all text-sm"
+                />
+                {newTicket.photo && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-pink-200">
+                      <span className="text-pink-600">✓</span>
+                      <span className="text-sm font-semibold text-gray-700 flex-1 truncate">{newTicket.photo.name}</span>
+                      <span className="text-xs text-gray-400">({(newTicket.photo.size / 1024).toFixed(1)} KB)</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewTicket({...newTicket, photo: null})}
+                        className="text-red-400 hover:text-red-600 font-bold text-xs ml-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <img
+                      src={URL.createObjectURL(newTicket.photo)}
+                      alt="Preview"
+                      className="w-full max-h-48 object-cover rounded-lg border-2 border-pink-200 shadow-sm"
+                    />
+                  </div>
+                )}
               </div>
             </div>
             
