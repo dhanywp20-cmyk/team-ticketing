@@ -199,23 +199,34 @@ export default function TicketingSystem() {
   // ── OVERDUE HELPERS ──────────────────────────────────────────
   const DEFAULT_OVERDUE_HOURS = 48; // 2 hari default
 
-  const isTicketOverdue = (ticket: Ticket): boolean => {
-    if (ticket.status === 'Solved') return false;
+  const getDeadline = (ticket: Ticket): Date | null => {
     const setting = overdueSettings.find(o => o.ticket_id === ticket.id);
-    const now = new Date();
     if (setting) {
-      if (setting.due_date) return now > new Date(setting.due_date);
-      if (setting.due_hours && ticket.created_at) {
-        const deadline = new Date(new Date(ticket.created_at).getTime() + setting.due_hours * 3600000);
-        return now > deadline;
-      }
+      if (setting.due_date) return new Date(setting.due_date);
+      if (setting.due_hours && ticket.created_at)
+        return new Date(new Date(ticket.created_at).getTime() + setting.due_hours * 3600000);
     }
-    // Default: overdue jika sudah >48 jam & masih Pending/In Progress
-    if (ticket.created_at && (ticket.status === 'Pending' || ticket.status === 'In Progress')) {
-      const deadline = new Date(new Date(ticket.created_at).getTime() + DEFAULT_OVERDUE_HOURS * 3600000);
-      return now > deadline;
+    if (ticket.created_at)
+      return new Date(new Date(ticket.created_at).getTime() + DEFAULT_OVERDUE_HOURS * 3600000);
+    return null;
+  };
+
+  const isTicketOverdue = (ticket: Ticket): boolean => {
+    const deadline = getDeadline(ticket);
+    if (!deadline) return false;
+
+    if (ticket.status === 'Solved') {
+      // Cari waktu solved dari activity log terakhir yang berstatus Solved
+      const solvedLog = ticket.activity_logs
+        ?.filter(l => l.new_status === 'Solved')
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      if (solvedLog) return new Date(solvedLog.created_at) > deadline;
+      // Fallback: jika tidak ada log, anggap solved tepat waktu
+      return false;
     }
-    return false;
+
+    // Pending / In Progress — cek terhadap waktu sekarang
+    return new Date() > deadline;
   };
 
   const getOverdueSetting = (ticketId: string) =>
@@ -356,7 +367,7 @@ export default function TicketingSystem() {
     const assignedName = member ? member.name : currentUser.full_name;
     return tickets.filter(t => {
       if (t.assigned_to !== assignedName) return false;
-      const overdue = isTicketOverdue(t);
+      const overdue = isTicketOverdue(t) && t.status !== 'Solved'; // solved overdue tidak perlu notif aktif
       const isPending = t.status === 'Pending' || t.status === 'In Progress';
       const isServicesAndPending = t.services_status && (t.services_status === 'Pending' || t.services_status === 'In Progress');
       if (member?.team_type === 'Team Services') {
@@ -1116,7 +1127,8 @@ Error Code: ${activityError.code}`;
 
       let statusMatch = false;
       if (filterStatus === 'All') statusMatch = true;
-      else if (filterStatus === 'Overdue') statusMatch = isTicketOverdue(t);
+      else if (filterStatus === 'Overdue') statusMatch = isTicketOverdue(t) && t.status !== 'Solved';
+      else if (filterStatus === 'Solved Overdue') statusMatch = isTicketOverdue(t) && t.status === 'Solved';
       else statusMatch = t.status === filterStatus;
 
       const handlerMatch = handlerFilter === null || t.assigned_to === handlerFilter;
@@ -1141,15 +1153,17 @@ Error Code: ${activityError.code}`;
     const processing = tickets.filter(t => t.status === 'In Progress').length;
     const pending = tickets.filter(t => t.status === 'Pending').length;
     const solved = tickets.filter(t => t.status === 'Solved').length;
-    const overdue = tickets.filter(t => isTicketOverdue(t)).length;
+    const overdue = tickets.filter(t => isTicketOverdue(t) && t.status !== 'Solved').length;
+    const solvedOverdue = tickets.filter(t => isTicketOverdue(t) && t.status === 'Solved').length;
     
     return {
-      total, pending, processing, solved, overdue,
+      total, pending, processing, solved, overdue, solvedOverdue,
       statusData: [
         { name: 'Pending', value: pending, color: '#FCD34D' },
         { name: 'In Progress', value: processing, color: '#60A5FA' },
         { name: 'Solved', value: solved, color: '#34D399' },
-        ...(overdue > 0 ? [{ name: 'Overdue', value: overdue, color: '#EF4444' }] : [])
+        ...(overdue > 0 ? [{ name: 'Overdue', value: overdue, color: '#EF4444' }] : []),
+        ...(solvedOverdue > 0 ? [{ name: 'Solved (Overdue)', value: solvedOverdue, color: '#9333ea' }] : [])
       ].filter(d => d.value > 0),
       handlerData: Object.entries(
         tickets.reduce((acc, t) => {
@@ -1917,7 +1931,7 @@ Error Code: ${activityError.code}`;
           <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
             <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
               <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
@@ -1969,6 +1983,20 @@ Error Code: ${activityError.code}`;
                 <p className="text-4xl font-bold mb-1">{stats.overdue}</p>
                 <div className="h-1 bg-white/20 rounded-full mt-2">
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.overdue/stats.total*100) : 0}%`}}></div>
+                </div>
+              </div>
+              <div
+                className="stat-card bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 cursor-pointer"
+                onClick={() => { setFilterStatus('Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+                title="Ticket yang sudah Solved namun diselesaikan melewati batas waktu"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm opacity-90 font-semibold">Solved Overdue</p>
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <p className="text-4xl font-bold mb-1">{stats.solvedOverdue}</p>
+                <div className="h-1 bg-white/20 rounded-full mt-2">
+                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solvedOverdue/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
             </div>
@@ -2319,13 +2347,18 @@ Error Code: ${activityError.code}`;
                 <option value="Pending">Pending</option>
                 <option value="Solved">Solved</option>
                 <option value="Overdue">🚨 Overdue</option>
+                <option value="Solved Overdue">⚠️ Solved Overdue</option>
               </select>
             </div>
           </div>
           {(filterStatus !== 'All' || handlerFilter) && (
             <div className="flex flex-wrap gap-2 mt-3">
               {filterStatus !== 'All' && (
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 ${filterStatus === 'Overdue' ? 'bg-red-100 text-red-800 border-red-400' : statusColors[filterStatus] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
+                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 ${
+                  filterStatus === 'Overdue' ? 'bg-red-100 text-red-800 border-red-400' :
+                  filterStatus === 'Solved Overdue' ? 'bg-purple-100 text-purple-800 border-purple-400' :
+                  statusColors[filterStatus] || 'bg-gray-100 text-gray-800 border-gray-300'
+                }`}>
                   Filter: {filterStatus}
                   <button onClick={() => setFilterStatus('All')} className="ml-1 hover:opacity-70">✕</button>
                 </span>
@@ -2592,23 +2625,26 @@ Error Code: ${activityError.code}`;
                     const creatorLabel = creatorUser
                       ? creatorUser.full_name
                       : (ticket.created_by || '-');
+                    const isSolvedOverdue = overdue && ticket.status === 'Solved';
+                    const isActiveOverdue = overdue && ticket.status !== 'Solved';
                     return (
                     <tr 
                       key={ticket.id} 
                       className={`border-b border-gray-200 hover:bg-blue-500/20 transition-colors ${
-                        overdue ? 'bg-red-50/80 border-l-4 border-l-red-500' :
+                        isActiveOverdue ? 'bg-red-50/80 border-l-4 border-l-red-500' :
+                        isSolvedOverdue ? 'bg-purple-50/80 border-l-4 border-l-purple-400' :
                         index % 2 === 0 ? 'bg-white/50' : 'bg-blue-50/30'
                       }`}
                     >
                       <td className="px-3 py-3 border-r border-gray-200 align-top">
                         <div className="flex items-start gap-1">
-                          {overdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
+                          {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
+                          {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
                           <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">{ticket.date ? new Date(ticket.date).toLocaleDateString('id-ID') : '-'}</div>
-                        {overdue && (
-                          <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>
-                        )}
+                        {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
+                        {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
                       </td>
                       <td className="px-3 py-3 border-r border-gray-200 align-top">
                         <div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || '—'}</div>
@@ -2622,9 +2658,24 @@ Error Code: ${activityError.code}`;
                       </td>
                       <td className="px-3 py-3 border-r border-gray-200 align-top">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${overdue ? statusColors['Overdue'] : (statusColors[ticket.status] || statusColors['Pending'])}`}>
-                            {overdue ? '🚨 Overdue' : ticket.status === 'Waiting Approval' ? '⏳ Waiting Approval' : ticket.status}
+                          {/* Status utama */}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${
+                            ticket.status === 'Waiting Approval'
+                              ? statusColors['Waiting Approval']
+                              : statusColors[ticket.status] || statusColors['Pending']
+                          }`}>
+                            {ticket.status === 'Waiting Approval' ? '⏳ Waiting Approval' : ticket.status}
                           </span>
+                          {/* Badge overdue — tampil juga saat Solved */}
+                          {overdue && (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${
+                              ticket.status === 'Solved'
+                                ? 'bg-purple-100 text-purple-800 border-purple-400'
+                                : statusColors['Overdue']
+                            }`}>
+                              {ticket.status === 'Solved' ? '⚠️ Solved Overdue' : '🚨 Overdue'}
+                            </span>
+                          )}
                           {ticket.services_status && (
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>
                               Svc: {ticket.services_status}
