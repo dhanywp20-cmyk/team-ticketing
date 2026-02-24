@@ -695,9 +695,6 @@ export default function Dashboard() {
                     Welcome back, <span className="font-semibold text-rose-600">{currentUser?.full_name}</span>
                     <span className="ml-2 text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-mono">
                     </span>
-                    {(['admin','superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
-                      <span className="ml-1 text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">SUPERADMIN</span>
-                    )}
                   </p>
                 </div>
               </div>
