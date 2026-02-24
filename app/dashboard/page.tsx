@@ -492,7 +492,8 @@ export default function Dashboard() {
     // Simulasi delay kecil agar tidak flicker
     const timer = setTimeout(() => {
       const allowed = currentUser.allowed_menus;
-      if (!allowed || currentUser.role?.toLowerCase() === 'superadmin') {
+      const roleLC = currentUser.role?.toLowerCase();
+      if (!allowed || roleLC === 'superadmin' || roleLC === 'admin') {
         setVisibleMenuItems(allMenuItems);
       } else {
         setVisibleMenuItems(allMenuItems.filter(m => allowed.includes(m.key)));
@@ -695,14 +696,14 @@ export default function Dashboard() {
                     <span className="ml-2 text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-mono">
                       role: "{currentUser?.role}"
                     </span>
-                    {currentUser?.role?.toLowerCase() === 'superadmin' && (
+                    {(['admin','superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
                       <span className="ml-1 text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">SUPERADMIN</span>
                     )}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {currentUser?.role?.toLowerCase() === 'superadmin' && (
+                {(['admin','superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
                   <button onClick={() => setShowSettings(true)}
                     className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-6 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 justify-center">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -905,9 +906,9 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Bottom Buttons: Settings (superadmin only) + Sign Out */}
+        {/* Bottom Buttons: Settings (admin & superadmin) + Sign Out */}
         <div className="p-4 border-t border-slate-200 space-y-2">
-          {currentUser?.role?.toLowerCase() === 'superadmin' && (
+          {(['admin','superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
             <button onClick={() => setShowSettings(true)}
               className={`w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : ''}`}
               title="Account Settings">
