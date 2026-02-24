@@ -3037,6 +3037,15 @@ Error Code: ${activityError.code}`;
                           )}
                         </div>
                       </td>
+					  <td className="px-3 py-3 border-r border-gray-200 align-top">
+                        <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
+                        {ticket.created_by && (
+                          <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>
+                        )}
+                        {ticket.created_at && (
+                          <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
+                        )}
+                      </td>
                       <td className="px-2 py-3 border-r border-gray-200 text-center align-middle">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
                           <div className="flex flex-col items-center gap-1.5">
@@ -3063,15 +3072,6 @@ Error Code: ${activityError.code}`;
                               👁️ View
                             </button>
                           </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
-                        <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
-                        {ticket.created_by && (
-                          <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>
-                        )}
-                        {ticket.created_at && (
-                          <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
                         )}
                       </td>
                       <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
