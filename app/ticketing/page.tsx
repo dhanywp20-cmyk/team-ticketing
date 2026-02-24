@@ -1044,9 +1044,10 @@ Error Code: ${activityError.code}`;
           </style>
         </head>
         <body>
-          <h1>Ticket Report</h1>
+          <h1>Report Troubleshooting</h1>
           <h2><th>Project Name :</th>${ticket.project_name}</h2>
           <table>
+			<tr><th>Address :</th><td>${ticket.address}</td></tr>
             <tr><th>Issue :</th><td>${ticket.issue_case}</td></tr>
             <tr><th>SN Unit :</th><td>${ticket.sn_unit || '-'}</td></tr>
             <tr><th>Name & Phone User :</th><td>${ticket.customer_phone || '-'}</td></tr>
@@ -2957,8 +2958,8 @@ Error Code: ${activityError.code}`;
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Issue</th>
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Assigned</th>
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Status</th>
-                    <th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Created By</th>
+					<th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
                     <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">Flowchart</th>
                     <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">PDF</th>
                     <th className="px-2 py-3 text-center font-bold text-sm">OD</th>
@@ -3078,7 +3079,7 @@ Error Code: ${activityError.code}`;
                           onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
                           className="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
                         >
-                          🔄 Flowchart
+                          🔄 Chart
                         </button>
                         {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                           <button
@@ -3094,7 +3095,7 @@ Error Code: ${activityError.code}`;
                           onClick={() => exportToPDF(ticket)}
                           className="bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
                         >
-                          📄 PDF
+                          📄 Print
                         </button>
                       </td>
                       <td className="px-2 py-3 align-middle text-center">
@@ -3110,7 +3111,7 @@ Error Code: ${activityError.code}`;
                               overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                             }`}
                           >
-                            ⏰ OD
+                            ⏰ Time
                           </button>
                         ) : <span className="text-gray-300">—</span>}
                       </td>
