@@ -645,8 +645,13 @@ export default function TicketingSystem() {
   };
 
   const addActivity = async () => {
-    if (!newActivity.notes || !selectedTicket) {
+    const isSimpleStatus = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
+    if (!isSimpleStatus && !newActivity.notes) {
       alert('Notes must be filled!');
+      return;
+    }
+    if (!selectedTicket) {
+      alert('No ticket selected!');
       return;
     }
 
@@ -701,12 +706,16 @@ export default function TicketingSystem() {
       setLoadingMessage('Saving activity log...');
 
       // Prepare activity data with all required fields
+      const isSimpleStatus = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
+      const autoNotes = newActivity.new_status === 'Call'
+        ? 'Sedang melakukan Call ke customer.'
+        : 'Tim sedang Onsite ke lokasi customer.';
       const activityData: any = {
         ticket_id: selectedTicket.id,
         handler_name: newActivity.handler_name,
         handler_username: currentUser?.username || '',
         action_taken: newActivity.action_taken || '',
-        notes: newActivity.notes,
+        notes: isSimpleStatus ? autoNotes : newActivity.notes,
         new_status: newActivity.new_status,
         team_type: teamType,
         assigned_to_services: newActivity.assign_to_services || false,
@@ -1915,7 +1924,7 @@ Error Code: ${activityError.code}`;
                             <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ New Status *</label>
                             <select 
                               value={newActivity.new_status} 
-                              onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value})} 
+                              onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value, action_taken: '', notes: ''})} 
                               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                             >
                               <option value="Waiting Approval">⏳ Waiting Approval</option>
@@ -1926,7 +1935,25 @@ Error Code: ${activityError.code}`;
                               <option value="Solved">✅ Solved</option>
                             </select>
                           </div>
-                          
+
+                          {/* Call / Onsite — hanya konfirmasi, tidak perlu action & notes */}
+                          {(newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite') ? (
+                            <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-purple-50 border-purple-300'}`}>
+                              <div className="flex items-center gap-3">
+                                <span className="text-3xl">{newActivity.new_status === 'Call' ? '📞' : '🚗'}</span>
+                                <div>
+                                  <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-purple-800'}`}>
+                                    {newActivity.new_status === 'Call' ? 'Status: Sedang melakukan Call ke customer' : 'Status: Tim sedang Onsite ke lokasi'}
+                                  </p>
+                                  <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-purple-600'}`}>
+                                    Klik "Simpan" untuk mencatat tahapan ini. Detail dapat diisi saat status berubah ke In Progress atau Solved.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Pending / In Progress / Solved / Waiting Approval — tampil action & notes penuh */
+                            <>
                           <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action Taken</label>
                             <input 
@@ -1948,6 +1975,8 @@ Error Code: ${activityError.code}`;
                               rows={4}
                             />
                           </div>
+                            </>
+                          )}
 
                           {currentUserTeamType === 'Team PTS' && (newActivity.new_status === 'Solved' || newActivity.new_status === 'In Progress' || newActivity.new_status === 'Onsite') && (
                             <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border-2 border-red-300 shadow-sm">
@@ -2028,7 +2057,11 @@ Error Code: ${activityError.code}`;
                           
                           <button 
                             onClick={addActivity} 
-                            disabled={uploading || !newActivity.notes.trim() || (newActivity.assign_to_services && !newActivity.services_assignee)} 
+                            disabled={
+                              uploading ||
+                              (newActivity.new_status !== 'Call' && newActivity.new_status !== 'Onsite' && !newActivity.notes.trim()) ||
+                              (newActivity.assign_to_services && !newActivity.services_assignee)
+                            } 
                             className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
                           >
                             {uploading ? '⏳ Uploading & Saving...' : '💾 Update Status & Save'}
@@ -2868,14 +2901,15 @@ Error Code: ${activityError.code}`;
             <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
               <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
                 <colgroup>
-                  <col style={{width: '18%'}} />
+                  <col style={{width: '17%'}} />
+                  <col style={{width: '9%'}} />
+                  <col style={{width: '15%'}} />
                   <col style={{width: '10%'}} />
-                  <col style={{width: '16%'}} />
-                  <col style={{width: '11%'}} />
                   <col style={{width: '13%'}} />
-                  <col style={{width: '8%'}} />
-                  <col style={{width: '12%'}} />
-                  <col style={{width: '12%'}} />
+                  <col style={{width: '7%'}} />
+                  <col style={{width: '11%'}} />
+                  <col style={{width: '9%'}} />
+                  <col style={{width: '9%'}} />
                 </colgroup>
                 <thead>
                   <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
@@ -2886,7 +2920,12 @@ Error Code: ${activityError.code}`;
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Status</th>
                     <th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Created By</th>
-                    <th className="px-3 py-3 text-center font-bold text-sm">Actions</th>
+                    <th className="px-0 py-0 text-center font-bold text-sm" colSpan={2}>
+                      <div className="flex">
+                        <div className="flex-1 px-3 py-3 border-r border-blue-400">View / Flow</div>
+                        <div className="flex-1 px-3 py-3">PDF / OD</div>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2982,14 +3021,14 @@ Error Code: ${activityError.code}`;
                           <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-center align-top">
+                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
                         <div className="flex flex-col gap-1.5 items-center">
                           <button
                             onClick={() => {
                               setSelectedTicket(ticket);
                               setShowTicketDetailPopup(true);
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
                           >
                             👁️ View
                           </button>
@@ -2998,21 +3037,25 @@ Error Code: ${activityError.code}`;
                               setSummaryTicket(ticket);
                               setShowActivitySummary(true);
                             }}
-                            className="bg-violet-600 hover:bg-violet-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            className="bg-violet-600 hover:bg-violet-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
                           >
                             🔄 Flow
                           </button>
                           {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                             <button
                               onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
-                              className="bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
+                              className="bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
                             >
                               ✅ Approve
                             </button>
                           )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-3 align-middle text-center">
+                        <div className="flex flex-col gap-1.5 items-center">
                           <button
                             onClick={() => exportToPDF(ticket)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
                           >
                             📄 PDF
                           </button>
@@ -3026,7 +3069,7 @@ Error Code: ${activityError.code}`;
                                 });
                                 setShowOverdueSetting(true);
                               }}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all w-full ${
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
                                 overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                               }`}
                             >
