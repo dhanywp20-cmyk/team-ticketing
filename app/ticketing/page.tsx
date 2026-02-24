@@ -1701,8 +1701,8 @@ Error Code: ${activityError.code}`;
         )}
 
         {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/85 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-scale-in">
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999] p-2">
+            <div className="bg-white/85 rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
               <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
@@ -1723,7 +1723,7 @@ Error Code: ${activityError.code}`;
                 </div>
               </div>
               
-              <div className="max-h-[calc(90vh-120px)] overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
                     <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1858,30 +1858,10 @@ Error Code: ${activityError.code}`;
                     </div>
                   </div>
 
-                  {selectedTicket.status === 'Waiting Approval' && (
-                    <div className="border-t-2 border-gray-200 pt-4">
-                      <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4 flex items-center gap-3">
-                        <span className="text-3xl">⏳</span>
-                        <div>
-                          <p className="font-bold text-orange-800">Menunggu Persetujuan Superadmin</p>
-                          <p className="text-sm text-orange-700 mt-0.5">Ticket ini sedang menunggu review dan assignment dari Superadmin sebelum dapat diproses.</p>
-                          {canAccessAccountSettings && (
-                            <button
-                              onClick={() => { setApprovalTicket(selectedTicket); setApprovalAssignee(''); setShowApprovalModal(true); setShowTicketDetailPopup(false); }}
-                              className="mt-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
-                            >
-                              ✅ Approve & Assign sekarang
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && (
                     <div className="border-t-2 border-gray-200 pt-4">
                       <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-xl text-gray-800">➕ Update Status</h3>
+                        <h3 className="font-bold text-xl text-gray-800">➕ Update Activity</h3>
                         <button
                           onClick={() => {
                             if (!showUpdateForm) {
@@ -1889,191 +1869,249 @@ Error Code: ${activityError.code}`;
                             }
                             setShowUpdateForm(!showUpdateForm);
                           }}
-                          className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all flex items-center gap-2"
+                          className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all"
                         >
-                          <span>{showUpdateForm ? '🔼 Hide Form' : '🔽 Show Form'}</span>
+                          {showUpdateForm ? '🔼 Tutup' : '🔽 Buka Form'}
                         </button>
                       </div>
-                      
-                      {showUpdateForm && (
-                        <div className="space-y-4 animate-slide-down">
-                          <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">👤 Handler (Auto from Logged User)</label>
-                            <input 
-                              type="text" 
-                              value={newActivity.handler_name} 
-                              disabled 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-gray-100 cursor-not-allowed text-gray-700 font-semibold"
-                              title="Handler auto-filled from logged user"
-                            />
-                            <p className="text-xs text-gray-500 italic mt-2">* Handler cannot be changed, auto-filled from logged account</p>
-                          </div>
-                          
-                          <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">🔢 No SN Unit</label>
-                            <input 
-                              type="text" 
-                              value={newActivity.sn_unit} 
-                              onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})} 
-                              placeholder="Update SN Unit..." 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                            />
-                          </div>
 
-                          <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">🏷️ New Status *</label>
-                            <select 
-                              value={newActivity.new_status} 
-                              onChange={(e) => setNewActivity({...newActivity, new_status: e.target.value, action_taken: '', notes: ''})} 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                            >
-                              <option value="Waiting Approval">⏳ Waiting Approval</option>
-                              <option value="Pending">🟡 Pending</option>
-                              <option value="Call">📞 Call</option>
-                              <option value="Onsite">🚗 Onsite</option>
-                              <option value="In Progress">🔵 In Progress</option>
-                              <option value="Solved">✅ Solved</option>
-                            </select>
-                          </div>
+                      {showUpdateForm && (() => {
+                        // Cek status apa saja yang sudah pernah direcord di activity logs
+                        const doneStatuses = new Set(selectedTicket.activity_logs?.map(l => l.new_status) || []);
+                        const currentStatus = selectedTicket.status;
 
-                          {/* Call / Onsite — hanya konfirmasi, tidak perlu action & notes */}
-                          {(newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite') ? (
-                            <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-purple-50 border-purple-300'}`}>
-                              <div className="flex items-center gap-3">
-                                <span className="text-3xl">{newActivity.new_status === 'Call' ? '📞' : '🚗'}</span>
-                                <div>
-                                  <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-purple-800'}`}>
-                                    {newActivity.new_status === 'Call' ? 'Status: Sedang melakukan Call ke customer' : 'Status: Tim sedang Onsite ke lokasi'}
-                                  </p>
-                                  <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-purple-600'}`}>
-                                    Klik "Simpan" untuk mencatat tahapan ini. Detail dapat diisi saat status berubah ke In Progress atau Solved.
-                                  </p>
-                                </div>
+                        // Urutan tahapan — Pending → Call → Onsite → In Progress → Solved
+                        // Call & Onsite: disabled jika sudah pernah dilakukan
+                        // Pending / In Progress / Solved: selalu available (bisa diulang)
+                        // Aturan urutan: tidak boleh lompat ke Solved tanpa melewati In Progress
+                        const hasInProgress = doneStatuses.has('In Progress') || currentStatus === 'In Progress';
+
+                        const statusBtns = [
+                          {
+                            key: 'Pending',
+                            label: '🟡 Pending',
+                            color: 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900',
+                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                            disabled: false,
+                            disabledReason: '',
+                          },
+                          {
+                            key: 'Call',
+                            label: '📞 Call',
+                            color: 'bg-sky-500 hover:bg-sky-600 text-white',
+                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                            disabled: doneStatuses.has('Call'),
+                            disabledReason: 'Sudah dilakukan',
+                          },
+                          {
+                            key: 'Onsite',
+                            label: '🚗 Onsite',
+                            color: 'bg-purple-500 hover:bg-purple-600 text-white',
+                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                            disabled: doneStatuses.has('Onsite'),
+                            disabledReason: 'Sudah dilakukan',
+                          },
+                          {
+                            key: 'In Progress',
+                            label: '🔵 In Progress',
+                            color: 'bg-blue-500 hover:bg-blue-600 text-white',
+                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                            disabled: false,
+                            disabledReason: '',
+                          },
+                          {
+                            key: 'Solved',
+                            label: '✅ Solved',
+                            color: 'bg-green-500 hover:bg-green-600 text-white',
+                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                            disabled: !hasInProgress,
+                            disabledReason: 'Harus In Progress dulu',
+                          },
+                        ];
+
+                        const isSimple = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
+
+                        return (
+                          <div className="space-y-4 animate-slide-down">
+                            {/* Handler info */}
+                            <div className="bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200 flex items-center gap-2">
+                              <span className="text-gray-500 text-sm">👤 Handler:</span>
+                              <span className="font-bold text-gray-800 text-sm">{newActivity.handler_name}</span>
+                              <span className="text-xs text-gray-400 italic ml-1">(auto dari akun login)</span>
+                            </div>
+
+                            {/* SN Unit */}
+                            <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">🔢 No SN Unit</label>
+                              <input
+                                type="text"
+                                value={newActivity.sn_unit}
+                                onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})}
+                                placeholder="Update SN Unit..."
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                              />
+                            </div>
+
+                            {/* Status buttons */}
+                            <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
+                              <label className="block text-sm font-semibold text-gray-700 mb-3">🏷️ Pilih Status Baru *</label>
+                              <div className="grid grid-cols-5 gap-2">
+                                {statusBtns.map(btn => (
+                                  <div key={btn.key} className="flex flex-col items-center gap-1">
+                                    <button
+                                      onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
+                                      disabled={btn.disabled}
+                                      title={btn.disabled ? btn.disabledReason : btn.key}
+                                      className={`w-full py-2 px-1 rounded-xl text-xs font-bold transition-all border-2 ${
+                                        newActivity.new_status === btn.key
+                                          ? 'ring-4 ring-offset-1 ring-blue-400 scale-105 ' + btn.color + ' border-transparent'
+                                          : btn.disabled
+                                          ? btn.disabledColor
+                                          : btn.color + ' border-transparent'
+                                      }`}
+                                    >
+                                      {btn.label}
+                                    </button>
+                                    {btn.disabled && (
+                                      <span className="text-xs text-gray-400 text-center leading-tight">{btn.disabledReason}</span>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ) : (
-                            /* Pending / In Progress / Solved / Waiting Approval — tampil action & notes penuh */
-                            <>
-                          <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action Taken</label>
-                            <input 
-                              type="text" 
-                              value={newActivity.action_taken} 
-                              onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})} 
-                              placeholder="Example: Check HDMI cable and power, restart system" 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                            />
-                          </div>
-                          
-                          <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Detailed Notes *</label>
-                            <textarea 
-                              value={newActivity.notes} 
-                              onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})} 
-                              placeholder="Explain details ....." 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
-                              rows={4}
-                            />
-                          </div>
-                            </>
-                          )}
 
-                          {currentUserTeamType === 'Team PTS' && (newActivity.new_status === 'Solved' || newActivity.new_status === 'In Progress' || newActivity.new_status === 'Onsite') && (
-                            <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border-2 border-red-300 shadow-sm">
-                              <div className="flex items-start gap-3 mb-3">
-                                <input 
-                                  type="checkbox" 
-                                  id="assign_services"
-                                  checked={newActivity.assign_to_services}
-                                  onChange={(e) => setNewActivity({...newActivity, assign_to_services: e.target.checked, services_assignee: ''})}
-                                  className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500"
-                                />
-                                <label htmlFor="assign_services" className="flex-1 cursor-pointer">
-                                  <span className="block text-sm font-bold text-red-800">🔄 Assign to Team Services</span>
-                                  <span className="text-xs text-red-600">Check if ticket needs to be handled by Team Services</span>
-                                </label>
+                            {/* Call / Onsite — konfirmasi saja */}
+                            {isSimple ? (
+                              <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-purple-50 border-purple-300'}`}>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-3xl">{newActivity.new_status === 'Call' ? '📞' : '🚗'}</span>
+                                  <div>
+                                    <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-purple-800'}`}>
+                                      {newActivity.new_status === 'Call' ? 'Mencatat: Sedang melakukan Call ke customer' : 'Mencatat: Tim sedang Onsite ke lokasi'}
+                                    </p>
+                                    <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-purple-600'}`}>
+                                      Klik Simpan untuk mencatat tahapan ini. Detail diisi saat In Progress atau Solved.
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
-                              
-                              {newActivity.assign_to_services && (
-                                <div className="mt-3 animate-slide-down">
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Handler from Team Services *</label>
-                                  <select 
-                                    value={newActivity.services_assignee} 
-                                    onChange={(e) => setNewActivity({...newActivity, services_assignee: e.target.value})} 
-                                    className="w-full border-2 border-red-400 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-100 transition-all bg-white"
-                                  >
-                                    <option value="">-- Select Handler --</option>
-                                    {teamServicesMembers.map(m => (
-                                      <option key={m.id} value={m.name}>{m.name}</option>
-                                    ))}
-                                  </select>
+                            ) : (
+                              <>
+                                <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action Taken</label>
+                                  <input
+                                    type="text"
+                                    value={newActivity.action_taken}
+                                    onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
+                                    placeholder="Contoh: Cek kabel HDMI, restart sistem..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                                  />
+                                </div>
+                                <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes *</label>
+                                  <textarea
+                                    value={newActivity.notes}
+                                    onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
+                                    placeholder="Jelaskan detail penanganan..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
+                                    rows={4}
+                                  />
+                                </div>
+                              </>
+                            )}
+
+                            {currentUserTeamType === 'Team PTS' && (newActivity.new_status === 'Solved' || newActivity.new_status === 'In Progress' || newActivity.new_status === 'Onsite') && (
+                              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border-2 border-red-300 shadow-sm">
+                                <div className="flex items-start gap-3 mb-3">
+                                  <input
+                                    type="checkbox"
+                                    id="assign_services"
+                                    checked={newActivity.assign_to_services}
+                                    onChange={(e) => setNewActivity({...newActivity, assign_to_services: e.target.checked, services_assignee: ''})}
+                                    className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500"
+                                  />
+                                  <label htmlFor="assign_services" className="flex-1 cursor-pointer">
+                                    <span className="block text-sm font-bold text-red-800">🔄 Assign to Team Services</span>
+                                    <span className="text-xs text-red-600">Centang jika perlu ditangani Team Services</span>
+                                  </label>
+                                </div>
+                                {newActivity.assign_to_services && (
+                                  <div className="mt-3 animate-slide-down">
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Handler Team Services *</label>
+                                    <select
+                                      value={newActivity.services_assignee}
+                                      onChange={(e) => setNewActivity({...newActivity, services_assignee: e.target.value})}
+                                      className="w-full border-2 border-red-400 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-100 transition-all bg-white"
+                                    >
+                                      <option value="">-- Pilih Handler --</option>
+                                      {teamServicesMembers.map(m => (
+                                        <option key={m.id} value={m.name}>{m.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">📷 Upload Foto Bukti (JPG/PNG)</label>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png"
+                                onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all"
+                              />
+                              {newActivity.photo && (
+                                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                  <div className="flex items-center gap-2 text-sm mb-2">
+                                    <span className="text-green-700 font-bold">✓</span>
+                                    <span className="text-gray-800 font-semibold">{newActivity.photo.name}</span>
+                                    <span className="text-gray-500">({(newActivity.photo.size / 1024).toFixed(2)} KB)</span>
+                                  </div>
+                                  <img src={URL.createObjectURL(newActivity.photo)} alt="Preview" className="max-w-xs rounded-lg border-2 border-green-300" />
                                 </div>
                               )}
                             </div>
-                          )}
-                          
-                          <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">📷 Upload Foto Bukti Progress (JPG/PNG)</label>
-                            <input 
-                              type="file" 
-                              accept="image/jpeg,image/jpg,image/png" 
-                              onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})} 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all"
-                            />
-                            {newActivity.photo && (
-                              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <div className="flex items-center gap-2 text-sm mb-2">
-                                  <span className="text-green-700 font-bold">✓ Photo selected:</span>
-                                  <span className="text-gray-800 font-semibold">{newActivity.photo.name}</span>
-                                  <span className="text-gray-600">({(newActivity.photo.size / 1024).toFixed(2)} KB)</span>
-                                </div>
-                                <img 
-                                  src={URL.createObjectURL(newActivity.photo)} 
-                                  alt="Preview" 
-                                  className="max-w-xs rounded-lg border-2 border-green-300"
-                                />
-                              </div>
-                            )}
-                          </div>
 
-                          <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload Report File (PDF)</label>
-                            <input 
-                              type="file" 
-                              accept=".pdf" 
-                              onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})} 
-                              className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
-                            />
-                            {newActivity.file && (
-                              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <span className="text-blue-700 font-bold">✓ File selected:</span>
-                                  <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
-                                  <span className="text-gray-600">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                            <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload Report File (PDF)</label>
+                              <input
+                                type="file"
+                                accept=".pdf"
+                                onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})}
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
+                              />
+                              {newActivity.file && (
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span className="text-blue-700 font-bold">✓</span>
+                                    <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
+                                    <span className="text-gray-500">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
+
+                            <button
+                              onClick={addActivity}
+                              disabled={
+                                uploading ||
+                                (!isSimple && !newActivity.notes.trim()) ||
+                                (newActivity.assign_to_services && !newActivity.services_assignee)
+                              }
+                              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {uploading ? '⏳ Menyimpan...' : '💾 Simpan Activity'}
+                            </button>
                           </div>
-                          
-                          <button 
-                            onClick={addActivity} 
-                            disabled={
-                              uploading ||
-                              (newActivity.new_status !== 'Call' && newActivity.new_status !== 'Onsite' && !newActivity.notes.trim()) ||
-                              (newActivity.assign_to_services && !newActivity.services_assignee)
-                            } 
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
-                          >
-                            {uploading ? '⏳ Uploading & Saving...' : '💾 Update Status & Save'}
-                          </button>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
               </div>
               
-              <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex gap-3">
+              <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
                 <button
                   onClick={() => exportToPDF(selectedTicket)}
                   className="flex-1 bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 font-bold transition-all"
@@ -2901,15 +2939,16 @@ Error Code: ${activityError.code}`;
             <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
               <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
                 <colgroup>
-                  <col style={{width: '17%'}} />
-                  <col style={{width: '9%'}} />
-                  <col style={{width: '15%'}} />
+                  <col style={{width: '16%'}} />
+                  <col style={{width: '8%'}} />
+                  <col style={{width: '14%'}} />
                   <col style={{width: '10%'}} />
-                  <col style={{width: '13%'}} />
+                  <col style={{width: '12%'}} />
+                  <col style={{width: '9%'}} />
+                  <col style={{width: '10%'}} />
                   <col style={{width: '7%'}} />
-                  <col style={{width: '11%'}} />
-                  <col style={{width: '9%'}} />
-                  <col style={{width: '9%'}} />
+                  <col style={{width: '7%'}} />
+                  <col style={{width: '7%'}} />
                 </colgroup>
                 <thead>
                   <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
@@ -2920,12 +2959,9 @@ Error Code: ${activityError.code}`;
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Status</th>
                     <th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
                     <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Created By</th>
-                    <th className="px-0 py-0 text-center font-bold text-sm" colSpan={2}>
-                      <div className="flex">
-                        <div className="flex-1 px-3 py-3 border-r border-blue-400">View / Flow</div>
-                        <div className="flex-1 px-3 py-3">PDF / OD</div>
-                      </div>
-                    </th>
+                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">Flowchart</th>
+                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">PDF</th>
+                    <th className="px-2 py-3 text-center font-bold text-sm">OD</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3000,16 +3036,32 @@ Error Code: ${activityError.code}`;
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 text-center align-top">
+                      <td className="px-2 py-3 border-r border-gray-200 text-center align-middle">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-base">📝</span>
-                            <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                              {ticket.activity_logs.length}
-                            </span>
+                          <div className="flex flex-col items-center gap-1.5">
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-base">📝</span>
+                              <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                {ticket.activity_logs.length}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            >
+                              👁️ View
+                            </button>
                           </div>
                         ) : (
-                          <span className="text-gray-400 text-sm">—</span>
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="text-gray-400 text-sm">—</span>
+                            <button
+                              onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            >
+                              👁️ View
+                            </button>
+                          </div>
                         )}
                       </td>
                       <td className="px-3 py-3 border-r border-gray-200 align-top">
@@ -3022,61 +3074,45 @@ Error Code: ${activityError.code}`;
                         )}
                       </td>
                       <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
-                        <div className="flex flex-col gap-1.5 items-center">
+                        <button
+                          onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
+                          className="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                        >
+                          🔄 Flowchart
+                        </button>
+                        {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                           <button
-                            onClick={() => {
-                              setSelectedTicket(ticket);
-                              setShowTicketDetailPopup(true);
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                            onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
+                            className="mt-1.5 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
                           >
-                            👁️ View
+                            ✅ Approve
                           </button>
-                          <button
-                            onClick={() => {
-                              setSummaryTicket(ticket);
-                              setShowActivitySummary(true);
-                            }}
-                            className="bg-violet-600 hover:bg-violet-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
-                          >
-                            🔄 Flow
-                          </button>
-                          {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
-                            <button
-                              onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
-                              className="bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
-                            >
-                              ✅ Approve
-                            </button>
-                          )}
-                        </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
+                        <button
+                          onClick={() => exportToPDF(ticket)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                        >
+                          📄 PDF
+                        </button>
                       </td>
                       <td className="px-2 py-3 align-middle text-center">
-                        <div className="flex flex-col gap-1.5 items-center">
+                        {canAccessAccountSettings ? (
                           <button
-                            onClick={() => exportToPDF(ticket)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                            onClick={() => {
+                              setOverdueTargetTicket(ticket);
+                              const existing = getOverdueSetting(ticket.id);
+                              setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : '48' });
+                              setShowOverdueSetting(true);
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
+                              overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                            }`}
                           >
-                            📄 PDF
+                            ⏰ OD
                           </button>
-                          {canAccessAccountSettings && (
-                            <button
-                              onClick={() => {
-                                setOverdueTargetTicket(ticket);
-                                const existing = getOverdueSetting(ticket.id);
-                                setOverdueForm({
-                                  due_hours: existing?.due_hours ? String(existing.due_hours) : '48'
-                                });
-                                setShowOverdueSetting(true);
-                              }}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
-                                overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                              }`}
-                            >
-                              ⏰ OD
-                            </button>
-                          )}
-                        </div>
+                        ) : <span className="text-gray-300">—</span>}
                       </td>
                     </tr>
                     );
@@ -3396,10 +3432,10 @@ Error Code: ${activityError.code}`;
 
       {/* ── ACTIVITY SUMMARY / FLOWCHART MODAL ─────────────── */}
       {showActivitySummary && summaryTicket && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-scale-in border-2 border-blue-500">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-2">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col animate-scale-in border-2 border-blue-500">
             {/* Header */}
-            <div className="p-5 border-b-2 border-gray-200 bg-gradient-to-r from-blue-600 to-blue-800">
+            <div className="p-5 border-b-2 border-gray-200 bg-gradient-to-r from-blue-600 to-blue-800 flex-shrink-0">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">🔄</span>
@@ -3416,7 +3452,7 @@ Error Code: ${activityError.code}`;
               </div>
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(90vh-140px)] p-5">
+            <div className="flex-1 overflow-y-auto p-5">
               {/* Ticket Info Strip */}
               <div className="flex flex-wrap gap-2 mb-5 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs">
                 <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span> <span className="font-bold">{summaryTicket.assigned_to || '-'}</span></span>
@@ -3569,7 +3605,7 @@ Error Code: ${activityError.code}`;
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+            <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }}
                 className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition-all"
