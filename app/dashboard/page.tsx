@@ -838,7 +838,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-3">
           <button onClick={handleBackToDashboard}
             className={`w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -900,6 +901,7 @@ export default function Dashboard() {
               </div>
             ))
           )}
+          </div>
         </div>
 
         {/* Bottom Buttons: Settings + Sign Out — icon only, side by side */}
