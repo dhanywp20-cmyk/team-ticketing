@@ -139,6 +139,15 @@ export default function TicketingSystem() {
     projectName: ''
   });
 
+  const getJakartaDateString = () => {
+    const now = new Date();
+    const jakartaDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const y = jakartaDate.getFullYear();
+    const m = String(jakartaDate.getMonth() + 1).padStart(2, '0');
+    const d = String(jakartaDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const [newTicket, setNewTicket] = useState({
     project_name: '',
     address: '',
@@ -148,7 +157,7 @@ export default function TicketingSystem() {
     issue_case: '',
     description: '',
     assigned_to: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getJakartaDateString(),
     status: 'Pending',
     current_team: 'Team PTS',
     photo: null as File | null
@@ -566,7 +575,7 @@ export default function TicketingSystem() {
         issue_case: '',
         description: '',
         assigned_to: '',
-        date: new Date().toISOString().split('T')[0],
+        date: getJakartaDateString(),
         status: 'Pending',
         current_team: 'Team PTS',
         photo: null
@@ -2654,8 +2663,12 @@ Error Code: ${activityError.code}`;
                 <option value="Onsite">🚗 Onsite</option>
                 <option value="In Progress">🔵 In Progress</option>
                 <option value="Solved">✅ Solved</option>
-                <option value="Overdue">🚨 Overdue</option>
-                <option value="Solved Overdue">⚠️ Solved Overdue</option>
+                {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
+                  <>
+                    <option value="Overdue">🚨 Overdue</option>
+                    <option value="Solved Overdue">⚠️ Solved Overdue</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
