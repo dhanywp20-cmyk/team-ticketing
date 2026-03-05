@@ -397,13 +397,20 @@ export default function TicketingSystem() {
   };
 
   const formatDateTime = (dateString: string) => {
-    // Parse the UTC timestamp from database
-    const utcDate = new Date(dateString);
+    if (!dateString) return '-';
     
-    // Convert to Jakarta time (UTC+7) by adding 7 hours in milliseconds
+    // Ensure the string is treated as UTC by appending Z if no timezone info
+    let normalized = dateString;
+    if (!dateString.endsWith('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
+      normalized = dateString + 'Z';
+    }
+    
+    const utcDate = new Date(normalized);
+    if (isNaN(utcDate.getTime())) return dateString;
+    
+    // Convert to Jakarta time (UTC+7)
     const jakartaTime = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
     
-    // Format the date components
     const day = String(jakartaTime.getUTCDate()).padStart(2, '0');
     const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0');
     const year = jakartaTime.getUTCFullYear();
@@ -3593,7 +3600,7 @@ Error Code: ${activityError.code}`;
               <div className="flex flex-wrap gap-2 mb-5 p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs">
                 <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span> <span className="font-bold">{summaryTicket.assigned_to || '-'}</span></span>
                 <span className="text-gray-300">|</span>
-                <span className="flex items-center gap-1"><span className="text-gray-500">📅 Tgl:</span> <span className="font-bold">{summaryTicket.date || '-'}</span></span>
+                <span className="flex items-center gap-1"><span className="text-gray-500">📅 Dibuat:</span> <span className="font-bold">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : '-'}</span></span>
                 <span className="text-gray-300">|</span>
                 <span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.status]}`}>{summaryTicket.status}</span>
                 {summaryTicket.services_status && (
