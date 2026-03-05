@@ -93,6 +93,10 @@ export default function TicketingSystem() {
   const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
   const [overdueSettings, setOverdueSettings] = useState<OverdueSetting[]>([]);
   const [showOverdueSetting, setShowOverdueSetting] = useState(false);
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const [reopenTargetTicket, setReopenTargetTicket] = useState<Ticket | null>(null);
+  const [reopenAssignee, setReopenAssignee] = useState('');
+  const [reopenNotes, setReopenNotes] = useState('');
   const [overdueTargetTicket, setOverdueTargetTicket] = useState<Ticket | null>(null);
   const [overdueForm, setOverdueForm] = useState({ due_hours: '48' });
   const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
@@ -638,6 +642,75 @@ export default function TicketingSystem() {
       alert('Error: ' + err.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const reopenTicket = async () => {
+    if (!reopenTargetTicket) return;
+    if (!reopenAssignee) {
+      alert('Pilih handler Team PTS terlebih dahulu!');
+      return;
+    }
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage('Re-opening ticket...');
+
+      const { error: updateError } = await supabase
+        .from('tickets')
+        .update({
+          status: 'Pending',
+          assigned_to: reopenAssignee,
+          current_team: 'Team PTS',
+          services_status: null,
+        })
+        .eq('id', reopenTargetTicket.id);
+
+      if (updateError) throw updateError;
+
+      const member = teamMembers.find(
+        m => (m.username || '').toLowerCase() === (currentUser?.username || '').toLowerCase()
+      );
+      const activityData = {
+        ticket_id: reopenTargetTicket.id,
+        handler_name: member?.name || currentUser?.full_name || '',
+        handler_username: currentUser?.username || '',
+        action_taken: 'Re-open Ticket',
+        notes: reopenNotes
+          ? `Ticket dibuka kembali karena: ${reopenNotes}`
+          : `Ticket dibuka kembali oleh ${currentUser?.full_name}. Assigned ke: ${reopenAssignee}`,
+        new_status: 'Pending',
+        team_type: 'Team PTS',
+        assigned_to_services: false,
+        file_url: '',
+        file_name: '',
+        photo_url: '',
+        photo_name: '',
+      };
+
+      const { error: activityError } = await supabase
+        .from('activity_logs')
+        .insert([activityData]);
+
+      if (activityError) throw activityError;
+
+      await fetchData();
+
+      setLoadingMessage('✅ Ticket berhasil dibuka kembali!');
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+        setShowReopenModal(false);
+        setReopenTargetTicket(null);
+        setReopenAssignee('');
+        setReopenNotes('');
+        setShowTicketDetailPopup(false);
+        setSelectedTicket(null);
+      }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert('Error: ' + err.message);
     }
   };
 
@@ -2128,6 +2201,19 @@ Error Code: ${activityError.code}`;
                 >
                   📄 Export PDF
                 </button>
+                {selectedTicket.status === 'Solved' && canUpdateTicket && (
+                  <button
+                    onClick={() => {
+                      setReopenTargetTicket(selectedTicket);
+                      setReopenAssignee(selectedTicket.assigned_to || '');
+                      setReopenNotes('');
+                      setShowReopenModal(true);
+                    }}
+                    className="flex-1 bg-amber-500 text-white py-3 rounded-xl hover:bg-amber-600 font-bold transition-all"
+                  >
+                    🔓 Re-open
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setShowTicketDetailPopup(false);
@@ -3094,6 +3180,20 @@ Error Code: ${activityError.code}`;
                         >
                           🔄 Chart
                         </button>
+                        {ticket.status === 'Solved' && canUpdateTicket && (
+                          <button
+                            onClick={() => {
+                              setReopenTargetTicket(ticket);
+                              setReopenAssignee(ticket.assigned_to || '');
+                              setReopenNotes('');
+                              setShowReopenModal(true);
+                            }}
+                            className="mt-1.5 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                            title="Buka kembali ticket ini karena masalah muncul lagi"
+                          >
+                            🔓 Re-open
+                          </button>
+                        )}
                         {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                           <button
                             onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
@@ -3626,6 +3726,85 @@ Error Code: ${activityError.code}`;
               >
                 ✕ Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────── */}
+
+      {/* ── RE-OPEN TICKET MODAL ────────────────────────── */}
+      {showReopenModal && reopenTargetTicket && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-amber-500 animate-scale-in">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">🔓</span>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Re-open Ticket</h3>
+                <p className="text-xs text-gray-500 font-medium">{reopenTargetTicket.project_name}</p>
+                <p className="text-xs text-gray-400">{reopenTargetTicket.issue_case}</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 mb-4 flex items-start gap-2">
+              <span className="text-xl mt-0.5">⚠️</span>
+              <div>
+                <p className="text-sm font-bold text-amber-800">Ticket akan dibuka kembali</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Status akan berubah ke <strong>Pending</strong> dan activity log baru akan ditambahkan secara otomatis.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  👨‍💼 Assign ke Team PTS *
+                </label>
+                <select
+                  value={reopenAssignee}
+                  onChange={(e) => setReopenAssignee(e.target.value)}
+                  className="w-full border-2 border-amber-300 rounded-lg px-3 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 font-medium"
+                >
+                  <option value="">-- Pilih Handler --</option>
+                  {teamPTSMembers.map(m => (
+                    <option key={m.id} value={m.name}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  📝 Alasan Re-open <span className="text-gray-400 font-normal">(Opsional)</span>
+                </label>
+                <textarea
+                  value={reopenNotes}
+                  onChange={(e) => setReopenNotes(e.target.value)}
+                  placeholder="Contoh: Masalah muncul kembali setelah 3 hari, unit mati total lagi..."
+                  className="w-full border-2 border-gray-300 rounded-lg px-3 py-2.5 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  onClick={reopenTicket}
+                  disabled={uploading || !reopenAssignee}
+                  className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-3 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? '⏳ Memproses...' : '🔓 Re-open'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReopenModal(false);
+                    setReopenTargetTicket(null);
+                    setReopenAssignee('');
+                    setReopenNotes('');
+                  }}
+                  className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  ✕ Batal
+                </button>
+              </div>
             </div>
           </div>
         </div>
