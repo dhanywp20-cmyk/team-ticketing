@@ -195,13 +195,13 @@ export default function TicketingSystem() {
   });
 
   const statusColors: Record<string, string> = {
-    'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400',
-    'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
-    'Call': 'bg-sky-100 text-sky-800 border-sky-400',
-    'Onsite': 'bg-purple-100 text-purple-800 border-purple-400',
-    'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
-    'Solved': 'bg-green-100 text-green-800 border-green-400',
-    'Overdue': 'bg-red-100 text-red-800 border-red-500',
+    'Waiting Approval': 'bg-orange-50 text-orange-700 border border-orange-200',
+    'Pending': 'bg-amber-50 text-amber-700 border border-amber-200',
+    'Call': 'bg-sky-50 text-sky-700 border border-sky-200',
+    'Onsite': 'bg-violet-50 text-violet-700 border border-violet-200',
+    'In Progress': 'bg-blue-50 text-blue-700 border border-blue-200',
+    'Solved': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    'Overdue': 'bg-red-50 text-red-700 border border-red-200',
   };
 
   const checkSessionTimeout = () => {
@@ -1633,9 +1633,9 @@ Error Code: ${activityError.code}`;
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: "linear-gradient(135deg, rgba(127,29,29,0.82) 0%, rgba(153,27,27,0.78) 40%, rgba(185,28,28,0.72) 100%), url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
+    <div className="min-h-screen bg-gray-50">
       {showLoadingPopup && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[10000]">
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 animate-scale-in">
             <div className="flex flex-col items-center">
               {loadingMessage.includes('✅') ? (
@@ -1655,18 +1655,20 @@ Error Code: ${activityError.code}`;
         </div>
       )}
 
-      <div className="max-w-[1600px] mx-auto">
+      {/* Red header zone with background image */}
+      <div style={{backgroundImage:"linear-gradient(135deg,rgba(127,29,29,0.92) 0%,rgba(153,27,27,0.88) 40%,rgba(185,28,28,0.85) 100%),url(/IVP_Background.png)",backgroundSize:"cover",backgroundPosition:"center"}} className="pb-6">
+      <div className="max-w-[1600px] mx-auto px-6 pt-4 pb-0">
         {showNotifications && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
-              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-800 to-red-700">
+              <div className="p-5 border-b border-gray-100">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">🔔</span>
                     <div>
-                      <h3 className="text-xl font-bold text-white">Ticket Notifications</h3>
+                      <h3 className="text-base font-semibold text-gray-800">Ticket Notifications</h3>
                       {notifications.length > 0 && (
-                        <p className="text-sm text-white/90">
+                        <p className="text-sm text-gray-500">
                           {notifications.length} tickets need attention
                         </p>
                       )}
@@ -1751,7 +1753,7 @@ Error Code: ${activityError.code}`;
         )}
 
         {showNotificationPopup && notifications.length > 0 && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-4xl">🔔</span>
@@ -1773,7 +1775,7 @@ Error Code: ${activityError.code}`;
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-bold text-sm flex-1">{ticket.project_name}</p>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
                         {ticket.current_team}
                       </span>
                     </div>
@@ -1793,13 +1795,13 @@ Error Code: ${activityError.code}`;
         )}
 
         {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999] p-2">
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[9999] p-2">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
               <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-900 to-red-700">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold text-white">🏢 {selectedTicket.project_name}</h2>
-                    <span className="text-sm px-3 py-1 rounded-full bg-white/80 text-white font-bold">
+                    <h2 className="text-xl font-bold text-gray-800">{selectedTicket.project_name}</h2>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
                       {selectedTicket.current_team}
                     </span>
                   </div>
@@ -1808,7 +1810,7 @@ Error Code: ${activityError.code}`;
                       setShowTicketDetailPopup(false);
                       setSelectedTicket(null);
                     }}
-                    className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all"
+                    className="text-gray-400 hover:text-gray-600 rounded-lg p-2 transition-all"
                   >
                     ✕
                   </button>
@@ -1897,12 +1899,12 @@ Error Code: ${activityError.code}`;
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
                         selectedTicket.activity_logs.map((log) => (
-                          <div key={log.id} className="activity-log">
+                          <div key={log.id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-3">
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
                                   <p className="font-bold text-gray-800">{log.handler_name}</p>
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
                                     {log.team_type}
                                   </span>
                                 </div>
@@ -2230,7 +2232,7 @@ Error Code: ${activityError.code}`;
                     setShowTicketDetailPopup(false);
                     setSelectedTicket(null);
                   }}
-                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold transition-all"
+                  className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200"
                 >
                   Close
                 </button>
@@ -2239,16 +2241,16 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-200">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div className="mb-4">
+          <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-0.5">
                 📋 Reminder Troubleshooting
               </h1>
-              <p className="text-gray-800 font-bold text-lg">IVP Product</p>
+              <p className="text-red-200 font-medium text-sm">IVP Product</p>
               <p className="text-sm text-gray-600">
-                Welcome: <span className="font-bold text-red-600">{currentUser?.full_name}</span>
-                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-bold">
+                Welcome: <span className="font-bold text-white">{currentUser?.full_name}</span>
+                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-white/20 text-white font-medium">
                   {currentUser?.role === 'admin' ? 'Administrator' : currentUser?.role === 'team' ? `Team - ${currentUserTeamType}` : 'Guest'}
                 </span>
               </p>
@@ -2257,12 +2259,12 @@ Error Code: ${activityError.code}`;
               {currentUser?.role !== 'guest' && (
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
+                className="relative bg-white/15 hover:bg-white/25 text-white px-4 py-2.5 rounded-lg font-semibold transition-all border border-white/30 text-sm"
                 title="Notifications"
               >
                 🔔
                 {notifications.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {notifications.length}
                   </span>
                 )}
@@ -2272,11 +2274,11 @@ Error Code: ${activityError.code}`;
               {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
                 <button
                   onClick={() => setShowApprovalModal(true)}
-                  className="relative bg-gradient-to-r from-red-900 to-red-700 text-white px-4 py-3 rounded-xl hover:from-orange-600 hover:to-orange-700 font-bold shadow-lg transition-all animate-pulse"
+                  className="relative bg-white/15 hover:bg-white/25 text-white px-4 py-2.5 rounded-lg font-semibold transition-all border border-white/30 text-sm animate-pulse"
                   title="Tickets waiting for approval"
                 >
                   ⏳ Approval
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-400 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {pendingApprovalTickets.length}
                   </span>
                 </button>
@@ -2325,7 +2327,7 @@ Error Code: ${activityError.code}`;
                     setShowGuestMapping(false);
                     setShowNewTicket(false);
                   }}
-                  className="bg-gradient-to-r from-violet-600 to-violet-800 text-white px-5 py-3 rounded-xl hover:from-violet-700 hover:to-violet-900 font-bold shadow-lg transition-all"
+                  className="bg-white/15 hover:bg-white/25 text-white px-4 py-2.5 rounded-lg font-semibold transition-all border border-white/30 text-sm"
                   title={`Reminder: ${getCronDisplay()}`}
                 >
                   ⏰ Reminder
@@ -2337,212 +2339,155 @@ Error Code: ${activityError.code}`;
             </div>
           </div>
         </div>
+        {/* Stat Cards in red header area */}
 
         {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
-          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-200">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">📊 Dashboard Analytics</h2>
-            
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-              <div className="stat-card bg-gradient-to-br from-red-900 via-red-800 to-red-700">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
-                  <span className="text-2xl">📊</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.total}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: '100%'}}></div>
-                </div>
+          <div className="max-w-[1600px] mx-auto px-6 pb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-0">
+              {/* Total */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">📊</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.total}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Total Tickets</p>
+                <p className="text-xs text-white/60 mt-0.5">Seluruh tiket</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-red-700 via-red-600 to-rose-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Pending</p>
-                  <span className="text-2xl">⏳</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.pending}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.pending/stats.total*100) : 0}%`}}></div>
-                </div>
+              {/* Pending */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">⏳</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.pending}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Pending</p>
+                <p className="text-xs text-white/60 mt-0.5">Menunggu tindakan</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-rose-700 via-rose-600 to-rose-500">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">In Progress</p>
-                  <span className="text-2xl">🔄</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.processing}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
-                </div>
+              {/* In Progress */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">🔄</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.processing}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">In Progress</p>
+                <p className="text-xs text-white/60 mt-0.5">Sedang ditangani</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-red-800 via-red-700 to-red-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Solved</p>
-                  <span className="text-2xl">✅</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.solved}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solved/stats.total*100) : 0}%`}}></div>
-                </div>
+              {/* Solved */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">✅</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.solved}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Solved</p>
+                <p className="text-xs text-white/60 mt-0.5">Terselesaikan</p>
               </div>
+              {/* Overdue */}
               <div
-                className="stat-card bg-gradient-to-br from-red-500 via-red-600 to-red-700 cursor-pointer"
+                className="rounded-xl p-4 text-center cursor-pointer hover:scale-105 transition-transform"
+                style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}
                 onClick={() => { setFilterStatus('Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Overdue</p>
-                  <span className="text-2xl">🚨</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.overdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.overdue/stats.total*100) : 0}%`}}></div>
-                </div>
+                <div className="text-2xl mb-1">🚨</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.overdue}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Overdue</p>
+                <p className="text-xs text-white/60 mt-0.5">Berpotensi denda</p>
               </div>
+              {/* Solved Overdue */}
               <div
-                className="stat-card bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 cursor-pointer"
+                className="rounded-xl p-4 text-center cursor-pointer hover:scale-105 transition-transform"
+                style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}
                 onClick={() => { setFilterStatus('Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-                title="Ticket yang sudah Solved namun diselesaikan melewati batas waktu"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Solved Overdue</p>
-                  <span className="text-2xl">⚠️</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.solvedOverdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solvedOverdue/stats.total*100) : 0}%`}}></div>
-                </div>
+                <div className="text-2xl mb-1">⚠️</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.solvedOverdue}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Solved Overdue</p>
+                <p className="text-xs text-white/60 mt-0.5">Butuh verifikasi</p>
               </div>
             </div>
+          </div>
+        )}
+        </div>{/* end red header zone */}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="chart-container bg-gradient-to-br from-white to-gray-50">
-                <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
-                  <span className="text-xl">🥧</span>
-                  Status Distribution
+        {/* ── WHITE BODY ─────────────────────────────────────── */}
+        <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-[1600px] mx-auto px-6 py-6">
+
+        {/* Charts */}
+        {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <h3 className="font-bold mb-4 text-gray-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                <span className="text-lg">🥧</span> Status Distribution
+              </h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={stats.statusData}
+                    cx="50%" cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={85} dataKey="value"
+                    onClick={(data) => {
+                      const statusMap: Record<string, string> = { 'Pending':'Pending','In Progress':'In Progress','Solved':'Solved','Overdue':'Overdue' };
+                      setFilterStatus(statusMap[data.name] || 'All');
+                      setHandlerFilter(null);
+                      ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {stats.statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(value: number, name: string) => [`${value} tiket`, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-center text-gray-400 mt-1 italic">Click chart to filter</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                  <span className="text-lg">📊</span> Team Handlers
                 </h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie 
-                      data={stats.statusData} 
-                      cx="50%" 
-                      cy="50%" 
-                      labelLine={false} 
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`} 
-                      outerRadius={90} 
-                      dataKey="value"
-                      onClick={(data) => {
-                        const statusMap: Record<string, string> = {
-                          'Pending': 'Pending',
-                          'In Progress': 'In Progress',
-                          'Solved': 'Solved',
-                          'Overdue': 'Overdue'
-                        };
-                        setFilterStatus(statusMap[data.name] || 'All');
-                        setHandlerFilter(null);
-                        ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {stats.statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip formatter={(value: number, name: string) => [`${value} tiket`, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <p className="text-xs text-center text-gray-500 mt-2 italic">Click on chart to filter status</p>
-              </div>
-
-              <div className="chart-container bg-gradient-to-br from-white to-gray-50 flex flex-col gap-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <span className="text-xl">📊</span>
-                    Team Handlers
-                  </h3>
-                  <div className="flex bg-gray-200 rounded-lg p-1">
-                    <button
-                      onClick={() => setSelectedHandlerTeam('PTS')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        selectedHandlerTeam === 'PTS'
-                          ? 'bg-white text-red-800 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      PTS
-                    </button>
-                    <button
-                      onClick={() => setSelectedHandlerTeam('Services')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        selectedHandlerTeam === 'Services'
-                          ? 'bg-white text-red-700 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      Services
-                    </button>
-                  </div>
+                <div className="flex bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setSelectedHandlerTeam('PTS')}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${selectedHandlerTeam === 'PTS' ? 'bg-white text-red-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >PTS</button>
+                  <button
+                    onClick={() => setSelectedHandlerTeam('Services')}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${selectedHandlerTeam === 'Services' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >Services</button>
                 </div>
-
-                {selectedHandlerTeam === 'PTS' ? (
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={stats.handlerData.filter(h => h.team === 'Team PTS')}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(chartData) => {
-                          if (chartData?.activePayload?.[0]) {
-                            const name = chartData.activePayload[0].payload.name;
-                            setHandlerFilter(prev => prev === name ? null : name);
-                            setFilterStatus('All');
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
-                          {stats.handlerData.filter(h => h.team === 'Team PTS').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#7f1d1d' : '#b91c1c'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-center text-gray-500 mt-1 italic">Click bar to filter by handler{handlerFilter ? ` — Aktif: ${handlerFilter}` : ''}</p>
-                  </div>
-                ) : (
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={stats.handlerData.filter(h => h.team === 'Team Services')}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(chartData) => {
-                          if (chartData?.activePayload?.[0]) {
-                            const name = chartData.activePayload[0].payload.name;
-                            setHandlerFilter(prev => prev === name ? null : name);
-                            setFilterStatus('All');
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
-                          {stats.handlerData.filter(h => h.team === 'Team Services').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#991b1b' : '#dc2626'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-center text-gray-500 mt-1 italic">Click bar to filter by handler{handlerFilter ? ` — Aktif: ${handlerFilter}` : ''}</p>
-                  </div>
-                )}
               </div>
+              {selectedHandlerTeam === 'PTS' ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.handlerData.filter(h => h.team === 'Team PTS')} style={{ cursor: 'pointer' }}
+                    onClick={(chartData) => { if (chartData?.activePayload?.[0]) { const name = chartData.activePayload[0].payload.name; setHandlerFilter(prev => prev === name ? null : name); setFilterStatus('All'); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
+                      {stats.handlerData.filter(h => h.team === 'Team PTS').map((entry, i) => (
+                        <Cell key={i} fill={handlerFilter === entry.name ? '#7f1d1d' : '#b91c1c'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.handlerData.filter(h => h.team === 'Team Services')} style={{ cursor: 'pointer' }}
+                    onClick={(chartData) => { if (chartData?.activePayload?.[0]) { const name = chartData.activePayload[0].payload.name; setHandlerFilter(prev => prev === name ? null : name); setFilterStatus('All'); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
+                      {stats.handlerData.filter(h => h.team === 'Team Services').map((entry, i) => (
+                        <Cell key={i} fill={handlerFilter === entry.name ? '#991b1b' : '#dc2626'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              <p className="text-xs text-center text-gray-400 mt-1 italic">Click bar to filter{handlerFilter ? ` — Active: ${handlerFilter}` : ''}</p>
             </div>
           </div>
         )}
 
         {showAccountSettings && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowAccountSettings(false)}
@@ -2556,17 +2501,17 @@ Error Code: ${activityError.code}`;
               <div className="bg-white/60 rounded-xl p-5 border-2 border-blue-300 shadow-sm">
                 <h3 className="font-bold mb-4 text-gray-800">➕ Create New Account</h3>
                 <div className="space-y-3">
-                  <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field-simple" />
-                  <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field-simple" />
-                  <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="input-field-simple" />
-                  <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="input-field-simple">
+                  <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                  <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                  <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                  <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700">
                     <option value="admin">Administrator</option>
                     <option value="team">Team</option>
                     <option value="guest">Guest</option>
                   </select>
                   
                   {newUser.role === 'team' && (
-                    <select value={newUser.team_type} onChange={(e) => setNewUser({...newUser, team_type: e.target.value})} className="input-field-simple">
+                    <select value={newUser.team_type} onChange={(e) => setNewUser({...newUser, team_type: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700">
                       <option value="Team PTS">Team PTS</option>
                       <option value="Team Services">Team Services</option>
                     </select>
@@ -2587,7 +2532,7 @@ Error Code: ${activityError.code}`;
                       setSelectedUserForPassword(e.target.value);
                       setChangePassword({ current: '', new: '', confirm: '' });
                     }} 
-                    className="input-field-simple"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700"
                   >
                     <option value="">Select User</option>
                     {users.map(u => (
@@ -2597,9 +2542,9 @@ Error Code: ${activityError.code}`;
                   
                   {selectedUserForPassword && (
                     <>
-                      <input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({...changePassword, current: e.target.value})} className="input-field-simple" />
-                      <input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({...changePassword, new: e.target.value})} className="input-field-simple" />
-                      <input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({...changePassword, confirm: e.target.value})} className="input-field-simple" />
+                      <input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({...changePassword, current: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                      <input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({...changePassword, new: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                      <input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({...changePassword, confirm: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
                       <button onClick={updatePassword} className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all">
                         🔒 Change Password
                       </button>
@@ -2643,7 +2588,7 @@ Error Code: ${activityError.code}`;
         )}
 
         {showGuestMapping && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowGuestMapping(false)}
@@ -2663,7 +2608,7 @@ Error Code: ${activityError.code}`;
                   <select 
                     value={newMapping.guestUsername} 
                     onChange={(e) => setNewMapping({...newMapping, guestUsername: e.target.value})} 
-                    className="input-field-simple"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700"
                   >
                     <option value="">Select Guest User</option>
                     {users.filter(u => u.role === 'guest').map(u => (
@@ -2676,7 +2621,7 @@ Error Code: ${activityError.code}`;
                   <select 
                     value={newMapping.projectName} 
                     onChange={(e) => setNewMapping({...newMapping, projectName: e.target.value})} 
-                    className="input-field-simple"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700"
                   >
                     <option value="">Select Project Name</option>
                     {uniqueProjectNames.map(name => (
@@ -2745,16 +2690,28 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-200">
-          <div className="flex flex-col md:flex-row gap-4">
+      {/* ── SEARCH & TICKET LIST ─────────────────────────── */}
+
+        {/* Search & Filter Bar */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-5">
+          <div className="flex flex-col md:flex-row gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-sm font-bold mb-2">🔍 Search</label>
-              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="Search by project, issue, or sales..." className="input-field" />
+              <input
+                type="text"
+                value={searchProject}
+                onChange={(e) => setSearchProject(e.target.value)}
+                placeholder="Cari project, issue, atau sales..."
+                className="w-full border border-gray-200 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50 bg-white text-gray-700"
+              />
             </div>
-            <div className="md:w-64">
-              <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
-              <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field">
-                <option value="All">All Status</option>
+            <div className="md:w-48 relative">
+              <label className="absolute -top-2 left-3 text-xs text-gray-400 bg-white px-1">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }}
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700 appearance-none"
+              >
+                <option value="All">Semua Status</option>
                 <option value="Waiting Approval">⏳ Waiting Approval</option>
                 <option value="Pending">🟡 Pending</option>
                 <option value="Call">📞 Call</option>
@@ -2771,21 +2728,21 @@ Error Code: ${activityError.code}`;
             </div>
           </div>
           {(filterStatus !== 'All' || handlerFilter) && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
               {filterStatus !== 'All' && (
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 ${
-                  filterStatus === 'Overdue' ? 'bg-red-100 text-red-800 border-red-400' :
-                  filterStatus === 'Solved Overdue' ? 'bg-purple-100 text-purple-800 border-purple-400' :
-                  statusColors[filterStatus] || 'bg-gray-100 text-gray-800 border-gray-300'
+                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                  filterStatus === 'Overdue' ? 'bg-red-100 text-red-700' :
+                  filterStatus === 'Solved Overdue' ? 'bg-purple-100 text-purple-700' :
+                  'bg-gray-100 text-gray-700'
                 }`}>
-                  Filter: {filterStatus}
-                  <button onClick={() => setFilterStatus('All')} className="ml-1 hover:opacity-70">✕</button>
+                  {filterStatus}
+                  <button onClick={() => setFilterStatus('All')} className="ml-1 hover:opacity-70 text-xs">✕</button>
                 </span>
               )}
               {handlerFilter && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 bg-purple-100 text-purple-800 border-purple-400">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700">
                   Handler: {handlerFilter}
-                  <button onClick={() => setHandlerFilter(null)} className="ml-1 hover:opacity-70">✕</button>
+                  <button onClick={() => setHandlerFilter(null)} className="ml-1 hover:opacity-70 text-xs">✕</button>
                 </span>
               )}
             </div>
@@ -2793,7 +2750,7 @@ Error Code: ${activityError.code}`;
         </div>
 
         {showNewTicket && canCreateTicket && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowNewTicket(false)}
@@ -2996,10 +2953,10 @@ Error Code: ${activityError.code}`;
             </div>
             
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <button onClick={createTicket} disabled={uploading} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all hover:scale-105">
+              <button onClick={createTicket} disabled={uploading} className="text-white px-6 py-3 rounded-xl font-semibold shadow-sm transition-all hover:opacity-90" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}>
                 {uploading ? '⏳ Saving...' : '💾 Save Ticket'}
               </button>
-              <button onClick={() => setShowNewTicket(false)} className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-6 py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all hover:scale-105">
+              <button onClick={() => setShowNewTicket(false)} className="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200">
                 ✖ Cancel
               </button>
             </div>
@@ -3007,12 +2964,12 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div ref={ticketListRef} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">📋 Ticket List ({ticketsLoading ? '...' : filteredTickets.length})</h2>
+        <div ref={ticketListRef} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">TICKET LIST <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium normal-case">{ticketsLoading ? '...' : filteredTickets.length}</span></h2>
             <button
               onClick={exportToExcel}
-              className="text-white px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 hover:opacity-90" style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
+              className="text-sm text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 hover:opacity-90" style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
             >
               📊 Export Report
             </button>
@@ -3049,7 +3006,7 @@ Error Code: ${activityError.code}`;
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-              <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
+              <table className="w-full table-fixed bg-white border-collapse">
                 <colgroup>
                   <col style={{width: '16%'}} />
                   <col style={{width: '8%'}} />
@@ -3063,17 +3020,17 @@ Error Code: ${activityError.code}`;
                   <col style={{width: '7%'}} />
                 </colgroup>
                 <thead>
-                  <tr className="bg-gradient-to-r from-red-900 to-red-700 text-white">
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Project Name</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">SN Unit</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Issue</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Assigned</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Status</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Created By</th>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Project Name</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Issue</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Assigned</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Created By</th>
 					<th className="px-3 py-3 text-center font-bold text-sm border-r border-red-900/30">Activity</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-red-900/30">Flowchart</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-red-900/30">PDF</th>
-                    {canAccessAccountSettings && <th className="px-2 py-3 text-center font-bold text-sm">OD</th>}
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Flowchart</th>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">PDF</th>
+                    {canAccessAccountSettings && <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">OD</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -3090,33 +3047,33 @@ Error Code: ${activityError.code}`;
                     return (
                     <tr 
                       key={ticket.id} 
-                      className={`border-b border-gray-200 hover:bg-red-50 transition-colors ${
+                      className={`border-b border-gray-200 hover:bg-red-50/40 transition-colors ${
                         isActiveOverdue ? 'bg-red-50/80 border-l-4 border-l-red-500' :
                         isSolvedOverdue ? 'bg-purple-50/80 border-l-4 border-l-purple-400' :
-                        index % 2 === 0 ? 'bg-white/50' : 'bg-gray-50/50'
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
                       }`}
                     >
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="flex items-start gap-1">
                           {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                           {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
-                          <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
+                          <div className="font-semibold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : '-'}</div>
                         {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                         {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || '—'}</div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div>
                         <div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="flex flex-col gap-1 items-start">
                           {/* Status utama */}
                           <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${
@@ -3148,7 +3105,7 @@ Error Code: ${activityError.code}`;
                           )}
                         </div>
                       </td>
-					  <td className="px-3 py-3 border-r border-gray-200 align-top">
+					  <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
                         {ticket.created_by && (
                           <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>
@@ -3157,7 +3114,7 @@ Error Code: ${activityError.code}`;
                           <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
                         )}
                       </td>
-                      <td className="px-2 py-3 border-r border-gray-200 text-center align-middle">
+                      <td className="px-2 py-3 border-r border-gray-50 text-center align-middle">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
                           <div className="flex flex-col items-center gap-1.5">
                             <div className="flex items-center justify-center gap-1">
@@ -3199,7 +3156,7 @@ Error Code: ${activityError.code}`;
                           </button>
                         )}
                       </td>
-                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
+                      <td className="px-2 py-3 border-r border-gray-50 align-middle text-center">
                         <button
                           onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
                           className="text-violet-600 hover:text-violet-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-violet-50"
@@ -3215,7 +3172,7 @@ Error Code: ${activityError.code}`;
                           </button>
                         )}
                       </td>
-                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
+                      <td className="px-2 py-3 border-r border-gray-50 align-middle text-center">
                         <button
                           onClick={() => exportToPDF(ticket)}
                           className="text-green-600 hover:text-green-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-green-50"
@@ -3224,7 +3181,7 @@ Error Code: ${activityError.code}`;
                         </button>
                       </td>
                       {canAccessAccountSettings && (
-                      <td className="px-2 py-3 align-middle text-center">
+                      <td className="px-2 py-3 align-middle text-center border-gray-50">
                         <button
                           onClick={() => {
                             setOverdueTargetTicket(ticket);
@@ -3253,7 +3210,7 @@ Error Code: ${activityError.code}`;
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {/* ── APPROVAL MODAL ──────────────────────────────────── */}
       {showApprovalModal && canAccessAccountSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border border-gray-200">
             <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-900 to-red-700">
               <div className="flex justify-between items-center">
@@ -3261,10 +3218,10 @@ Error Code: ${activityError.code}`;
                   <span className="text-3xl">⏳</span>
                   <div>
                     <h3 className="text-xl font-bold text-white">Ticket Approval</h3>
-                    <p className="text-sm text-white/90">{pendingApprovalTickets.length} ticket menunggu persetujuan</p>
+                    <p className="text-sm text-gray-500">{pendingApprovalTickets.length} ticket menunggu persetujuan</p>
                   </div>
                 </div>
-                <button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+                <button onClick={() => setShowApprovalModal(false)} className="text-gray-400 hover:text-gray-600 rounded-lg p-2 transition-all">✕</button>
               </div>
             </div>
 
@@ -3316,14 +3273,14 @@ Error Code: ${activityError.code}`;
                             await approveTicket();
                           }}
                           disabled={uploading || !(approvalTicket?.id === ticket.id && approvalAssignee)}
-                          className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                          className="text-white px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-sm" style={{background:"#059669"}}
                         >
                           ✅ Approve
                         </button>
                         <button
                           onClick={() => rejectTicket(ticket)}
                           disabled={uploading}
-                          className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm"
+                          className="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg font-semibold transition-all hover:bg-red-100 disabled:opacity-40 text-sm"
                         >
                           ❌ Reject
                         </button>
@@ -3340,7 +3297,7 @@ Error Code: ${activityError.code}`;
 
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {showReminderSchedule && canAccessAccountSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
@@ -3469,13 +3426,13 @@ Error Code: ${activityError.code}`;
               <button
                 onClick={saveCronSchedule}
                 disabled={reminderSaving}
-                className="bg-gradient-to-r from-violet-600 to-violet-800 text-white py-3 rounded-xl font-bold hover:from-violet-700 hover:to-violet-900 transition-all disabled:opacity-50"
+                className="text-white py-3 rounded-xl font-semibold transition-all hover:opacity-90 disabled:opacity-50" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}
               >
                 {reminderSaving ? '⏳ Menyimpan...' : '💾 Simpan'}
               </button>
               <button
                 onClick={() => setShowReminderSchedule(false)}
-                className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                className="bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200"
               >
                 ✕ Batal
               </button>
@@ -3487,7 +3444,7 @@ Error Code: ${activityError.code}`;
 
       {/* ── OVERDUE SETTING MODAL ───────────────────────── */}
       {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">⏰</span>
@@ -3553,13 +3510,13 @@ Error Code: ${activityError.code}`;
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   onClick={saveOverdueSetting}
-                  className="bg-gradient-to-r from-orange-500 to-orange-700 text-white py-2.5 rounded-xl font-bold hover:from-orange-600 hover:to-orange-800 transition-all"
+                  className="text-white py-2.5 rounded-xl font-semibold transition-all hover:opacity-90" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}
                 >
                   💾 Simpan
                 </button>
                 <button
                   onClick={() => { setShowOverdueSetting(false); setOverdueTargetTicket(null); setOverdueForm({ due_hours: '48' }); }}
-                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  className="bg-gray-100 text-gray-600 py-2.5 rounded-xl font-semibold transition-all hover:bg-gray-200"
                 >
                   ✕ Batal
                 </button>
@@ -3580,7 +3537,7 @@ Error Code: ${activityError.code}`;
 
       {/* ── ACTIVITY SUMMARY / FLOWCHART MODAL ─────────────── */}
       {showActivitySummary && summaryTicket && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-2">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-2">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col animate-scale-in border border-gray-200">
             {/* Header */}
             <div className="p-5 border-b-2 border-gray-200 flex-shrink-0" style={{ background: "linear-gradient(to right, #7f1d1d, #b91c1c)" }}>
@@ -3684,7 +3641,7 @@ Error Code: ${activityError.code}`;
                               <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-sm font-bold text-gray-800">{log.handler_name}</span>
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">{log.team_type}</span>
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">{log.team_type}</span>
                                 </div>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-bold border flex-shrink-0 ml-2 ${statusColors[log.new_status] || 'bg-gray-100 text-gray-700 border-gray-300'}`}>
                                   {log.new_status}
@@ -3768,7 +3725,7 @@ Error Code: ${activityError.code}`;
 
       {/* ── RE-OPEN TICKET MODAL ────────────────────────── */}
       {showReopenModal && reopenTargetTicket && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">🔓</span>
@@ -3823,7 +3780,7 @@ Error Code: ${activityError.code}`;
                 <button
                   onClick={reopenTicket}
                   disabled={uploading || !reopenAssignee}
-                  className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-3 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-white py-3 rounded-xl font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}
                 >
                   {uploading ? '⏳ Memproses...' : '🔓 Re-open'}
                 </button>
@@ -3834,7 +3791,7 @@ Error Code: ${activityError.code}`;
                     setReopenAssignee('');
                     setReopenNotes('');
                   }}
-                  className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  className="bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200"
                 >
                   ✕ Batal
                 </button>
@@ -3845,26 +3802,32 @@ Error Code: ${activityError.code}`;
       )}
       {/* ─────────────────────────────────────────────────── */}
 
+      </div>{/* end max-w mx-auto */}
+      </div>{/* end bg-gray-50 white body */}
+
       <style jsx>{`
         .btn-primary {
-          background: linear-gradient(135deg, #7f1d1d, #b91c1c);
-          @apply text-white px-6 py-3 rounded-xl font-bold shadow-md transition-all hover:opacity-90;
+          background: white;
+          @apply text-red-800 px-4 py-2 rounded-lg font-semibold transition-all text-sm hover:bg-red-50;
         }
         .btn-secondary {
-          @apply bg-gray-700 hover:bg-gray-800 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all;
+          @apply bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-white/30 text-sm;
         }
         .btn-teal {
-          background: linear-gradient(135deg, #7f1d1d, #991b1b);
-          @apply text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all hover:opacity-90;
+          @apply bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-white/30 text-sm;
         }
         .btn-danger {
-          @apply bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all;
+          @apply bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-white/20 text-sm;
         }
         .activity-log {
           @apply bg-white rounded-xl p-4 border border-gray-200 shadow-sm;
         }
         .stat-card {
           @apply rounded-2xl p-5 text-white shadow-lg transform hover:scale-105 transition-transform;
+        }
+        .stat-card-clean {
+          @apply rounded-2xl p-5 shadow-sm transform hover:scale-105 transition-transform;
+          border: 1px solid #f0f0f0;
         }
         .chart-container {
           @apply bg-white rounded-2xl p-6 border border-gray-200 shadow-sm;
