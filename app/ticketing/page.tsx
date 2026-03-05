@@ -1579,9 +1579,9 @@ Error Code: ${activityError.code}`;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: "linear-gradient(135deg, rgba(127,29,29,0.82) 0%, rgba(153,27,27,0.78) 40%, rgba(185,28,28,0.72) 100%), url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
         <div className="bg-white/75 p-8 rounded-2xl shadow-2xl">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
         </div>
       </div>
@@ -1590,9 +1590,9 @@ Error Code: ${activityError.code}`;
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
-          <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: "linear-gradient(135deg, rgba(127,29,29,0.82) 0%, rgba(153,27,27,0.78) 40%, rgba(185,28,28,0.72) 100%), url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">
             Login
           </h1>
           <p className="text-center text-gray-700 font-bold mb-6">Reminder Troubleshooting<br/>IVP Product</p>
@@ -1604,7 +1604,7 @@ Error Code: ${activityError.code}`;
                 type="text"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200"
+                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-700 focus:ring-2 focus:ring-red-100"
                 placeholder="Enter username"
               />
             </div>
@@ -1614,14 +1614,15 @@ Error Code: ${activityError.code}`;
                 type="password"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200"
+                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-700 focus:ring-2 focus:ring-red-100"
                 placeholder="Enter password"
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
               />
             </div>
             <button
               onClick={handleLogin}
-              className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all"
+              className="w-full text-white py-3 rounded-xl font-bold shadow-md transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
             >
               🔐 Login
             </button>
@@ -1632,15 +1633,15 @@ Error Code: ${activityError.code}`;
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: "linear-gradient(135deg, rgba(127,29,29,0.82) 0%, rgba(153,27,27,0.78) 40%, rgba(185,28,28,0.72) 100%), url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
       {showLoadingPopup && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
-          <div className="bg-white/70 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border-4 border-blue-500 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 animate-scale-in">
             <div className="flex flex-col items-center">
               {loadingMessage.includes('✅') ? (
                 <div className="text-6xl mb-4 animate-bounce">✅</div>
               ) : (
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-700 mb-4"></div>
               )}
               <p className="text-xl font-bold text-gray-800 text-center">{loadingMessage}</p>
             </div>
@@ -1649,7 +1650,7 @@ Error Code: ${activityError.code}`;
       )}
 
       {uploading && !showLoadingPopup && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-red-800 via-red-600 to-red-400">
           <div className="h-full bg-gradient-to-r from-transparent via-white to-transparent animate-pulse"></div>
         </div>
       )}
@@ -1657,8 +1658,8 @@ Error Code: ${activityError.code}`;
       <div className="max-w-[1600px] mx-auto">
         {showNotifications && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/70 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
-              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-yellow-400 to-yellow-500">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
+              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-800 to-red-700">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">🔔</span>
@@ -1739,7 +1740,8 @@ Error Code: ${activityError.code}`;
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button
                   onClick={() => setShowNotifications(false)}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all"
+                  className="w-full text-white py-3 rounded-xl font-bold transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
                 >
                   Close
                 </button>
@@ -1750,7 +1752,7 @@ Error Code: ${activityError.code}`;
 
         {showNotificationPopup && notifications.length > 0 && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white/75 rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-4xl">🔔</span>
                 <h3 className="text-xl font-bold text-gray-800">Ticket Notifications</h3>
@@ -1782,7 +1784,7 @@ Error Code: ${activityError.code}`;
               </div>
               <button
                 onClick={() => setShowNotificationPopup(false)}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold"
+                className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white py-3 rounded-xl hover:from-red-900 hover:to-red-950 font-bold"
               >
                 Close
               </button>
@@ -1792,8 +1794,8 @@ Error Code: ${activityError.code}`;
 
         {showTicketDetailPopup && selectedTicket && (
           <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999] p-2">
-            <div className="bg-white/85 rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
-              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
+              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-900 to-red-700">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <h2 className="text-2xl font-bold text-white">🏢 {selectedTicket.project_name}</h2>
@@ -1806,7 +1808,7 @@ Error Code: ${activityError.code}`;
                       setShowTicketDetailPopup(false);
                       setSelectedTicket(null);
                     }}
-                    className="text-white hover:bg-white/90 rounded-lg p-2 font-bold transition-all"
+                    className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all"
                   >
                     ✕
                   </button>
@@ -1912,12 +1914,12 @@ Error Code: ${activityError.code}`;
                               </span>
                             </div>
                             {log.action_taken && (
-                              <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-3 py-2 mb-2">
-                                <p className="text-sm font-bold text-blue-900">🔧 Action :</p>
+                              <div className="bg-red-50 border-l-4 border-red-600 rounded px-3 py-2 mb-2">
+                                <p className="text-sm font-bold text-red-900">🔧 Action :</p>
                                 <p className="text-sm text-gray-900">{log.action_taken}</p>
                               </div>
                             )}
-                            <p className="text-sm font-bold text-blue-900">Notes :</p>
+                            <p className="text-sm font-bold text-red-900">Notes :</p>
                             <p className="text-sm text-gray-900">{log.notes}</p>
                             {log.assigned_to_services && (
                               <div className="mt-2 p-2 bg-red-50 border-l-4 border-red-500 rounded">
@@ -1959,7 +1961,8 @@ Error Code: ${activityError.code}`;
                             }
                             setShowUpdateForm(!showUpdateForm);
                           }}
-                          className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all"
+                          className="text-white px-4 py-2 rounded-lg font-bold transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
                         >
                           {showUpdateForm ? '🔼 Tutup' : '🔽 Buka Form'}
                         </button>
@@ -2038,7 +2041,7 @@ Error Code: ${activityError.code}`;
                                 value={newActivity.sn_unit}
                                 onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})}
                                 placeholder="Update SN Unit..."
-                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white"
                               />
                             </div>
 
@@ -2094,7 +2097,7 @@ Error Code: ${activityError.code}`;
                                     value={newActivity.action_taken}
                                     onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
                                     placeholder="Contoh: Cek kabel HDMI, restart sistem..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white"
                                   />
                                 </div>
                                 <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
@@ -2103,7 +2106,7 @@ Error Code: ${activityError.code}`;
                                     value={newActivity.notes}
                                     onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
                                     placeholder="Jelaskan detail penanganan..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white resize-none"
                                     rows={4}
                                   />
                                 </div>
@@ -2189,7 +2192,8 @@ Error Code: ${activityError.code}`;
                                 (!isSimple && !newActivity.notes.trim()) ||
                                 (newActivity.assign_to_services && !newActivity.services_assignee)
                               }
-                              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full text-white px-6 py-3.5 rounded-xl font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
                             >
                               {uploading ? '⏳ Menyimpan...' : '💾 Simpan Activity'}
                             </button>
@@ -2235,10 +2239,10 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-200">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-1">
                 📋 Reminder Troubleshooting
               </h1>
               <p className="text-gray-800 font-bold text-lg">IVP Product</p>
@@ -2268,7 +2272,7 @@ Error Code: ${activityError.code}`;
               {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
                 <button
                   onClick={() => setShowApprovalModal(true)}
-                  className="relative bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-3 rounded-xl hover:from-orange-600 hover:to-orange-700 font-bold shadow-lg transition-all animate-pulse"
+                  className="relative bg-gradient-to-r from-red-900 to-red-700 text-white px-4 py-3 rounded-xl hover:from-orange-600 hover:to-orange-700 font-bold shadow-lg transition-all animate-pulse"
                   title="Tickets waiting for approval"
                 >
                   ⏳ Approval
@@ -2335,11 +2339,11 @@ Error Code: ${activityError.code}`;
         </div>
 
         {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
-          <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-200">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">📊 Dashboard Analytics</h2>
             
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
+              <div className="stat-card bg-gradient-to-br from-red-900 via-red-800 to-red-700">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
                   <span className="text-2xl">📊</span>
@@ -2349,7 +2353,7 @@ Error Code: ${activityError.code}`;
                   <div className="h-full bg-white rounded-full" style={{width: '100%'}}></div>
                 </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600">
+              <div className="stat-card bg-gradient-to-br from-red-700 via-red-600 to-rose-600">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">Pending</p>
                   <span className="text-2xl">⏳</span>
@@ -2359,7 +2363,7 @@ Error Code: ${activityError.code}`;
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.pending/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
+              <div className="stat-card bg-gradient-to-br from-rose-700 via-rose-600 to-rose-500">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">In Progress</p>
                   <span className="text-2xl">🔄</span>
@@ -2369,7 +2373,7 @@ Error Code: ${activityError.code}`;
                   <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
                 </div>
               </div>
-              <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
+              <div className="stat-card bg-gradient-to-br from-red-800 via-red-700 to-red-600">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm opacity-90 font-semibold">Solved</p>
                   <span className="text-2xl">✅</span>
@@ -2456,7 +2460,7 @@ Error Code: ${activityError.code}`;
                       onClick={() => setSelectedHandlerTeam('PTS')}
                       className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
                         selectedHandlerTeam === 'PTS'
-                          ? 'bg-white text-purple-600 shadow-sm'
+                          ? 'bg-white text-red-800 shadow-sm'
                           : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
@@ -2466,7 +2470,7 @@ Error Code: ${activityError.code}`;
                       onClick={() => setSelectedHandlerTeam('Services')}
                       className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
                         selectedHandlerTeam === 'Services'
-                          ? 'bg-white text-pink-600 shadow-sm'
+                          ? 'bg-white text-red-700 shadow-sm'
                           : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
@@ -2496,7 +2500,7 @@ Error Code: ${activityError.code}`;
                         <Tooltip />
                         <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
                           {stats.handlerData.filter(h => h.team === 'Team PTS').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#6d28d9' : '#8b5cf6'} />
+                            <Cell key={i} fill={handlerFilter === entry.name ? '#7f1d1d' : '#b91c1c'} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -2524,7 +2528,7 @@ Error Code: ${activityError.code}`;
                         <Tooltip />
                         <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
                           {stats.handlerData.filter(h => h.team === 'Team Services').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#be185d' : '#ec4899'} />
+                            <Cell key={i} fill={handlerFilter === entry.name ? '#991b1b' : '#dc2626'} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -2539,7 +2543,7 @@ Error Code: ${activityError.code}`;
 
         {showAccountSettings && canAccessAccountSettings && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-gray-400 animate-scale-in relative">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowAccountSettings(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -2550,7 +2554,7 @@ Error Code: ${activityError.code}`;
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/60 rounded-xl p-5 border-2 border-blue-300 shadow-sm">
-                <h3 className="font-bold mb-4 text-blue-900">➕ Create New Account</h3>
+                <h3 className="font-bold mb-4 text-gray-800">➕ Create New Account</h3>
                 <div className="space-y-3">
                   <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field-simple" />
                   <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field-simple" />
@@ -2567,7 +2571,8 @@ Error Code: ${activityError.code}`;
                       <option value="Team Services">Team Services</option>
                     </select>
                   )}
-                  <button onClick={createUser} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all">
+                  <button onClick={createUser} className="w-full text-white py-3 rounded-xl font-bold transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}>
                     ➕ Create Account
                   </button>
                 </div>
@@ -2639,18 +2644,18 @@ Error Code: ${activityError.code}`;
 
         {showGuestMapping && canAccessAccountSettings && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-teal-500 animate-scale-in relative">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowGuestMapping(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
             >
                 ✕
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-teal-800">👥 Guest Mapping - Project Access</h2>
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">👥 Guest Mapping - Project Access</h2>
             <p className="text-gray-600 mb-6">Manage guest user access to specific projects. One guest can have access to multiple projects.</p>
             
-            <div className="bg-white/50 rounded-xl p-6 border-2 border-teal-300 mb-6">
-              <h3 className="font-bold mb-4 text-lg text-teal-900">➕ Add New Mapping</h3>
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
+              <h3 className="font-bold mb-4 text-lg text-gray-800">➕ Add New Mapping</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -2681,7 +2686,7 @@ Error Code: ${activityError.code}`;
                 </div>
               </div>
               
-              <button onClick={addGuestMapping} disabled={uploading} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-xl transition-all disabled:opacity-50">
+              <button onClick={addGuestMapping} disabled={uploading} className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white px-6 py-3 rounded-xl hover:from-red-900 hover:to-red-950 font-bold shadow-xl transition-all disabled:opacity-50">
                 {uploading ? '⏳ Processing...' : '➕ Add Mapping'}
               </button>
             </div>
@@ -2740,7 +2745,7 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-blue-500">
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-200">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label className="block text-sm font-bold mb-2">🔍 Search</label>
@@ -2789,7 +2794,7 @@ Error Code: ${activityError.code}`;
 
         {showNewTicket && canCreateTicket && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-3 border-green-500 animate-scale-in relative">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowNewTicket(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -2812,27 +2817,27 @@ Error Code: ${activityError.code}`;
                 </div>
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Project Name *</label>
                   <input 
                     type="text" 
                     value={newTicket.project_name} 
                     onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} 
                     placeholder="Example: BCA Cibitung Project" 
-                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-red-700 focus:ring-2 focus:ring-red-100 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📍 Address Detail</label>
                   <input 
                     type="text" 
                     value={newTicket.address} 
                     onChange={(e) => setNewTicket({...newTicket, address: e.target.value})} 
                     placeholder="Example: Jl. Jend. Sudirman No. 1..." 
-                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-red-700 focus:ring-2 focus:ring-red-100 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">⚠️ Issue Case *</label>
                   <input 
                     type="text" 
@@ -2862,7 +2867,7 @@ Error Code: ${activityError.code}`;
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">👤 Sales Name</label>
                   <input 
                     type="text" 
@@ -2872,7 +2877,7 @@ Error Code: ${activityError.code}`;
                     className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">🔢 SN Unit (Optional)</label>
                   <input 
                     type="text" 
@@ -2882,7 +2887,7 @@ Error Code: ${activityError.code}`;
                     className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 focus:border-gray-600 focus:ring-2 focus:ring-gray-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📱 Name & Phone User</label>
                   <input 
                     type="text" 
@@ -3002,12 +3007,12 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div ref={ticketListRef} className="bg-white/40 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-2 border-blue-250">
+        <div ref={ticketListRef} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">📋 Ticket List ({ticketsLoading ? '...' : filteredTickets.length})</h2>
             <button
               onClick={exportToExcel}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2"
+              className="text-white px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 hover:opacity-90" style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
             >
               📊 Export Report
             </button>
@@ -3029,7 +3034,7 @@ Error Code: ${activityError.code}`;
                 </div>
               ))}
               <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-800/30"></div>
                 <span className="text-sm font-medium">Memuat daftar ticket...</span>
               </div>
             </div>
@@ -3043,7 +3048,7 @@ Error Code: ${activityError.code}`;
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
               <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
                 <colgroup>
                   <col style={{width: '16%'}} />
@@ -3058,16 +3063,16 @@ Error Code: ${activityError.code}`;
                   <col style={{width: '7%'}} />
                 </colgroup>
                 <thead>
-                  <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Project Name</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">SN Unit</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Issue</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Assigned</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Status</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Created By</th>
-					<th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">Flowchart</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">PDF</th>
+                  <tr className="bg-gradient-to-r from-red-900 to-red-700 text-white">
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Project Name</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">SN Unit</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Issue</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Assigned</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Status</th>
+                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-red-900/30">Created By</th>
+					<th className="px-3 py-3 text-center font-bold text-sm border-r border-red-900/30">Activity</th>
+                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-red-900/30">Flowchart</th>
+                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-red-900/30">PDF</th>
                     {canAccessAccountSettings && <th className="px-2 py-3 text-center font-bold text-sm">OD</th>}
                   </tr>
                 </thead>
@@ -3085,10 +3090,10 @@ Error Code: ${activityError.code}`;
                     return (
                     <tr 
                       key={ticket.id} 
-                      className={`border-b border-gray-200 hover:bg-blue-500/20 transition-colors ${
+                      className={`border-b border-gray-200 hover:bg-red-50 transition-colors ${
                         isActiveOverdue ? 'bg-red-50/80 border-l-4 border-l-red-500' :
                         isSolvedOverdue ? 'bg-purple-50/80 border-l-4 border-l-purple-400' :
-                        index % 2 === 0 ? 'bg-white/50' : 'bg-blue-50/30'
+                        index % 2 === 0 ? 'bg-white/50' : 'bg-gray-50/50'
                       }`}
                     >
                       <td className="px-3 py-3 border-r border-gray-200 align-top">
@@ -3157,7 +3162,7 @@ Error Code: ${activityError.code}`;
                           <div className="flex flex-col items-center gap-1.5">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-base">📝</span>
-                              <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ background: "#7f1d1d" }}>
                                 {ticket.activity_logs.length}
                               </span>
                             </div>
@@ -3249,8 +3254,8 @@ Error Code: ${activityError.code}`;
       {/* ── APPROVAL MODAL ──────────────────────────────────── */}
       {showApprovalModal && canAccessAccountSettings && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border-2 border-orange-500">
-            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border border-gray-200">
+            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-900 to-red-700">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">⏳</span>
@@ -3336,7 +3341,7 @@ Error Code: ${activityError.code}`;
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {showReminderSchedule && canAccessAccountSettings && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-violet-500 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">⏰</span>
@@ -3483,7 +3488,7 @@ Error Code: ${activityError.code}`;
       {/* ── OVERDUE SETTING MODAL ───────────────────────── */}
       {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-orange-500 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">⏰</span>
               <div>
@@ -3576,16 +3581,16 @@ Error Code: ${activityError.code}`;
       {/* ── ACTIVITY SUMMARY / FLOWCHART MODAL ─────────────── */}
       {showActivitySummary && summaryTicket && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-2">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col animate-scale-in border-2 border-blue-500">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col animate-scale-in border border-gray-200">
             {/* Header */}
-            <div className="p-5 border-b-2 border-gray-200 bg-gradient-to-r from-blue-600 to-blue-800 flex-shrink-0">
+            <div className="p-5 border-b-2 border-gray-200 flex-shrink-0" style={{ background: "linear-gradient(to right, #7f1d1d, #b91c1c)" }}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">🔄</span>
                   <div>
                     <h3 className="text-lg font-bold text-white">Activity Summary</h3>
-                    <p className="text-sm text-blue-100 font-medium">{summaryTicket.project_name}</p>
-                    <p className="text-xs text-blue-200">{summaryTicket.issue_case}</p>
+                    <p className="text-sm text-red-100 font-medium">{summaryTicket.project_name}</p>
+                    <p className="text-xs text-red-200">{summaryTicket.issue_case}</p>
                   </div>
                 </div>
                 <button
@@ -3622,7 +3627,7 @@ Error Code: ${activityError.code}`;
                   {/* Start node */}
                   <div className="flex items-center gap-3 mb-1">
                     <div className="flex flex-col items-center">
-                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shadow-md">🎫</div>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-base shadow-md" style={{ background: "#7f1d1d" }}>🎫</div>
                     </div>
                     <div className="flex-1 bg-blue-50 border-2 border-blue-300 rounded-xl px-4 py-2">
                       <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Ticket Dibuat</p>
@@ -3751,7 +3756,7 @@ Error Code: ${activityError.code}`;
             <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition-all"
+                className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white py-3 rounded-xl font-bold hover:from-red-900 hover:to-red-950 transition-all"
               >
                 ✕ Tutup
               </button>
@@ -3764,7 +3769,7 @@ Error Code: ${activityError.code}`;
       {/* ── RE-OPEN TICKET MODAL ────────────────────────── */}
       {showReopenModal && reopenTargetTicket && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-amber-500 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">🔓</span>
               <div>
@@ -3842,34 +3847,36 @@ Error Code: ${activityError.code}`;
 
       <style jsx>{`
         .btn-primary {
-          @apply bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all;
+          background: linear-gradient(135deg, #7f1d1d, #b91c1c);
+          @apply text-white px-6 py-3 rounded-xl font-bold shadow-md transition-all hover:opacity-90;
         }
         .btn-secondary {
-          @apply bg-gradient-to-r from-gray-600 to-gray-800 text-white px-5 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all;
+          @apply bg-gray-700 hover:bg-gray-800 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all;
         }
         .btn-teal {
-          @apply bg-gradient-to-r from-teal-600 to-teal-800 text-white px-5 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-lg transition-all;
+          background: linear-gradient(135deg, #7f1d1d, #991b1b);
+          @apply text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all hover:opacity-90;
         }
         .btn-danger {
-          @apply bg-gradient-to-r from-red-500 to-red-700 text-white px-5 py-3 rounded-xl hover:from-red-600 hover:to-red-800 font-bold shadow-lg transition-all;
+          @apply bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all;
         }
         .activity-log {
-          @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md;
+          @apply bg-white rounded-xl p-4 border border-gray-200 shadow-sm;
         }
         .stat-card {
-          @apply rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform;
+          @apply rounded-2xl p-5 text-white shadow-lg transform hover:scale-105 transition-transform;
         }
         .chart-container {
-          @apply bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl;
+          @apply bg-white rounded-2xl p-6 border border-gray-200 shadow-sm;
         }
         .input-field {
-          @apply w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white;
+          @apply w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-red-700 focus:ring-2 focus:ring-red-100 transition-all font-medium bg-white;
         }
         .input-field-simple {
-          @apply w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white;
+          @apply w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white;
         }
         .file-download {
-          @apply inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-200 transition-all mt-2;
+          @apply inline-block bg-red-50 text-red-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 transition-all mt-2;
         }
         @keyframes scale-in {
           from {
