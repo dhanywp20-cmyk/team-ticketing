@@ -338,12 +338,10 @@ export default function TicketingSystem() {
   // ──────────────────────────────────────────────────────────────
 
   const fetchOverdueSettings = async () => {
-    if (!currentUser || currentUser.role !== 'admin') return;
     try {
       const { data } = await supabase
         .from('overdue_settings')
-        .select('*')
-        .eq('set_by', currentUser.username);
+        .select('*');
       if (data) setOverdueSettings(data);
     } catch (e) { console.error(e); }
   };
@@ -1547,8 +1545,10 @@ Error Code: ${activityError.code}`;
   useEffect(() => {
     if (currentUser?.role === 'admin') {
       fetchGuestMappings();
-      fetchOverdueSettings();
       loadReminderSchedule();
+    }
+    if (currentUser) {
+      fetchOverdueSettings();
     }
   }, [currentUser]);
 
@@ -1718,7 +1718,7 @@ Error Code: ${activityError.code}`;
                         </div>
                         <div className="flex justify-between items-center pt-3 border-t border-gray-300">
                           <span className="text-xs text-gray-500">
-                            📅 {ticket.created_at ? new Date(ticket.created_at).toLocaleDateString('id-ID') : '-'}
+                            📅 {ticket.created_at ? formatDateTime(ticket.created_at) : '-'}
                           </span>
                           <span className="text-sm text-blue-600 font-semibold">Click to view details →</span>
                         </div>
@@ -1842,7 +1842,7 @@ Error Code: ${activityError.code}`;
                       </div>
                       <div>
                         <span className="text-gray-600 font-semibold">Date:</span>
-                        <p className="text-gray-800">{selectedTicket.date ? new Date(selectedTicket.date).toLocaleDateString('id-ID') : '-'}</p>
+                        <p className="text-gray-800">{selectedTicket.created_at ? formatDateTime(selectedTicket.created_at) : '-'}</p>
                       </div>
                       <div>
                         <span className="text-gray-600 font-semibold">Status Team PTS:</span>
@@ -3090,7 +3090,7 @@ Error Code: ${activityError.code}`;
                           {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
                           <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">{ticket.date ? new Date(ticket.date).toLocaleDateString('id-ID') : '-'}</div>
+                        <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : '-'}</div>
                         {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                         {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
                       </td>
@@ -3485,10 +3485,32 @@ Error Code: ${activityError.code}`;
                 <p className="text-xs text-gray-400">{overdueTargetTicket.issue_case}</p>
               </div>
             </div>
-            <p className="text-xs text-orange-700 bg-orange-50 rounded-lg p-2 mb-4 border border-orange-200">
-              ⚠️ Setting ini hanya terlihat oleh admin Anda. Handler akan mendapat notifikasi merah ketika ticket overdue.
-              Default otomatis: ticket overdue setelah 48 jam jika tidak di-set manual.
-            </p>
+
+            {/* Info default vs custom */}
+            {getOverdueSetting(overdueTargetTicket.id) ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                <span className="text-lg">✏️</span>
+                <div>
+                  <p className="text-sm font-bold text-blue-800">Setting Custom Aktif</p>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Ticket ini overdue setelah <strong>{getOverdueSetting(overdueTargetTicket.id)?.due_hours} jam</strong> dari waktu dibuat.
+                    Ubah jam di bawah atau hapus untuk kembali ke default 48 jam.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                <span className="text-lg">🔧</span>
+                <div>
+                  <p className="text-sm font-bold text-green-800">Menggunakan Default: 48 Jam</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Ticket akan otomatis overdue <strong>48 jam (2 hari)</strong> setelah dibuat.
+                    Set jam custom di bawah jika penanganan ini berbeda.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold mb-1 text-gray-700">⏱️ Overdue Setelah Berapa Jam?</label>
@@ -3508,13 +3530,13 @@ Error Code: ${activityError.code}`;
                       key={h}
                       type="button"
                       onClick={() => setOverdueForm({ due_hours: String(h) })}
-                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`}
                     >
-                      {h}j{h === 48 ? ' (default)' : ''}
+                      {h}j{h === 48 ? ' ★' : ''}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">⏰ Dihitung dari waktu ticket pertama kali dibuat</p>
+                <p className="text-xs text-gray-400 mt-2">★ = default sistem &nbsp;|&nbsp; ⏰ Dihitung dari waktu ticket pertama kali dibuat</p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
@@ -3533,9 +3555,9 @@ Error Code: ${activityError.code}`;
               {getOverdueSetting(overdueTargetTicket.id) && (
                 <button
                   onClick={() => { deleteOverdueSetting(overdueTargetTicket.id); setShowOverdueSetting(false); setOverdueTargetTicket(null); }}
-                  className="w-full bg-red-100 text-red-700 py-2 rounded-xl font-bold hover:bg-red-200 transition-all text-sm border border-red-300"
+                  className="w-full bg-red-50 text-red-600 py-2 rounded-xl font-bold hover:bg-red-100 transition-all text-sm border border-red-200"
                 >
-                  🗑️ Hapus Setting Overdue
+                  🗑️ Hapus Custom Setting → Kembali ke Default 48 Jam
                 </button>
               )}
             </div>
