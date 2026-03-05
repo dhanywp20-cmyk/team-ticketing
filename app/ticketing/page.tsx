@@ -3061,7 +3061,7 @@ Error Code: ${activityError.code}`;
 					<th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
                     <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">Flowchart</th>
                     <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">PDF</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm">OD</th>
+                    {canAccessAccountSettings && <th className="px-2 py-3 text-center font-bold text-sm">OD</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -3156,7 +3156,7 @@ Error Code: ${activityError.code}`;
                             </div>
                             <button
                               onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                              className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition-all w-full hover:bg-blue-50"
                             >
                               👁️ View
                             </button>
@@ -3166,20 +3166,12 @@ Error Code: ${activityError.code}`;
                             <span className="text-gray-400 text-sm">—</span>
                             <button
                               onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                              className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition-all w-full hover:bg-blue-50"
                             >
                               👁️ View
                             </button>
                           </div>
                         )}
-                      </td>
-                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
-                        <button
-                          onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
-                          className="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
-                        >
-                          🔄 Chart
-                        </button>
                         {ticket.status === 'Solved' && canUpdateTicket && (
                           <button
                             onClick={() => {
@@ -3188,16 +3180,24 @@ Error Code: ${activityError.code}`;
                               setReopenNotes('');
                               setShowReopenModal(true);
                             }}
-                            className="mt-1.5 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                            className="mt-1 text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg text-xs font-bold transition-all w-full hover:bg-amber-50"
                             title="Buka kembali ticket ini karena masalah muncul lagi"
                           >
                             🔓 Re-open
                           </button>
                         )}
+                      </td>
+                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
+                        <button
+                          onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
+                          className="text-violet-600 hover:text-violet-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-violet-50"
+                        >
+                          🔄 Chart
+                        </button>
                         {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                           <button
                             onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
-                            className="mt-1.5 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
+                            className="mt-1.5 text-orange-600 hover:text-orange-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-orange-50 animate-pulse"
                           >
                             ✅ Approve
                           </button>
@@ -3206,28 +3206,28 @@ Error Code: ${activityError.code}`;
                       <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
                         <button
                           onClick={() => exportToPDF(ticket)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                          className="text-green-600 hover:text-green-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-green-50"
                         >
                           📄 Print
                         </button>
                       </td>
+                      {canAccessAccountSettings && (
                       <td className="px-2 py-3 align-middle text-center">
-                        {canAccessAccountSettings ? (
-                          <button
-                            onClick={() => {
-                              setOverdueTargetTicket(ticket);
-                              const existing = getOverdueSetting(ticket.id);
-                              setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : '48' });
-                              setShowOverdueSetting(true);
-                            }}
-                            className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
-                              overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                            }`}
-                          >
-                            ⏰ Time
-                          </button>
-                        ) : <span className="text-gray-300">—</span>}
+                        <button
+                          onClick={() => {
+                            setOverdueTargetTicket(ticket);
+                            const existing = getOverdueSetting(ticket.id);
+                            setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : '48' });
+                            setShowOverdueSetting(true);
+                          }}
+                          className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
+                            overdueSetting ? 'text-orange-600 hover:text-orange-800 hover:bg-orange-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          ⏰ Time
+                        </button>
                       </td>
+                      )}
                     </tr>
                     );
                   })}
