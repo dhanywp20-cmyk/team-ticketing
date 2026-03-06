@@ -1742,8 +1742,10 @@ Error Code: ${activityError.code}`;
         )}
 
         {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999] p-2">
-            <div className="bg-white/85 rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-3">
+            <div className="flex items-stretch gap-3 w-full max-w-7xl h-[95vh] animate-scale-in">
+            {/* ── LEFT: Ticket Detail ── */}
+            <div className="bg-white rounded-2xl shadow-2xl flex flex-col flex-1 min-w-0 overflow-hidden">
               <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
@@ -1757,17 +1759,17 @@ Error Code: ${activityError.code}`;
                       setShowTicketDetailPopup(false);
                       setSelectedTicket(null);
                     }}
-                    className="text-white hover:bg-white/90 rounded-lg p-2 font-bold transition-all"
+                    className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all"
                   >
                     ✕
                   </button>
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-3">
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
                       {selectedTicket.address && (
                         <div className="col-span-2">
                           <span className="text-gray-600 font-semibold">📍 Address Detail:</span>
@@ -1841,12 +1843,12 @@ Error Code: ${activityError.code}`;
                     </div>
                   )}
 
-                  <div className="border-t-2 border-gray-200 pt-4">
-                    <h3 className="font-bold text-lg mb-4">📝 Activity Log</h3>
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <div className="border-t border-gray-200 pt-3">
+                    <h3 className="font-bold text-base mb-3">📝 Activity Log</h3>
+                    <div className="space-y-2">
                       {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
                         selectedTicket.activity_logs.map((log) => (
-                          <div key={log.id} className="activity-log">
+                          <div key={log.id} className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-2">
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
@@ -1900,9 +1902,9 @@ Error Code: ${activityError.code}`;
                   </div>
 
                   {canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && (
-                    <div className="border-t-2 border-gray-200 pt-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-xl text-gray-800">➕ Update Activity</h3>
+                    <div className="border-t border-gray-200 pt-3">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-semibold text-base text-gray-700">➕ Update Activity</h3>
                         <button
                           onClick={() => {
                             if (!showUpdateForm) {
@@ -1910,259 +1912,27 @@ Error Code: ${activityError.code}`;
                             }
                             setShowUpdateForm(!showUpdateForm);
                           }}
-                          className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all"
+                          className={`px-4 py-2 rounded-lg font-bold transition-all text-sm ${showUpdateForm ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-gradient-to-r from-blue-500 to-blue-700 text-white hover:from-blue-600 hover:to-blue-800'}`}
                         >
-                          {showUpdateForm ? '🔼 Tutup' : '🔽 Buka Form'}
+                          {showUpdateForm ? '✕ Tutup Form' : '▼ Buka Form'}
                         </button>
                       </div>
-
-                      {showUpdateForm && (() => {
-                        // Cek status apa saja yang sudah pernah direcord di activity logs
-                        const doneStatuses = new Set(selectedTicket.activity_logs?.map(l => l.new_status) || []);
-                        const currentStatus = selectedTicket.status;
-
-                        // Urutan tahapan — Pending → Call → Onsite → In Progress → Solved
-                        // Call & Onsite: disabled jika sudah pernah dilakukan
-                        // Pending / In Progress / Solved: selalu available (bisa diulang)
-                        // Aturan urutan: tidak boleh lompat ke Solved tanpa melewati In Progress
-                        const hasInProgress = doneStatuses.has('In Progress') || currentStatus === 'In Progress';
-
-                        const statusBtns = [
-                          {
-                            key: 'Pending',
-                            label: '🟡 Pending',
-                            color: 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900',
-                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
-                            disabled: false,
-                            disabledReason: '',
-                          },
-                          {
-                            key: 'Call',
-                            label: '📞 Call',
-                            color: 'bg-sky-500 hover:bg-sky-600 text-white',
-                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
-                            disabled: doneStatuses.has('Call'),
-                            disabledReason: 'Sudah dilakukan',
-                          },
-                          {
-                            key: 'Onsite',
-                            label: '🚗 Onsite',
-                            color: 'bg-purple-500 hover:bg-purple-600 text-white',
-                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
-                            disabled: doneStatuses.has('Onsite'),
-                            disabledReason: 'Sudah dilakukan',
-                          },
-                          {
-                            key: 'In Progress',
-                            label: '🔵 In Progress',
-                            color: 'bg-blue-500 hover:bg-blue-600 text-white',
-                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
-                            disabled: false,
-                            disabledReason: '',
-                          },
-                          {
-                            key: 'Solved',
-                            label: '✅ Solved',
-                            color: 'bg-green-500 hover:bg-green-600 text-white',
-                            disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
-                            disabled: !hasInProgress,
-                            disabledReason: 'Harus In Progress dulu',
-                          },
-                        ];
-
-                        const isSimple = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
-
-                        return (
-                          <div className="space-y-4 animate-slide-down">
-                            {/* Handler info */}
-                            <div className="bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200 flex items-center gap-2">
-                              <span className="text-gray-500 text-sm">👤 Handler:</span>
-                              <span className="font-bold text-gray-800 text-sm">{newActivity.handler_name}</span>
-                              <span className="text-xs text-gray-400 italic ml-1">(auto dari akun login)</span>
-                            </div>
-
-                            {/* SN Unit */}
-                            <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">🔢 No SN Unit</label>
-                              <input
-                                type="text"
-                                value={newActivity.sn_unit}
-                                onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})}
-                                placeholder="Update SN Unit..."
-                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                              />
-                            </div>
-
-                            {/* Status buttons */}
-                            <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
-                              <label className="block text-sm font-semibold text-gray-700 mb-3">🏷️ Pilih Status Baru *</label>
-                              <div className="grid grid-cols-5 gap-2">
-                                {statusBtns.map(btn => (
-                                  <div key={btn.key} className="flex flex-col items-center gap-1">
-                                    <button
-                                      onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
-                                      disabled={btn.disabled}
-                                      title={btn.disabled ? btn.disabledReason : btn.key}
-                                      className={`w-full py-2 px-1 rounded-xl text-xs font-bold transition-all border-2 ${
-                                        newActivity.new_status === btn.key
-                                          ? 'ring-4 ring-offset-1 ring-blue-400 scale-105 ' + btn.color + ' border-transparent'
-                                          : btn.disabled
-                                          ? btn.disabledColor
-                                          : btn.color + ' border-transparent'
-                                      }`}
-                                    >
-                                      {btn.label}
-                                    </button>
-                                    {btn.disabled && (
-                                      <span className="text-xs text-gray-400 text-center leading-tight">{btn.disabledReason}</span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Call / Onsite — konfirmasi saja */}
-                            {isSimple ? (
-                              <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-purple-50 border-purple-300'}`}>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-3xl">{newActivity.new_status === 'Call' ? '📞' : '🚗'}</span>
-                                  <div>
-                                    <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-purple-800'}`}>
-                                      {newActivity.new_status === 'Call' ? 'Mencatat: Sedang melakukan Call ke customer' : 'Mencatat: Tim sedang Onsite ke lokasi'}
-                                    </p>
-                                    <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-purple-600'}`}>
-                                      Klik Simpan untuk mencatat tahapan ini. Detail diisi saat In Progress atau Solved.
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action Taken</label>
-                                  <input
-                                    type="text"
-                                    value={newActivity.action_taken}
-                                    onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
-                                    placeholder="Contoh: Cek kabel HDMI, restart sistem..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                                  />
-                                </div>
-                                <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes *</label>
-                                  <textarea
-                                    value={newActivity.notes}
-                                    onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
-                                    placeholder="Jelaskan detail penanganan..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
-                                    rows={4}
-                                  />
-                                </div>
-                              </>
-                            )}
-
-                            {currentUserTeamType === 'Team PTS' && (newActivity.new_status === 'Solved' || newActivity.new_status === 'In Progress' || newActivity.new_status === 'Onsite') && (
-                              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border-2 border-red-300 shadow-sm">
-                                <div className="flex items-start gap-3 mb-3">
-                                  <input
-                                    type="checkbox"
-                                    id="assign_services"
-                                    checked={newActivity.assign_to_services}
-                                    onChange={(e) => setNewActivity({...newActivity, assign_to_services: e.target.checked, services_assignee: ''})}
-                                    className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500"
-                                  />
-                                  <label htmlFor="assign_services" className="flex-1 cursor-pointer">
-                                    <span className="block text-sm font-bold text-red-800">🔄 Assign to Team Services</span>
-                                    <span className="text-xs text-red-600">Centang jika perlu ditangani Team Services</span>
-                                  </label>
-                                </div>
-                                {newActivity.assign_to_services && (
-                                  <div className="mt-3 animate-slide-down">
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Handler Team Services *</label>
-                                    <select
-                                      value={newActivity.services_assignee}
-                                      onChange={(e) => setNewActivity({...newActivity, services_assignee: e.target.value})}
-                                      className="w-full border-2 border-red-400 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-100 transition-all bg-white"
-                                    >
-                                      <option value="">-- Pilih Handler --</option>
-                                      {teamServicesMembers.map(m => (
-                                        <option key={m.id} value={m.name}>{m.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">📷 Upload Foto Bukti (JPG/PNG)</label>
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/jpg,image/png"
-                                onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all"
-                              />
-                              {newActivity.photo && (
-                                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                                  <div className="flex items-center gap-2 text-sm mb-2">
-                                    <span className="text-green-700 font-bold">✓</span>
-                                    <span className="text-gray-800 font-semibold">{newActivity.photo.name}</span>
-                                    <span className="text-gray-500">({(newActivity.photo.size / 1024).toFixed(2)} KB)</span>
-                                  </div>
-                                  <img src={URL.createObjectURL(newActivity.photo)} alt="Preview" className="max-w-xs rounded-lg border-2 border-green-300" />
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload Report File (PDF)</label>
-                              <input
-                                type="file"
-                                accept=".pdf"
-                                onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})}
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
-                              />
-                              {newActivity.file && (
-                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <span className="text-blue-700 font-bold">✓</span>
-                                    <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
-                                    <span className="text-gray-500">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <button
-                              onClick={addActivity}
-                              disabled={
-                                uploading ||
-                                (!isSimple && !newActivity.notes.trim()) ||
-                                (newActivity.assign_to_services && !newActivity.services_assignee)
-                              }
-                              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {uploading ? '⏳ Menyimpan...' : '💾 Simpan Activity'}
-                            </button>
-                          </div>
-                        );
-                      })()}
                     </div>
                   )}
                 </div>
               </div>
-              
-              <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
+              <div className="p-3 border-t border-gray-200 bg-gray-50 flex gap-2 flex-shrink-0">
+
                 <button
                   onClick={() => exportToPDF(selectedTicket)}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 font-bold transition-all"
+                  className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 font-semibold transition-all text-sm"
                 >
                   📄 Export PDF
                 </button>
                 {selectedTicket.status === 'Solved' && canUpdateTicket && (
                   <button
                     onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
-                    className="flex-1 bg-amber-500 text-white py-3 rounded-xl hover:bg-amber-600 font-bold transition-all"
+                    className="flex-1 bg-amber-500 text-white py-2.5 rounded-lg hover:bg-amber-600 font-semibold transition-all text-sm"
                   >
                     🔓 Re-open
                   </button>
@@ -2172,11 +1942,258 @@ Error Code: ${activityError.code}`;
                     setShowTicketDetailPopup(false);
                     setSelectedTicket(null);
                   }}
-                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold transition-all"
+                  className="flex-1 bg-gray-700 text-white py-2.5 rounded-lg hover:bg-gray-800 font-semibold transition-all text-sm"
                 >
                   Close
                 </button>
               </div>
+            </div>
+
+            {/* RIGHT: Update Activity Form */}
+            {showUpdateForm && canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && (() => {
+
+            // Cek status apa saja yang sudah pernah direcord di activity logs
+            const doneStatuses = new Set(selectedTicket.activity_logs?.map(l => l.new_status) || []);
+            const currentStatus = selectedTicket.status;
+
+            // Urutan tahapan — Pending → Call → Onsite → In Progress → Solved
+            // Call & Onsite: disabled jika sudah pernah dilakukan
+            // Pending / In Progress / Solved: selalu available (bisa diulang)
+            // Aturan urutan: tidak boleh lompat ke Solved tanpa melewati In Progress
+            const hasInProgress = doneStatuses.has('In Progress') || currentStatus === 'In Progress';
+
+            const statusBtns = [
+              {
+                key: 'Pending',
+                label: '🟡 Pending',
+                color: 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900',
+                disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                disabled: false,
+                disabledReason: '',
+              },
+              {
+                key: 'Call',
+                label: '📞 Call',
+                color: 'bg-sky-500 hover:bg-sky-600 text-white',
+                disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                disabled: doneStatuses.has('Call'),
+                disabledReason: 'Sudah dilakukan',
+              },
+              {
+                key: 'Onsite',
+                label: '🚗 Onsite',
+                color: 'bg-purple-500 hover:bg-purple-600 text-white',
+                disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                disabled: doneStatuses.has('Onsite'),
+                disabledReason: 'Sudah dilakukan',
+              },
+              {
+                key: 'In Progress',
+                label: '🔵 In Progress',
+                color: 'bg-blue-500 hover:bg-blue-600 text-white',
+                disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                disabled: false,
+                disabledReason: '',
+              },
+              {
+                key: 'Solved',
+                label: '✅ Solved',
+                color: 'bg-green-500 hover:bg-green-600 text-white',
+                disabledColor: 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed',
+                disabled: !hasInProgress,
+                disabledReason: 'Harus In Progress dulu',
+              },
+            ];
+
+            const isSimple = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
+
+
+              return (
+              <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-[420px] min-w-[380px] overflow-hidden animate-slide-down">
+                <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-between flex-shrink-0">
+                  <h3 className="font-bold text-white text-base">➕ Update Activity</h3>
+                  <button onClick={() => setShowUpdateForm(false)}
+                    className="text-white hover:bg-white/20 rounded-lg p-1.5 font-bold transition-all text-sm"
+                  >✕ Tutup</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  <div className="space-y-4 animate-slide-down">
+                    {/* Handler info */}
+                    <div className="bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200 flex items-center gap-2">
+                      <span className="text-gray-500 text-sm">👤 Handler:</span>
+                      <span className="font-bold text-gray-800 text-sm">{newActivity.handler_name}</span>
+                      <span className="text-xs text-gray-400 italic ml-1">(auto dari akun login)</span>
+                    </div>
+
+                    {/* SN Unit */}
+                    <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">🔢 No SN Unit</label>
+                      <input
+                        type="text"
+                        value={newActivity.sn_unit}
+                        onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})}
+                        placeholder="Update SN Unit..."
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                      />
+                    </div>
+
+                    {/* Status buttons */}
+                    <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">🏷️ Pilih Status Baru *</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {statusBtns.map(btn => (
+                          <div key={btn.key} className="flex flex-col items-center gap-1">
+                            <button
+                              onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
+                              disabled={btn.disabled}
+                              title={btn.disabled ? btn.disabledReason : btn.key}
+                              className={`w-full py-2 px-1 rounded-xl text-xs font-bold transition-all border-2 ${
+                                newActivity.new_status === btn.key
+                                  ? 'ring-4 ring-offset-1 ring-blue-400 scale-105 ' + btn.color + ' border-transparent'
+                                  : btn.disabled
+                                  ? btn.disabledColor
+                                  : btn.color + ' border-transparent'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                            {btn.disabled && (
+                              <span className="text-xs text-gray-400 text-center leading-tight">{btn.disabledReason}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Call / Onsite — konfirmasi saja */}
+                    {isSimple ? (
+                      <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-purple-50 border-purple-300'}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-3xl">{newActivity.new_status === 'Call' ? '📞' : '🚗'}</span>
+                          <div>
+                            <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-purple-800'}`}>
+                              {newActivity.new_status === 'Call' ? 'Mencatat: Sedang melakukan Call ke customer' : 'Mencatat: Tim sedang Onsite ke lokasi'}
+                            </p>
+                            <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-purple-600'}`}>
+                              Klik Simpan untuk mencatat tahapan ini. Detail diisi saat In Progress atau Solved.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">🔧 Action Taken</label>
+                          <input
+                            type="text"
+                            value={newActivity.action_taken}
+                            onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
+                            placeholder="Contoh: Cek kabel HDMI, restart sistem..."
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                          />
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes *</label>
+                          <textarea
+                            value={newActivity.notes}
+                            onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
+                            placeholder="Jelaskan detail penanganan..."
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
+                            rows={4}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {currentUserTeamType === 'Team PTS' && (newActivity.new_status === 'Solved' || newActivity.new_status === 'In Progress' || newActivity.new_status === 'Onsite') && (
+                      <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-4 border-2 border-red-300 shadow-sm">
+                        <div className="flex items-start gap-3 mb-3">
+                          <input
+                            type="checkbox"
+                            id="assign_services"
+                            checked={newActivity.assign_to_services}
+                            onChange={(e) => setNewActivity({...newActivity, assign_to_services: e.target.checked, services_assignee: ''})}
+                            className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-2 focus:ring-red-500"
+                          />
+                          <label htmlFor="assign_services" className="flex-1 cursor-pointer">
+                            <span className="block text-sm font-bold text-red-800">🔄 Assign to Team Services</span>
+                            <span className="text-xs text-red-600">Centang jika perlu ditangani Team Services</span>
+                          </label>
+                        </div>
+                        {newActivity.assign_to_services && (
+                          <div className="mt-3 animate-slide-down">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Handler Team Services *</label>
+                            <select
+                              value={newActivity.services_assignee}
+                              onChange={(e) => setNewActivity({...newActivity, services_assignee: e.target.value})}
+                              className="w-full border-2 border-red-400 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-100 transition-all bg-white"
+                            >
+                              <option value="">-- Pilih Handler --</option>
+                              {teamServicesMembers.map(m => (
+                                <option key={m.id} value={m.name}>{m.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">📷 Upload Foto Bukti (JPG/PNG)</label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png"
+                        onChange={(e) => setNewActivity({...newActivity, photo: e.target.files?.[0] || null})}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all"
+                      />
+                      {newActivity.photo && (
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm mb-2">
+                            <span className="text-green-700 font-bold">✓</span>
+                            <span className="text-gray-800 font-semibold">{newActivity.photo.name}</span>
+                            <span className="text-gray-500">({(newActivity.photo.size / 1024).toFixed(2)} KB)</span>
+                          </div>
+                          <img src={URL.createObjectURL(newActivity.photo)} alt="Preview" className="max-w-xs rounded-lg border-2 border-green-300" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">📎 Upload Report File (PDF)</label>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => setNewActivity({...newActivity, file: e.target.files?.[0] || null})}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all"
+                      />
+                      {newActivity.file && (
+                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-blue-700 font-bold">✓</span>
+                            <span className="text-gray-800 font-semibold">{newActivity.file.name}</span>
+                            <span className="text-gray-500">({(newActivity.file.size / 1024).toFixed(2)} KB)</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={addActivity}
+                      disabled={
+                        uploading ||
+                        (!isSimple && !newActivity.notes.trim()) ||
+                        (newActivity.assign_to_services && !newActivity.services_assignee)
+                      }
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {uploading ? '⏳ Menyimpan...' : '💾 Simpan Activity'}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+              );
+            })()}
             </div>
           </div>
         )}
