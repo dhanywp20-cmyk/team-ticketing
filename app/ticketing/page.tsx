@@ -195,13 +195,13 @@ export default function TicketingSystem() {
   });
 
   const statusColors: Record<string, string> = {
-    'Waiting Approval': 'bg-orange-100 text-orange-800 border-orange-400',
-    'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-400',
-    'Call': 'bg-sky-100 text-sky-800 border-sky-400',
-    'Onsite': 'bg-purple-100 text-purple-800 border-purple-400',
-    'In Progress': 'bg-blue-100 text-blue-800 border-blue-400',
-    'Solved': 'bg-green-100 text-green-800 border-green-400',
-    'Overdue': 'bg-red-100 text-red-800 border-red-500',
+    'Waiting Approval': 'bg-orange-50 text-orange-700 border border-orange-200',
+    'Pending': 'bg-amber-50 text-amber-700 border border-amber-200',
+    'Call': 'bg-sky-50 text-sky-700 border border-sky-200',
+    'Onsite': 'bg-violet-50 text-violet-700 border border-violet-200',
+    'In Progress': 'bg-blue-50 text-blue-700 border border-blue-200',
+    'Solved': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    'Overdue': 'bg-red-50 text-red-700 border border-red-200',
   };
 
   const checkSessionTimeout = () => {
@@ -339,7 +339,9 @@ export default function TicketingSystem() {
 
   const fetchOverdueSettings = async () => {
     try {
-      const { data } = await supabase.from('overdue_settings').select('*');
+      const { data } = await supabase
+        .from('overdue_settings')
+        .select('*');
       if (data) setOverdueSettings(data);
     } catch (e) { console.error(e); }
   };
@@ -396,19 +398,26 @@ export default function TicketingSystem() {
 
   const formatDateTime = (dateString: string) => {
     if (!dateString) return '-';
+    
+    // Ensure the string is treated as UTC by appending Z if no timezone info
     let normalized = dateString;
-    if (!dateString.endsWith('Z') && !dateString.includes('+') && !(dateString.indexOf('-', 10) > -1)) {
+    if (!dateString.endsWith('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
       normalized = dateString + 'Z';
     }
+    
     const utcDate = new Date(normalized);
     if (isNaN(utcDate.getTime())) return dateString;
+    
+    // Convert to Jakarta time (UTC+7)
     const jakartaTime = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+    
     const day = String(jakartaTime.getUTCDate()).padStart(2, '0');
     const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, '0');
     const year = jakartaTime.getUTCFullYear();
     const hours = String(jakartaTime.getUTCHours()).padStart(2, '0');
     const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, '0');
     const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, '0');
+    
     return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
   };
 
@@ -641,34 +650,72 @@ export default function TicketingSystem() {
     }
   };
 
-
   const reopenTicket = async () => {
-    if (!reopenTargetTicket || !reopenAssignee) return;
+    if (!reopenTargetTicket) return;
+    if (!reopenAssignee) {
+      alert('Pilih handler Team PTS terlebih dahulu!');
+      return;
+    }
     try {
-      setUploading(true); setShowLoadingPopup(true); setLoadingMessage('Re-opening ticket...');
-      const { error: ue } = await supabase.from('tickets').update({
-        status: 'Pending', assigned_to: reopenAssignee, current_team: 'Team PTS', services_status: null,
-      }).eq('id', reopenTargetTicket.id);
-      if (ue) throw ue;
-      await supabase.from('activity_logs').insert([{
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage('Re-opening ticket...');
+
+      const { error: updateError } = await supabase
+        .from('tickets')
+        .update({
+          status: 'Pending',
+          assigned_to: reopenAssignee,
+          current_team: 'Team PTS',
+          services_status: null,
+        })
+        .eq('id', reopenTargetTicket.id);
+
+      if (updateError) throw updateError;
+
+      const member = teamMembers.find(
+        m => (m.username || '').toLowerCase() === (currentUser?.username || '').toLowerCase()
+      );
+      const activityData = {
         ticket_id: reopenTargetTicket.id,
-        handler_name: currentUser?.full_name || '',
+        handler_name: member?.name || currentUser?.full_name || '',
         handler_username: currentUser?.username || '',
         action_taken: 'Re-open Ticket',
-        notes: reopenNotes ? `Dibuka kembali: ${reopenNotes}` : `Ticket dibuka kembali oleh ${currentUser?.full_name}`,
-        new_status: 'Pending', team_type: 'Team PTS', assigned_to_services: false,
-        file_url: '', file_name: '', photo_url: '', photo_name: '',
-      }]);
+        notes: reopenNotes
+          ? `Ticket dibuka kembali karena: ${reopenNotes}`
+          : `Ticket dibuka kembali oleh ${currentUser?.full_name}. Assigned ke: ${reopenAssignee}`,
+        new_status: 'Pending',
+        team_type: 'Team PTS',
+        assigned_to_services: false,
+        file_url: '',
+        file_name: '',
+        photo_url: '',
+        photo_name: '',
+      };
+
+      const { error: activityError } = await supabase
+        .from('activity_logs')
+        .insert([activityData]);
+
+      if (activityError) throw activityError;
+
       await fetchData();
+
       setLoadingMessage('✅ Ticket berhasil dibuka kembali!');
       setTimeout(() => {
-        setShowLoadingPopup(false); setUploading(false);
-        setShowReopenModal(false); setReopenTargetTicket(null);
-        setReopenAssignee(''); setReopenNotes('');
-        setShowTicketDetailPopup(false); setSelectedTicket(null);
+        setShowLoadingPopup(false);
+        setUploading(false);
+        setShowReopenModal(false);
+        setReopenTargetTicket(null);
+        setReopenAssignee('');
+        setReopenNotes('');
+        setShowTicketDetailPopup(false);
+        setSelectedTicket(null);
       }, 1500);
     } catch (err: any) {
-      setShowLoadingPopup(false); setUploading(false); alert('Error: ' + err.message);
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert('Error: ' + err.message);
     }
   };
 
@@ -1507,7 +1554,9 @@ Error Code: ${activityError.code}`;
       fetchGuestMappings();
       loadReminderSchedule();
     }
-    if (currentUser) fetchOverdueSettings();
+    if (currentUser) {
+      fetchOverdueSettings();
+    }
   }, [currentUser]);
 
   useEffect(() => {
@@ -1530,9 +1579,9 @@ Error Code: ${activityError.code}`;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: "linear-gradient(135deg, rgba(127,29,29,0.82) 0%, rgba(153,27,27,0.78) 40%, rgba(185,28,28,0.72) 100%), url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
         <div className="bg-white/75 p-8 rounded-2xl shadow-2xl">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto"></div>
           <p className="mt-4 font-bold">Loading...</p>
         </div>
       </div>
@@ -1541,9 +1590,9 @@ Error Code: ${activityError.code}`;
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
-          <h1 className="text-3xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: "linear-gradient(135deg, rgba(127,29,29,0.82) 0%, rgba(153,27,27,0.78) 40%, rgba(185,28,28,0.72) 100%), url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">
             Login
           </h1>
           <p className="text-center text-gray-700 font-bold mb-6">Reminder Troubleshooting<br/>IVP Product</p>
@@ -1555,7 +1604,7 @@ Error Code: ${activityError.code}`;
                 type="text"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
-                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200"
+                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-700 focus:ring-2 focus:ring-red-100"
                 placeholder="Enter username"
               />
             </div>
@@ -1565,14 +1614,15 @@ Error Code: ${activityError.code}`;
                 type="password"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200"
+                className="w-full border-3 border-gray-300 rounded-xl px-4 py-3 focus:border-red-700 focus:ring-2 focus:ring-red-100"
                 placeholder="Enter password"
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
               />
             </div>
             <button
               onClick={handleLogin}
-              className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all"
+              className="w-full text-white py-3 rounded-xl font-bold shadow-md transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
             >
               🔐 Login
             </button>
@@ -1583,15 +1633,15 @@ Error Code: ${activityError.code}`;
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+    <div className="min-h-screen bg-gray-50">
       {showLoadingPopup && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
-          <div className="bg-white/70 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border-4 border-blue-500 animate-scale-in">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[10000]">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 animate-scale-in">
             <div className="flex flex-col items-center">
               {loadingMessage.includes('✅') ? (
                 <div className="text-6xl mb-4 animate-bounce">✅</div>
               ) : (
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-700 mb-4"></div>
               )}
               <p className="text-xl font-bold text-gray-800 text-center">{loadingMessage}</p>
             </div>
@@ -1600,23 +1650,25 @@ Error Code: ${activityError.code}`;
       )}
 
       {uploading && !showLoadingPopup && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-red-800 via-red-600 to-red-400">
           <div className="h-full bg-gradient-to-r from-transparent via-white to-transparent animate-pulse"></div>
         </div>
       )}
 
-      <div className="max-w-[1600px] mx-auto">
+      {/* Red header zone with background image */}
+      <div style={{backgroundImage:"linear-gradient(135deg,rgba(127,29,29,0.92) 0%,rgba(153,27,27,0.88) 40%,rgba(185,28,28,0.85) 100%),url(/IVP_Background.png)",backgroundSize:"cover",backgroundPosition:"center"}} className="pb-6">
+      <div className="max-w-[1600px] mx-auto px-6 pt-4 pb-0">
         {showNotifications && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/70 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
-              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-yellow-400 to-yellow-500">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
+              <div className="p-5 border-b border-gray-100">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">🔔</span>
                     <div>
-                      <h3 className="text-xl font-bold text-white">Ticket Notifications</h3>
+                      <h3 className="text-base font-semibold text-gray-800">Ticket Notifications</h3>
                       {notifications.length > 0 && (
-                        <p className="text-sm text-white/90">
+                        <p className="text-sm text-gray-500">
                           {notifications.length} tickets need attention
                         </p>
                       )}
@@ -1690,7 +1742,8 @@ Error Code: ${activityError.code}`;
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button
                   onClick={() => setShowNotifications(false)}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all"
+                  className="w-full text-white py-3 rounded-xl font-bold transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
                 >
                   Close
                 </button>
@@ -1700,8 +1753,8 @@ Error Code: ${activityError.code}`;
         )}
 
         {showNotificationPopup && notifications.length > 0 && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white/75 rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-4xl">🔔</span>
                 <h3 className="text-xl font-bold text-gray-800">Ticket Notifications</h3>
@@ -1722,7 +1775,7 @@ Error Code: ${activityError.code}`;
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-bold text-sm flex-1">{ticket.project_name}</p>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
                         {ticket.current_team}
                       </span>
                     </div>
@@ -1733,7 +1786,7 @@ Error Code: ${activityError.code}`;
               </div>
               <button
                 onClick={() => setShowNotificationPopup(false)}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold"
+                className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white py-3 rounded-xl hover:from-red-900 hover:to-red-950 font-bold"
               >
                 Close
               </button>
@@ -1742,13 +1795,13 @@ Error Code: ${activityError.code}`;
         )}
 
         {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999] p-2">
-            <div className="bg-white/85 rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
-              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[9999] p-2">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full h-[96vh] flex flex-col animate-scale-in">
+              <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-900 to-red-700">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold text-white">🏢 {selectedTicket.project_name}</h2>
-                    <span className="text-sm px-3 py-1 rounded-full bg-white/80 text-white font-bold">
+                    <h2 className="text-xl font-bold text-gray-800">{selectedTicket.project_name}</h2>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
                       {selectedTicket.current_team}
                     </span>
                   </div>
@@ -1757,7 +1810,7 @@ Error Code: ${activityError.code}`;
                       setShowTicketDetailPopup(false);
                       setSelectedTicket(null);
                     }}
-                    className="text-white hover:bg-white/90 rounded-lg p-2 font-bold transition-all"
+                    className="text-gray-400 hover:text-gray-600 rounded-lg p-2 transition-all"
                   >
                     ✕
                   </button>
@@ -1846,12 +1899,12 @@ Error Code: ${activityError.code}`;
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? (
                         selectedTicket.activity_logs.map((log) => (
-                          <div key={log.id} className="activity-log">
+                          <div key={log.id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-3">
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
                                   <p className="font-bold text-gray-800">{log.handler_name}</p>
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
                                     {log.team_type}
                                   </span>
                                 </div>
@@ -1863,12 +1916,12 @@ Error Code: ${activityError.code}`;
                               </span>
                             </div>
                             {log.action_taken && (
-                              <div className="bg-blue-50 border-l-4 border-blue-500 rounded px-3 py-2 mb-2">
-                                <p className="text-sm font-bold text-blue-900">🔧 Action :</p>
+                              <div className="bg-red-50 border-l-4 border-red-600 rounded px-3 py-2 mb-2">
+                                <p className="text-sm font-bold text-red-900">🔧 Action :</p>
                                 <p className="text-sm text-gray-900">{log.action_taken}</p>
                               </div>
                             )}
-                            <p className="text-sm font-bold text-blue-900">Notes :</p>
+                            <p className="text-sm font-bold text-red-900">Notes :</p>
                             <p className="text-sm text-gray-900">{log.notes}</p>
                             {log.assigned_to_services && (
                               <div className="mt-2 p-2 bg-red-50 border-l-4 border-red-500 rounded">
@@ -1910,7 +1963,8 @@ Error Code: ${activityError.code}`;
                             }
                             setShowUpdateForm(!showUpdateForm);
                           }}
-                          className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all"
+                          className="text-white px-4 py-2 rounded-lg font-bold transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
                         >
                           {showUpdateForm ? '🔼 Tutup' : '🔽 Buka Form'}
                         </button>
@@ -1989,7 +2043,7 @@ Error Code: ${activityError.code}`;
                                 value={newActivity.sn_unit}
                                 onChange={(e) => setNewActivity({...newActivity, sn_unit: e.target.value})}
                                 placeholder="Update SN Unit..."
-                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white"
                               />
                             </div>
 
@@ -2045,7 +2099,7 @@ Error Code: ${activityError.code}`;
                                     value={newActivity.action_taken}
                                     onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
                                     placeholder="Contoh: Cek kabel HDMI, restart sistem..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white"
                                   />
                                 </div>
                                 <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
@@ -2054,7 +2108,7 @@ Error Code: ${activityError.code}`;
                                     value={newActivity.notes}
                                     onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
                                     placeholder="Jelaskan detail penanganan..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white resize-none"
                                     rows={4}
                                   />
                                 </div>
@@ -2140,7 +2194,8 @@ Error Code: ${activityError.code}`;
                                 (!isSimple && !newActivity.notes.trim()) ||
                                 (newActivity.assign_to_services && !newActivity.services_assignee)
                               }
-                              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full text-white px-6 py-3.5 rounded-xl font-bold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
                             >
                               {uploading ? '⏳ Menyimpan...' : '💾 Simpan Activity'}
                             </button>
@@ -2161,7 +2216,12 @@ Error Code: ${activityError.code}`;
                 </button>
                 {selectedTicket.status === 'Solved' && canUpdateTicket && (
                   <button
-                    onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
+                    onClick={() => {
+                      setReopenTargetTicket(selectedTicket);
+                      setReopenAssignee(selectedTicket.assigned_to || '');
+                      setReopenNotes('');
+                      setShowReopenModal(true);
+                    }}
                     className="flex-1 bg-amber-500 text-white py-3 rounded-xl hover:bg-amber-600 font-bold transition-all"
                   >
                     🔓 Re-open
@@ -2172,7 +2232,7 @@ Error Code: ${activityError.code}`;
                     setShowTicketDetailPopup(false);
                     setSelectedTicket(null);
                   }}
-                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold transition-all"
+                  className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200"
                 >
                   Close
                 </button>
@@ -2181,16 +2241,16 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div className="mb-4">
+          <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-0.5">
                 📋 Reminder Troubleshooting
               </h1>
-              <p className="text-gray-800 font-bold text-lg">IVP Product</p>
+              <p className="text-red-200 font-medium text-sm">IVP Product</p>
               <p className="text-sm text-gray-600">
-                Welcome: <span className="font-bold text-red-600">{currentUser?.full_name}</span>
-                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-bold">
+                Welcome: <span className="font-bold text-white">{currentUser?.full_name}</span>
+                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-white/20 text-white font-medium">
                   {currentUser?.role === 'admin' ? 'Administrator' : currentUser?.role === 'team' ? `Team - ${currentUserTeamType}` : 'Guest'}
                 </span>
               </p>
@@ -2199,12 +2259,12 @@ Error Code: ${activityError.code}`;
               {currentUser?.role !== 'guest' && (
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="relative bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-xl hover:from-yellow-600 hover:to-yellow-700 font-bold shadow-lg transition-all"
+                className="relative bg-white/15 hover:bg-white/25 text-white px-4 py-2.5 rounded-lg font-semibold transition-all border border-white/30 text-sm"
                 title="Notifications"
               >
                 🔔
                 {notifications.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {notifications.length}
                   </span>
                 )}
@@ -2214,11 +2274,11 @@ Error Code: ${activityError.code}`;
               {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
                 <button
                   onClick={() => setShowApprovalModal(true)}
-                  className="relative bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-3 rounded-xl hover:from-orange-600 hover:to-orange-700 font-bold shadow-lg transition-all animate-pulse"
+                  className="relative bg-white/15 hover:bg-white/25 text-white px-4 py-2.5 rounded-lg font-semibold transition-all border border-white/30 text-sm animate-pulse"
                   title="Tickets waiting for approval"
                 >
                   ⏳ Approval
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-400 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {pendingApprovalTickets.length}
                   </span>
                 </button>
@@ -2267,7 +2327,7 @@ Error Code: ${activityError.code}`;
                     setShowGuestMapping(false);
                     setShowNewTicket(false);
                   }}
-                  className="bg-gradient-to-r from-violet-600 to-violet-800 text-white px-5 py-3 rounded-xl hover:from-violet-700 hover:to-violet-900 font-bold shadow-lg transition-all"
+                  className="bg-white/15 hover:bg-white/25 text-white px-4 py-2.5 rounded-lg font-semibold transition-all border border-white/30 text-sm"
                   title={`Reminder: ${getCronDisplay()}`}
                 >
                   ⏰ Reminder
@@ -2279,213 +2339,156 @@ Error Code: ${activityError.code}`;
             </div>
           </div>
         </div>
+        {/* Stat Cards in red header area */}
 
         {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
-          <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
-            
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Total Tickets</p>
-                  <span className="text-2xl">📊</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.total}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: '100%'}}></div>
-                </div>
+          <div className="max-w-[1600px] mx-auto px-6 pb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-0">
+              {/* Total */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">📊</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.total}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Total Tickets</p>
+                <p className="text-xs text-white/60 mt-0.5">Seluruh tiket</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Pending</p>
-                  <span className="text-2xl">⏳</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.pending}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.pending/stats.total*100) : 0}%`}}></div>
-                </div>
+              {/* Pending */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">⏳</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.pending}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Pending</p>
+                <p className="text-xs text-white/60 mt-0.5">Menunggu tindakan</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">In Progress</p>
-                  <span className="text-2xl">🔄</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.processing}</p>
-                <div className="h-1 bg-white/30 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.processing/stats.total*100) : 0}%`}}></div>
-                </div>
+              {/* In Progress */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">🔄</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.processing}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">In Progress</p>
+                <p className="text-xs text-white/60 mt-0.5">Sedang ditangani</p>
               </div>
-              <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Solved</p>
-                  <span className="text-2xl">✅</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.solved}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solved/stats.total*100) : 0}%`}}></div>
-                </div>
+              {/* Solved */}
+              <div className="rounded-xl p-4 text-center cursor-default" style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}>
+                <div className="text-2xl mb-1">✅</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.solved}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Solved</p>
+                <p className="text-xs text-white/60 mt-0.5">Terselesaikan</p>
               </div>
+              {/* Overdue */}
               <div
-                className="stat-card bg-gradient-to-br from-red-500 via-red-600 to-red-700 cursor-pointer"
+                className="rounded-xl p-4 text-center cursor-pointer hover:scale-105 transition-transform"
+                style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}
                 onClick={() => { setFilterStatus('Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Overdue</p>
-                  <span className="text-2xl">🚨</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.overdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.overdue/stats.total*100) : 0}%`}}></div>
-                </div>
+                <div className="text-2xl mb-1">🚨</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.overdue}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Overdue</p>
+                <p className="text-xs text-white/60 mt-0.5">Berpotensi denda</p>
               </div>
+              {/* Solved Overdue */}
               <div
-                className="stat-card bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 cursor-pointer"
+                className="rounded-xl p-4 text-center cursor-pointer hover:scale-105 transition-transform"
+                style={{background:"rgba(255,255,255,0.13)",border:"1px solid rgba(255,255,255,0.22)",backdropFilter:"blur(6px)"}}
                 onClick={() => { setFilterStatus('Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-                title="Ticket yang sudah Solved namun diselesaikan melewati batas waktu"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm opacity-90 font-semibold">Solved Overdue</p>
-                  <span className="text-2xl">⚠️</span>
-                </div>
-                <p className="text-4xl font-bold mb-1">{stats.solvedOverdue}</p>
-                <div className="h-1 bg-white/20 rounded-full mt-2">
-                  <div className="h-full bg-white rounded-full" style={{width: `${stats.total > 0 ? (stats.solvedOverdue/stats.total*100) : 0}%`}}></div>
-                </div>
+                <div className="text-2xl mb-1">⚠️</div>
+                <p className="text-3xl font-bold text-white leading-none">{stats.solvedOverdue}</p>
+                <p className="text-xs font-semibold text-white mt-1.5">Solved Overdue</p>
+                <p className="text-xs text-white/60 mt-0.5">Butuh verifikasi</p>
               </div>
             </div>
+          </div>
+        )}
+        </div>{/* end red header zone */}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="chart-container bg-gradient-to-br from-white to-gray-50">
-                <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
-                  <span className="text-xl">🥧</span>
-                  Status Distribution
+        {/* ── WHITE BODY ─────────────────────────────────────── */}
+        <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-[1600px] mx-auto px-6 py-6">
+
+        {/* Charts */}
+        {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <h3 className="font-bold mb-4 text-gray-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                <span className="text-lg">🥧</span> Status Distribution
+              </h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={stats.statusData}
+                    cx="50%" cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={85} dataKey="value"
+                    onClick={(data) => {
+                      const statusMap: Record<string, string> = { 'Pending':'Pending','In Progress':'In Progress','Solved':'Solved','Overdue':'Overdue' };
+                      setFilterStatus(statusMap[data.name] || 'All');
+                      setHandlerFilter(null);
+                      ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {stats.statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(value: number, name: string) => [`${value} tiket`, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-center text-gray-400 mt-1 italic">Click chart to filter</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                  <span className="text-lg">📊</span> Team Handlers
                 </h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie 
-                      data={stats.statusData} 
-                      cx="50%" 
-                      cy="50%" 
-                      labelLine={false} 
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`} 
-                      outerRadius={90} 
-                      dataKey="value"
-                      onClick={(data) => {
-                        const statusMap: Record<string, string> = {
-                          'Pending': 'Pending',
-                          'In Progress': 'In Progress',
-                          'Solved': 'Solved',
-                          'Overdue': 'Overdue'
-                        };
-                        setFilterStatus(statusMap[data.name] || 'All');
-                        setHandlerFilter(null);
-                        ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {stats.statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip formatter={(value: number, name: string) => [`${value} tiket`, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <p className="text-xs text-center text-gray-500 mt-2 italic">Click on chart to filter status</p>
-              </div>
-
-              <div className="chart-container bg-gradient-to-br from-white to-gray-50 flex flex-col gap-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <span className="text-xl">📊</span>
-                    Team Handlers
-                  </h3>
-                  <div className="flex bg-gray-200 rounded-lg p-1">
-                    <button
-                      onClick={() => setSelectedHandlerTeam('PTS')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        selectedHandlerTeam === 'PTS'
-                          ? 'bg-white text-purple-600 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      PTS
-                    </button>
-                    <button
-                      onClick={() => setSelectedHandlerTeam('Services')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        selectedHandlerTeam === 'Services'
-                          ? 'bg-white text-pink-600 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      Services
-                    </button>
-                  </div>
+                <div className="flex bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setSelectedHandlerTeam('PTS')}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${selectedHandlerTeam === 'PTS' ? 'bg-white text-red-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >PTS</button>
+                  <button
+                    onClick={() => setSelectedHandlerTeam('Services')}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${selectedHandlerTeam === 'Services' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >Services</button>
                 </div>
-
-                {selectedHandlerTeam === 'PTS' ? (
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={stats.handlerData.filter(h => h.team === 'Team PTS')}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(chartData) => {
-                          if (chartData?.activePayload?.[0]) {
-                            const name = chartData.activePayload[0].payload.name;
-                            setHandlerFilter(prev => prev === name ? null : name);
-                            setFilterStatus('All');
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
-                          {stats.handlerData.filter(h => h.team === 'Team PTS').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#6d28d9' : '#8b5cf6'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-center text-gray-500 mt-1 italic">Click bar to filter by handler{handlerFilter ? ` — Aktif: ${handlerFilter}` : ''}</p>
-                  </div>
-                ) : (
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={stats.handlerData.filter(h => h.team === 'Team Services')}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(chartData) => {
-                          if (chartData?.activePayload?.[0]) {
-                            const name = chartData.activePayload[0].payload.name;
-                            setHandlerFilter(prev => prev === name ? null : name);
-                            setFilterStatus('All');
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
-                          {stats.handlerData.filter(h => h.team === 'Team Services').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#be185d' : '#ec4899'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-center text-gray-500 mt-1 italic">Click bar to filter by handler{handlerFilter ? ` — Aktif: ${handlerFilter}` : ''}</p>
-                  </div>
-                )}
               </div>
+              {selectedHandlerTeam === 'PTS' ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.handlerData.filter(h => h.team === 'Team PTS')} style={{ cursor: 'pointer' }}
+                    onClick={(chartData) => { if (chartData?.activePayload?.[0]) { const name = chartData.activePayload[0].payload.name; setHandlerFilter(prev => prev === name ? null : name); setFilterStatus('All'); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
+                      {stats.handlerData.filter(h => h.team === 'Team PTS').map((entry, i) => (
+                        <Cell key={i} fill={handlerFilter === entry.name ? '#7f1d1d' : '#b91c1c'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.handlerData.filter(h => h.team === 'Team Services')} style={{ cursor: 'pointer' }}
+                    onClick={(chartData) => { if (chartData?.activePayload?.[0]) { const name = chartData.activePayload[0].payload.name; setHandlerFilter(prev => prev === name ? null : name); setFilterStatus('All'); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); } }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
+                      {stats.handlerData.filter(h => h.team === 'Team Services').map((entry, i) => (
+                        <Cell key={i} fill={handlerFilter === entry.name ? '#991b1b' : '#dc2626'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              <p className="text-xs text-center text-gray-400 mt-1 italic">Click bar to filter{handlerFilter ? ` — Active: ${handlerFilter}` : ''}</p>
             </div>
           </div>
         )}
 
         {showAccountSettings && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-gray-400 animate-scale-in relative">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowAccountSettings(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -2496,24 +2499,25 @@ Error Code: ${activityError.code}`;
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/60 rounded-xl p-5 border-2 border-blue-300 shadow-sm">
-                <h3 className="font-bold mb-4 text-blue-900">➕ Create New Account</h3>
+                <h3 className="font-bold mb-4 text-gray-800">➕ Create New Account</h3>
                 <div className="space-y-3">
-                  <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="input-field-simple" />
-                  <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="input-field-simple" />
-                  <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="input-field-simple" />
-                  <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="input-field-simple">
+                  <input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({...newUser, username: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                  <input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                  <input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({...newUser, full_name: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                  <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700">
                     <option value="admin">Administrator</option>
                     <option value="team">Team</option>
                     <option value="guest">Guest</option>
                   </select>
                   
                   {newUser.role === 'team' && (
-                    <select value={newUser.team_type} onChange={(e) => setNewUser({...newUser, team_type: e.target.value})} className="input-field-simple">
+                    <select value={newUser.team_type} onChange={(e) => setNewUser({...newUser, team_type: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700">
                       <option value="Team PTS">Team PTS</option>
                       <option value="Team Services">Team Services</option>
                     </select>
                   )}
-                  <button onClick={createUser} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all">
+                  <button onClick={createUser} className="w-full text-white py-3 rounded-xl font-bold transition-all hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}>
                     ➕ Create Account
                   </button>
                 </div>
@@ -2528,7 +2532,7 @@ Error Code: ${activityError.code}`;
                       setSelectedUserForPassword(e.target.value);
                       setChangePassword({ current: '', new: '', confirm: '' });
                     }} 
-                    className="input-field-simple"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700"
                   >
                     <option value="">Select User</option>
                     {users.map(u => (
@@ -2538,9 +2542,9 @@ Error Code: ${activityError.code}`;
                   
                   {selectedUserForPassword && (
                     <>
-                      <input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({...changePassword, current: e.target.value})} className="input-field-simple" />
-                      <input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({...changePassword, new: e.target.value})} className="input-field-simple" />
-                      <input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({...changePassword, confirm: e.target.value})} className="input-field-simple" />
+                      <input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({...changePassword, current: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                      <input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({...changePassword, new: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
+                      <input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({...changePassword, confirm: e.target.value})} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700" />
                       <button onClick={updatePassword} className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all">
                         🔒 Change Password
                       </button>
@@ -2584,19 +2588,19 @@ Error Code: ${activityError.code}`;
         )}
 
         {showGuestMapping && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-teal-500 animate-scale-in relative">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowGuestMapping(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
             >
                 ✕
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-teal-800">👥 Guest Mapping - Project Access</h2>
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">👥 Guest Mapping - Project Access</h2>
             <p className="text-gray-600 mb-6">Manage guest user access to specific projects. One guest can have access to multiple projects.</p>
             
-            <div className="bg-white/50 rounded-xl p-6 border-2 border-teal-300 mb-6">
-              <h3 className="font-bold mb-4 text-lg text-teal-900">➕ Add New Mapping</h3>
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
+              <h3 className="font-bold mb-4 text-lg text-gray-800">➕ Add New Mapping</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -2604,7 +2608,7 @@ Error Code: ${activityError.code}`;
                   <select 
                     value={newMapping.guestUsername} 
                     onChange={(e) => setNewMapping({...newMapping, guestUsername: e.target.value})} 
-                    className="input-field-simple"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700"
                   >
                     <option value="">Select Guest User</option>
                     {users.filter(u => u.role === 'guest').map(u => (
@@ -2617,7 +2621,7 @@ Error Code: ${activityError.code}`;
                   <select 
                     value={newMapping.projectName} 
                     onChange={(e) => setNewMapping({...newMapping, projectName: e.target.value})} 
-                    className="input-field-simple"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700"
                   >
                     <option value="">Select Project Name</option>
                     {uniqueProjectNames.map(name => (
@@ -2627,7 +2631,7 @@ Error Code: ${activityError.code}`;
                 </div>
               </div>
               
-              <button onClick={addGuestMapping} disabled={uploading} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-xl transition-all disabled:opacity-50">
+              <button onClick={addGuestMapping} disabled={uploading} className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white px-6 py-3 rounded-xl hover:from-red-900 hover:to-red-950 font-bold shadow-xl transition-all disabled:opacity-50">
                 {uploading ? '⏳ Processing...' : '➕ Add Mapping'}
               </button>
             </div>
@@ -2686,16 +2690,28 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-blue-500">
-          <div className="flex flex-col md:flex-row gap-4">
+      {/* ── SEARCH & TICKET LIST ─────────────────────────── */}
+
+        {/* Search & Filter Bar */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-5">
+          <div className="flex flex-col md:flex-row gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-sm font-bold mb-2">🔍 Search</label>
-              <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="Search by project, issue, or sales..." className="input-field" />
+              <input
+                type="text"
+                value={searchProject}
+                onChange={(e) => setSearchProject(e.target.value)}
+                placeholder="Cari project, issue, atau sales..."
+                className="w-full border border-gray-200 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-50 bg-white text-gray-700"
+              />
             </div>
-            <div className="md:w-64">
-              <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
-              <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field">
-                <option value="All">All Status</option>
+            <div className="md:w-48 relative">
+              <label className="absolute -top-2 left-3 text-xs text-gray-400 bg-white px-1">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }}
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white text-gray-700 appearance-none"
+              >
+                <option value="All">Semua Status</option>
                 <option value="Waiting Approval">⏳ Waiting Approval</option>
                 <option value="Pending">🟡 Pending</option>
                 <option value="Call">📞 Call</option>
@@ -2712,21 +2728,21 @@ Error Code: ${activityError.code}`;
             </div>
           </div>
           {(filterStatus !== 'All' || handlerFilter) && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
               {filterStatus !== 'All' && (
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 ${
-                  filterStatus === 'Overdue' ? 'bg-red-100 text-red-800 border-red-400' :
-                  filterStatus === 'Solved Overdue' ? 'bg-purple-100 text-purple-800 border-purple-400' :
-                  statusColors[filterStatus] || 'bg-gray-100 text-gray-800 border-gray-300'
+                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                  filterStatus === 'Overdue' ? 'bg-red-100 text-red-700' :
+                  filterStatus === 'Solved Overdue' ? 'bg-purple-100 text-purple-700' :
+                  'bg-gray-100 text-gray-700'
                 }`}>
-                  Filter: {filterStatus}
-                  <button onClick={() => setFilterStatus('All')} className="ml-1 hover:opacity-70">✕</button>
+                  {filterStatus}
+                  <button onClick={() => setFilterStatus('All')} className="ml-1 hover:opacity-70 text-xs">✕</button>
                 </span>
               )}
               {handlerFilter && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 bg-purple-100 text-purple-800 border-purple-400">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700">
                   Handler: {handlerFilter}
-                  <button onClick={() => setHandlerFilter(null)} className="ml-1 hover:opacity-70">✕</button>
+                  <button onClick={() => setHandlerFilter(null)} className="ml-1 hover:opacity-70 text-xs">✕</button>
                 </span>
               )}
             </div>
@@ -2734,8 +2750,8 @@ Error Code: ${activityError.code}`;
         </div>
 
         {showNewTicket && canCreateTicket && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-3 border-green-500 animate-scale-in relative">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border border-gray-200 animate-scale-in relative">
             <button 
                 onClick={() => setShowNewTicket(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -2758,27 +2774,27 @@ Error Code: ${activityError.code}`;
                 </div>
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📌 Project Name *</label>
                   <input 
                     type="text" 
                     value={newTicket.project_name} 
                     onChange={(e) => setNewTicket({...newTicket, project_name: e.target.value})} 
                     placeholder="Example: BCA Cibitung Project" 
-                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-red-700 focus:ring-2 focus:ring-red-100 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📍 Address Detail</label>
                   <input 
                     type="text" 
                     value={newTicket.address} 
                     onChange={(e) => setNewTicket({...newTicket, address: e.target.value})} 
                     placeholder="Example: Jl. Jend. Sudirman No. 1..." 
-                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white"
+                    className="w-full border-2 border-blue-400 rounded-lg px-4 py-2.5 focus:border-red-700 focus:ring-2 focus:ring-red-100 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">⚠️ Issue Case *</label>
                   <input 
                     type="text" 
@@ -2808,7 +2824,7 @@ Error Code: ${activityError.code}`;
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">👤 Sales Name</label>
                   <input 
                     type="text" 
@@ -2818,7 +2834,7 @@ Error Code: ${activityError.code}`;
                     className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">🔢 SN Unit (Optional)</label>
                   <input 
                     type="text" 
@@ -2828,7 +2844,7 @@ Error Code: ${activityError.code}`;
                     className="w-full border-2 border-gray-400 rounded-lg px-4 py-2.5 focus:border-gray-600 focus:ring-2 focus:ring-gray-200 transition-all font-medium bg-white"
                   />
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                   <label className="block text-sm font-bold text-gray-800 mb-2">📱 Name & Phone User</label>
                   <input 
                     type="text" 
@@ -2937,10 +2953,10 @@ Error Code: ${activityError.code}`;
             </div>
             
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <button onClick={createTicket} disabled={uploading} className="bg-gradient-to-r from-green-600 to-green-800 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-green-900 font-bold shadow-xl transition-all hover:scale-105">
+              <button onClick={createTicket} disabled={uploading} className="text-white px-6 py-3 rounded-xl font-semibold shadow-sm transition-all hover:opacity-90" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}>
                 {uploading ? '⏳ Saving...' : '💾 Save Ticket'}
               </button>
-              <button onClick={() => setShowNewTicket(false)} className="bg-gradient-to-r from-gray-500 to-gray-700 text-white px-6 py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold shadow-xl transition-all hover:scale-105">
+              <button onClick={() => setShowNewTicket(false)} className="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200">
                 ✖ Cancel
               </button>
             </div>
@@ -2948,12 +2964,12 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div ref={ticketListRef} className="bg-white/40 backdrop-blur-md rounded-2xl shadow-2xl p-6 border-2 border-blue-250">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">📋 Ticket List ({ticketsLoading ? '...' : filteredTickets.length})</h2>
+        <div ref={ticketListRef} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">TICKET LIST <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium normal-case">{ticketsLoading ? '...' : filteredTickets.length}</span></h2>
             <button
               onClick={exportToExcel}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2"
+              className="text-sm text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 hover:opacity-90" style={{ background: "linear-gradient(135deg, #7f1d1d, #b91c1c)" }}
             >
               📊 Export Report
             </button>
@@ -2975,7 +2991,7 @@ Error Code: ${activityError.code}`;
                 </div>
               ))}
               <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-800/30"></div>
                 <span className="text-sm font-medium">Memuat daftar ticket...</span>
               </div>
             </div>
@@ -2989,8 +3005,8 @@ Error Code: ${activityError.code}`;
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
-              <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+              <table className="w-full table-fixed bg-white border-collapse">
                 <colgroup>
                   <col style={{width: '16%'}} />
                   <col style={{width: '8%'}} />
@@ -3004,17 +3020,17 @@ Error Code: ${activityError.code}`;
                   <col style={{width: '7%'}} />
                 </colgroup>
                 <thead>
-                  <tr className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Project Name</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">SN Unit</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Issue</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Assigned</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Status</th>
-                    <th className="px-3 py-3 text-left font-bold text-sm border-r border-blue-400">Created By</th>
-					<th className="px-3 py-3 text-center font-bold text-sm border-r border-blue-400">Activity</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">Flowchart</th>
-                    <th className="px-2 py-3 text-center font-bold text-sm border-r border-blue-400">PDF</th>
-                    {canAccessAccountSettings && <th className="px-2 py-3 text-center font-bold text-sm">OD</th>}
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Project Name</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Issue</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Assigned</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Created By</th>
+					<th className="px-3 py-3 text-center font-bold text-sm border-r border-red-900/30">Activity</th>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">Flowchart</th>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-100">PDF</th>
+                    {canAccessAccountSettings && <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">OD</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -3031,33 +3047,33 @@ Error Code: ${activityError.code}`;
                     return (
                     <tr 
                       key={ticket.id} 
-                      className={`border-b border-gray-200 hover:bg-blue-500/20 transition-colors ${
+                      className={`border-b border-gray-200 hover:bg-red-50/40 transition-colors ${
                         isActiveOverdue ? 'bg-red-50/80 border-l-4 border-l-red-500' :
                         isSolvedOverdue ? 'bg-purple-50/80 border-l-4 border-l-purple-400' :
-                        index % 2 === 0 ? 'bg-white/50' : 'bg-blue-50/30'
+                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
                       }`}
                     >
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="flex items-start gap-1">
                           {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                           {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
-                          <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
+                          <div className="font-semibold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : '-'}</div>
                         {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                         {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || '—'}</div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div>
                         <div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div>
                       </td>
-                      <td className="px-3 py-3 border-r border-gray-200 align-top">
+                      <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="flex flex-col gap-1 items-start">
                           {/* Status utama */}
                           <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${
@@ -3089,7 +3105,7 @@ Error Code: ${activityError.code}`;
                           )}
                         </div>
                       </td>
-					  <td className="px-3 py-3 border-r border-gray-200 align-top">
+					  <td className="px-3 py-3 border-r border-gray-50 align-middle py-3">
                         <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
                         {ticket.created_by && (
                           <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>
@@ -3098,18 +3114,18 @@ Error Code: ${activityError.code}`;
                           <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
                         )}
                       </td>
-                      <td className="px-2 py-3 border-r border-gray-200 text-center align-middle">
+                      <td className="px-2 py-3 border-r border-gray-50 text-center align-middle">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
                           <div className="flex flex-col items-center gap-1.5">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-base">📝</span>
-                              <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ background: "#7f1d1d" }}>
                                 {ticket.activity_logs.length}
                               </span>
                             </div>
                             <button
                               onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                              className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition-all w-full hover:bg-blue-50"
                             >
                               👁️ View
                             </button>
@@ -3119,7 +3135,7 @@ Error Code: ${activityError.code}`;
                             <span className="text-gray-400 text-sm">—</span>
                             <button
                               onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                              className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition-all w-full hover:bg-blue-50"
                             >
                               👁️ View
                             </button>
@@ -3127,39 +3143,45 @@ Error Code: ${activityError.code}`;
                         )}
                         {ticket.status === 'Solved' && canUpdateTicket && (
                           <button
-                            onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
-                            className="mt-1.5 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                            onClick={() => {
+                              setReopenTargetTicket(ticket);
+                              setReopenAssignee(ticket.assigned_to || '');
+                              setReopenNotes('');
+                              setShowReopenModal(true);
+                            }}
+                            className="mt-1 text-amber-600 hover:text-amber-800 px-2 py-1 rounded-lg text-xs font-bold transition-all w-full hover:bg-amber-50"
+                            title="Buka kembali ticket ini karena masalah muncul lagi"
                           >
                             🔓 Re-open
                           </button>
                         )}
                       </td>
-                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
+                      <td className="px-2 py-3 border-r border-gray-50 align-middle text-center">
                         <button
                           onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
-                          className="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                          className="text-violet-600 hover:text-violet-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-violet-50"
                         >
                           🔄 Chart
                         </button>
                         {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                           <button
                             onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
-                            className="mt-1.5 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
+                            className="mt-1.5 text-orange-600 hover:text-orange-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-orange-50 animate-pulse"
                           >
                             ✅ Approve
                           </button>
                         )}
                       </td>
-                      <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
+                      <td className="px-2 py-3 border-r border-gray-50 align-middle text-center">
                         <button
                           onClick={() => exportToPDF(ticket)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                          className="text-green-600 hover:text-green-800 px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full hover:bg-green-50"
                         >
                           📄 Print
                         </button>
                       </td>
                       {canAccessAccountSettings && (
-                      <td className="px-2 py-3 align-middle text-center">
+                      <td className="px-2 py-3 align-middle text-center border-gray-50">
                         <button
                           onClick={() => {
                             setOverdueTargetTicket(ticket);
@@ -3168,7 +3190,7 @@ Error Code: ${activityError.code}`;
                             setShowOverdueSetting(true);
                           }}
                           className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
-                            overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                            overdueSetting ? 'text-orange-600 hover:text-orange-800 hover:bg-orange-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                           }`}
                         >
                           ⏰ Time
@@ -3188,18 +3210,18 @@ Error Code: ${activityError.code}`;
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {/* ── APPROVAL MODAL ──────────────────────────────────── */}
       {showApprovalModal && canAccessAccountSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border-2 border-orange-500">
-            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border border-gray-200">
+            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-red-900 to-red-700">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">⏳</span>
                   <div>
                     <h3 className="text-xl font-bold text-white">Ticket Approval</h3>
-                    <p className="text-sm text-white/90">{pendingApprovalTickets.length} ticket menunggu persetujuan</p>
+                    <p className="text-sm text-gray-500">{pendingApprovalTickets.length} ticket menunggu persetujuan</p>
                   </div>
                 </div>
-                <button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+                <button onClick={() => setShowApprovalModal(false)} className="text-gray-400 hover:text-gray-600 rounded-lg p-2 transition-all">✕</button>
               </div>
             </div>
 
@@ -3251,14 +3273,14 @@ Error Code: ${activityError.code}`;
                             await approveTicket();
                           }}
                           disabled={uploading || !(approvalTicket?.id === ticket.id && approvalAssignee)}
-                          className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                          className="text-white px-4 py-2 rounded-lg font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-sm" style={{background:"#059669"}}
                         >
                           ✅ Approve
                         </button>
                         <button
                           onClick={() => rejectTicket(ticket)}
                           disabled={uploading}
-                          className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm"
+                          className="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg font-semibold transition-all hover:bg-red-100 disabled:opacity-40 text-sm"
                         >
                           ❌ Reject
                         </button>
@@ -3275,8 +3297,8 @@ Error Code: ${activityError.code}`;
 
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {showReminderSchedule && canAccessAccountSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-violet-500 animate-scale-in">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">⏰</span>
@@ -3404,13 +3426,13 @@ Error Code: ${activityError.code}`;
               <button
                 onClick={saveCronSchedule}
                 disabled={reminderSaving}
-                className="bg-gradient-to-r from-violet-600 to-violet-800 text-white py-3 rounded-xl font-bold hover:from-violet-700 hover:to-violet-900 transition-all disabled:opacity-50"
+                className="text-white py-3 rounded-xl font-semibold transition-all hover:opacity-90 disabled:opacity-50" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}
               >
                 {reminderSaving ? '⏳ Menyimpan...' : '💾 Simpan'}
               </button>
               <button
                 onClick={() => setShowReminderSchedule(false)}
-                className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                className="bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200"
               >
                 ✕ Batal
               </button>
@@ -3422,8 +3444,8 @@ Error Code: ${activityError.code}`;
 
       {/* ── OVERDUE SETTING MODAL ───────────────────────── */}
       {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-orange-500 animate-scale-in">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">⏰</span>
               <div>
@@ -3432,10 +3454,32 @@ Error Code: ${activityError.code}`;
                 <p className="text-xs text-gray-400">{overdueTargetTicket.issue_case}</p>
               </div>
             </div>
-            <p className="text-xs text-orange-700 bg-orange-50 rounded-lg p-2 mb-4 border border-orange-200">
-              ⚠️ Setting ini hanya terlihat oleh admin Anda. Handler akan mendapat notifikasi merah ketika ticket overdue.
-              Default otomatis: ticket overdue setelah 48 jam jika tidak di-set manual.
-            </p>
+
+            {/* Info default vs custom */}
+            {getOverdueSetting(overdueTargetTicket.id) ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                <span className="text-lg">✏️</span>
+                <div>
+                  <p className="text-sm font-bold text-blue-800">Setting Custom Aktif</p>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Ticket ini overdue setelah <strong>{getOverdueSetting(overdueTargetTicket.id)?.due_hours} jam</strong> dari waktu dibuat.
+                    Ubah jam di bawah atau hapus untuk kembali ke default 48 jam.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                <span className="text-lg">🔧</span>
+                <div>
+                  <p className="text-sm font-bold text-green-800">Menggunakan Default: 48 Jam</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Ticket akan otomatis overdue <strong>48 jam (2 hari)</strong> setelah dibuat.
+                    Set jam custom di bawah jika penanganan ini berbeda.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold mb-1 text-gray-700">⏱️ Overdue Setelah Berapa Jam?</label>
@@ -3455,24 +3499,24 @@ Error Code: ${activityError.code}`;
                       key={h}
                       type="button"
                       onClick={() => setOverdueForm({ due_hours: String(h) })}
-                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100'}`}
                     >
-                      {h}j{h === 48 ? ' (default)' : ''}
+                      {h}j{h === 48 ? ' ★' : ''}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">⏰ Dihitung dari waktu ticket pertama kali dibuat</p>
+                <p className="text-xs text-gray-400 mt-2">★ = default sistem &nbsp;|&nbsp; ⏰ Dihitung dari waktu ticket pertama kali dibuat</p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   onClick={saveOverdueSetting}
-                  className="bg-gradient-to-r from-orange-500 to-orange-700 text-white py-2.5 rounded-xl font-bold hover:from-orange-600 hover:to-orange-800 transition-all"
+                  className="text-white py-2.5 rounded-xl font-semibold transition-all hover:opacity-90" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}
                 >
                   💾 Simpan
                 </button>
                 <button
                   onClick={() => { setShowOverdueSetting(false); setOverdueTargetTicket(null); setOverdueForm({ due_hours: '48' }); }}
-                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  className="bg-gray-100 text-gray-600 py-2.5 rounded-xl font-semibold transition-all hover:bg-gray-200"
                 >
                   ✕ Batal
                 </button>
@@ -3480,9 +3524,9 @@ Error Code: ${activityError.code}`;
               {getOverdueSetting(overdueTargetTicket.id) && (
                 <button
                   onClick={() => { deleteOverdueSetting(overdueTargetTicket.id); setShowOverdueSetting(false); setOverdueTargetTicket(null); }}
-                  className="w-full bg-red-100 text-red-700 py-2 rounded-xl font-bold hover:bg-red-200 transition-all text-sm border border-red-300"
+                  className="w-full bg-red-50 text-red-600 py-2 rounded-xl font-bold hover:bg-red-100 transition-all text-sm border border-red-200"
                 >
-                  🗑️ Hapus Setting Overdue
+                  🗑️ Hapus Custom Setting → Kembali ke Default 48 Jam
                 </button>
               )}
             </div>
@@ -3493,17 +3537,17 @@ Error Code: ${activityError.code}`;
 
       {/* ── ACTIVITY SUMMARY / FLOWCHART MODAL ─────────────── */}
       {showActivitySummary && summaryTicket && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-2">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col animate-scale-in border-2 border-blue-500">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-2">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col animate-scale-in border border-gray-200">
             {/* Header */}
-            <div className="p-5 border-b-2 border-gray-200 bg-gradient-to-r from-blue-600 to-blue-800 flex-shrink-0">
+            <div className="p-5 border-b-2 border-gray-200 flex-shrink-0" style={{ background: "linear-gradient(to right, #7f1d1d, #b91c1c)" }}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">🔄</span>
                   <div>
                     <h3 className="text-lg font-bold text-white">Activity Summary</h3>
-                    <p className="text-sm text-blue-100 font-medium">{summaryTicket.project_name}</p>
-                    <p className="text-xs text-blue-200">{summaryTicket.issue_case}</p>
+                    <p className="text-sm text-red-100 font-medium">{summaryTicket.project_name}</p>
+                    <p className="text-xs text-red-200">{summaryTicket.issue_case}</p>
                   </div>
                 </div>
                 <button
@@ -3540,7 +3584,7 @@ Error Code: ${activityError.code}`;
                   {/* Start node */}
                   <div className="flex items-center gap-3 mb-1">
                     <div className="flex flex-col items-center">
-                      <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shadow-md">🎫</div>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-base shadow-md" style={{ background: "#7f1d1d" }}>🎫</div>
                     </div>
                     <div className="flex-1 bg-blue-50 border-2 border-blue-300 rounded-xl px-4 py-2">
                       <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Ticket Dibuat</p>
@@ -3597,7 +3641,7 @@ Error Code: ${activityError.code}`;
                               <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-sm font-bold text-gray-800">{log.handler_name}</span>
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">{log.team_type}</span>
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">{log.team_type}</span>
                                 </div>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-bold border flex-shrink-0 ml-2 ${statusColors[log.new_status] || 'bg-gray-100 text-gray-700 border-gray-300'}`}>
                                   {log.new_status}
@@ -3669,7 +3713,7 @@ Error Code: ${activityError.code}`;
             <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition-all"
+                className="w-full bg-gradient-to-r from-red-800 to-red-900 text-white py-3 rounded-xl font-bold hover:from-red-900 hover:to-red-950 transition-all"
               >
                 ✕ Tutup
               </button>
@@ -3679,78 +3723,123 @@ Error Code: ${activityError.code}`;
       )}
       {/* ─────────────────────────────────────────────────── */}
 
-
-      {/* ── RE-OPEN TICKET MODAL ── */}
+      {/* ── RE-OPEN TICKET MODAL ────────────────────────── */}
       {showReopenModal && reopenTargetTicket && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-amber-500 animate-scale-in">
-            <div className="flex items-center gap-3 mb-5">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 animate-scale-in">
+            <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">🔓</span>
               <div>
                 <h3 className="text-lg font-bold text-gray-800">Re-open Ticket</h3>
-                <p className="text-xs text-gray-500">{reopenTargetTicket.project_name} · {reopenTargetTicket.issue_case}</p>
+                <p className="text-xs text-gray-500 font-medium">{reopenTargetTicket.project_name}</p>
+                <p className="text-xs text-gray-400">{reopenTargetTicket.issue_case}</p>
               </div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-800">
-              ⚠️ Status akan berubah ke <strong>Pending</strong> dan activity log baru ditambahkan otomatis.
+
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 mb-4 flex items-start gap-2">
+              <span className="text-xl mt-0.5">⚠️</span>
+              <div>
+                <p className="text-sm font-bold text-amber-800">Ticket akan dibuka kembali</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Status akan berubah ke <strong>Pending</strong> dan activity log baru akan ditambahkan secara otomatis.
+                </p>
+              </div>
             </div>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-bold mb-1 text-gray-700">Assign ke Handler *</label>
-                <select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)} className="input-field">
-                  <option value="">— Pilih Handler —</option>
-                  {teamPTSMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  👨‍💼 Assign ke Team PTS *
+                </label>
+                <select
+                  value={reopenAssignee}
+                  onChange={(e) => setReopenAssignee(e.target.value)}
+                  className="w-full border-2 border-amber-300 rounded-lg px-3 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 font-medium"
+                >
+                  <option value="">-- Pilih Handler --</option>
+                  {teamPTSMembers.map(m => (
+                    <option key={m.id} value={m.name}>{m.name}</option>
+                  ))}
                 </select>
               </div>
+
               <div>
-                <label className="block text-sm font-bold mb-1 text-gray-700">Alasan (opsional)</label>
-                <textarea value={reopenNotes} onChange={(e) => setReopenNotes(e.target.value)}
-                  placeholder="Masalah muncul kembali..." rows={3} className="input-field resize-none"/>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  📝 Alasan Re-open <span className="text-gray-400 font-normal">(Opsional)</span>
+                </label>
+                <textarea
+                  value={reopenNotes}
+                  onChange={(e) => setReopenNotes(e.target.value)}
+                  placeholder="Contoh: Masalah muncul kembali setelah 3 hari, unit mati total lagi..."
+                  className="w-full border-2 border-gray-300 rounded-lg px-3 py-2.5 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 resize-none"
+                  rows={3}
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={reopenTicket} disabled={uploading || !reopenAssignee}
-                  className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  {uploading ? '⏳...' : '🔓 Re-open'}
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  onClick={reopenTicket}
+                  disabled={uploading || !reopenAssignee}
+                  className="text-white py-3 rounded-xl font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed" style={{background:"linear-gradient(135deg,#7f1d1d,#b91c1c)"}}
+                >
+                  {uploading ? '⏳ Memproses...' : '🔓 Re-open'}
                 </button>
-                <button onClick={() => { setShowReopenModal(false); setReopenTargetTicket(null); setReopenAssignee(''); setReopenNotes(''); }}
-                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
-                  Batal
+                <button
+                  onClick={() => {
+                    setShowReopenModal(false);
+                    setReopenTargetTicket(null);
+                    setReopenAssignee('');
+                    setReopenNotes('');
+                  }}
+                  className="bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold transition-all hover:bg-gray-200"
+                >
+                  ✕ Batal
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+      {/* ─────────────────────────────────────────────────── */}
+
+      </div>{/* end max-w mx-auto */}
+      </div>{/* end bg-gray-50 white body */}
+
       <style jsx>{`
         .btn-primary {
-          @apply bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all;
+          background: white;
+          @apply text-red-800 px-4 py-2 rounded-lg font-semibold transition-all text-sm hover:bg-red-50;
         }
         .btn-secondary {
-          @apply bg-gradient-to-r from-gray-600 to-gray-800 text-white px-5 py-3 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all;
+          @apply bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-white/30 text-sm;
         }
         .btn-teal {
-          @apply bg-gradient-to-r from-teal-600 to-teal-800 text-white px-5 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-lg transition-all;
+          @apply bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-white/30 text-sm;
         }
         .btn-danger {
-          @apply bg-gradient-to-r from-red-500 to-red-700 text-white px-5 py-3 rounded-xl hover:from-red-600 hover:to-red-800 font-bold shadow-lg transition-all;
+          @apply bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-semibold transition-all border border-white/20 text-sm;
         }
         .activity-log {
-          @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-300 shadow-md;
+          @apply bg-white rounded-xl p-4 border border-gray-200 shadow-sm;
         }
         .stat-card {
-          @apply rounded-2xl p-4 text-white shadow-xl transform hover:scale-105 transition-transform;
+          @apply rounded-2xl p-5 text-white shadow-lg transform hover:scale-105 transition-transform;
+        }
+        .stat-card-clean {
+          @apply rounded-2xl p-5 shadow-sm transform hover:scale-105 transition-transform;
+          border: 1px solid #f0f0f0;
         }
         .chart-container {
-          @apply bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl;
+          @apply bg-white rounded-2xl p-6 border border-gray-200 shadow-sm;
         }
         .input-field {
-          @apply w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition-all font-medium bg-white;
+          @apply w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-red-700 focus:ring-2 focus:ring-red-100 transition-all font-medium bg-white;
         }
         .input-field-simple {
-          @apply w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white;
+          @apply w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-600 focus:ring-2 focus:ring-red-50 transition-all bg-white;
         }
         .file-download {
-          @apply inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-200 transition-all mt-2;
+          @apply inline-block bg-red-50 text-red-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 transition-all mt-2;
         }
         @keyframes scale-in {
           from {
