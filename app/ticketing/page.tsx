@@ -2167,7 +2167,6 @@ Error Code: ${activityError.code}`;
           </div>
         )}
 
-        <div className="max-w-[1600px] mx-auto">
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
@@ -3690,6 +3689,11 @@ Error Code: ${activityError.code}`;
           </div>
         </div>
       )}
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
       <style jsx>{`
         .btn-primary {
           @apply bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all;
