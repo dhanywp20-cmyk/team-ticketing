@@ -1614,7 +1614,7 @@ Error Code: ${activityError.code}`;
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">🔔</span>
                     <div>
-                      <h3 className="text-base font-semibold text-gray-800">Ticket Notifications</h3>
+                      <h3 className="text-xl font-bold text-white">Ticket Notifications</h3>
                       {notifications.length > 0 && (
                         <p className="text-sm text-white/90">
                           {notifications.length} tickets need attention
@@ -1624,10 +1624,11 @@ Error Code: ${activityError.code}`;
                   </div>
                   <button 
                     onClick={() => setShowNotifications(false)}
-                    className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all"
+                    className="text-white hover:bg-white/80 rounded-lg p-2 font-bold transition-all"
                   >
                     ✕
                   </button>
+                </div>
               </div>
               
               {notifications.length === 0 ? (
@@ -1635,6 +1636,7 @@ Error Code: ${activityError.code}`;
                   <div className="text-6xl mb-4">✅</div>
                   <p className="text-lg font-medium">No notifications</p>
                   <p className="text-sm mt-2">All tickets have been handled</p>
+                </div>
               ) : (
                 <div className="max-h-[calc(80vh-120px)] overflow-y-auto p-4">
                   <div className="space-y-3">
@@ -1682,6 +1684,7 @@ Error Code: ${activityError.code}`;
                       );
                     })}
                   </div>
+                </div>
               )}
               
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
@@ -1730,7 +1733,7 @@ Error Code: ${activityError.code}`;
               </div>
               <button
                 onClick={() => setShowNotificationPopup(false)}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all"
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold"
               >
                 Close
               </button>
@@ -1758,6 +1761,7 @@ Error Code: ${activityError.code}`;
                   >
                     ✕
                   </button>
+                </div>
               </div>
               
               <div className="flex-1 overflow-y-auto p-6">
@@ -1906,7 +1910,7 @@ Error Code: ${activityError.code}`;
                             }
                             setShowUpdateForm(!showUpdateForm);
                           }}
-                          className="btn-primary"
+                          className="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-blue-800 font-bold transition-all"
                         >
                           {showUpdateForm ? '🔼 Tutup' : '🔽 Buka Form'}
                         </button>
@@ -2145,21 +2149,31 @@ Error Code: ${activityError.code}`;
                       })()}
                     </div>
                   )}
+                </div>
               </div>
               
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50 flex gap-3 flex-shrink-0">
-                <button onClick={() => exportToPDF(selectedTicket)}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 font-bold transition-all">
+                <button
+                  onClick={() => exportToPDF(selectedTicket)}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 font-bold transition-all"
+                >
                   📄 Export PDF
                 </button>
                 {selectedTicket.status === 'Solved' && canUpdateTicket && (
-                  <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
-                    className="flex-1 bg-amber-500 text-white py-3 rounded-xl hover:bg-amber-600 font-bold transition-all">
+                  <button
+                    onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
+                    className="flex-1 bg-amber-500 text-white py-3 rounded-xl hover:bg-amber-600 font-bold transition-all"
+                  >
                     🔓 Re-open
                   </button>
                 )}
-                <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }}
-                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold transition-all">
+                <button
+                  onClick={() => {
+                    setShowTicketDetailPopup(false);
+                    setSelectedTicket(null);
+                  }}
+                  className="flex-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white py-3 rounded-xl hover:from-gray-600 hover:to-gray-800 font-bold transition-all"
+                >
                   Close
                 </button>
               </div>
@@ -2253,7 +2267,7 @@ Error Code: ${activityError.code}`;
                     setShowGuestMapping(false);
                     setShowNewTicket(false);
                   }}
-                  className="btn-primary"
+                  className="bg-gradient-to-r from-violet-600 to-violet-800 text-white px-5 py-3 rounded-xl hover:from-violet-700 hover:to-violet-900 font-bold shadow-lg transition-all"
                   title={`Reminder: ${getCronDisplay()}`}
                 >
                   ⏰ Reminder
@@ -2342,7 +2356,7 @@ Error Code: ${activityError.code}`;
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="chart-container bg-gradient-to-br from-white to-gray-50">
-                <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
+                <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
                   <span className="text-xl">🥧</span>
                   Status Distribution
                 </h3>
@@ -2465,7 +2479,6 @@ Error Code: ${activityError.code}`;
                   </div>
                 )}
               </div>
-            </div>
             </div>
           </div>
         )}
@@ -2681,7 +2694,7 @@ Error Code: ${activityError.code}`;
             </div>
             <div className="md:w-64">
               <label className="block text-sm font-bold mb-2">📋 Filter Status</label>
-              <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field-simple">
+              <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="input-field">
                 <option value="All">All Status</option>
                 <option value="Waiting Approval">⏳ Waiting Approval</option>
                 <option value="Pending">🟡 Pending</option>
@@ -2722,7 +2735,7 @@ Error Code: ${activityError.code}`;
 
         {showNewTicket && canCreateTicket && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-gray-400 animate-scale-in relative">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-3 border-green-500 animate-scale-in relative">
             <button 
                 onClick={() => setShowNewTicket(false)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -2904,7 +2917,7 @@ Error Code: ${activityError.code}`;
                     <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-pink-200">
                       <span className="text-pink-600">✓</span>
                       <span className="text-sm font-semibold text-gray-700 flex-1 truncate">{newTicket.photo.name}</span>
-                      <span className="text-xs text-blue-200">({(newTicket.photo.size / 1024).toFixed(1)} KB)</span>
+                      <span className="text-xs text-gray-400">({(newTicket.photo.size / 1024).toFixed(1)} KB)</span>
                       <button
                         type="button"
                         onClick={() => setNewTicket({...newTicket, photo: null})}
@@ -2977,7 +2990,7 @@ Error Code: ${activityError.code}`;
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-blue-200 shadow-sm">
-              <table className="w-full table-fixed bg-white border-collapse">
+              <table className="w-full table-fixed backdrop-blur-sm bg-white/20 border-collapse">
                 <colgroup>
                   <col style={{width: '16%'}} />
                   <col style={{width: '8%'}} />
@@ -3028,9 +3041,9 @@ Error Code: ${activityError.code}`;
                         <div className="flex items-start gap-1">
                           {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                           {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
-                          <div className="font-semibold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
+                          <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                         </div>
-                        <div className="text-sm text-white/90">{ticket.created_at ? formatDateTime(ticket.created_at) : '-'}</div>
+                        <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : '-'}</div>
                         {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                         {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
                       </td>
@@ -3082,61 +3095,82 @@ Error Code: ${activityError.code}`;
                           <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>
                         )}
                         {ticket.created_at && (
-                          <div className="text-sm text-white/90">{formatDateTime(ticket.created_at).split(',')[0]}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
                         )}
                       </td>
                       <td className="px-2 py-3 border-r border-gray-200 text-center align-middle">
                         {ticket.activity_logs && ticket.activity_logs.length > 0 ? (
-                          <div className="flex flex-col items-center gap-1">
+                          <div className="flex flex-col items-center gap-1.5">
                             <div className="flex items-center justify-center gap-1">
-                              <span className="text-sm">📝</span>
-                              <span className="text-xs font-bold text-gray-600 bg-gray-100 rounded-full w-5 h-5 flex items-center justify-center">
+                              <span className="text-base">📝</span>
+                              <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                                 {ticket.activity_logs.length}
                               </span>
                             </div>
-                            <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full">
+                            <button
+                              onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            >
                               👁️ View
                             </button>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-gray-300 text-sm">—</span>
-                            <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full">
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="text-gray-400 text-sm">—</span>
+                            <button
+                              onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-all w-full"
+                            >
                               👁️ View
                             </button>
                           </div>
                         )}
                         {ticket.status === 'Solved' && canUpdateTicket && (
-                          <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
-                            className="mt-1.5 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full">
+                          <button
+                            onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
+                            className="mt-1.5 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                          >
                             🔓 Re-open
                           </button>
                         )}
                       </td>
                       <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
-                        <button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
-                          className="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full">
+                        <button
+                          onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
+                          className="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                        >
                           🔄 Chart
                         </button>
                         {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
-                          <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
-                            className="mt-1.5 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse">
+                          <button
+                            onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
+                            className="mt-1.5 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full animate-pulse"
+                          >
                             ✅ Approve
                           </button>
                         )}
                       </td>
                       <td className="px-2 py-3 border-r border-gray-200 align-middle text-center">
-                        <button onClick={() => exportToPDF(ticket)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full">
+                        <button
+                          onClick={() => exportToPDF(ticket)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full"
+                        >
                           📄 Print
                         </button>
                       </td>
                       {canAccessAccountSettings && (
                       <td className="px-2 py-3 align-middle text-center">
-                        <button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : '48' }); setShowOverdueSetting(true); }}
-                          className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+                        <button
+                          onClick={() => {
+                            setOverdueTargetTicket(ticket);
+                            const existing = getOverdueSetting(ticket.id);
+                            setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : '48' });
+                            setShowOverdueSetting(true);
+                          }}
+                          className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all w-full ${
+                            overdueSetting ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                          }`}
+                        >
                           ⏰ Time
                         </button>
                       </td>
@@ -3156,16 +3190,16 @@ Error Code: ${activityError.code}`;
       {showApprovalModal && canAccessAccountSettings && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border-2 border-orange-500">
-            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">⏳</span>
                   <div>
-                    <h3 className="text-base font-semibold text-gray-800">Ticket Approval</h3>
+                    <h3 className="text-xl font-bold text-white">Ticket Approval</h3>
                     <p className="text-sm text-white/90">{pendingApprovalTickets.length} ticket menunggu persetujuan</p>
                   </div>
                 </div>
-                <button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/90 rounded-lg p-2 font-bold transition-all">✕</button>
+                <button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
               </div>
             </div>
 
@@ -3182,7 +3216,7 @@ Error Code: ${activityError.code}`;
                       <div>
                         <p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p>
                         <p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>
-                        {ticket.description && <p className="text-sm text-white/90">{ticket.description}</p>}
+                        {ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}
                         <div className="flex gap-2 mt-2 flex-wrap text-xs text-gray-500">
                           {ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}
                           {ticket.sales_name && <span>💼 {ticket.sales_name}</span>}
@@ -3242,7 +3276,7 @@ Error Code: ${activityError.code}`;
       {/* ── REMINDER SCHEDULE MODAL ─────────────────────── */}
       {showReminderSchedule && canAccessAccountSettings && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white/75 rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-violet-500 animate-scale-in">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">⏰</span>
@@ -3389,13 +3423,13 @@ Error Code: ${activityError.code}`;
       {/* ── OVERDUE SETTING MODAL ───────────────────────── */}
       {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white/75 rounded-2xl shadow-2xl max-w-md w-full p-6 border-4 border-yellow-500 animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-orange-500 animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-3xl">⏰</span>
               <div>
                 <h3 className="text-lg font-bold text-gray-800">Overdue Setting</h3>
                 <p className="text-xs text-gray-500 font-medium">{overdueTargetTicket.project_name}</p>
-                <p className="text-xs text-blue-200">{overdueTargetTicket.issue_case}</p>
+                <p className="text-xs text-gray-400">{overdueTargetTicket.issue_case}</p>
               </div>
             </div>
             <p className="text-xs text-orange-700 bg-orange-50 rounded-lg p-2 mb-4 border border-orange-200">
@@ -3474,7 +3508,7 @@ Error Code: ${activityError.code}`;
                 </div>
                 <button
                   onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }}
-                  className="text-gray-400 hover:text-gray-600 rounded-lg p-2 transition-all text-lg"
+                  className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all text-lg"
                 >✕</button>
               </div>
             </div>
@@ -3657,31 +3691,29 @@ Error Code: ${activityError.code}`;
                 <p className="text-xs text-gray-500">{reopenTargetTicket.project_name} · {reopenTargetTicket.issue_case}</p>
               </div>
             </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 text-xs text-amber-700">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-800">
               ⚠️ Status akan berubah ke <strong>Pending</strong> dan activity log baru ditambahkan otomatis.
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Assign ke Handler *</label>
-                <select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-amber-400 bg-white text-gray-700">
+                <label className="block text-sm font-bold mb-1 text-gray-700">Assign ke Handler *</label>
+                <select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)} className="input-field">
                   <option value="">— Pilih Handler —</option>
                   {teamPTSMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Alasan <span className="font-normal normal-case">(opsional)</span></label>
+                <label className="block text-sm font-bold mb-1 text-gray-700">Alasan (opsional)</label>
                 <textarea value={reopenNotes} onChange={(e) => setReopenNotes(e.target.value)}
-                  placeholder="Masalah muncul kembali..." rows={3}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-amber-400 resize-none text-gray-700"/>
+                  placeholder="Masalah muncul kembali..." rows={3} className="input-field resize-none"/>
               </div>
-              <div className="flex gap-3 pt-1">
+              <div className="grid grid-cols-2 gap-3">
                 <button onClick={reopenTicket} disabled={uploading || !reopenAssignee}
-                  className="flex-1 bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50">
+                  className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {uploading ? '⏳...' : '🔓 Re-open'}
                 </button>
                 <button onClick={() => { setShowReopenModal(false); setReopenTargetTicket(null); setReopenAssignee(''); setReopenNotes(''); }}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
+                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
                   Batal
                 </button>
               </div>
@@ -3689,11 +3721,6 @@ Error Code: ${activityError.code}`;
           </div>
         </div>
       )}
-      </div>
-      </div>
-      </div>
-      </div>
-      </div>
       <style jsx>{`
         .btn-primary {
           @apply bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all;
