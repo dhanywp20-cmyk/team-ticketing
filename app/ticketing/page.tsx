@@ -460,7 +460,7 @@ export default function TicketingSystem() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (userOverride?: User | null) => {
     try {
       // Clear tickets immediately so old/unfiltered data never flashes during reload
       setTickets([]);
@@ -471,12 +471,13 @@ export default function TicketingSystem() {
         supabase.from('users').select('id, username, full_name, role, team_type')
       ]);
 
-      if (currentUser?.role === 'guest') {
+      const activeUser = userOverride !== undefined ? userOverride : currentUser;
+      if (activeUser?.role === 'guest') {
         // Guest: fetch allowed project names first, then query only those tickets server-side
         const { data: mappings } = await supabase
           .from('guest_mappings')
           .select('project_name')
-          .eq('guest_username', currentUser.username);
+          .eq('guest_username', activeUser!.username);
 
         const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
 
@@ -495,7 +496,7 @@ export default function TicketingSystem() {
         const { data: ownWaiting } = await supabase
           .from('tickets')
           .select('*, activity_logs(*)')
-          .eq('created_by', currentUser.username)
+          .eq('created_by', activeUser!.username)
           .eq('status', 'Waiting Approval')
           .order('created_at', { ascending: false });
 
@@ -1496,9 +1497,12 @@ Error Code: ${activityError.code}`;
         setCurrentUser(user);
         setIsLoggedIn(true);
         setLoginTime(time);
+        // Pass user directly so fetchData doesn't rely on async state update
+        fetchData(user);
+        return;
       }
     }
-    fetchData();
+    fetchData(null);
   }, []);
 
   useEffect(() => {
