@@ -462,39 +462,68 @@ export default function TicketingSystem() {
 
   const fetchData = async () => {
     try {
+      // Clear tickets immediately so old/unfiltered data never flashes during reload
+      setTickets([]);
       setTicketsLoading(true);
-      const [ticketsData, membersData, usersData] = await Promise.all([
-        supabase.from('tickets').select('*, activity_logs(*)').order('created_at', { ascending: false }),
+
+      const [membersData, usersData] = await Promise.all([
         supabase.from('team_members').select('*').order('name'),
         supabase.from('users').select('id, username, full_name, role, team_type')
       ]);
 
-      if (ticketsData.data) {
-        if (currentUser?.role === 'guest') {
-          const { data: mappings } = await supabase
-            .from('guest_mappings')
-            .select('project_name')
-            .eq('guest_username', currentUser.username);
+      if (currentUser?.role === 'guest') {
+        // Guest: fetch allowed project names first, then query only those tickets server-side
+        const { data: mappings } = await supabase
+          .from('guest_mappings')
+          .select('project_name')
+          .eq('guest_username', currentUser.username);
 
-          const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
+        const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
 
-          const filteredTickets = ticketsData.data.filter((ticket: Ticket) =>
-            allowedProjectNames.includes(ticket.project_name) ||
-            (ticket.status === 'Waiting Approval' && ticket.created_by === currentUser.username)
-          );
-          setTickets(filteredTickets);
+        let guestTickets: Ticket[] = [];
 
-          if (selectedTicket && !filteredTickets.find((t: Ticket) => t.id === selectedTicket.id)) {
-            setSelectedTicket(null);
-          }
-        } else {
-          setTickets(ticketsData.data);
+        if (allowedProjectNames.length > 0) {
+          const { data: projectTickets } = await supabase
+            .from('tickets')
+            .select('*, activity_logs(*)')
+            .in('project_name', allowedProjectNames)
+            .order('created_at', { ascending: false });
+          if (projectTickets) guestTickets = [...projectTickets];
         }
+
+        // Also include Waiting Approval tickets created by this guest (not already listed)
+        const { data: ownWaiting } = await supabase
+          .from('tickets')
+          .select('*, activity_logs(*)')
+          .eq('created_by', currentUser.username)
+          .eq('status', 'Waiting Approval')
+          .order('created_at', { ascending: false });
+
+        if (ownWaiting) {
+          for (const t of ownWaiting) {
+            if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) {
+              guestTickets.push(t);
+            }
+          }
+        }
+
+        setTickets(guestTickets);
+
+        if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) {
+          setSelectedTicket(null);
+        }
+      } else {
+        // Non-guest: fetch all tickets
+        const { data: ticketsData } = await supabase
+          .from('tickets')
+          .select('*, activity_logs(*)')
+          .order('created_at', { ascending: false });
+        if (ticketsData) setTickets(ticketsData);
       }
-      
+
       if (membersData.data) setTeamMembers(membersData.data);
       if (usersData.data) setUsers(usersData.data);
-      
+
       setLoading(false);
       setTicketsLoading(false);
     } catch (err: any) {
@@ -1977,9 +2006,7 @@ Error Code: ${activityError.code}`;
               {
                 key: 'Pending',
                 label: 'Pending',
-                icon: (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3"/></svg>
-                ),
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3"/></svg>),
                 activeClass: 'bg-amber-500 text-white border-amber-500 shadow-amber-200 shadow-md',
                 idleClass: 'bg-white text-amber-600 border-amber-300 hover:bg-amber-50',
                 disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
@@ -1989,9 +2016,7 @@ Error Code: ${activityError.code}`;
               {
                 key: 'Call',
                 label: 'Call',
-                icon: (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h2.28a1 1 0 01.95.68l1.02 3.06a1 1 0 01-.23 1.05L7.5 9.26a11.05 11.05 0 005.23 5.23l1.47-1.52a1 1 0 011.05-.23l3.06 1.02a1 1 0 01.69.95V19a2 2 0 01-2 2C9.16 21 3 14.84 3 7V5z"/></svg>
-                ),
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h2.28a1 1 0 01.95.68l1.02 3.06a1 1 0 01-.23 1.05L7.5 9.26a11.05 11.05 0 005.23 5.23l1.47-1.52a1 1 0 011.05-.23l3.06 1.02a1 1 0 01.69.95V19a2 2 0 01-2 2C9.16 21 3 14.84 3 7V5z"/></svg>),
                 activeClass: 'bg-sky-500 text-white border-sky-500 shadow-sky-200 shadow-md',
                 idleClass: 'bg-white text-sky-600 border-sky-300 hover:bg-sky-50',
                 disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
@@ -2001,9 +2026,7 @@ Error Code: ${activityError.code}`;
               {
                 key: 'Onsite',
                 label: 'Onsite',
-                icon: (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                ),
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>),
                 activeClass: 'bg-violet-500 text-white border-violet-500 shadow-violet-200 shadow-md',
                 idleClass: 'bg-white text-violet-600 border-violet-300 hover:bg-violet-50',
                 disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
@@ -2013,9 +2036,7 @@ Error Code: ${activityError.code}`;
               {
                 key: 'In Progress',
                 label: 'In Progress',
-                icon: (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                ),
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>),
                 activeClass: 'bg-blue-600 text-white border-blue-600 shadow-blue-200 shadow-md',
                 idleClass: 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50',
                 disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
@@ -2025,9 +2046,7 @@ Error Code: ${activityError.code}`;
               {
                 key: 'Solved',
                 label: 'Solved',
-                icon: (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                ),
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>),
                 activeClass: 'bg-emerald-500 text-white border-emerald-500 shadow-emerald-200 shadow-md',
                 idleClass: 'bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50',
                 disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
@@ -2073,29 +2092,26 @@ Error Code: ${activityError.code}`;
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Pilih Status Baru *</label>
                       <div className="flex flex-col gap-2">
                         {statusBtns.map(btn => (
-                          <div key={btn.key}>
-                            <button
-                              onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
-                              disabled={btn.disabled}
-                              title={btn.disabled ? btn.disabledReason : btn.key}
-                              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
-                                newActivity.new_status === btn.key
-                                  ? btn.activeClass + ' ring-2 ring-offset-1 ring-blue-300'
-                                  : btn.disabled
-                                  ? btn.disabledClass
-                                  : btn.idleClass
-                              }`}
-                            >
-                              <span className="flex-shrink-0">{btn.icon}</span>
-                              <span className="flex-1 text-left">{btn.label}</span>
-                              {btn.disabled && (
-                                <span className="text-xs font-normal opacity-60">{btn.disabledReason}</span>
-                              )}
-                              {newActivity.new_status === btn.key && (
-                                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-                              )}
-                            </button>
-                          </div>
+                          <button
+                            key={btn.key}
+                            onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
+                            disabled={btn.disabled}
+                            title={btn.disabled ? btn.disabledReason : btn.key}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
+                              newActivity.new_status === btn.key
+                                ? btn.activeClass + ' ring-2 ring-offset-1 ring-blue-300'
+                                : btn.disabled
+                                ? btn.disabledClass
+                                : btn.idleClass
+                            }`}
+                          >
+                            <span className="flex-shrink-0">{btn.icon}</span>
+                            <span className="flex-1 text-left">{btn.label}</span>
+                            {btn.disabled && <span className="text-xs font-normal opacity-60">{btn.disabledReason}</span>}
+                            {newActivity.new_status === btn.key && (
+                              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                            )}
+                          </button>
                         ))}
                       </div>
                     </div>
