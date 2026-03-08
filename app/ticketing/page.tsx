@@ -176,7 +176,11 @@ export default function TicketingSystem() {
     file: null as File | null,
     photo: null as File | null,
     assign_to_services: false,
-    services_assignee: ''
+    services_assignee: '',
+    onsite_use_schedule: false,
+    onsite_schedule_date: '',
+    onsite_schedule_hour: '08',
+    onsite_schedule_minute: '00'
   });
 
   const [newUser, setNewUser] = useState({
@@ -777,16 +781,29 @@ export default function TicketingSystem() {
 
       // Prepare activity data with all required fields
       const isSimpleStatus = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
-      const autoNotes = newActivity.new_status === 'Call'
-        ? 'Sedang melakukan Call ke customer.'
-        : 'Tim sedang Onsite ke lokasi customer.';
+      const onsiteHasSchedule = newActivity.new_status === 'Onsite' && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date;
+
+      let autoNotes = '';
+      if (newActivity.new_status === 'Call') {
+        autoNotes = 'Sedang melakukan Call ke customer.';
+      } else if (newActivity.new_status === 'Onsite') {
+        if (onsiteHasSchedule) {
+          autoNotes = `Dijadwalkan Onsite pada ${newActivity.onsite_schedule_date} pukul ${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute} WIB.`;
+        } else {
+          autoNotes = 'Tim sedang Onsite ke lokasi customer.';
+        }
+      }
+
+      // If Onsite with schedule → save as Pending status (scheduled, not yet onsite)
+      const effectiveStatus = onsiteHasSchedule ? 'Pending' : newActivity.new_status;
+
       const activityData: any = {
         ticket_id: selectedTicket.id,
         handler_name: newActivity.handler_name,
         handler_username: currentUser?.username || '',
         action_taken: newActivity.action_taken || '',
         notes: isSimpleStatus ? autoNotes : newActivity.notes,
-        new_status: newActivity.new_status,
+        new_status: effectiveStatus,
         team_type: teamType,
         assigned_to_services: newActivity.assign_to_services || false,
         file_url: fileUrl || '',
@@ -862,7 +879,7 @@ Error Code: ${activityError.code}`;
       }
       
       if (teamType === 'Team PTS') {
-        updateData.status = newActivity.new_status;
+        updateData.status = effectiveStatus;
         
         if (newActivity.assign_to_services) {
           updateData.current_team = 'Team Services';
@@ -886,7 +903,7 @@ Error Code: ${activityError.code}`;
           });
         }
       } else if (teamType === 'Team Services') {
-        updateData.services_status = newActivity.new_status;
+        updateData.services_status = effectiveStatus;
       }
 
       const { error: updateError } = await supabase.from('tickets')
@@ -907,7 +924,11 @@ Error Code: ${activityError.code}`;
         file: null,
         photo: null,
         assign_to_services: false,
-        services_assignee: ''
+        services_assignee: '',
+        onsite_use_schedule: false,
+        onsite_schedule_date: '',
+        onsite_schedule_hour: '08',
+        onsite_schedule_minute: '00'
       });
       
       await fetchData();
@@ -2122,16 +2143,86 @@ Error Code: ${activityError.code}`;
 
                     {/* Call / Onsite — konfirmasi saja */}
                     {isSimple ? (
-                      <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-purple-50 border-purple-300'}`}>
-                        <div className="flex items-center gap-3">
-                          <span className="text-3xl">{newActivity.new_status === 'Call' ? '📞' : '🚗'}</span>
-                          <div>
-                            <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-purple-800'}`}>
-                              {newActivity.new_status === 'Call' ? 'Mencatat: Sedang melakukan Call ke customer' : 'Mencatat: Tim sedang Onsite ke lokasi'}
+                      <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-violet-50 border-violet-300'}`}>
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl mt-0.5">{newActivity.new_status === 'Call' ? '📞' : '🗓️'}</span>
+                          <div className="flex-1">
+                            <p className={`font-bold text-sm ${newActivity.new_status === 'Call' ? 'text-sky-800' : 'text-violet-800'}`}>
+                              {newActivity.new_status === 'Call' ? 'Mencatat: Sedang melakukan Call ke customer' : 'Mencatat: Tim akan Onsite ke lokasi'}
                             </p>
-                            <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-purple-600'}`}>
+                            <p className={`text-xs mt-0.5 ${newActivity.new_status === 'Call' ? 'text-sky-600' : 'text-violet-600'}`}>
                               Klik Simpan untuk mencatat tahapan ini. Detail diisi saat In Progress atau Solved.
                             </p>
+
+                            {/* Onsite schedule toggle */}
+                            {newActivity.new_status === 'Onsite' && (
+                              <div className="mt-3 border-t border-violet-200 pt-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Jadwal Onsite</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewActivity(prev => ({ ...prev, onsite_use_schedule: !prev.onsite_use_schedule }))}
+                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${newActivity.onsite_use_schedule ? 'bg-violet-500' : 'bg-gray-300'}`}
+                                  >
+                                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${newActivity.onsite_use_schedule ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                  </button>
+                                </div>
+                                {newActivity.onsite_use_schedule && (
+                                  <div className="space-y-2 animate-slide-down">
+                                    <div>
+                                      <label className="block text-xs font-medium text-violet-700 mb-1">Tanggal</label>
+                                      <input
+                                        type="date"
+                                        value={newActivity.onsite_schedule_date}
+                                        onChange={(e) => setNewActivity(prev => ({ ...prev, onsite_schedule_date: e.target.value }))}
+                                        className="w-full border border-violet-300 rounded-lg px-3 py-2 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100 bg-white transition-all"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-violet-700 mb-1">Jam (WIB)</label>
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={newActivity.onsite_schedule_hour}
+                                          onChange={(e) => setNewActivity(prev => ({ ...prev, onsite_schedule_hour: e.target.value }))}
+                                          className="flex-1 border border-violet-300 rounded-lg px-3 py-2 text-sm font-semibold text-center focus:border-violet-500 focus:ring-2 focus:ring-violet-100 bg-white"
+                                        >
+                                          {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h => (
+                                            <option key={h} value={h}>{h}</option>
+                                          ))}
+                                        </select>
+                                        <span className="text-violet-500 font-bold text-lg">:</span>
+                                        <select
+                                          value={newActivity.onsite_schedule_minute}
+                                          onChange={(e) => setNewActivity(prev => ({ ...prev, onsite_schedule_minute: e.target.value }))}
+                                          className="flex-1 border border-violet-300 rounded-lg px-3 py-2 text-sm font-semibold text-center focus:border-violet-500 focus:ring-2 focus:ring-violet-100 bg-white"
+                                        >
+                                          {['00','15','30','45'].map(m => (
+                                            <option key={m} value={m}>{m}</option>
+                                          ))}
+                                        </select>
+                                        <span className="text-xs text-violet-500 font-semibold">WIB</span>
+                                      </div>
+                                    </div>
+                                    {newActivity.onsite_schedule_date && (
+                                      <div className="mt-2 space-y-1.5">
+                                        <div className="flex items-center gap-2 bg-violet-100 rounded-lg px-3 py-2">
+                                          <svg className="w-3.5 h-3.5 text-violet-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                          <span className="text-xs font-semibold text-violet-700">
+                                            {newActivity.onsite_schedule_date} · {newActivity.onsite_schedule_hour}:{newActivity.onsite_schedule_minute} WIB
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                          <svg className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                                          <span className="text-xs font-medium text-amber-700">
+                                            Status tiket akan disimpan sebagai <strong>Pending</strong>
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
