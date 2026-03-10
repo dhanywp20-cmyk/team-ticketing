@@ -3165,10 +3165,7 @@ Error Code: ${activityError.code}`;
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
-					<th className="px-3 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Activity</th>
-                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Flowchart</th>
-                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">PDF</th>
-                    {canAccessAccountSettings && <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide">OD</th>}
+					<th className="px-3 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 4 : 3}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
