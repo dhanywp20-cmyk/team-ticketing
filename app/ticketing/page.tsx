@@ -3105,12 +3105,21 @@ Error Code: ${activityError.code}`;
               <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
               <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? '...' : filteredTickets.length}</span>
             </div>
-            <button
-              onClick={exportToExcel}
-              className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 text-sm shadow-sm"
-            >
-              📊 Export Report
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchData()}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 text-sm border border-gray-200"
+                title="Refresh ticket list"
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={exportToExcel}
+                className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 text-sm shadow-sm"
+              >
+                📊 Export Report
+              </button>
+            </div>
           </div>
           
           {ticketsLoading ? (
@@ -3146,16 +3155,17 @@ Error Code: ${activityError.code}`;
             <div className="overflow-x-auto">
               <table className="w-full table-fixed bg-white border-collapse">
                 <colgroup>
-                  <col style={{width: '16%'}} />
-                  <col style={{width: '8%'}} />
-                  <col style={{width: '14%'}} />
-                  <col style={{width: '10%'}} />
+                  <col style={{width: '15%'}} />
+                  <col style={{width: '7%'}} />
                   <col style={{width: '12%'}} />
                   <col style={{width: '9%'}} />
-                  <col style={{width: '10%'}} />
-                  <col style={{width: '7%'}} />
-                  <col style={{width: '7%'}} />
-                  <col style={{width: '7%'}} />
+                  <col style={{width: '11%'}} />
+                  <col style={{width: '8%'}} />
+                  <col style={{width: '8%'}} />
+                  <col style={{width: '5%'}} />
+                  <col style={{width: '5%'}} />
+                  <col style={{width: '5%'}} />
+                  <col style={{width: '5%'}} />
                 </colgroup>
                 <thead>
                   <tr className="bg-white border-b-2 border-gray-100">
@@ -3164,8 +3174,9 @@ Error Code: ${activityError.code}`;
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Issue</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
-					<th className="px-3 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 4 : 3}>Action</th>
+					<th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 4 : 3}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3240,6 +3251,9 @@ Error Code: ${activityError.code}`;
                           )}
                         </div>
                       </td>
+						  <td className="px-2 py-3 border-r border-gray-100 align-middle">
+                        <div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || '—'}</div>
+                      </td>
 					  <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                         <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
                         {ticket.created_by && (
@@ -3249,58 +3263,58 @@ Error Code: ${activityError.code}`;
                           <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(',')[0]}</div>
                         )}
                       </td>
-                      <td className="px-3 py-4 border-r border-gray-100 text-center align-middle">
-                        <div className="flex flex-col items-center gap-1.5">
-                          <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                            <span className="text-gray-400 text-base">🗒️</span>
+                      <td className="px-1 py-2 border-r border-gray-100 text-center align-middle">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex items-center justify-center gap-1 mb-0.5">
+                            <span className="text-gray-400 text-sm">🗒️</span>
                             {ticket.activity_logs && ticket.activity_logs.length > 0 && (
-                              <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
+                              <span className="bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none" style={{fontSize:'10px'}}>
                                 {ticket.activity_logs.length}
                               </span>
                             )}
                           </div>
                           <button
                             onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }}
-                            className="flex items-center gap-1 text-red-600 hover:text-red-800 text-xs font-semibold transition-colors"
+                            className="text-red-600 hover:text-red-800 transition-colors" title="View"
                           >
-                            <span className="text-sm">👁</span> View
+                            <span className="text-base">👁</span>
                           </button>
                           {ticket.status === 'Solved' && canUpdateTicket && (
                             <button
                               onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
-                              className="flex items-center gap-1 text-amber-600 hover:text-amber-800 text-xs font-semibold transition-colors mt-0.5"
+                              className="text-amber-600 hover:text-amber-800 transition-colors mt-0.5" title="Re-open"
                             >
-                              <span className="text-sm">🔓</span> Re-open
+                              <span className="text-base">🔓</span>
                             </button>
                           )}
                         </div>
                       </td>
-                      <td className="px-2 py-4 border-r border-gray-100 align-middle text-center">
+                      <td className="px-1 py-2 border-r border-gray-100 align-middle text-center">
                         <button
                           onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }}
-                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-semibold transition-colors mx-auto"
+                          className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"
                         >
-                          <span className="text-sm">📊</span> Chart
+                          <span className="text-base">📊</span>
                         </button>
                         {canAccessAccountSettings && ticket.status === 'Waiting Approval' && (
                           <button
                             onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(''); setShowApprovalModal(true); }}
-                            className="flex items-center gap-1 text-orange-600 hover:text-orange-800 text-xs font-semibold transition-colors mx-auto mt-1 animate-pulse"
+                            className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-1 animate-pulse" title="Approve"
                           >
-                            <span className="text-sm">✅</span> Approve
+                            <span className="text-base">✅</span>
                           </button>
                         )}
                       </td>
-                      <td className="px-2 py-4 border-r border-gray-100 align-middle text-center">
+                      <td className="px-1 py-2 border-r border-gray-100 align-middle text-center">
                         <button
                           onClick={() => exportToPDF(ticket)}
-                          className="flex items-center gap-1 text-green-600 hover:text-green-800 text-xs font-semibold transition-colors mx-auto"
+                          className="text-green-600 hover:text-green-800 transition-colors mx-auto block" title="Print PDF"
                         >
-                          <span className="text-sm">🖨️</span> Print
+                          <span className="text-base">🖨️</span>
                         </button>
                       </td>
                       {canAccessAccountSettings && (
-                      <td className="px-2 py-4 align-middle text-center">
+                      <td className="px-1 py-2 align-middle text-center">
                         <button
                           onClick={() => {
                             setOverdueTargetTicket(ticket);
@@ -3308,11 +3322,11 @@ Error Code: ${activityError.code}`;
                             setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : '48' });
                             setShowOverdueSetting(true);
                           }}
-                          className={`flex items-center gap-1 text-xs font-semibold transition-colors mx-auto ${
+                          className={`transition-colors mx-auto block ${
                             overdueSetting ? 'text-red-600 hover:text-red-800' : 'text-gray-400 hover:text-gray-600'
-                          }`}
+                          }`} title="Overdue Setting"
                         >
-                          <span className="text-sm">⏰</span> Time
+                          <span className="text-base">⏰</span>
                         </button>
                       </td>
                       )}
