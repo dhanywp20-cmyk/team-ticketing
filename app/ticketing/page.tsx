@@ -2235,17 +2235,19 @@ Error Code: ${activityError.code}`;
                             value={newActivity.action_taken}
                             onChange={(e) => setNewActivity({...newActivity, action_taken: e.target.value})}
                             placeholder="Contoh: Cek kabel HDMI, restart sistem..."
-                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
+                            rows={4}
                           />
                         </div>
                         <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
                           <label className="block text-sm font-semibold text-gray-700 mb-2">📝 Notes *</label>
-                          <textarea
+                          <input
+                            type="text"
                             value={newActivity.notes}
                             onChange={(e) => setNewActivity({...newActivity, notes: e.target.value})}
                             placeholder="Jelaskan detail penanganan..."
                             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white resize-none"
-                            rows={4}
+                            rows={5}
                           />
                         </div>
                       </>
