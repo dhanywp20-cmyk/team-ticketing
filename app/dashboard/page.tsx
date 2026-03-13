@@ -812,14 +812,14 @@ export default function Dashboard() {
 
       {/* SIDEBAR — Corporate Elegant */}
       <div className={`relative flex flex-col transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-[72px]' : 'w-[288px]'}`}
-           style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 45%, #0f172a 100%)', boxShadow: '4px 0 24px rgba(0,0,0,0.45)' }}>
+           style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', boxShadow: '4px 0 24px rgba(0,0,0,0.12)' }}>
 
         {/* Subtle decorative top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #e2a84b, transparent)' }} />
+        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #c8861d, transparent)' }} />
 
         {/* ── HEADER ── */}
         <div className={`flex items-center border-b px-4 py-5 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}
-             style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+             style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
           {!sidebarCollapsed && (
             <div className="flex items-center gap-3 overflow-hidden">
               {/* Logo mark */}
@@ -830,8 +830,8 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div>
-                <p className="text-[11px] font-semibold tracking-[0.2em] uppercase" style={{ color: '#e2a84b' }}>IndoVisual</p>
-                <p className="text-white font-bold text-sm leading-none tracking-wide">PTS Portal</p>
+                <p className="text-[11px] font-semibold tracking-[0.2em] uppercase" style={{ color: '#c8861d' }}>IndoVisual</p>
+                <p className="font-bold text-sm leading-none tracking-wide" style={{ color: '#1e293b' }}>PTS Portal</p>
               </div>
             </div>
           )}
@@ -845,7 +845,7 @@ export default function Dashboard() {
           )}
           {!sidebarCollapsed && (
             <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-1.5 rounded-md transition-all hover:bg-white/10 text-slate-400 hover:text-white">
+              className="p-1.5 rounded-md transition-all hover:bg-black/10 text-slate-400 hover:text-slate-700">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
               </svg>
@@ -856,14 +856,14 @@ export default function Dashboard() {
         {/* ── USER BADGE ── */}
         {!sidebarCollapsed && (
           <div className="mx-4 my-4 px-4 py-3 rounded-xl flex items-center gap-3"
-               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+               style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)' }}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                 style={{ background: 'linear-gradient(135deg, #334155, #475569)', color: '#e2a84b', border: '2px solid rgba(226,168,75,0.4)' }}>
+                 style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.4)' }}>
               {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-white text-xs font-semibold truncate">{currentUser?.full_name}</p>
-              <p className="text-[10px] font-medium tracking-widest uppercase" style={{ color: '#e2a84b' }}>{currentUser?.role}</p>
+              <p className="text-slate-800 text-xs font-semibold truncate">{currentUser?.full_name}</p>
+              <p className="text-[10px] font-medium tracking-widest uppercase" style={{ color: '#c8861d' }}>{currentUser?.role}</p>
             </div>
           </div>
         )}
@@ -874,9 +874,9 @@ export default function Dashboard() {
           {/* Main Menu Button */}
           <button onClick={handleBackToDashboard}
             className={`w-full group flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl font-semibold text-sm transition-all ${sidebarCollapsed ? 'justify-center' : ''}`}
-            style={{ background: 'linear-gradient(135deg, rgba(226,168,75,0.15), rgba(226,168,75,0.08))', border: '1px solid rgba(226,168,75,0.25)', color: '#e2a84b' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(226,168,75,0.25), rgba(226,168,75,0.15))'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(226,168,75,0.15), rgba(226,168,75,0.08))'; }}>
+            style={{ background: 'linear-gradient(135deg, rgba(200,134,29,0.12), rgba(200,134,29,0.06))', border: '1px solid rgba(200,134,29,0.3)', color: '#b8760d' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(200,134,29,0.22), rgba(200,134,29,0.14))'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(200,134,29,0.12), rgba(200,134,29,0.06))'; }}>
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
@@ -885,7 +885,7 @@ export default function Dashboard() {
 
           {/* Divider label */}
           {!sidebarCollapsed && (
-            <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(255,255,255,0.25)' }}>Navigation</p>
+            <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(0,0,0,0.3)' }}>Navigation</p>
           )}
 
           {menuLoading ? (
@@ -900,7 +900,7 @@ export default function Dashboard() {
                     /* ── COLLAPSED: icon pill with tooltip ── */
                     <div className="group relative">
                       <div className="w-full rounded-xl p-2.5 flex flex-col items-center gap-1.5 cursor-default transition-all"
-                           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                           style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.07)' }}>
                         <span className="text-xl">{menu.icon}</span>
                         <div className="flex flex-col gap-1 w-full">
                           {menu.items.map((item, itemIndex) => {
@@ -910,8 +910,8 @@ export default function Dashboard() {
                                 title={`${menu.title} — ${item.name}`}
                                 className="w-full h-7 rounded-lg flex items-center justify-center text-sm transition-all"
                                 style={isActive
-                                  ? { background: 'rgba(226,168,75,0.25)', border: '1px solid rgba(226,168,75,0.5)', color: '#e2a84b' }
-                                  : { background: 'rgba(255,255,255,0.06)', border: '1px solid transparent', color: '#94a3b8' }}>
+                                  ? { background: 'rgba(200,134,29,0.18)', border: '1px solid rgba(200,134,29,0.45)', color: '#b8760d' }
+                                  : { background: 'rgba(0,0,0,0.05)', border: '1px solid transparent', color: '#64748b' }}>
                                 {item.icon}
                               </button>
                             );
@@ -922,43 +922,43 @@ export default function Dashboard() {
                       <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
                            style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))' }}>
                         <div className="rounded-xl px-4 py-3 min-w-[160px]"
-                             style={{ background: '#1e293b', border: '1px solid rgba(226,168,75,0.2)' }}>
-                          <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#e2a84b' }}>{menu.title}</p>
+                             style={{ background: '#f8fafc', border: '1px solid rgba(200,134,29,0.25)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+                          <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#b8760d' }}>{menu.title}</p>
                           {menu.items.map((item, idx) => (
-                            <p key={idx} className="text-xs text-slate-400 leading-5">{item.icon} {item.name}</p>
+                            <p key={idx} className="text-xs text-slate-500 leading-5">{item.icon} {item.name}</p>
                           ))}
                         </div>
-                        <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent" style={{ borderRightColor: '#1e293b' }} />
+                        <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent" style={{ borderRightColor: '#f8fafc' }} />
                       </div>
                     </div>
                   ) : (
                     /* ── EXPANDED: section card ── */
-                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                       {/* Section header */}
                       <div className="flex items-center gap-2.5 px-4 py-2.5"
-                           style={{ background: 'rgba(255,255,255,0.06)' }}>
+                           style={{ background: 'rgba(0,0,0,0.05)' }}>
                         <span className="text-base">{menu.icon}</span>
-                        <span className="text-xs font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>{menu.title}</span>
+                        <span className="text-xs font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.5)' }}>{menu.title}</span>
                       </div>
                       {/* Sub items */}
-                      <div className="px-2 py-2 space-y-1" style={{ background: 'rgba(0,0,0,0.15)' }}>
+                      <div className="px-2 py-2 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
                         {menu.items.map((item, itemIndex) => {
                           const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
                           return (
                             <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
                               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
                               style={isActive
-                                ? { background: 'rgba(226,168,75,0.15)', border: '1px solid rgba(226,168,75,0.35)', color: '#e2a84b' }
-                                : { background: 'transparent', border: '1px solid transparent', color: '#94a3b8' }}
-                              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#e2e8f0'; }}
-                              onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; } }}>
+                                ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#b8760d' }
+                                : { background: 'transparent', border: '1px solid transparent', color: '#475569' }}
+                              onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = '#1e293b'; } }}
+                              onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; } }}>
                               <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-                                    style={{ background: isActive ? 'rgba(226,168,75,0.2)' : 'rgba(255,255,255,0.06)' }}>
+                                    style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>
                                 {item.icon}
                               </span>
                               <span className="truncate tracking-wide">{item.name}</span>
                               {isActive && (
-                                <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#e2a84b' }} />
+                                <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />
                               )}
                             </button>
                           );
@@ -973,11 +973,11 @@ export default function Dashboard() {
         </div>
 
         {/* ── FOOTER: collapse toggle + settings + logout ── */}
-        <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
           {sidebarCollapsed && (
             <button onClick={() => setSidebarCollapsed(false)}
-              className="w-full flex justify-center p-2 rounded-xl transition-all text-slate-400 hover:text-white"
-              style={{ background: 'rgba(255,255,255,0.05)' }}
+              className="w-full flex justify-center p-2 rounded-xl transition-all text-slate-400 hover:text-slate-700"
+              style={{ background: 'rgba(0,0,0,0.05)' }}
               title="Expand sidebar">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M6 5l7 7-7 7" />
