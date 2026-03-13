@@ -810,117 +810,203 @@ export default function Dashboard() {
          style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       {showSettings && <AccountSettingsModal onClose={() => setShowSettings(false)} />}
 
-      {/* SIDEBAR */}
-      <div className={`bg-white/75 backdrop-blur-sm shadow-2xl transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-80'} flex flex-col border-r border-slate-200`}>
-        
-        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-700 to-slate-600">
-          <div className="flex items-center justify-between">
-            {!sidebarCollapsed && (
-              <div className="flex-1">
-                <h2 className="text-lg font-bold text-white tracking-tight">PTS Portal</h2>
-                <p className="text-xs text-white/80 font-medium">{currentUser?.full_name}</p>
+      {/* SIDEBAR — Corporate Elegant */}
+      <div className={`relative flex flex-col transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-[72px]' : 'w-[288px]'}`}
+           style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 45%, #0f172a 100%)', boxShadow: '4px 0 24px rgba(0,0,0,0.45)' }}>
+
+        {/* Subtle decorative top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #e2a84b, transparent)' }} />
+
+        {/* ── HEADER ── */}
+        <div className={`flex items-center border-b px-4 py-5 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+             style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+          {!sidebarCollapsed && (
+            <div className="flex items-center gap-3 overflow-hidden">
+              {/* Logo mark */}
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                   style={{ background: 'linear-gradient(135deg, #e2a84b, #c8861d)' }}>
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+                </svg>
               </div>
-            )}
+              <div>
+                <p className="text-[11px] font-semibold tracking-[0.2em] uppercase" style={{ color: '#e2a84b' }}>IndoVisual</p>
+                <p className="text-white font-bold text-sm leading-none tracking-wide">PTS Portal</p>
+              </div>
+            </div>
+          )}
+          {sidebarCollapsed && (
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center"
+                 style={{ background: 'linear-gradient(135deg, #e2a84b, #c8861d)' }}>
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+              </svg>
+            </div>
+          )}
+          {!sidebarCollapsed && (
             <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-md transition-all">
-              {sidebarCollapsed ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
+              className="p-1.5 rounded-md transition-all hover:bg-white/10 text-slate-400 hover:text-white">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
+              </svg>
             </button>
-          </div>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-3">
+        {/* ── USER BADGE ── */}
+        {!sidebarCollapsed && (
+          <div className="mx-4 my-4 px-4 py-3 rounded-xl flex items-center gap-3"
+               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                 style={{ background: 'linear-gradient(135deg, #334155, #475569)', color: '#e2a84b', border: '2px solid rgba(226,168,75,0.4)' }}>
+              {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-white text-xs font-semibold truncate">{currentUser?.full_name}</p>
+              <p className="text-[10px] font-medium tracking-widest uppercase" style={{ color: '#e2a84b' }}>{currentUser?.role}</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── NAV SCROLL AREA ── */}
+        <div className="flex-1 overflow-y-auto px-3 pb-3" style={{ scrollbarWidth: 'none' }}>
+          
+          {/* Main Menu Button */}
           <button onClick={handleBackToDashboard}
-            className={`w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white p-4 rounded-md font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className={`w-full group flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl font-semibold text-sm transition-all ${sidebarCollapsed ? 'justify-center' : ''}`}
+            style={{ background: 'linear-gradient(135deg, rgba(226,168,75,0.15), rgba(226,168,75,0.08))', border: '1px solid rgba(226,168,75,0.25)', color: '#e2a84b' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(226,168,75,0.25), rgba(226,168,75,0.15))'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(226,168,75,0.15), rgba(226,168,75,0.08))'; }}>
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            {!sidebarCollapsed && <span>Main Menu</span>}
+            {!sidebarCollapsed && <span className="tracking-wide">Main Menu</span>}
           </button>
 
+          {/* Divider label */}
+          {!sidebarCollapsed && (
+            <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(255,255,255,0.25)' }}>Navigation</p>
+          )}
+
           {menuLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-8 h-8 border-3 border-slate-200 border-t-rose-500 rounded-full animate-spin"></div>
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(226,168,75,0.4)', borderTopColor: '#e2a84b' }}></div>
             </div>
           ) : (
-            visibleMenuItems.map((menu, index) => (
-              <div key={menu.key}>
-                {sidebarCollapsed ? (
-                  <div className={`bg-gradient-to-br ${menu.gradient} rounded-lg p-3 shadow-md hover:shadow-lg transition-all group relative`}>
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="text-3xl transform group-hover:scale-110 transition-transform">{menu.icon}</div>
-                      <div className="flex gap-1 flex-wrap justify-center">
+            <div className="space-y-2">
+              {visibleMenuItems.map((menu) => (
+                <div key={menu.key}>
+                  {sidebarCollapsed ? (
+                    /* ── COLLAPSED: icon pill with tooltip ── */
+                    <div className="group relative">
+                      <div className="w-full rounded-xl p-2.5 flex flex-col items-center gap-1.5 cursor-default transition-all"
+                           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <span className="text-xl">{menu.icon}</span>
+                        <div className="flex flex-col gap-1 w-full">
+                          {menu.items.map((item, itemIndex) => {
+                            const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
+                            return (
+                              <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
+                                title={`${menu.title} — ${item.name}`}
+                                className="w-full h-7 rounded-lg flex items-center justify-center text-sm transition-all"
+                                style={isActive
+                                  ? { background: 'rgba(226,168,75,0.25)', border: '1px solid rgba(226,168,75,0.5)', color: '#e2a84b' }
+                                  : { background: 'rgba(255,255,255,0.06)', border: '1px solid transparent', color: '#94a3b8' }}>
+                                {item.icon}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {/* Tooltip */}
+                      <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+                           style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))' }}>
+                        <div className="rounded-xl px-4 py-3 min-w-[160px]"
+                             style={{ background: '#1e293b', border: '1px solid rgba(226,168,75,0.2)' }}>
+                          <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#e2a84b' }}>{menu.title}</p>
+                          {menu.items.map((item, idx) => (
+                            <p key={idx} className="text-xs text-slate-400 leading-5">{item.icon} {item.name}</p>
+                          ))}
+                        </div>
+                        <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent" style={{ borderRightColor: '#1e293b' }} />
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── EXPANDED: section card ── */
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+                      {/* Section header */}
+                      <div className="flex items-center gap-2.5 px-4 py-2.5"
+                           style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <span className="text-base">{menu.icon}</span>
+                        <span className="text-xs font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>{menu.title}</span>
+                      </div>
+                      {/* Sub items */}
+                      <div className="px-2 py-2 space-y-1" style={{ background: 'rgba(0,0,0,0.15)' }}>
                         {menu.items.map((item, itemIndex) => {
                           const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
                           return (
                             <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
-                              className={`w-8 h-8 rounded flex items-center justify-center text-base transition-all ${isActive ? 'bg-white text-slate-800 shadow-md ring-2 ring-white/50' : 'bg-white/20 hover:bg-white/40 text-white'}`}
-                              title={`${menu.title} - ${item.name}`}>
-                              {item.icon}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
+                              style={isActive
+                                ? { background: 'rgba(226,168,75,0.15)', border: '1px solid rgba(226,168,75,0.35)', color: '#e2a84b' }
+                                : { background: 'transparent', border: '1px solid transparent', color: '#94a3b8' }}
+                              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#e2e8f0'; }}
+                              onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; } }}>
+                              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                                    style={{ background: isActive ? 'rgba(226,168,75,0.2)' : 'rgba(255,255,255,0.06)' }}>
+                                {item.icon}
+                              </span>
+                              <span className="truncate tracking-wide">{item.name}</span>
+                              {isActive && (
+                                <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#e2a84b' }} />
+                              )}
                             </button>
                           );
                         })}
                       </div>
                     </div>
-                    <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl">
-                      <div className="font-bold mb-1">{menu.title}</div>
-                      {menu.items.map((item, idx) => (
-                        <div key={idx} className="text-slate-300 text-[10px]">• {item.name}</div>
-                      ))}
-                      <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <div className={`bg-gradient-to-r ${menu.gradient} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 shadow-sm`}>
-                      <span className="text-lg">{menu.icon}</span>
-                      <span className="tracking-wide">{menu.title}</span>
-                    </div>
-                    {menu.items.map((item, itemIndex) => {
-                      const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
-                      return (
-                        <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
-                          className={`w-full bg-slate-50 hover:bg-slate-100 border text-slate-800 p-3 rounded-md font-medium shadow-sm transition-all flex items-center justify-end gap-3 ${isActive ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-200' : 'border-slate-200 hover:border-slate-300'}`}>
-                          <span className="text-sm tracking-wide text-right flex-1">{item.name}</span>
-                          <span className="text-lg">{item.icon}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))
+                  )}
+                </div>
+              ))}
+            </div>
           )}
-          </div>
         </div>
 
-        {/* Bottom Buttons: Settings + Sign Out — icon only, side by side */}
-        <div className="p-4 border-t border-slate-200">
-          <div className="flex gap-2 justify-center">
+        {/* ── FOOTER: collapse toggle + settings + logout ── */}
+        <div className="p-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          {sidebarCollapsed && (
+            <button onClick={() => setSidebarCollapsed(false)}
+              className="w-full flex justify-center p-2 rounded-xl transition-all text-slate-400 hover:text-white"
+              style={{ background: 'rgba(255,255,255,0.05)' }}
+              title="Expand sidebar">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M6 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+          <div className={`flex gap-2 ${sidebarCollapsed ? 'flex-col' : ''}`}>
             {(['admin','superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
-              <button onClick={() => setShowSettings(true)}
-                title="Account Settings"
-                className="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white p-3 rounded-md shadow-md hover:shadow-lg transition-all flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button onClick={() => setShowSettings(true)} title="Account Settings"
+                className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold transition-all ${sidebarCollapsed ? 'w-full px-2' : 'flex-1 px-3'}`}
+                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.25)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.15)'; }}>
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
+                {!sidebarCollapsed && <span>Settings</span>}
               </button>
             )}
-            <button onClick={handleLogout}
-              title="Sign Out"
-              className="flex-1 bg-slate-700 hover:bg-slate-800 text-white p-3 rounded-md shadow-md hover:shadow-lg transition-all flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button onClick={handleLogout} title="Sign Out"
+              className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold transition-all ${sidebarCollapsed ? 'w-full px-2' : 'flex-1 px-3'}`}
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.2)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; }}>
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
+              {!sidebarCollapsed && <span>Sign Out</span>}
             </button>
           </div>
         </div>
