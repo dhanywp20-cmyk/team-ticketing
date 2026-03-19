@@ -32,7 +32,8 @@ const supabaseServices = createClient(
 const SERVICES_STATUSES = [
   'Waiting Approval',
   'Pending',
-  'Warranty / Out Of Warranty',
+  'Warranty',
+  'Out Of Warranty',
   'Waiting PO from Sales',
   'Submit RMA',
   'Waiting sparepart',
@@ -244,7 +245,8 @@ export default function TicketingSystem() {
     'Solved': 'bg-emerald-50 text-emerald-600 border-emerald-200',
     'Overdue': 'bg-red-50 text-red-600 border-red-200',
     // ── Services-specific statuses ──────────────────────────────────────────
-    'Warranty / Out Of Warranty': 'bg-slate-50 text-slate-700 border-slate-300',
+    'Warranty':                   'bg-green-50 text-green-700 border-green-300',
+    'Out Of Warranty':            'bg-red-50 text-red-700 border-red-300',
     'Waiting PO from Sales':      'bg-amber-50 text-amber-700 border-amber-300',
     'Submit RMA':                 'bg-orange-50 text-orange-700 border-orange-300',
     'Waiting sparepart':          'bg-rose-50 text-rose-700 border-rose-300',
@@ -569,37 +571,31 @@ export default function TicketingSystem() {
 
         let mergedTickets: Ticket[] = ticketsData || [];
 
-        // ── Jika user adalah Team Services, ambil juga activity_logs dari Services DB ──
-        const activeUserMember = (membersData.data || []).find(
-          (m: TeamMember) => (m.username || '').toLowerCase() === (activeUser?.username || '').toLowerCase()
-        );
-        const isServicesUser = activeUserMember?.team_type === 'Team Services';
+        // ── Selalu merge activity_logs dari Services DB untuk SEMUA user ──
+        // Agar PTS juga bisa melihat history lengkap termasuk aktivitas Services
+        try {
+          const { data: svcLogs } = await supabaseServices
+            .from('activity_logs')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-        if (isServicesUser) {
-          try {
-            // Ambil activity logs dari Services DB dan merge ke ticket yang sudah ada
-            const { data: svcLogs } = await supabaseServices
-              .from('activity_logs')
-              .select('*')
-              .order('created_at', { ascending: false });
-
-            if (svcLogs && svcLogs.length > 0) {
-              mergedTickets = mergedTickets.map((ticket: Ticket) => {
-                const svcTicketLogs = svcLogs.filter((l: ActivityLog) => l.ticket_id === ticket.id);
-                if (svcTicketLogs.length === 0) return ticket;
-                const existingLogs = ticket.activity_logs || [];
-                // Gabungkan, hapus duplikat berdasarkan id
-                const allLogs = [...existingLogs, ...svcTicketLogs].reduce((acc: ActivityLog[], log: ActivityLog) => {
-                  if (!acc.find(l => l.id === log.id)) acc.push(log);
-                  return acc;
-                }, []);
-                allLogs.sort((a: ActivityLog, b: ActivityLog) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-                return { ...ticket, activity_logs: allLogs };
-              });
-            }
-          } catch (svcErr) {
-            console.warn('Could not fetch Services DB activity logs:', svcErr);
+          if (svcLogs && svcLogs.length > 0) {
+            mergedTickets = mergedTickets.map((ticket: Ticket) => {
+              const svcTicketLogs = svcLogs.filter((l: ActivityLog) => l.ticket_id === ticket.id);
+              if (svcTicketLogs.length === 0) return ticket;
+              const existingLogs = ticket.activity_logs || [];
+              // Gabungkan, hapus duplikat berdasarkan id
+              const allLogs = [...existingLogs, ...svcTicketLogs].reduce((acc: ActivityLog[], log: ActivityLog) => {
+                if (!acc.find(l => l.id === log.id)) acc.push(log);
+                return acc;
+              }, []);
+              allLogs.sort((a: ActivityLog, b: ActivityLog) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+              return { ...ticket, activity_logs: allLogs };
+            });
           }
+        } catch (svcErr) {
+          // Services DB mungkin belum ada atau offline — tidak masalah, lanjutkan dengan PTS data
+          console.warn('Could not fetch Services DB activity logs:', svcErr);
         }
 
         setTickets(mergedTickets);
@@ -1263,6 +1259,12 @@ export default function TicketingSystem() {
   const exportToExcel = () => {
     // Dynamically load SheetJS from CDN if not bundled
     const runExport = (XLSX: any) => {
+
+      // ── Tentukan data yang akan di-export ────────────────────────────────
+      // Services: hanya ticket yang tampil di listing mereka (filteredTickets)
+      // PTS/Admin: semua ticket
+      const exportTickets = currentUserTeamType === 'Team Services' ? filteredTickets : tickets;
+      const isServicesExport = currentUserTeamType === 'Team Services';
       // ── style helpers ──────────────────────────────────────
       const border = {
         top:    { style: 'thin', color: { rgb: 'D1D5DB' } },
@@ -1320,22 +1322,32 @@ export default function TicketingSystem() {
       // ── SHEET 1 : DASHBOARD ────────────────────────────────
       {
         const COLS = 5;
+        const dashTitle = isServicesExport
+          ? '📊 TICKET REPORT — TEAM SERVICES'
+          : '📊 TICKET REPORT — DASHBOARD ANALYTICS';
         const data: any[][] = [
-          [c('📊 TICKET REPORT — DASHBOARD ANALYTICS', titleStyle), ...row(COLS - 1)],
+          [c(dashTitle, titleStyle), ...row(COLS - 1)],
           [c(`Tanggal Export: ${exportDate}`, { font: { name: 'Arial', sz: 10, color: { rgb: '6B7280' } } }), ...row(COLS - 1)],
           row(COLS),
           [c('RINGKASAN STATISTIK', secHdrStyle), ...row(COLS - 1)],
           [c('Kategori', hdrStyle), c('Jumlah', hdrStyle), c('Persentase', hdrStyle), c('', hdrStyle), c('', hdrStyle)],
         ];
 
-        const statItems = [
+        const totalExport = exportTickets.length;
+        const statItems = isServicesExport ? [
+          { label: 'Total Tickets (Services)',   value: totalExport,                                                                              color: '1E3A5F' },
+          { label: 'Pending Check',              value: exportTickets.filter((t: Ticket) => t.services_status === 'Pending').length,              color: '92400E' },
+          { label: 'Process Repair',             value: exportTickets.filter((t: Ticket) => t.services_status === 'Process Repair').length,       color: '1E40AF' },
+          { label: 'Solved',                     value: exportTickets.filter((t: Ticket) => t.services_status === 'Solved').length,               color: '166534' },
+        ] : [
           { label: 'Total Tickets', value: stats.total,      color: '1E3A5F' },
           { label: 'Pending',       value: stats.pending,    color: '92400E' },
           { label: 'In Progress',   value: stats.processing, color: '1E40AF' },
           { label: 'Solved',        value: stats.solved,     color: '166534' },
         ];
         statItems.forEach((item, i) => {
-          const pct = stats.total > 0 ? ((item.value / stats.total) * 100).toFixed(1) + '%' : '0%';
+          const total = isServicesExport ? totalExport : stats.total;
+          const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) + '%' : '0%';
           const rs = { ...cellStyle, ...(i % 2 ? { fill: { fgColor: { rgb: 'EFF6FF' }, patternType: 'solid' } } : {}) };
           data.push([
             c(item.label, { ...rs, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: item.color } } }),
@@ -1349,11 +1361,12 @@ export default function TicketingSystem() {
 
         // Handler breakdown
         const handlerMap: Record<string, number> = {};
-        tickets.forEach(t => { if (t.assigned_to) handlerMap[t.assigned_to] = (handlerMap[t.assigned_to] || 0) + 1; });
+        exportTickets.forEach((t: Ticket) => { if (t.assigned_to) handlerMap[t.assigned_to] = (handlerMap[t.assigned_to] || 0) + 1; });
 
         data.push([c('HANDLER', hdrStyle), c('JUMLAH TICKET', hdrStyle), c('PERSENTASE', hdrStyle), c('', hdrStyle), c('', hdrStyle)]);
         Object.entries(handlerMap).forEach(([handler, count], i) => {
-          const pct = stats.total > 0 ? ((count / stats.total) * 100).toFixed(1) + '%' : '0%';
+          const total = exportTickets.length;
+          const pct = total > 0 ? ((count / total) * 100).toFixed(1) + '%' : '0%';
           const rs = i % 2 === 0 ? cellStyle : altStyle;
           data.push([
             c(handler, rs),
@@ -1386,12 +1399,12 @@ export default function TicketingSystem() {
         const COLS = headers.length;
 
         const data: any[][] = [
-          [c('📋 DATA SEMUA TICKET', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E3A5F' } } }), ...row(COLS - 1)],
+          [c(isServicesExport ? '📋 DATA TICKET — TEAM SERVICES' : '📋 DATA SEMUA TICKET', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E3A5F' } } }), ...row(COLS - 1)],
           row(COLS),
           headers.map(h => c(h, hdrStyle)),
         ];
 
-        tickets.forEach((t, idx) => {
+        exportTickets.forEach((t: Ticket, idx: number) => {
           const rs = idx % 2 === 0 ? cellStyle : altStyle;
           const overdue = isTicketOverdue(t);
           const effectiveStatus = overdue && t.status !== 'Solved' ? 'Overdue' : t.status;
@@ -1440,13 +1453,13 @@ export default function TicketingSystem() {
         const COLS = headers.length;
 
         const data: any[][] = [
-          [c('📝 DETAIL ACTIVITY LOG', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E3A5F' } } }), ...row(COLS - 1)],
+          [c(isServicesExport ? '📝 ACTIVITY LOG — TEAM SERVICES' : '📝 DETAIL ACTIVITY LOG', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E3A5F' } } }), ...row(COLS - 1)],
           row(COLS),
           headers.map(h => c(h, hdrStyle)),
         ];
 
         let rowIdx = 0;
-        tickets.forEach(ticket => {
+        exportTickets.forEach((ticket: Ticket) => {
           if (!ticket.activity_logs || ticket.activity_logs.length === 0) {
             const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
             data.push([
@@ -1500,7 +1513,8 @@ export default function TicketingSystem() {
       }
 
       // ── WRITE FILE ─────────────────────────────────────────
-      const fileName = `Ticket_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const teamLabel = isServicesExport ? 'Services' : 'PTS';
+      const fileName = `Ticket_Report_${teamLabel}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName, { bookType: 'xlsx', type: 'binary', cellStyles: true });
     };
 
@@ -1742,36 +1756,55 @@ export default function TicketingSystem() {
       setShowLoadingPopup(true);
       setLoadingMessage('Mengembalikan ticket ke Team PTS...');
 
-      // Kembalikan ticket ke Team PTS
+      // Kembalikan ticket ke Team PTS di PTS DB
+      // services_status diset null agar tidak muncul di queue Services lagi
       await supabase.from('tickets').update({
         current_team: 'Team PTS',
         services_status: null,
         status: 'In Progress',
       }).eq('id', ticket.id);
 
-      // Catat activity log di PTS DB
+      // Catat activity log di PTS DB (agar PTS bisa lihat)
       await supabase.from('activity_logs').insert([{
         ticket_id: ticket.id,
         handler_name: currentUser?.full_name || '',
         handler_username: currentUser?.username || '',
-        action_taken: 'Ticket Ditolak oleh Team Services',
-        notes: `Ticket dikembalikan ke Team PTS karena tidak dapat ditangani oleh Team Services.`,
+        action_taken: 'Ticket Dikembalikan ke Team PTS',
+        notes: `Ticket dikembalikan ke Team PTS oleh Team Services karena tidak dapat ditangani.`,
         new_status: 'In Progress',
         team_type: 'Team Services',
         assigned_to_services: false,
         file_url: '', file_name: '', photo_url: '', photo_name: '',
       }]);
 
-      // Hapus dari Services DB jika ada
+      // ⚠️ JANGAN hapus dari Services DB — cukup tandai sebagai returned
+      // agar history activity log Services tetap tersimpan dan bisa di-merge
       try {
-        await supabaseServices.from('tickets').delete().eq('id', ticket.id);
-      } catch (e) { console.warn('Services DB delete failed:', e); }
+        await supabaseServices.from('tickets').update({
+          services_status: 'Returned to PTS',
+          current_team: 'Team PTS',
+        }).eq('id', ticket.id);
+
+        // Catat juga di Services DB untuk kelengkapan log
+        await supabaseServices.from('activity_logs').insert([{
+          ticket_id: ticket.id,
+          handler_name: currentUser?.full_name || '',
+          handler_username: currentUser?.username || '',
+          action_taken: 'Ticket Dikembalikan ke Team PTS',
+          notes: `Ticket dikembalikan ke Team PTS. History Services tetap tersimpan.`,
+          new_status: 'Returned to PTS',
+          team_type: 'Team Services',
+          assigned_to_services: false,
+          file_url: '', file_name: '', photo_url: '', photo_name: '',
+        }]);
+      } catch (e) { console.warn('Services DB update failed:', e); }
 
       await fetchData();
       setLoadingMessage('✅ Ticket dikembalikan ke Team PTS.');
       setTimeout(() => {
         setShowLoadingPopup(false);
         setUploading(false);
+        setShowServicesApprovalModal(false);
       }, 1500);
     } catch (err: any) {
       setShowLoadingPopup(false);
@@ -2302,11 +2335,20 @@ export default function TicketingSystem() {
                 disabled: false, disabledReason: '',
               },
               {
-                key: 'Warranty / Out Of Warranty',
-                label: 'Warranty / Out Of Warranty',
+                key: 'Warranty',
+                label: 'Warranty',
                 icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>),
-                activeClass: 'bg-slate-600 text-white border-slate-600 shadow-slate-200 shadow-md',
-                idleClass: 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50',
+                activeClass: 'bg-green-600 text-white border-green-600 shadow-green-200 shadow-md',
+                idleClass: 'bg-white text-green-700 border-green-300 hover:bg-green-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+              {
+                key: 'Out Of Warranty',
+                label: 'Out Of Warranty',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>),
+                activeClass: 'bg-red-600 text-white border-red-600 shadow-red-200 shadow-md',
+                idleClass: 'bg-white text-red-700 border-red-300 hover:bg-red-50',
                 disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
                 disabled: false, disabledReason: '',
               },
@@ -2445,28 +2487,111 @@ export default function TicketingSystem() {
                     <div className="bg-white/75 rounded-xl p-4 border border-gray-300 shadow-sm">
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Pilih Status Baru *</label>
                       <div className="flex flex-col gap-2">
-                        {statusBtns.map(btn => (
-                          <button
-                            key={btn.key}
-                            onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
-                            disabled={btn.disabled}
-                            title={btn.disabled ? btn.disabledReason : btn.key}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
-                              newActivity.new_status === btn.key
-                                ? btn.activeClass + ' ring-2 ring-offset-1 ring-blue-300'
-                                : btn.disabled
-                                ? btn.disabledClass
-                                : btn.idleClass
-                            }`}
-                          >
-                            <span className="flex-shrink-0">{btn.icon}</span>
-                            <span className="flex-1 text-left">{btn.label}</span>
-                            {btn.disabled && <span className="text-xs font-normal opacity-60">{btn.disabledReason}</span>}
-                            {newActivity.new_status === btn.key && (
-                              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-                            )}
-                          </button>
-                        ))}
+                        {isCurrentUserServices ? (
+                          // ── Render khusus Services ──────────────────────────────────────
+                          <>
+                            {/* Pending Check button */}
+                            {statusBtns.filter(b => b.key === 'Pending').map(btn => (
+                              <button
+                                key={btn.key}
+                                onClick={() => setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
+                                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
+                                  newActivity.new_status === btn.key
+                                    ? btn.activeClass + ' ring-2 ring-offset-1 ring-pink-300'
+                                    : btn.idleClass
+                                }`}
+                              >
+                                <span className="flex-shrink-0">{btn.icon}</span>
+                                <span className="flex-1 text-left">{btn.label}</span>
+                                {newActivity.new_status === btn.key && (
+                                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                                )}
+                              </button>
+                            ))}
+
+                            {/* ── Warranty Selector ── */}
+                            <div className={`rounded-lg border-2 transition-all ${
+                              newActivity.new_status === 'Warranty' || newActivity.new_status === 'Out Of Warranty'
+                                ? 'border-slate-400 bg-slate-50 ring-2 ring-offset-1 ring-pink-300'
+                                : 'border-gray-200 bg-white hover:border-slate-300'
+                            }`}>
+                              <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+                                <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                <span className="text-sm font-semibold text-slate-700 flex-1">Cek Garansi Unit</span>
+                                {(newActivity.new_status === 'Warranty' || newActivity.new_status === 'Out Of Warranty') && (
+                                  <svg className="w-4 h-4 text-slate-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                                )}
+                              </div>
+                              <div className="flex gap-2 px-3 pb-2.5">
+                                <button
+                                  onClick={() => setNewActivity({...newActivity, new_status: 'Warranty', action_taken: '', notes: ''})}
+                                  className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                    newActivity.new_status === 'Warranty'
+                                      ? 'bg-green-600 text-white border-green-600 shadow-md'
+                                      : 'bg-white text-green-700 border-green-300 hover:bg-green-50'
+                                  }`}
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                  ✅ Warranty
+                                </button>
+                                <button
+                                  onClick={() => setNewActivity({...newActivity, new_status: 'Out Of Warranty', action_taken: '', notes: ''})}
+                                  className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                                    newActivity.new_status === 'Out Of Warranty'
+                                      ? 'bg-red-600 text-white border-red-600 shadow-md'
+                                      : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
+                                  }`}
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                  ❌ Out Of Warranty
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Sisa status Services selain Pending, Warranty, Out Of Warranty */}
+                            {statusBtns.filter(b => b.key !== 'Pending' && b.key !== 'Warranty' && b.key !== 'Out Of Warranty').map(btn => (
+                              <button
+                                key={btn.key}
+                                onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
+                                disabled={btn.disabled}
+                                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
+                                  newActivity.new_status === btn.key
+                                    ? btn.activeClass + ' ring-2 ring-offset-1 ring-pink-300'
+                                    : btn.disabled ? btn.disabledClass : btn.idleClass
+                                }`}
+                              >
+                                <span className="flex-shrink-0">{btn.icon}</span>
+                                <span className="flex-1 text-left">{btn.label}</span>
+                                {btn.disabled && <span className="text-xs font-normal opacity-60">{btn.disabledReason}</span>}
+                                {newActivity.new_status === btn.key && (
+                                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                                )}
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          // ── Render normal untuk Team PTS ──
+                          statusBtns.map(btn => (
+                            <button
+                              key={btn.key}
+                              onClick={() => !btn.disabled && setNewActivity({...newActivity, new_status: btn.key, action_taken: '', notes: ''})}
+                              disabled={btn.disabled}
+                              title={btn.disabled ? btn.disabledReason : btn.key}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${
+                                newActivity.new_status === btn.key
+                                  ? btn.activeClass + ' ring-2 ring-offset-1 ring-blue-300'
+                                  : btn.disabled ? btn.disabledClass : btn.idleClass
+                              }`}
+                            >
+                              <span className="flex-shrink-0">{btn.icon}</span>
+                              <span className="flex-1 text-left">{btn.label}</span>
+                              {btn.disabled && <span className="text-xs font-normal opacity-60">{btn.disabledReason}</span>}
+                              {newActivity.new_status === btn.key && (
+                                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                              )}
+                            </button>
+                          ))
+                        )}
                       </div>
                     </div>
 
