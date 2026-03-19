@@ -4,10 +4,40 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+// ── Supabase Client: Team PTS (existing) ──────────────────────────────────────
+// Required env vars (already ada):
+//   NEXT_PUBLIC_SUPABASE_URL
+//   NEXT_PUBLIC_SUPABASE_ANON_KEY
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+// ── Supabase Client: Team Services (separate server) ─────────────────────────
+// Tambahkan ke .env.local:
+//   NEXT_PUBLIC_SUPABASE_SERVICES_URL=https://<services-project-ref>.supabase.co
+//   NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY=<services-project-anon-key>
+//
+// Tabel yang perlu dibuat di Services Supabase project:
+//   - tickets     (mirror dari PTS, kolom sama)
+//   - activity_logs (kolom sama dengan PTS)
+//   - Storage bucket: ticket-photos (public)
+// RLS: aktifkan INSERT + SELECT policy for public / anon role
+const supabaseServices = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICES_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY!
+);
+
+// ── Status list khusus Team Services ─────────────────────────────────────────
+const SERVICES_STATUSES = [
+  'Warranty / Out Of Warranty',
+  'Waiting PO from Sales',
+  'Submit RMA',
+  'Waiting sparepart',
+  'Process Repair',
+  'Solved',
+] as const;
+type ServicesStatus = typeof SERVICES_STATUSES[number];
 
 interface User {
   id: string;
@@ -206,6 +236,12 @@ export default function TicketingSystem() {
     'In Progress': 'bg-blue-50 text-blue-600 border-blue-200',
     'Solved': 'bg-emerald-50 text-emerald-600 border-emerald-200',
     'Overdue': 'bg-red-50 text-red-600 border-red-200',
+    // ── Services-specific statuses ──────────────────────────────────────────
+    'Warranty / Out Of Warranty': 'bg-slate-50 text-slate-700 border-slate-300',
+    'Waiting PO from Sales':      'bg-amber-50 text-amber-700 border-amber-300',
+    'Submit RMA':                 'bg-orange-50 text-orange-700 border-orange-300',
+    'Waiting sparepart':          'bg-rose-50 text-rose-700 border-rose-300',
+    'Process Repair':             'bg-blue-50 text-blue-700 border-blue-300',
   };
 
   const checkSessionTimeout = () => {
@@ -518,12 +554,48 @@ export default function TicketingSystem() {
           setSelectedTicket(null);
         }
       } else {
-        // Non-guest: fetch all tickets
+        // Non-guest: fetch all tickets from PTS DB
         const { data: ticketsData } = await supabase
           .from('tickets')
           .select('*, activity_logs(*)')
           .order('created_at', { ascending: false });
-        if (ticketsData) setTickets(ticketsData);
+
+        let mergedTickets: Ticket[] = ticketsData || [];
+
+        // ── Jika user adalah Team Services, ambil juga activity_logs dari Services DB ──
+        const activeUserMember = (membersData.data || []).find(
+          (m: TeamMember) => (m.username || '').toLowerCase() === (activeUser?.username || '').toLowerCase()
+        );
+        const isServicesUser = activeUserMember?.team_type === 'Team Services';
+
+        if (isServicesUser) {
+          try {
+            // Ambil activity logs dari Services DB dan merge ke ticket yang sudah ada
+            const { data: svcLogs } = await supabaseServices
+              .from('activity_logs')
+              .select('*')
+              .order('created_at', { ascending: false });
+
+            if (svcLogs && svcLogs.length > 0) {
+              mergedTickets = mergedTickets.map((ticket: Ticket) => {
+                const svcTicketLogs = svcLogs.filter((l: ActivityLog) => l.ticket_id === ticket.id);
+                if (svcTicketLogs.length === 0) return ticket;
+                const existingLogs = ticket.activity_logs || [];
+                // Gabungkan, hapus duplikat berdasarkan id
+                const allLogs = [...existingLogs, ...svcTicketLogs].reduce((acc: ActivityLog[], log: ActivityLog) => {
+                  if (!acc.find(l => l.id === log.id)) acc.push(log);
+                  return acc;
+                }, []);
+                allLogs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                return { ...ticket, activity_logs: allLogs };
+              });
+            }
+          } catch (svcErr) {
+            console.warn('Could not fetch Services DB activity logs:', svcErr);
+          }
+        }
+
+        setTickets(mergedTickets);
       }
 
       if (membersData.data) setTeamMembers(membersData.data);
@@ -706,15 +778,19 @@ export default function TicketingSystem() {
     }
   };
 
-  const uploadFile = async (file: File, folder: string = 'reports'): Promise<{ url: string; name: string }> => {
-    const fileExt = file.name.split('.').pop();
+  const uploadFile = async (
+    file: File,
+    folder: string = 'reports',
+    useServicesDb: boolean = false
+  ): Promise<{ url: string; name: string }> => {
     const fileName = `${Date.now()}_${file.name}`;
     const filePath = `${folder}/${fileName}`;
+    const client = useServicesDb ? supabaseServices : supabase;
 
-    const { error } = await supabase.storage.from('ticket-photos').upload(filePath, file);
+    const { error } = await client.storage.from('ticket-photos').upload(filePath, file);
     if (error) throw error;
 
-    const { data } = supabase.storage.from('ticket-photos').getPublicUrl(filePath);
+    const { data } = client.storage.from('ticket-photos').getPublicUrl(filePath);
     return { url: data.publicUrl, name: file.name };
   };
 
@@ -729,10 +805,22 @@ export default function TicketingSystem() {
       return;
     }
 
-    const validStatuses = ['Waiting Approval', 'Pending', 'Call', 'Onsite', 'In Progress', 'Solved'];
-    if (!validStatuses.includes(newActivity.new_status)) {
-      alert('Invalid status! Use: Pending, In Progress, or Solved');
-      return;
+    const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser?.username || '').toLowerCase());
+    const teamType = member?.team_type || 'Team PTS';
+    const isServicesTeam = teamType === 'Team Services';
+
+    // ── Validasi status sesuai tim ────────────────────────────────────────────
+    const validStatusesPTS = ['Waiting Approval', 'Pending', 'Call', 'Onsite', 'In Progress', 'Solved'];
+    if (isServicesTeam) {
+      if (!(SERVICES_STATUSES as readonly string[]).includes(newActivity.new_status)) {
+        alert('Status tidak valid untuk Team Services!');
+        return;
+      }
+    } else {
+      if (!validStatusesPTS.includes(newActivity.new_status)) {
+        alert('Invalid status! Use: Pending, In Progress, or Solved');
+        return;
+      }
     }
 
     if (newActivity.assign_to_services && !newActivity.services_assignee) {
@@ -753,7 +841,7 @@ export default function TicketingSystem() {
       if (newActivity.file) {
         setLoadingMessage('Uploading PDF file...');
         try {
-          const result = await uploadFile(newActivity.file, 'reports');
+          const result = await uploadFile(newActivity.file, 'reports', isServicesTeam);
           fileUrl = result.url;
           fileName = result.name;
         } catch (uploadErr: any) {
@@ -765,7 +853,7 @@ export default function TicketingSystem() {
       if (newActivity.photo) {
         setLoadingMessage('Uploading photo...');
         try {
-          const result = await uploadFile(newActivity.photo, 'photos');
+          const result = await uploadFile(newActivity.photo, 'photos', isServicesTeam);
           photoUrl = result.url;
           photoName = result.name;
         } catch (uploadErr: any) {
@@ -774,13 +862,9 @@ export default function TicketingSystem() {
         }
       }
 
-      const member = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser?.username || '').toLowerCase());
-      const teamType = member?.team_type || 'Team PTS';
-
       setLoadingMessage('Saving activity log...');
 
-      // Prepare activity data with all required fields
-      const isSimpleStatus = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
+      const isSimpleStatusCalc = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
       const onsiteHasSchedule = newActivity.new_status === 'Onsite' && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date;
 
       let autoNotes = '';
@@ -794,7 +878,6 @@ export default function TicketingSystem() {
         }
       }
 
-      // If Onsite with schedule → save as Pending status (scheduled, not yet onsite)
       const effectiveStatus = onsiteHasSchedule ? 'Pending' : newActivity.new_status;
 
       const activityData: any = {
@@ -802,7 +885,7 @@ export default function TicketingSystem() {
         handler_name: newActivity.handler_name,
         handler_username: currentUser?.username || '',
         action_taken: newActivity.action_taken || '',
-        notes: isSimpleStatus ? autoNotes : newActivity.notes,
+        notes: isSimpleStatusCalc ? autoNotes : newActivity.notes,
         new_status: effectiveStatus,
         team_type: teamType,
         assigned_to_services: newActivity.assign_to_services || false,
@@ -812,81 +895,62 @@ export default function TicketingSystem() {
         photo_name: photoName || ''
       };
 
-      // Try to insert activity log
-      const { data: insertedActivity, error: activityError } = await supabase
+      // ── Pilih Supabase client sesuai tim ─────────────────────────────────
+      const activeClient = isServicesTeam ? supabaseServices : supabase;
+
+      const { error: activityError } = await activeClient
         .from('activity_logs')
         .insert([activityData])
         .select();
       
       if (activityError) {
         console.error('Activity log insert error:', activityError);
-        console.error('Error details:', {
-          code: activityError.code,
-          message: activityError.message,
-          details: activityError.details,
-          hint: activityError.hint
-        });
-        
-        // Check if it's an RLS policy error
         if (activityError.message.includes('row-level security') || 
             activityError.message.includes('policy') ||
             activityError.code === '42501' ||
             activityError.code === 'PGRST301') {
-          
-          const errorMsg = `❌ DATABASE PERMISSION ERROR (RLS Policy)
-
-Tabel 'activity_logs' memiliki Row-Level Security (RLS) policy yang memblokir insert data.
-
-SOLUSI UNTUK ADMINISTRATOR SUPABASE:
-1. Buka Supabase Dashboard → Authentication → Policies
-2. Pilih tabel 'activity_logs'
-3. Tambahkan policy baru untuk INSERT:
-
-   Policy Name: "Allow insert activity logs"
-   Policy Command: INSERT
-   Target Roles: public (atau authenticated)
-   USING expression: true
-   WITH CHECK expression: true
-
-SQL Command (jalankan di SQL Editor):
-CREATE POLICY "Allow insert activity logs"
-ON activity_logs FOR INSERT
-TO public
-WITH CHECK (true);
-
--- Atau untuk authenticated users only:
-CREATE POLICY "Allow authenticated insert activity logs"
-ON activity_logs FOR INSERT
-TO authenticated
-WITH CHECK (true);
-
-Error Detail: ${activityError.message}
-Error Code: ${activityError.code}`;
-
-          throw new Error(errorMsg);
+          throw new Error(
+            `❌ DATABASE PERMISSION ERROR (RLS Policy)\n` +
+            `Server: ${isServicesTeam ? 'Team Services DB' : 'Team PTS DB'}\n` +
+            `Error: ${activityError.message}\nCode: ${activityError.code}`
+          );
         }
-        
         throw new Error(`Database error: ${activityError.message}`);
       }
 
       setLoadingMessage('Updating ticket status...');
 
-      // Update ticket status
       const updateData: any = {};
+      if (newActivity.sn_unit) updateData.sn_unit = newActivity.sn_unit;
 
-      if (newActivity.sn_unit) {
-        updateData.sn_unit = newActivity.sn_unit;
-      }
-      
-      if (teamType === 'Team PTS') {
+      if (isServicesTeam) {
+        // ── Team Services: update services_status di kedua DB ───────────────
+        updateData.services_status = effectiveStatus;
+
+        // Update di Services DB
+        const { error: svcErr } = await supabaseServices
+          .from('tickets')
+          .update(updateData)
+          .eq('id', selectedTicket.id);
+        if (svcErr) {
+          console.warn('Services DB ticket update failed:', svcErr.message);
+        }
+        // Sync services_status ke PTS DB agar PTS bisa pantau progres
+        await supabase.from('tickets')
+          .update({ services_status: effectiveStatus })
+          .eq('id', selectedTicket.id);
+
+      } else {
+        // ── Team PTS: update di PTS DB ───────────────────────────────────────
         updateData.status = effectiveStatus;
-        
+
         if (newActivity.assign_to_services) {
+          // Status awal Services = langkah pertama mereka
           updateData.current_team = 'Team Services';
-          updateData.services_status = 'Pending';
+          updateData.services_status = 'Warranty / Out Of Warranty';
           updateData.assigned_to = newActivity.services_assignee;
 
-          // Trigger Email Notification (Backend Function)
+          // Email notification
           supabase.functions.invoke('send-email', {
             body: {
               ticketId: selectedTicket.id,
@@ -898,28 +962,50 @@ Error Code: ${activityError.code}`;
               salesName: selectedTicket.sales_name || '-',
               activityLog: newActivity.notes || '-'
             }
-          }).then(({ error }) => {
-            if (error) console.error('Failed to send email:', error);
-          });
+          }).then(({ error }) => { if (error) console.error('Email error:', error); });
+
+          // Mirror ticket ke Services DB agar team Services dapat melihat & update
+          try {
+            const { data: existSvc } = await supabaseServices
+              .from('tickets')
+              .select('id')
+              .eq('id', selectedTicket.id)
+              .maybeSingle();
+
+            if (!existSvc) {
+              await supabaseServices.from('tickets').insert([{
+                id: selectedTicket.id,
+                project_name: selectedTicket.project_name,
+                address: selectedTicket.address || null,
+                customer_phone: selectedTicket.customer_phone || null,
+                sales_name: selectedTicket.sales_name || null,
+                sn_unit: selectedTicket.sn_unit || null,
+                issue_case: selectedTicket.issue_case,
+                description: selectedTicket.description || null,
+                assigned_to: newActivity.services_assignee,
+                date: selectedTicket.date,
+                status: 'Warranty / Out Of Warranty',
+                services_status: 'Warranty / Out Of Warranty',
+                current_team: 'Team Services',
+                created_by: selectedTicket.created_by || null,
+              }]);
+            }
+          } catch (svcInsertErr) {
+            console.warn('Could not mirror ticket to Services DB:', svcInsertErr);
+          }
         }
-      } else if (teamType === 'Team Services') {
-        updateData.services_status = effectiveStatus;
-      }
 
-      const { error: updateError } = await supabase.from('tickets')
-        .update(updateData)
-        .eq('id', selectedTicket.id);
-
-      if (updateError) {
-        console.error('Ticket update error:', updateError);
-        throw new Error(`Failed to update ticket: ${updateError.message}`);
+        const { error: updateError } = await supabase.from('tickets')
+          .update(updateData)
+          .eq('id', selectedTicket.id);
+        if (updateError) throw new Error(`Failed to update ticket: ${updateError.message}`);
       }
 
       setNewActivity({
         handler_name: newActivity.handler_name,
         action_taken: '',
         notes: '',
-        new_status: 'Pending',
+        new_status: isServicesTeam ? 'Warranty / Out Of Warranty' : 'Pending',
         sn_unit: '',
         file: null,
         photo: null,
@@ -942,8 +1028,6 @@ Error Code: ${activityError.code}`;
     } catch (err: any) {
       setShowLoadingPopup(false);
       setUploading(false);
-      
-      // Show detailed error message
       if (err.message.includes('RLS Policy') || err.message.includes('PERMISSION ERROR')) {
         alert(err.message);
       } else {
@@ -1529,8 +1613,13 @@ Error Code: ${activityError.code}`;
   useEffect(() => {
     if (currentUser && teamMembers.length > 0) {
       const member = teamMembers.find(m => m.username === currentUser.username);
+      const isServices = member?.team_type === 'Team Services';
       if (member) {
-        setNewActivity(prev => ({ ...prev, handler_name: member.name }));
+        setNewActivity(prev => ({
+          ...prev,
+          handler_name: member.name,
+          new_status: isServices ? 'Warranty / Out Of Warranty' : prev.new_status,
+        }));
       } else {
         setNewActivity(prev => ({ ...prev, handler_name: currentUser.full_name }));
       }
@@ -2022,12 +2111,68 @@ Error Code: ${activityError.code}`;
             const currentStatus = selectedTicket.status;
 
             // Urutan tahapan — Pending → Call → Onsite → In Progress → Solved
-            // Call & Onsite: disabled jika sudah pernah dilakukan
-            // Pending / In Progress / Solved: selalu available (bisa diulang)
-            // Aturan urutan: tidak boleh lompat ke Solved tanpa melewati In Progress
             const hasInProgress = doneStatuses.has('In Progress') || currentStatus === 'In Progress';
 
-            const statusBtns = [
+            // ── Status buttons: berbeda untuk Team Services ───────────────────
+            const isCurrentUserServices = currentUserTeamType === 'Team Services';
+
+            const statusBtns = isCurrentUserServices ? [
+              // Alur khusus Team Services
+              {
+                key: 'Warranty / Out Of Warranty',
+                label: 'Warranty / Out Of Warranty',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>),
+                activeClass: 'bg-slate-600 text-white border-slate-600 shadow-slate-200 shadow-md',
+                idleClass: 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+              {
+                key: 'Waiting PO from Sales',
+                label: 'Waiting PO from Sales',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>),
+                activeClass: 'bg-amber-500 text-white border-amber-500 shadow-amber-200 shadow-md',
+                idleClass: 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+              {
+                key: 'Submit RMA',
+                label: 'Submit RMA',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>),
+                activeClass: 'bg-orange-500 text-white border-orange-500 shadow-orange-200 shadow-md',
+                idleClass: 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+              {
+                key: 'Waiting sparepart',
+                label: 'Waiting Sparepart',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>),
+                activeClass: 'bg-rose-500 text-white border-rose-500 shadow-rose-200 shadow-md',
+                idleClass: 'bg-white text-rose-700 border-rose-300 hover:bg-rose-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+              {
+                key: 'Process Repair',
+                label: 'Process Repair',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>),
+                activeClass: 'bg-blue-600 text-white border-blue-600 shadow-blue-200 shadow-md',
+                idleClass: 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+              {
+                key: 'Solved',
+                label: 'Solved',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>),
+                activeClass: 'bg-emerald-500 text-white border-emerald-500 shadow-emerald-200 shadow-md',
+                idleClass: 'bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
+            ] : [
               {
                 key: 'Pending',
                 label: 'Pending',
@@ -2080,13 +2225,14 @@ Error Code: ${activityError.code}`;
               },
             ];
 
-            const isSimple = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
-
+            const isSimple = !isCurrentUserServices && (newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite');
 
               return (
               <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-[420px] min-w-[380px] overflow-hidden animate-slide-down">
-                <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-between flex-shrink-0">
-                  <h3 className="font-bold text-white text-base">➕ Update Activity</h3>
+                <div className={`p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0 ${isCurrentUserServices ? 'bg-gradient-to-r from-rose-600 to-pink-700' : 'bg-gradient-to-r from-blue-600 to-blue-700'}`}>
+                  <h3 className="font-bold text-white text-base">
+                    {isCurrentUserServices ? '🔧 Update Status Services' : '➕ Update Activity'}
+                  </h3>
                   <button onClick={() => setShowUpdateForm(false)}
                     className="text-white hover:bg-white/20 rounded-lg p-1.5 font-bold transition-all text-sm"
                   >✕ Tutup</button>
