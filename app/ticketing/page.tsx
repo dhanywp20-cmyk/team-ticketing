@@ -798,8 +798,12 @@ export default function TicketingSystem() {
   };
 
   const addActivity = async () => {
+    const SERVICES_SIMPLE = ['Warranty', 'Out Of Warranty', 'Waiting PO from Sales', 'Submit RMA', 'Waiting sparepart'];
     const isSimpleStatus = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
-    if (!isSimpleStatus && !newActivity.notes) {
+    const isSvcSimple = teamMembers.find(m => (m.username || '').toLowerCase() === (currentUser?.username || '').toLowerCase())?.team_type === 'Team Services'
+      && SERVICES_SIMPLE.includes(newActivity.new_status);
+
+    if (!isSimpleStatus && !isSvcSimple && !newActivity.notes) {
       alert('Notes must be filled!');
       return;
     }
@@ -867,8 +871,18 @@ export default function TicketingSystem() {
 
       setLoadingMessage('Saving activity log...');
 
+      const SVCSS = ['Warranty', 'Out Of Warranty', 'Waiting PO from Sales', 'Submit RMA', 'Waiting sparepart'];
       const isSimpleStatusCalc = newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite';
+      const isSvcSimpleCalc = isServicesTeam && SVCSS.includes(newActivity.new_status);
       const onsiteHasSchedule = newActivity.new_status === 'Onsite' && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date;
+
+      const svcSimpleNotes: Record<string, string> = {
+        'Warranty':              'Unit masih dalam masa garansi.',
+        'Out Of Warranty':       'Unit sudah di luar masa garansi.',
+        'Waiting PO from Sales': 'Menunggu Purchase Order dari Sales.',
+        'Submit RMA':            'RMA telah disubmit ke vendor.',
+        'Waiting sparepart':     'Menunggu kedatangan sparepart.',
+      };
 
       let autoNotes = '';
       if (newActivity.new_status === 'Call') {
@@ -879,16 +893,19 @@ export default function TicketingSystem() {
         } else {
           autoNotes = 'Tim sedang Onsite ke lokasi customer.';
         }
+      } else if (isSvcSimpleCalc) {
+        autoNotes = svcSimpleNotes[newActivity.new_status] || newActivity.new_status;
       }
 
       const effectiveStatus = onsiteHasSchedule ? 'Pending' : newActivity.new_status;
+      const useAutoNotes = isSimpleStatusCalc || isSvcSimpleCalc;
 
       const activityData: any = {
         ticket_id: selectedTicket.id,
         handler_name: newActivity.handler_name,
         handler_username: currentUser?.username || '',
-        action_taken: newActivity.action_taken || '',
-        notes: isSimpleStatusCalc ? autoNotes : newActivity.notes,
+        action_taken: useAutoNotes ? '' : (newActivity.action_taken || ''),
+        notes: useAutoNotes ? autoNotes : newActivity.notes,
         new_status: effectiveStatus,
         team_type: teamType,
         assigned_to_services: newActivity.assign_to_services || false,
@@ -2450,7 +2467,11 @@ export default function TicketingSystem() {
               },
             ];
 
-            const isSimple = !isCurrentUserServices && (newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite');
+            // Status Services yang tidak butuh Action Taken & Notes (konfirmasi saja)
+            const SERVICES_SIMPLE_STATUSES = ['Warranty', 'Out Of Warranty', 'Waiting PO from Sales', 'Submit RMA', 'Waiting sparepart'];
+            const isServicesSimple = isCurrentUserServices && SERVICES_SIMPLE_STATUSES.includes(newActivity.new_status);
+
+            const isSimple = (!isCurrentUserServices && (newActivity.new_status === 'Call' || newActivity.new_status === 'Onsite')) || isServicesSimple;
 
               return (
               <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-[420px] min-w-[380px] overflow-hidden animate-slide-down">
@@ -2595,8 +2616,39 @@ export default function TicketingSystem() {
                       </div>
                     </div>
 
-                    {/* Call / Onsite — konfirmasi saja */}
+                    {/* Simple status confirmation block */}
                     {isSimple ? (
+                      isServicesSimple ? (
+                        // ── Services simple status: konfirmasi tanpa Action Taken/Notes ──
+                        (() => {
+                          const svcSimpleConfig: Record<string, { icon: string; color: string; borderColor: string; textColor: string; subColor: string; desc: string }> = {
+                            'Warranty':              { icon: '✅', color: 'bg-green-50',  borderColor: 'border-green-300',  textColor: 'text-green-800',  subColor: 'text-green-600',  desc: 'Unit masih dalam masa garansi. Klik Simpan untuk mencatat.' },
+                            'Out Of Warranty':       { icon: '❌', color: 'bg-red-50',    borderColor: 'border-red-300',    textColor: 'text-red-800',    subColor: 'text-red-600',    desc: 'Unit sudah di luar masa garansi. Klik Simpan untuk mencatat.' },
+                            'Waiting PO from Sales': { icon: '📋', color: 'bg-amber-50',  borderColor: 'border-amber-300',  textColor: 'text-amber-800',  subColor: 'text-amber-600',  desc: 'Menunggu Purchase Order dari Sales. Klik Simpan untuk mencatat.' },
+                            'Submit RMA':            { icon: '📄', color: 'bg-orange-50', borderColor: 'border-orange-300', textColor: 'text-orange-800', subColor: 'text-orange-600', desc: 'RMA telah disubmit ke vendor. Klik Simpan untuk mencatat.' },
+                            'Waiting sparepart':     { icon: '⚙️', color: 'bg-rose-50',   borderColor: 'border-rose-300',   textColor: 'text-rose-800',   subColor: 'text-rose-600',   desc: 'Menunggu kedatangan sparepart. Klik Simpan untuk mencatat.' },
+                          };
+                          const cfg = svcSimpleConfig[newActivity.new_status] || { icon: '📌', color: 'bg-gray-50', borderColor: 'border-gray-300', textColor: 'text-gray-800', subColor: 'text-gray-600', desc: 'Klik Simpan untuk mencatat.' };
+                          return (
+                            <div className={`rounded-xl p-4 border-2 ${cfg.color} ${cfg.borderColor}`}>
+                              <div className="flex items-start gap-3">
+                                <span className="text-2xl mt-0.5">{cfg.icon}</span>
+                                <div className="flex-1">
+                                  <p className={`font-bold text-sm ${cfg.textColor}`}>
+                                    Mencatat: {newActivity.new_status}
+                                  </p>
+                                  <p className={`text-xs mt-1 ${cfg.subColor}`}>{cfg.desc}</p>
+                                  <div className={`mt-2 flex items-center gap-2 text-xs font-medium ${cfg.subColor} bg-white/70 rounded-lg px-3 py-1.5 border ${cfg.borderColor}`}>
+                                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    Action Taken & Notes tidak diperlukan untuk status ini.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                      // ── PTS Call / Onsite konfirmasi ──
                       <div className={`rounded-xl p-4 border-2 ${newActivity.new_status === 'Call' ? 'bg-sky-50 border-sky-300' : 'bg-violet-50 border-violet-300'}`}>
                         <div className="flex items-start gap-3">
                           <span className="text-2xl mt-0.5">{newActivity.new_status === 'Call' ? '📞' : '🗓️'}</span>
@@ -2680,6 +2732,7 @@ export default function TicketingSystem() {
                           </div>
                         </div>
                       </div>
+                      )
                     ) : (
                       <>
                         <div className="bg-white rounded-xl p-4 border border-gray-300 shadow-sm">
