@@ -59,6 +59,7 @@ interface TeamMember {
 
 interface ActivityLog {
   id: string;
+  ticket_id?: string;
   handler_name: string;
   handler_username: string;
   action_taken: string;
