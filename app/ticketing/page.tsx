@@ -587,7 +587,7 @@ export default function TicketingSystem() {
                   if (!acc.find(l => l.id === log.id)) acc.push(log);
                   return acc;
                 }, []);
-                allLogs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                allLogs.sort((a: ActivityLog, b: ActivityLog) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
                 return { ...ticket, activity_logs: allLogs };
               });
             }
