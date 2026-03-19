@@ -30,6 +30,8 @@ const supabaseServices = createClient(
 
 // ── Status list khusus Team Services ─────────────────────────────────────────
 const SERVICES_STATUSES = [
+  'Waiting Approval',
+  'Pending',
   'Warranty / Out Of Warranty',
   'Waiting PO from Sales',
   'Submit RMA',
@@ -135,6 +137,10 @@ export default function TicketingSystem() {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [approvalTicket, setApprovalTicket] = useState<Ticket | null>(null);
   const [approvalAssignee, setApprovalAssignee] = useState('');
+
+  // ── Services Approval states ──────────────────────────────────────────────
+  const [showServicesApprovalModal, setShowServicesApprovalModal] = useState(false);
+  const [servicesApprovalTicket, setServicesApprovalTicket] = useState<Ticket | null>(null);
   const [reminderSchedule, setReminderSchedule] = useState({
     hour_wib: '8',
     minute: '0',
@@ -946,9 +952,9 @@ export default function TicketingSystem() {
         updateData.status = effectiveStatus;
 
         if (newActivity.assign_to_services) {
-          // Status awal Services = langkah pertama mereka
+          // Status awal Services = Waiting Approval (menunggu konfirmasi dari Services)
           updateData.current_team = 'Team Services';
-          updateData.services_status = 'Warranty / Out Of Warranty';
+          updateData.services_status = 'Waiting Approval';
           updateData.assigned_to = newActivity.services_assignee;
 
           // Email notification
@@ -985,8 +991,8 @@ export default function TicketingSystem() {
                 description: selectedTicket.description || null,
                 assigned_to: newActivity.services_assignee,
                 date: selectedTicket.date,
-                status: 'Warranty / Out Of Warranty',
-                services_status: 'Warranty / Out Of Warranty',
+                status: 'Waiting Approval',
+                services_status: 'Waiting Approval',
                 current_team: 'Team Services',
                 created_by: selectedTicket.created_by || null,
               }]);
@@ -1006,7 +1012,7 @@ export default function TicketingSystem() {
         handler_name: newActivity.handler_name,
         action_taken: '',
         notes: '',
-        new_status: isServicesTeam ? 'Warranty / Out Of Warranty' : 'Pending',
+        new_status: isServicesTeam ? 'Pending' : 'Pending',
         sn_unit: '',
         file: null,
         photo: null,
@@ -1530,7 +1536,12 @@ export default function TicketingSystem() {
       if (filterStatus === 'All') statusMatch = true;
       else if (filterStatus === 'Overdue') statusMatch = isTicketOverdue(t) && t.status !== 'Solved';
       else if (filterStatus === 'Solved Overdue') statusMatch = isTicketOverdue(t) && t.status === 'Solved';
-      else statusMatch = t.status === filterStatus;
+      else if (currentUserTeamType === 'Team Services') {
+        // Untuk Services, filter berdasarkan services_status
+        statusMatch = t.services_status === filterStatus || t.status === filterStatus;
+      } else {
+        statusMatch = t.status === filterStatus;
+      }
 
       const handlerMatch = handlerFilter === null || t.assigned_to === handlerFilter;
       
@@ -1540,8 +1551,11 @@ export default function TicketingSystem() {
         teamVisibility = t.current_team === 'Team Services' || !!t.services_status;
       }
 
-      // Semua role selain admin: Waiting Approval hanya tampil jika mereka yang buat
-      if (t.status === 'Waiting Approval' && currentUser?.role !== 'admin') {
+      // Waiting Approval logic:
+      // - PTS admin: lihat semua Waiting Approval (dari guest)
+      // - Team Services: lihat Waiting Approval services_status mereka
+      // - Lainnya: hanya lihat ticket yang mereka buat sendiri
+      if (t.status === 'Waiting Approval' && currentUser?.role !== 'admin' && currentUserTeamType !== 'Team Services') {
         teamVisibility = teamVisibility && t.created_by === currentUser?.username;
       }
       
@@ -1619,7 +1633,7 @@ export default function TicketingSystem() {
         setNewActivity(prev => ({
           ...prev,
           handler_name: member.name,
-          new_status: isServices ? 'Warranty / Out Of Warranty' : prev.new_status,
+          new_status: isServices ? 'Pending' : prev.new_status,
         }));
       } else {
         setNewActivity(prev => ({ ...prev, handler_name: currentUser.full_name }));
@@ -1669,6 +1683,102 @@ export default function TicketingSystem() {
     if (currentUser?.role !== 'admin') return [];
     return tickets.filter(t => t.status === 'Waiting Approval');
   }, [tickets, currentUser]);
+
+  // Tickets waiting for Services team approval
+  const pendingServicesApprovalTickets = useMemo(() => {
+    if (currentUserTeamType !== 'Team Services') return [];
+    return tickets.filter(t => t.services_status === 'Waiting Approval' && t.current_team === 'Team Services');
+  }, [tickets, currentUserTeamType]);
+
+  const approveServicesTicket = async (ticket: Ticket) => {
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage('Approving ticket untuk Team Services...');
+
+      // Update services_status dari Waiting Approval → Pending di kedua DB
+      await supabase.from('tickets')
+        .update({ services_status: 'Pending' })
+        .eq('id', ticket.id);
+
+      try {
+        await supabaseServices.from('tickets')
+          .update({ services_status: 'Pending', status: 'Pending' })
+          .eq('id', ticket.id);
+      } catch (e) { console.warn('Services DB update failed:', e); }
+
+      // Catat activity log di Services DB
+      await supabaseServices.from('activity_logs').insert([{
+        ticket_id: ticket.id,
+        handler_name: currentUser?.full_name || '',
+        handler_username: currentUser?.username || '',
+        action_taken: 'Ticket Diterima oleh Team Services',
+        notes: `Ticket diterima dan akan segera diproses oleh Team Services.`,
+        new_status: 'Pending',
+        team_type: 'Team Services',
+        assigned_to_services: false,
+        file_url: '', file_name: '', photo_url: '', photo_name: '',
+      }]);
+
+      await fetchData();
+      setLoadingMessage('✅ Ticket diterima oleh Team Services!');
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+        setShowServicesApprovalModal(false);
+        setServicesApprovalTicket(null);
+      }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert('Error: ' + err.message);
+    }
+  };
+
+  const rejectServicesTicket = async (ticket: Ticket) => {
+    if (!confirm(`Tolak ticket "${ticket.project_name} - ${ticket.issue_case}"?\nTicket akan dikembalikan ke Team PTS.`)) return;
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage('Mengembalikan ticket ke Team PTS...');
+
+      // Kembalikan ticket ke Team PTS
+      await supabase.from('tickets').update({
+        current_team: 'Team PTS',
+        services_status: null,
+        status: 'In Progress',
+      }).eq('id', ticket.id);
+
+      // Catat activity log di PTS DB
+      await supabase.from('activity_logs').insert([{
+        ticket_id: ticket.id,
+        handler_name: currentUser?.full_name || '',
+        handler_username: currentUser?.username || '',
+        action_taken: 'Ticket Ditolak oleh Team Services',
+        notes: `Ticket dikembalikan ke Team PTS karena tidak dapat ditangani oleh Team Services.`,
+        new_status: 'In Progress',
+        team_type: 'Team Services',
+        assigned_to_services: false,
+        file_url: '', file_name: '', photo_url: '', photo_name: '',
+      }]);
+
+      // Hapus dari Services DB jika ada
+      try {
+        await supabaseServices.from('tickets').delete().eq('id', ticket.id);
+      } catch (e) { console.warn('Services DB delete failed:', e); }
+
+      await fetchData();
+      setLoadingMessage('✅ Ticket dikembalikan ke Team PTS.');
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+      }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert('Error: ' + err.message);
+    }
+  };
 
 
 
@@ -2045,7 +2155,11 @@ export default function TicketingSystem() {
                     </div>
                   </div>
 
-                  {canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && selectedTicket.status !== 'Solved' && (
+                  {canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && 
+                   (currentUserTeamType === 'Team Services'
+                     ? (selectedTicket.services_status !== 'Solved' && selectedTicket.services_status !== 'Waiting Approval')
+                     : selectedTicket.status !== 'Solved'
+                   ) && (
                     <div className="border-t border-gray-200 pt-3">
                       <div className="flex justify-between items-center">
                         <h3 className="font-semibold text-base text-gray-700">➕ Update Activity</h3>
@@ -2063,13 +2177,41 @@ export default function TicketingSystem() {
                       </div>
                     </div>
                   )}
-                  {canUpdateTicket && selectedTicket.status === 'Solved' && (
+                  {/* ── Waiting Approval Services banner ── */}
+                  {canUpdateTicket && currentUserTeamType === 'Team Services' && selectedTicket.services_status === 'Waiting Approval' && (
+                    <div className="border-t border-gray-200 pt-3">
+                      <div className="flex items-center gap-3 bg-rose-50 border-2 border-rose-300 rounded-xl px-4 py-3">
+                        <span className="text-2xl">⏳</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-rose-800">Menunggu Konfirmasi Team Services</p>
+                          <p className="text-xs text-rose-600 mt-0.5">Ticket dari Team PTS menunggu diterima atau ditolak.</p>
+                          <button
+                            onClick={() => setShowServicesApprovalModal(true)}
+                            className="mt-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all"
+                          >
+                            🔧 Buka Panel Konfirmasi
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {canUpdateTicket && (
+                    currentUserTeamType === 'Team Services'
+                      ? selectedTicket.services_status === 'Solved'
+                      : selectedTicket.status === 'Solved'
+                  ) && (
                     <div className="border-t border-gray-200 pt-3">
                       <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
                         <span className="text-emerald-600 text-lg">✅</span>
                         <div className="flex-1">
-                          <p className="text-sm font-semibold text-emerald-800">Ticket Selesai</p>
-                          <p className="text-xs text-emerald-600">Update Activity tidak tersedia. Gunakan Re-open untuk membuka kembali.</p>
+                          <p className="text-sm font-semibold text-emerald-800">
+                            {currentUserTeamType === 'Team Services' ? 'Services Selesai' : 'Ticket Selesai'}
+                          </p>
+                          <p className="text-xs text-emerald-600">
+                            {currentUserTeamType === 'Team Services'
+                              ? 'Update Activity tidak tersedia. Gunakan Pending Check untuk buka kembali.'
+                              : 'Update Activity tidak tersedia. Gunakan Re-open untuk membuka kembali.'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -2084,12 +2226,39 @@ export default function TicketingSystem() {
                 >
                   📄 Export PDF
                 </button>
-                {selectedTicket.status === 'Solved' && canUpdateTicket && (
+                {selectedTicket.status === 'Solved' && canUpdateTicket && currentUserTeamType !== 'Team Services' && (
                   <button
                     onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ''); setReopenNotes(''); setShowReopenModal(true); }}
                     className="flex-1 bg-amber-500 text-white py-2.5 rounded-lg hover:bg-amber-600 font-semibold transition-all text-sm"
                   >
                     🔓 Re-open
+                  </button>
+                )}
+                {selectedTicket.services_status === 'Solved' && canUpdateTicket && currentUserTeamType === 'Team Services' && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Reset status Services ke Pending Check?')) return;
+                      try {
+                        setUploading(true);
+                        await supabaseServices.from('tickets').update({ services_status: 'Pending' }).eq('id', selectedTicket.id);
+                        await supabase.from('tickets').update({ services_status: 'Pending' }).eq('id', selectedTicket.id);
+                        await supabaseServices.from('activity_logs').insert([{
+                          ticket_id: selectedTicket.id,
+                          handler_name: currentUser?.full_name || '',
+                          handler_username: currentUser?.username || '',
+                          action_taken: 'Reset ke Pending Check',
+                          notes: 'Status Services direset ke Pending untuk pengecekan ulang.',
+                          new_status: 'Pending', team_type: 'Team Services', assigned_to_services: false,
+                          file_url: '', file_name: '', photo_url: '', photo_name: '',
+                        }]);
+                        await fetchData();
+                        setShowTicketDetailPopup(false); setSelectedTicket(null);
+                      } catch (err: any) { alert('Error: ' + err.message); }
+                      finally { setUploading(false); }
+                    }}
+                    className="flex-1 bg-yellow-500 text-white py-2.5 rounded-lg hover:bg-yellow-600 font-semibold transition-all text-sm"
+                  >
+                    🔄 Pending Check
                   </button>
                 )}
                 <button
@@ -2105,7 +2274,11 @@ export default function TicketingSystem() {
             </div>
 
             {/* RIGHT: Update Activity Form */}
-            {showUpdateForm && canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && selectedTicket.status !== 'Solved' && (() => {
+            {showUpdateForm && canUpdateTicket && selectedTicket.status !== 'Waiting Approval' && 
+             (currentUserTeamType === 'Team Services' 
+               ? (selectedTicket.services_status !== 'Solved' && selectedTicket.services_status !== 'Waiting Approval')
+               : selectedTicket.status !== 'Solved'
+             ) && (() => {
 
             // Cek status apa saja yang sudah pernah direcord di activity logs
             const doneStatuses = new Set(selectedTicket.activity_logs?.map(l => l.new_status) || []);
@@ -2118,7 +2291,16 @@ export default function TicketingSystem() {
             const isCurrentUserServices = currentUserTeamType === 'Team Services';
 
             const statusBtns = isCurrentUserServices ? [
-              // Alur khusus Team Services
+              // Alur khusus Team Services — dimulai dari Pending (pengecekan awal)
+              {
+                key: 'Pending',
+                label: 'Pending Check',
+                icon: (<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 3"/></svg>),
+                activeClass: 'bg-yellow-500 text-white border-yellow-500 shadow-yellow-200 shadow-md',
+                idleClass: 'bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50',
+                disabledClass: 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed',
+                disabled: false, disabledReason: '',
+              },
               {
                 key: 'Warranty / Out Of Warranty',
                 label: 'Warranty / Out Of Warranty',
@@ -2530,6 +2712,20 @@ export default function TicketingSystem() {
                   ⏳ Approval
                   <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
                     {pendingApprovalTickets.length}
+                  </span>
+                </button>
+              )}
+
+              {/* ── Services Approval Badge ── */}
+              {currentUserTeamType === 'Team Services' && pendingServicesApprovalTickets.length > 0 && (
+                <button
+                  onClick={() => setShowServicesApprovalModal(true)}
+                  className="relative bg-gradient-to-r from-pink-500 to-rose-600 text-white px-4 py-3 rounded-xl hover:from-pink-600 hover:to-rose-700 font-bold shadow-lg transition-all animate-pulse"
+                  title="Ticket masuk menunggu konfirmasi Services"
+                >
+                  🔧 Ticket Masuk
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                    {pendingServicesApprovalTickets.length}
                   </span>
                 </button>
               )}
@@ -3568,6 +3764,82 @@ export default function TicketingSystem() {
                           className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm"
                         >
                           ❌ Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────── */}
+
+      {/* ── SERVICES APPROVAL MODAL ──────────────────────── */}
+      {showServicesApprovalModal && currentUserTeamType === 'Team Services' && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-scale-in border-2 border-rose-500">
+            <div className="p-6 border-b-2 border-gray-200 bg-gradient-to-r from-rose-500 to-pink-600">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🔧</span>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Ticket Masuk — Team Services</h3>
+                    <p className="text-sm text-white/90">{pendingServicesApprovalTickets.length} ticket menunggu konfirmasi</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowServicesApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(85vh-80px)] overflow-y-auto p-4 space-y-4">
+              {pendingServicesApprovalTickets.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-5xl mb-3">✅</div>
+                  <p className="text-gray-500 font-medium">Tidak ada ticket yang menunggu konfirmasi</p>
+                </div>
+              ) : (
+                pendingServicesApprovalTickets.map(ticket => (
+                  <div key={ticket.id} className="bg-rose-50 border-2 border-rose-300 rounded-xl p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p>
+                        <p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>
+                        {ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}
+                        <div className="flex gap-3 mt-2 flex-wrap text-xs text-gray-500">
+                          {ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}
+                          {ticket.sales_name && <span>💼 {ticket.sales_name}</span>}
+                          {ticket.sn_unit && <span>🔢 SN: {ticket.sn_unit}</span>}
+                          {ticket.address && <span>📍 {ticket.address}</span>}
+                        </div>
+                        <p className="text-xs text-rose-700 font-semibold mt-2">
+                          Dikirim oleh Team PTS • {ticket.date}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-rose-100 text-rose-800 border-rose-400 whitespace-nowrap ml-3">
+                        ⏳ Menunggu Konfirmasi
+                      </span>
+                    </div>
+
+                    <div className="mt-3 border-t border-rose-200 pt-3">
+                      <p className="text-xs text-gray-600 mb-3 bg-rose-50 rounded-lg px-3 py-2 border border-rose-200">
+                        💡 Terima ticket untuk mulai proses penanganan, atau tolak untuk mengembalikan ke Team PTS.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => approveServicesTicket(ticket)}
+                          disabled={uploading}
+                          className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2.5 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                        >
+                          ✅ Terima & Mulai Proses
+                        </button>
+                        <button
+                          onClick={() => rejectServicesTicket(ticket)}
+                          disabled={uploading}
+                          className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2.5 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm"
+                        >
+                          ❌ Tolak (Kembalikan ke PTS)
                         </button>
                       </div>
                     </div>
