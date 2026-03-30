@@ -431,6 +431,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   };
 
   const [form, setForm] = useState(initialForm);
+  const [surveyPhotos, setSurveyPhotos] = useState<File[]>([]);
+  const [surveyPhotosPreviews, setSurveyPhotosPreviews] = useState<string[]>([]);
+  const surveyPhotoRef = useRef<HTMLInputElement>(null);
 
   const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -505,9 +508,28 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           request_id: data.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
           message: `📋 Request baru dari ${currentUser.full_name} telah masuk dan menunggu approval dari Superadmin.`,
         }]);
+        // Upload survey photos if any
+        if (surveyPhotos.length > 0) {
+          for (const photo of surveyPhotos) {
+            const filePath = `project-files/${data.id}/survey-${Date.now()}-${photo.name}`;
+            const { error: storageErr } = await supabase.storage.from('project-files').upload(filePath, photo, { cacheControl: '3600', upsert: false });
+            if (!storageErr) {
+              const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+              await supabase.from('project_attachments').insert([{
+                request_id: data.id, message_id: null, file_name: photo.name,
+                file_url: urlData.publicUrl, file_type: photo.type, file_size: photo.size,
+                uploaded_by: currentUser.full_name,
+              }]);
+            }
+          }
+          await supabase.from('project_messages').insert([{
+            request_id: data.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role,
+            message: `📸 Melampirkan ${surveyPhotos.length} foto survey.`,
+          }]);
+        }
       }
       notify('success', '✅ Form berhasil dikirim! Menunggu approval dari Superadmin.');
-      setForm(initialForm); setView('list'); fetchRequests();
+      setForm(initialForm); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setView('list'); fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
     finally { setSubmitting(false); }
   };
@@ -1036,6 +1058,81 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none resize-none" />
             </div>
           </div>
+        </div>
+
+        {/* Foto Survey (Opsional) */}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
+          <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
+            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📸</span>
+            Foto Survey
+            <span className="ml-1 text-xs font-normal text-gray-400 normal-case tracking-normal">(opsional)</span>
+          </h3>
+          <input
+            ref={surveyPhotoRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={e => {
+              const files = Array.from(e.target.files || []);
+              if (files.length === 0) return;
+              const combined = [...surveyPhotos, ...files].slice(0, 10);
+              setSurveyPhotos(combined);
+              const newPreviews = combined.map(f => URL.createObjectURL(f));
+              setSurveyPhotosPreviews(newPreviews);
+              e.target.value = '';
+            }}
+          />
+          {surveyPhotosPreviews.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => surveyPhotoRef.current?.click()}
+              className="w-full border-2 border-dashed border-gray-300 hover:border-red-400 rounded-xl py-10 flex flex-col items-center gap-3 transition-all group bg-white hover:bg-red-50">
+              <div className="w-14 h-14 rounded-full bg-gray-100 group-hover:bg-red-100 flex items-center justify-center transition-all">
+                <svg className="w-7 h-7 text-gray-400 group-hover:text-red-500 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-600 group-hover:text-red-600 transition-all">Klik untuk upload foto survey</p>
+                <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP • Maks. 10 foto</p>
+              </div>
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {surveyPhotosPreviews.map((src, idx) => (
+                  <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-100 shadow">
+                    <img src={src} alt={`survey-${idx}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPhotos = surveyPhotos.filter((_, i) => i !== idx);
+                        const newPreviews = surveyPhotosPreviews.filter((_, i) => i !== idx);
+                        setSurveyPhotos(newPhotos);
+                        setSurveyPhotosPreviews(newPreviews);
+                      }}
+                      className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[10px] px-1.5 py-1 truncate opacity-0 group-hover:opacity-100 transition-all">
+                      {surveyPhotos[idx]?.name}
+                    </div>
+                  </div>
+                ))}
+                {surveyPhotosPreviews.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() => surveyPhotoRef.current?.click()}
+                    className="aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-red-400 flex flex-col items-center justify-center gap-1 transition-all bg-white hover:bg-red-50 group">
+                    <svg className="w-6 h-6 text-gray-400 group-hover:text-red-500 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    <span className="text-xs text-gray-400 group-hover:text-red-500 transition-all">Tambah</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 text-right">{surveyPhotosPreviews.length}/10 foto dipilih</p>
+            </div>
+          )}
         </div>
 
         {/* Konfirmasi & Submit */}
@@ -1823,7 +1920,7 @@ export default function Dashboard() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-y-auto">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {showFormRequire ? (
           /* Form Require Project renders fullscreen in main content area */
           currentUser && <FormRequireProject currentUser={currentUser} />
