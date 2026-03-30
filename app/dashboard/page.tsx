@@ -96,75 +96,15 @@ interface ProjectAttachment {
   uploaded_at: string;
 }
 
-// CREATE TABLE project_requests (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   created_at TIMESTAMPTZ DEFAULT NOW(),
-//   project_name TEXT NOT NULL,
-//   room_name TEXT,
-//   sales_name TEXT,
-//   requester_id TEXT NOT NULL,
-//   requester_name TEXT NOT NULL,
-//   status TEXT DEFAULT 'pending',
-//   kebutuhan JSONB DEFAULT '[]',
-//   kebutuhan_other TEXT DEFAULT '',
-//   solution_product JSONB DEFAULT '[]',
-//   solution_other TEXT DEFAULT '',
-//   layout_signage JSONB DEFAULT '[]',
-//   jaringan_cms JSONB DEFAULT '[]',
-//   jumlah_input TEXT DEFAULT '',
-//   jumlah_output TEXT DEFAULT '',
-//   source JSONB DEFAULT '[]',
-//   source_other TEXT DEFAULT '',
-//   camera_conference TEXT DEFAULT 'No',
-//   camera_jumlah TEXT DEFAULT '',
-//   camera_tracking JSONB DEFAULT '[]',
-//   audio_system TEXT DEFAULT 'No',
-//   audio_detail JSONB DEFAULT '[]',
-//   wallplate_input TEXT DEFAULT 'No',
-//   wallplate_jumlah TEXT DEFAULT '',
-//   wireless_presentation TEXT DEFAULT 'No',
-//   ukuran_ruangan TEXT DEFAULT '',
-//   suggest_tampilan TEXT DEFAULT '',
-//   keterangan_lain TEXT DEFAULT '',
-//   pts_assigned TEXT,
-//   approved_by TEXT,
-//   approved_at TIMESTAMPTZ
-// );
-//
-// CREATE TABLE project_messages (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   request_id UUID REFERENCES project_requests(id) ON DELETE CASCADE,
-//   sender_id TEXT NOT NULL,
-//   sender_name TEXT NOT NULL,
-//   sender_role TEXT NOT NULL,
-//   message TEXT NOT NULL,
-//   created_at TIMESTAMPTZ DEFAULT NOW()
-// );
-//
-// CREATE TABLE project_attachments (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   request_id UUID REFERENCES project_requests(id) ON DELETE CASCADE,
-//   message_id UUID REFERENCES project_messages(id) ON DELETE SET NULL,
-//   file_name TEXT NOT NULL,
-//   file_url TEXT NOT NULL,
-//   file_type TEXT NOT NULL,
-//   file_size BIGINT NOT NULL,
-//   uploaded_by TEXT NOT NULL,
-//   uploaded_at TIMESTAMPTZ DEFAULT NOW()
-// );
-//
-// -- Storage bucket: create bucket named "project-files" with public access
-// -- Enable Realtime on project_messages table
-
 // ─── Account Settings Modal ──────────────────────────────────────────────────
 
 const ALL_MENU_KEYS = [
   'form-bast',
+  'form-require-project',
   'ticket-troubleshooting',
   'daily-report',
   'database-pts',
   'unit-movement',
-  'form-require-project',
 ];
 
 interface AccountSettingsModalProps {
@@ -188,11 +128,11 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
 
   const menuLabels: Record<string, { label: string; icon: string; gradient: string }> = {
     'form-bast': { label: 'Form BAST & Demo', icon: '📋', gradient: 'from-slate-600 to-slate-500' },
+	'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
     'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
     'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
     'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
-    'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
   };
 
   const notify = (type: 'success' | 'error', msg: string) => {
@@ -1375,6 +1315,12 @@ export default function Dashboard() {
         { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/1hIpMsZIadnJu85FiJ5Qojn_fOcYLl3iMsBagzZI4LYM/edit?usp=sharing', icon: '📑', embed: true }
       ]
     },
+	{
+      title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
+      gradient: 'from-violet-700 via-violet-600 to-violet-500',
+      description: 'Solution request form untuk project Sales & Account',
+      items: [{ name: 'Buka Platform', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
+    },
     {
       title: 'Ticket Troubleshooting', icon: '🎫', key: 'ticket-troubleshooting',
       gradient: 'from-rose-700 via-rose-600 to-rose-500',
@@ -1405,12 +1351,6 @@ export default function Dashboard() {
         { name: 'Submit Movement', url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true', icon: '✍️', embed: true },
         { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true', icon: '📑', embed: true }
       ]
-    },
-    {
-      title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
-      gradient: 'from-violet-700 via-violet-600 to-violet-500',
-      description: 'Solution request form untuk project Sales & Account',
-      items: [{ name: 'Buka Platform', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
     },
   ];
 
