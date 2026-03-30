@@ -767,8 +767,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             <p className="text-gray-800 font-bold text-lg">IVP Product — AV Solution Request</p>
             <p className="text-sm text-gray-600 mt-1">
               Logged in as: <span className="font-bold text-red-600">{currentUser.full_name}</span>
-              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 font-bold">
-                {currentUser.role === 'superadmin' ? 'Super Admin' : currentUser.role === 'admin' ? 'Admin / PTS' : 'User / Sales'}
+              <span className={
+                `ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
+                  currentUser.role === 'superadmin' ? 'bg-red-100 text-red-800' :
+                  currentUser.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                  currentUser.role === 'team_pts' ? 'bg-emerald-100 text-emerald-800' :
+                  'bg-blue-100 text-blue-800'
+                }`}>
+                {currentUser.role === 'superadmin' ? 'Super Admin' :
+                 currentUser.role === 'admin' ? 'Admin / PTS' :
+                 currentUser.role === 'team_pts' ? 'Team PTS' :
+                 'User / Sales'}
               </span>
               {unreadCount > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-bold animate-pulse">
