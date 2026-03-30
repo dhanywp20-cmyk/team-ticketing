@@ -96,6 +96,65 @@ interface ProjectAttachment {
   uploaded_at: string;
 }
 
+// CREATE TABLE project_requests (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   project_name TEXT NOT NULL,
+//   room_name TEXT,
+//   sales_name TEXT,
+//   requester_id TEXT NOT NULL,
+//   requester_name TEXT NOT NULL,
+//   status TEXT DEFAULT 'pending',
+//   kebutuhan JSONB DEFAULT '[]',
+//   kebutuhan_other TEXT DEFAULT '',
+//   solution_product JSONB DEFAULT '[]',
+//   solution_other TEXT DEFAULT '',
+//   layout_signage JSONB DEFAULT '[]',
+//   jaringan_cms JSONB DEFAULT '[]',
+//   jumlah_input TEXT DEFAULT '',
+//   jumlah_output TEXT DEFAULT '',
+//   source JSONB DEFAULT '[]',
+//   source_other TEXT DEFAULT '',
+//   camera_conference TEXT DEFAULT 'No',
+//   camera_jumlah TEXT DEFAULT '',
+//   camera_tracking JSONB DEFAULT '[]',
+//   audio_system TEXT DEFAULT 'No',
+//   audio_detail JSONB DEFAULT '[]',
+//   wallplate_input TEXT DEFAULT 'No',
+//   wallplate_jumlah TEXT DEFAULT '',
+//   wireless_presentation TEXT DEFAULT 'No',
+//   ukuran_ruangan TEXT DEFAULT '',
+//   suggest_tampilan TEXT DEFAULT '',
+//   keterangan_lain TEXT DEFAULT '',
+//   pts_assigned TEXT,
+//   approved_by TEXT,
+//   approved_at TIMESTAMPTZ
+// );
+//
+// CREATE TABLE project_messages (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   request_id UUID REFERENCES project_requests(id) ON DELETE CASCADE,
+//   sender_id TEXT NOT NULL,
+//   sender_name TEXT NOT NULL,
+//   sender_role TEXT NOT NULL,
+//   message TEXT NOT NULL,
+//   created_at TIMESTAMPTZ DEFAULT NOW()
+// );
+//
+// CREATE TABLE project_attachments (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   request_id UUID REFERENCES project_requests(id) ON DELETE CASCADE,
+//   message_id UUID REFERENCES project_messages(id) ON DELETE SET NULL,
+//   file_name TEXT NOT NULL,
+//   file_url TEXT NOT NULL,
+//   file_type TEXT NOT NULL,
+//   file_size BIGINT NOT NULL,
+//   uploaded_by TEXT NOT NULL,
+//   uploaded_at TIMESTAMPTZ DEFAULT NOW()
+// );
+//
+// -- Storage bucket: create bucket named "project-files" with public access
+// -- Enable Realtime on project_messages table
 
 // ─── Account Settings Modal ──────────────────────────────────────────────────
 
@@ -497,20 +556,84 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
 
   const handleSubmitForm = async () => {
-    if (!form.project_name.trim()) { notify('error', 'Nama Project wajib diisi!'); return; }
+    // Validasi wajib
+    if (!form.project_name.trim()) {
+      notify('error', 'Nama Project wajib diisi!');
+      return;
+    }
+    if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) {
+      notify('error', 'Pilih minimal satu Kategori Kebutuhan!');
+      return;
+    }
+    if (form.solution_product.length === 0 && !form.solution_other.trim()) {
+      notify('error', 'Pilih minimal satu Solution Product!');
+      return;
+    }
+
     setSubmitting(true);
-    const { data, error } = await supabase.from('project_requests').insert([{
-      ...form,
-      requester_id: currentUser.id,
-      requester_name: currentUser.full_name,
-      status: 'pending',
-    }]).select().single();
-    setSubmitting(false);
-    if (error) { notify('error', 'Gagal submit form: ' + error.message); return; }
-    notify('success', 'Form berhasil dikirim! Menunggu approval dari Superadmin.');
-    setForm(initialForm);
-    setView('list');
-    fetchRequests();
+    try {
+      const payload = {
+        project_name: form.project_name.trim(),
+        room_name: form.room_name.trim(),
+        sales_name: form.sales_name.trim(),
+        kebutuhan: form.kebutuhan,
+        kebutuhan_other: form.kebutuhan_other.trim(),
+        solution_product: form.solution_product,
+        solution_other: form.solution_other.trim(),
+        layout_signage: form.layout_signage,
+        jaringan_cms: form.jaringan_cms,
+        jumlah_input: form.jumlah_input.trim(),
+        jumlah_output: form.jumlah_output.trim(),
+        source: form.source,
+        source_other: form.source_other.trim(),
+        camera_conference: form.camera_conference,
+        camera_jumlah: form.camera_jumlah.trim(),
+        camera_tracking: form.camera_tracking,
+        audio_system: form.audio_system,
+        audio_detail: form.audio_detail,
+        wallplate_input: form.wallplate_input,
+        wallplate_jumlah: form.wallplate_jumlah.trim(),
+        wireless_presentation: form.wireless_presentation,
+        ukuran_ruangan: form.ukuran_ruangan.trim(),
+        suggest_tampilan: form.suggest_tampilan.trim(),
+        keterangan_lain: form.keterangan_lain.trim(),
+        requester_id: currentUser.id,
+        requester_name: currentUser.full_name,
+        status: 'pending' as const,
+      };
+
+      const { data, error } = await supabase
+        .from('project_requests')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        notify('error', 'Gagal submit form: ' + error.message);
+        setSubmitting(false);
+        return;
+      }
+
+      // Kirim system message otomatis setelah submit
+      if (data?.id) {
+        await supabase.from('project_messages').insert([{
+          request_id: data.id,
+          sender_id: currentUser.id,
+          sender_name: 'System',
+          sender_role: 'system',
+          message: `📋 Request baru dari ${currentUser.full_name} telah masuk dan menunggu approval dari Superadmin.`,
+        }]);
+      }
+
+      notify('success', '✅ Form berhasil dikirim! Menunggu approval dari Superadmin.');
+      setForm(initialForm);
+      setView('list');
+      fetchRequests();
+    } catch (err) {
+      notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleApprove = async (req: ProjectRequest) => {
@@ -797,8 +920,16 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   if (view === 'new-form') return (
     <div className="h-full flex flex-col bg-slate-50">
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold flex items-center gap-2 border ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-          {notification.type === 'success' ? '✅' : '❌'} {notification.msg}
+        <div className={`fixed top-4 right-4 z-50 px-5 py-4 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-3 border max-w-sm ${
+          notification.type === 'success'
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+            : 'bg-red-50 text-red-700 border-red-300'
+        }`}>
+          <span className="text-lg">{notification.type === 'success' ? '✅' : '❌'}</span>
+          <div>
+            <p className="font-bold">{notification.type === 'success' ? 'Berhasil!' : 'Gagal!'}</p>
+            <p className="font-medium text-xs mt-0.5">{notification.msg}</p>
+          </div>
         </div>
       )}
 
@@ -807,9 +938,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           <button onClick={() => setView('list')} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-all">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <div>
+          <div className="flex-1">
             <h2 className="text-2xl font-bold tracking-tight">Form Equipment Request — IVP</h2>
-            <p className="text-violet-200 text-sm">Isi form kebutuhan solution AV project Anda</p>
+            <p className="text-violet-200 text-sm mt-0.5">Isi form kebutuhan solution AV project Anda • Requester: <span className="font-semibold text-white">{currentUser.full_name}</span></p>
+          </div>
+          <div className="flex-shrink-0 text-right">
+            <div className="text-xs text-violet-300 font-medium mb-1">Diajukan sebagai</div>
+            <div className="bg-white/20 px-3 py-1.5 rounded-lg text-sm font-bold">{currentUser.role.toUpperCase()}</div>
           </div>
         </div>
       </div>
@@ -972,16 +1107,46 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           </div>
 
           {/* Submit */}
-          <div className="flex gap-4 pb-8">
-            <button onClick={() => setView('list')} className="flex-1 border border-slate-300 text-slate-700 py-4 rounded-2xl font-semibold hover:bg-slate-50 transition-all">
-              ← Batal
-            </button>
-            <button onClick={handleSubmitForm} disabled={submitting}
-              className="flex-2 bg-gradient-to-r from-violet-700 to-violet-600 hover:from-violet-800 hover:to-violet-700 text-white py-4 px-8 rounded-2xl font-bold shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-              {submitting && <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-              📨 Kirim Request ke Superadmin
-            </button>
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h3 className="text-base font-bold text-slate-800 mb-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+              <span className="w-8 h-8 bg-violet-100 text-violet-700 rounded-lg flex items-center justify-center text-sm">📨</span>
+              Konfirmasi & Kirim
+            </h3>
+            <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-5 text-sm text-violet-800">
+              <p className="font-semibold mb-1">📌 Sebelum mengirim, pastikan:</p>
+              <ul className="space-y-1 text-violet-700 list-disc list-inside">
+                <li>Nama Project sudah diisi dengan benar</li>
+                <li>Kategori Kebutuhan sudah dipilih</li>
+                <li>Solution Product sudah dipilih</li>
+              </ul>
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setView('list')} className="flex-1 border border-slate-300 text-slate-700 py-4 rounded-2xl font-semibold hover:bg-slate-50 transition-all">
+                ← Batal
+              </button>
+              <button
+                onClick={handleSubmitForm}
+                disabled={submitting}
+                className="flex-[2] bg-gradient-to-r from-violet-700 to-violet-600 hover:from-violet-800 hover:to-violet-700 text-white py-4 px-8 rounded-2xl font-bold shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base"
+              >
+                {submitting ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Mengirim...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Kirim Request ke Superadmin
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          <div className="pb-8" />
         </div>
       </div>
     </div>
