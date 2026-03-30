@@ -71,6 +71,7 @@ interface ProjectRequest {
   pts_assigned?: string;
   approved_by?: string;
   approved_at?: string;
+  due_date?: string;
 }
 
 interface ProjectMessage {
@@ -410,6 +411,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
+  const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
@@ -431,6 +434,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   };
 
   const [form, setForm] = useState(initialForm);
+  const [dueDateForm, setDueDateForm] = useState('');
   const [surveyPhotos, setSurveyPhotos] = useState<File[]>([]);
   const [surveyPhotosPreviews, setSurveyPhotosPreviews] = useState<string[]>([]);
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
@@ -445,7 +449,32 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
     if (!isPTS) query = query.eq('requester_id', currentUser.id);
     const { data, error } = await query;
-    if (!error && data) setRequests(data as ProjectRequest[]);
+    if (!error && data) {
+      setRequests(data as ProjectRequest[]);
+      // Fetch last message counts for unread badge
+      const ids = (data as ProjectRequest[]).map(r => r.id);
+      if (ids.length > 0) {
+        const { data: msgData } = await supabase
+          .from('project_messages')
+          .select('request_id, created_at')
+          .in('request_id', ids)
+          .neq('sender_role', 'system')
+          .order('created_at', { ascending: false });
+        if (msgData) {
+          const counts: Record<string, number> = {};
+          const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+          setLastSeenMap(stored);
+          for (const row of msgData as { request_id: string; created_at: string }[]) {
+            const lastSeen = stored[row.request_id] || 0;
+            const msgTime = new Date(row.created_at).getTime();
+            if (msgTime > lastSeen) {
+              counts[row.request_id] = (counts[row.request_id] || 0) + 1;
+            }
+          }
+          setUnreadMsgMap(counts);
+        }
+      }
+    }
     setLoading(false);
   }, [currentUser.id, isPTS]);
 
@@ -461,6 +490,26 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
+  // Global subscription: increment unread badge when new message arrives on any request (not in detail view)
+  useEffect(() => {
+    const channel = supabase.channel('global_messages_notif')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_messages' },
+        (payload) => {
+          const msg = payload.new as ProjectMessage;
+          if (msg.sender_role === 'system') return;
+          setUnreadMsgMap(prev => {
+            const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+            // Only increment if this request is not currently open
+            if (!selectedRequest || selectedRequest.id !== msg.request_id) {
+              return { ...prev, [msg.request_id]: (prev[msg.request_id] || 0) + 1 };
+            }
+            return prev;
+          });
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedRequest]);
+
   useEffect(() => {
     if (!isPTS) return;
     const pendingCount = requests.filter(r => r.status === 'pending').length;
@@ -471,7 +520,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (!selectedRequest) return;
     const channel = supabase.channel(`messages:${selectedRequest.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_messages', filter: `request_id=eq.${selectedRequest.id}` },
-        (payload) => { setMessages(prev => [...prev, payload.new as ProjectMessage]); })
+        (payload) => {
+          setMessages(prev => [...prev, payload.new as ProjectMessage]);
+          // Mark as read since detail is open
+          const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+          stored[selectedRequest.id] = Date.now();
+          localStorage.setItem('pts_last_seen', JSON.stringify(stored));
+        })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedRequest]);
@@ -500,6 +555,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         wireless_presentation: form.wireless_presentation,
         ukuran_ruangan: form.ukuran_ruangan.trim(), suggest_tampilan: form.suggest_tampilan.trim(), keterangan_lain: form.keterangan_lain.trim(),
         requester_id: currentUser.id, requester_name: currentUser.full_name, status: 'pending' as const,
+        due_date: dueDateForm || null,
       };
       const { data, error } = await supabase.from('project_requests').insert([payload]).select().single();
       if (error) { notify('error', 'Gagal submit form: ' + error.message); setSubmitting(false); return; }
@@ -529,7 +585,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         }
       }
       notify('success', '✅ Form berhasil dikirim! Menunggu approval dari Superadmin.');
-      setForm(initialForm); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setView('list'); fetchRequests();
+      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setView('list'); fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
     finally { setSubmitting(false); }
   };
@@ -568,6 +624,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setSelectedRequest(req);
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
+    // Mark messages as read
+    const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+    stored[req.id] = Date.now();
+    localStorage.setItem('pts_last_seen', JSON.stringify(stored));
+    setUnreadMsgMap(prev => { const n = { ...prev }; delete n[req.id]; return n; });
     setView('detail');
   };
 
@@ -608,6 +669,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   const formatFileSize = (bytes: number) => bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
   const formatDate = (dt: string) => new Date(dt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatDueDate = (dt: string) => new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  const getDueStatus = (due: string | undefined, status: string) => {
+    if (!due || status === 'completed' || status === 'rejected') return null;
+    const now = new Date();
+    const dueDate = new Date(due);
+    const diffMs = dueDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffMs < 0) return { type: 'overdue', label: `Telat ${Math.abs(diffDays)} hari`, days: diffDays };
+    if (diffDays <= 2) return { type: 'urgent', label: `${diffDays} hari lagi`, days: diffDays };
+    return { type: 'ok', label: `${diffDays} hari lagi`, days: diffDays };
+  };
   const filteredRequests = filterStatus === 'all' ? requests : requests.filter(r => r.status === filterStatus);
 
   // Stats
@@ -813,9 +885,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             <div className="space-y-4">
               {filteredRequests.map(req => {
                 const sc = statusConfig[req.status] || statusConfig.pending;
+                const unread = unreadMsgMap[req.id] || 0;
+                const dueStatus = getDueStatus(req.due_date, req.status);
                 return (
                   <div key={req.id} onClick={() => handleOpenDetail(req)}
-                    className="bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-300 rounded-2xl p-5 hover:shadow-xl hover:border-red-300 hover:from-red-50/30 hover:to-orange-50/20 transition-all cursor-pointer group">
+                    className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 rounded-2xl p-5 hover:shadow-xl transition-all cursor-pointer group ${dueStatus?.type === 'overdue' ? 'border-red-400 from-red-50/40 to-orange-50/20' : dueStatus?.type === 'urgent' ? 'border-amber-400 from-amber-50/30 to-yellow-50/20' : 'border-gray-300 hover:border-red-300 hover:from-red-50/30 hover:to-orange-50/20'}`}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -823,6 +897,21 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                           {req.status === 'pending' && isPTS && (
                             <span className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">🔔 Perlu Approval</span>
+                          )}
+                          {dueStatus?.type === 'overdue' && (
+                            <span className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 animate-pulse">
+                              ⚠️ {dueStatus.label}
+                            </span>
+                          )}
+                          {dueStatus?.type === 'urgent' && (
+                            <span className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                              ⏰ {dueStatus.label}
+                            </span>
+                          )}
+                          {dueStatus?.type === 'ok' && (
+                            <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-300">
+                              📅 {dueStatus.label}
+                            </span>
                           )}
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1.5 text-sm text-gray-600">
@@ -833,9 +922,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             <span className="col-span-2 md:col-span-3 flex items-center gap-1">📦 <span className="font-medium">{req.solution_product.join(', ')}</span></span>
                           )}
                           {req.pts_assigned && <span className="flex items-center gap-1">🔧 PTS: <span className="font-semibold text-gray-800">{req.pts_assigned}</span></span>}
+                          {req.due_date && (
+                            <span className="flex items-center gap-1">🗓️ Target: <span className={`font-semibold ${dueStatus?.type === 'overdue' ? 'text-red-600' : dueStatus?.type === 'urgent' ? 'text-amber-600' : 'text-gray-800'}`}>{formatDueDate(req.due_date)}</span></span>
+                          )}
                         </div>
                       </div>
                       <div className="flex-shrink-0 flex items-center gap-2">
+                        {unread > 0 && (
+                          <div className="relative flex items-center justify-center">
+                            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
+                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                            </div>
+                            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white shadow animate-pulse">
+                              {unread > 9 ? '9+' : unread}
+                            </span>
+                          </div>
+                        )}
                         {isPTS && req.status === 'pending' && (
                           <>
                             <button onClick={e => { e.stopPropagation(); handleApprove(req); }}
@@ -1149,6 +1251,26 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <li>Solution Product sudah dipilih</li>
             </ul>
           </div>
+          {/* Due Date */}
+          <div className="mb-5 bg-white rounded-xl border-2 border-gray-200 p-4">
+            <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2 flex items-center gap-2">
+              🗓️ Target Penyelesaian Diagram
+              <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">(opsional)</span>
+            </label>
+            <input
+              type="date"
+              value={dueDateForm}
+              min={new Date().toISOString().split('T')[0]}
+              onChange={e => setDueDateForm(e.target.value)}
+              className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white outline-none text-gray-700"
+            />
+            {dueDateForm && (
+              <p className="mt-2 text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                ✅ Target: {formatDueDate(dueDateForm)}
+                <button type="button" onClick={() => setDueDateForm('')} className="ml-2 text-gray-400 hover:text-red-500 transition-all text-xs">✕ Hapus</button>
+              </p>
+            )}
+          </div>
           <div className="flex gap-4">
             <button onClick={() => setView('list')} className="flex-1 bg-gradient-to-r from-gray-600 to-gray-800 text-white py-4 rounded-xl font-bold hover:from-gray-700 hover:to-gray-900 shadow-lg transition-all">
               ← Batal
@@ -1187,6 +1309,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
     const isPending = selectedRequest.status === 'pending';
     const isFileType = (type: string) => type.startsWith('image/') || ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(type);
+    const detailDueStatus = getDueStatus(selectedRequest.due_date, selectedRequest.status);
 
     return (
       <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
@@ -1207,7 +1330,20 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 truncate">{selectedRequest.project_name}</h2>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
               </div>
-              <p className="text-gray-600 text-sm mt-0.5">{selectedRequest.room_name} · {selectedRequest.requester_name} · {formatDate(selectedRequest.created_at)}</p>
+              <p className="text-gray-600 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>{selectedRequest.room_name} · {selectedRequest.requester_name} · {formatDate(selectedRequest.created_at)}</span>
+                {selectedRequest.due_date && (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${
+                    detailDueStatus?.type === 'overdue' ? 'bg-red-100 text-red-700 border-red-300 animate-pulse' :
+                    detailDueStatus?.type === 'urgent' ? 'bg-amber-100 text-amber-700 border-amber-300' :
+                    detailDueStatus === null ? 'bg-purple-100 text-purple-700 border-purple-300' :
+                    'bg-emerald-100 text-emerald-700 border-emerald-300'}`}>
+                    {detailDueStatus?.type === 'overdue' ? '⚠️ Overdue' : detailDueStatus?.type === 'urgent' ? '⏰' : '🗓️'}
+                    Target: {formatDueDate(selectedRequest.due_date)}
+                    {detailDueStatus && ` · ${detailDueStatus.label}`}
+                  </span>
+                )}
+              </p>
             </div>
             {isPTS && (
               <div className="flex gap-2 flex-shrink-0">
@@ -1255,6 +1391,50 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 {selectedRequest.keterangan_lain && <div><span className="font-bold text-gray-700">Catatan:</span> <span className="text-gray-600">{selectedRequest.keterangan_lain}</span></div>}
                 {selectedRequest.pts_assigned && <div className="pt-2 border-t border-gray-200"><span className="font-bold text-gray-700">PTS:</span> <span className="text-blue-700 font-semibold">{selectedRequest.pts_assigned}</span></div>}
                 {selectedRequest.approved_by && <div><span className="font-bold text-gray-700">Approved by:</span> <span className="text-emerald-700 font-semibold">{selectedRequest.approved_by}</span></div>}
+                {selectedRequest.due_date && (
+                  <div className={`pt-2 border-t border-gray-200 rounded-lg p-2 -mx-1 ${detailDueStatus?.type === 'overdue' ? 'bg-red-50' : detailDueStatus?.type === 'urgent' ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                    <span className="font-bold text-gray-700">🗓️ Target Selesai:</span>
+                    <span className={`ml-1 font-bold ${detailDueStatus?.type === 'overdue' ? 'text-red-600' : detailDueStatus?.type === 'urgent' ? 'text-amber-600' : 'text-emerald-700'}`}>
+                      {formatDueDate(selectedRequest.due_date)}
+                    </span>
+                    {detailDueStatus && (
+                      <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${detailDueStatus.type === 'overdue' ? 'bg-red-200 text-red-700' : detailDueStatus.type === 'urgent' ? 'bg-amber-200 text-amber-700' : 'bg-emerald-200 text-emerald-700'}`}>
+                        {detailDueStatus.type === 'overdue' ? `⚠️ ${detailDueStatus.label}` : detailDueStatus.label}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {/* PTS can update due date from detail */}
+                {isPTS && (
+                  <div className="pt-2 border-t border-gray-200">
+                    <p className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-1.5">
+                      🗓️ {selectedRequest.due_date ? 'Ubah' : 'Set'} Target Selesai
+                    </p>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="date"
+                        defaultValue={selectedRequest.due_date ? selectedRequest.due_date.split('T')[0] : ''}
+                        min={new Date().toISOString().split('T')[0]}
+                        id="detail-due-date-input"
+                        className="flex-1 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium bg-white outline-none focus:border-red-400 transition-all"
+                      />
+                      <button
+                        onClick={async () => {
+                          const input = document.getElementById('detail-due-date-input') as HTMLInputElement;
+                          const val = input?.value || null;
+                          const { error } = await supabase.from('project_requests').update({ due_date: val }).eq('id', selectedRequest.id);
+                          if (!error) {
+                            setSelectedRequest({ ...selectedRequest, due_date: val || undefined });
+                            notify('success', val ? `Target diset: ${formatDueDate(val)}` : 'Target dihapus.');
+                            fetchRequests();
+                          } else notify('error', 'Gagal menyimpan target.');
+                        }}
+                        className="bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow flex-shrink-0">
+                        Simpan
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Attachments */}
@@ -1920,7 +2100,7 @@ export default function Dashboard() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-y-auto">
         {showFormRequire ? (
           /* Form Require Project renders fullscreen in main content area */
           currentUser && <FormRequireProject currentUser={currentUser} />
