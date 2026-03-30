@@ -1578,7 +1578,7 @@ export default function Dashboard() {
   const [showTicketing, setShowTicketing] = useState(false);
   const [showFormRequire, setShowFormRequire] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [unreadEmails, setUnreadEmails] = useState(0);
+
   const [showSettings, setShowSettings] = useState(false);
   const [formRequireNotifCount, setFormRequireNotifCount] = useState(0);
 
@@ -1705,21 +1705,6 @@ export default function Dashboard() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (isLoggedIn) {
-      const fetchUnreadEmails = async () => {
-        try {
-          const response = await fetch('/api/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'your-email@yourdomain.com', password: 'your-email-password', imapHost: 'srv184.niagahoster.com', imapPort: 993 }) });
-          const data = await response.json();
-          if (data.success) setUnreadEmails(data.unreadCount);
-        } catch { setUnreadEmails(Math.floor(Math.random() * 10)); }
-      };
-      fetchUnreadEmails();
-      const interval = setInterval(fetchUnreadEmails, 300000);
-      return () => clearInterval(interval);
-    }
-  }, [isLoggedIn]);
-
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="bg-white/75 backdrop-blur-sm p-12 rounded-lg shadow-2xl border border-slate-200">
@@ -1761,23 +1746,6 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
-    </div>
-  );
-
-  const EmailButton = ({ position }: { position: 'bottom-left' | 'bottom-right' }) => (
-    <div className={`fixed bottom-6 z-50 ${position === 'bottom-left' ? 'left-6' : 'right-6'}`}>
-      <a href="https://srv184.niagahoster.com:2096/cpsess6840729072/3rdparty/roundcube/" target="_blank" rel="noopener noreferrer" className="relative group">
-        <button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-110 flex items-center justify-center">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          {unreadEmails > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-              {unreadEmails > 9 ? '9+' : unreadEmails}
-            </span>
-          )}
-        </button>
-      </a>
     </div>
   );
 
@@ -1924,7 +1892,6 @@ export default function Dashboard() {
       <style jsx>{`
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
-      <EmailButton position="bottom-left" />
     </div>
   );
 
@@ -2141,7 +2108,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      <EmailButton position="bottom-right" />
     </div>
   );
 }
