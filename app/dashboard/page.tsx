@@ -417,7 +417,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
 
-  const isPTS = ['admin', 'superadmin'].includes(currentUser.role?.toLowerCase() ?? '');
+  const role = currentUser.role?.toLowerCase() ?? '';
+  const isPTS = ['admin', 'superadmin', 'team_pts'].includes(role);
+  const isTeamPTS = role === 'team_pts';           // read-only PTS: lihat semua, balas, upload — tidak bisa approve/reject/update status/due date
+  const isSuperAdmin = role === 'superadmin';
+  const isAdmin = role === 'admin';
 
   const initialForm = {
     project_name: '', room_name: '', sales_name: '',
@@ -895,7 +899,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <h3 className="font-bold text-gray-800 text-lg group-hover:text-red-700 transition-colors">{req.project_name}</h3>
                           <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                          {req.status === 'pending' && isPTS && (
+                          {req.status === 'pending' && isPTS && !isTeamPTS && (
                             <span className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">🔔 Perlu Approval</span>
                           )}
                           {dueStatus?.type === 'overdue' && (
@@ -938,7 +942,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             </span>
                           </div>
                         )}
-                        {isPTS && req.status === 'pending' && (
+                        {isPTS && !isTeamPTS && req.status === 'pending' && (
                           <>
                             <button onClick={e => { e.stopPropagation(); handleApprove(req); }}
                               className="bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">
@@ -1345,7 +1349,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 )}
               </p>
             </div>
-            {isPTS && (
+            {isPTS && !isTeamPTS && (
               <div className="flex gap-2 flex-shrink-0">
                 {isPending && (
                   <>
@@ -1404,8 +1408,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     )}
                   </div>
                 )}
-                {/* PTS can update due date from detail */}
-                {isPTS && (
+                {/* PTS can update due date from detail — but not team_pts */}
+                {isPTS && !isTeamPTS && (
                   <div className="pt-2 border-t border-gray-200">
                     <p className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-1.5">
                       🗓️ {selectedRequest.due_date ? 'Ubah' : 'Set'} Target Selesai
@@ -1497,7 +1501,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <div className="bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-full font-semibold border border-gray-300">{msg.message}</div>
                   </div>
                 );
-                const isPTSSender = ['admin', 'superadmin'].includes(msg.sender_role);
+                const isPTSSender = ['admin', 'superadmin', 'team_pts'].includes(msg.sender_role);
                 return (
                   <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow ${isPTSSender ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-gray-500 to-gray-700'}`}>
