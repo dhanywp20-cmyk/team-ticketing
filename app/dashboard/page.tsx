@@ -517,7 +517,7 @@ export default function Dashboard() {
   const FormRequireBell = () => (
     formRequireNotifCount > 0 ? (
       <div className="fixed bottom-6 z-50" style={{ left: '50%', transform: 'translateX(-50%)' }}>
-        <button onClick={() => { setShowSidebar(true); setShowFormRequire(true); setIframeTitle('Form Require Project'); setShowTicketing(false); setIframeUrl(null); }}
+        <button onClick={() => { setShowSidebar(true); setShowTicketing(true); setInternalUrl('/form-require-project'); setIframeTitle('Form Require Project'); setIframeUrl(null); }}
           className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-5 py-3 rounded-full shadow-2xl hover:shadow-violet-500/50 transition-all duration-300 hover:scale-105 flex items-center gap-2 font-bold text-sm">
           <span className="relative flex items-center">
             🔔
