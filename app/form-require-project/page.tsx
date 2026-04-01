@@ -113,7 +113,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | null>(null);
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq'>('all');
 
-  const role = currentUser.role?.toLowerCase() ?? '';
+  const role = currentUser.role?.toLowerCase().trim() ?? '';
   const isPTS = ['admin', 'superadmin', 'team_pts'].includes(role);
   const isTeamPTS = role === 'team_pts';           // read-only PTS: lihat semua, balas, upload — tidak bisa approve/reject/update status/due date
   const isSuperAdmin = role === 'superadmin';
