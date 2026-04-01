@@ -114,8 +114,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq'>('all');
 
   const role = currentUser.role?.toLowerCase().trim() ?? '';
-  const isPTS = ['admin', 'superadmin', 'team_pts'].includes(role);
-  const isTeamPTS = role === 'team_pts';           // read-only PTS: lihat semua, balas, upload — tidak bisa approve/reject/update status/due date
+  const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
+  const isTeamPTS = role === 'team_pts' || role === 'team'; // read-only PTS: lihat semua, balas, upload — tidak bisa approve/reject/update status/due date
   const isSuperAdmin = role === 'superadmin';
   const isAdmin = role === 'admin';
 
@@ -500,12 +500,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 `ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
                   currentUser.role === 'superadmin' ? 'bg-red-100 text-red-800' :
                   currentUser.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                  currentUser.role === 'team_pts' ? 'bg-emerald-100 text-emerald-800' :
+                  (currentUser.role === 'team_pts' || currentUser.role === 'team') ? 'bg-emerald-100 text-emerald-800' :
                   'bg-blue-100 text-blue-800'
                 }`}>
                 {currentUser.role === 'superadmin' ? 'Super Admin' :
                  currentUser.role === 'admin' ? 'Admin / PTS' :
-                 currentUser.role === 'team_pts' ? 'Team PTS' :
+                 (currentUser.role === 'team_pts' || currentUser.role === 'team') ? 'Team PTS' :
                  'User / Sales'}
               </span>
               {unreadCount > 0 && (
@@ -1315,7 +1315,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <div className="bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-full font-semibold border border-gray-300">{msg.message}</div>
                   </div>
                 );
-                const isPTSSender = ['admin', 'superadmin', 'team_pts'].includes(msg.sender_role);
+                const isPTSSender = ['admin', 'superadmin', 'team_pts', 'team'].includes(msg.sender_role);
                 return (
                   <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow ${isPTSSender ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-gray-500 to-gray-700'}`}>
