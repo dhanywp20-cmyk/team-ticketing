@@ -468,9 +468,24 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) { const user = JSON.parse(saved); setCurrentUser(user); setIsLoggedIn(true); }
-    setLoading(false);
+    const load = async () => {
+      const saved = localStorage.getItem('currentUser');
+      if (!saved) { setLoading(false); return; }
+      try {
+        const parsed: User = JSON.parse(saved);
+        setCurrentUser(parsed);
+        setIsLoggedIn(true);
+        // Re-fetch dari DB agar role selalu fresh (tidak stale setelah admin ubah role)
+        const { data, error } = await supabase.from('users').select('*').eq('id', parsed.id).single();
+        if (!error && data) {
+          const fresh = data as User;
+          setCurrentUser(fresh);
+          localStorage.setItem('currentUser', JSON.stringify(fresh));
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    };
+    load();
   }, []);
 
   if (loading) return (
