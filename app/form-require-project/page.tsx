@@ -1386,11 +1386,24 @@ export default function FormRequireProjectPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      try { setCurrentUser(JSON.parse(saved)); } catch { /* ignore */ }
-    }
-    setLoading(false);
+    const load = async () => {
+      const saved = localStorage.getItem('currentUser');
+      if (!saved) { setLoading(false); return; }
+      try {
+        const parsed: User = JSON.parse(saved);
+        // Set from localStorage dulu agar tidak blank
+        setCurrentUser(parsed);
+        // Re-fetch dari DB agar role selalu up-to-date
+        const { data, error } = await supabase.from('users').select('*').eq('id', parsed.id).single();
+        if (!error && data) {
+          const fresh = data as User;
+          setCurrentUser(fresh);
+          localStorage.setItem('currentUser', JSON.stringify(fresh));
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    };
+    load();
   }, []);
 
   if (loading) return (
