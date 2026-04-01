@@ -238,6 +238,8 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                       <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
                       <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
                         <option value="user">User</option>
+                        <option value="sales">Sales</option>
+                        <option value="team_pts">Team PTS</option>
                         <option value="admin">Admin</option>
                         <option value="superadmin">Superadmin</option>
                       </select>
@@ -258,13 +260,13 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   <div key={user.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${user.role === 'superadmin' ? 'bg-gradient-to-br from-rose-500 to-rose-700' : user.role === 'admin' ? 'bg-gradient-to-br from-indigo-500 to-indigo-700' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${user.role === 'superadmin' ? 'bg-gradient-to-br from-rose-500 to-rose-700' : user.role === 'admin' ? 'bg-gradient-to-br from-indigo-500 to-indigo-700' : user.role === 'team_pts' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : user.role === 'sales' ? 'bg-gradient-to-br from-amber-500 to-amber-700' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
                           {user.full_name.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-bold text-slate-800 text-sm">{user.full_name}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${user.role === 'superadmin' ? 'bg-rose-100 text-rose-700' : user.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>{user.role}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${user.role === 'superadmin' ? 'bg-rose-100 text-rose-700' : user.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : user.role === 'team_pts' ? 'bg-emerald-100 text-emerald-700' : user.role === 'sales' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{user.role}</span>
                           </div>
                           <p className="text-xs text-slate-500">@{user.username}</p>
                           <div className="flex flex-wrap gap-1 mt-2">
@@ -310,6 +312,8 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
                   <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
                     <option value="user">User</option>
+                    <option value="sales">Sales</option>
+                    <option value="team_pts">Team PTS</option>
                     <option value="admin">Admin</option>
                     <option value="superadmin">Superadmin</option>
                   </select>
