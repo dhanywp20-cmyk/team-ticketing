@@ -422,7 +422,7 @@ export default function Dashboard() {
 
   // Fetch pending form require count for bell notification
   useEffect(() => {
-    if (!currentUser || !['admin', 'superadmin', 'team_pts'].includes(currentUser.role?.toLowerCase() ?? '')) return;
+    if (!currentUser || !['admin', 'superadmin', 'team_pts', 'team'].includes(currentUser.role?.toLowerCase() ?? '')) return;
     const fetchPending = async () => {
       const { count } = await supabase.from('project_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
       setFormRequireNotifCount(count ?? 0);
