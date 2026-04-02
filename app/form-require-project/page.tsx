@@ -110,16 +110,16 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const chatFileRef = useRef<HTMLInputElement>(null);
   const sldFileRef = useRef<HTMLInputElement>(null);
   const boqFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | null>(null);
+  const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq'>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
   const [editFormModal, setEditFormModal] = useState(false);
-  const [editFormData, setEditFormData] = useState(initialForm);
-  const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | null>(null);
-  const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq'>('all');
+  const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',wireless_presentation:'No',ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
 
   const role = currentUser.role?.toLowerCase().trim() ?? '';
   const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
-  const isTeamPTS = role === 'team_pts' || role === 'team'; // read-only PTS: lihat semua, balas, upload — tidak bisa approve/reject/update status/due date
+  const isTeamPTS = role === 'team_pts' || role === 'team';
   const isSuperAdmin = role === 'superadmin';
   const isAdmin = role === 'admin';
 
@@ -304,25 +304,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
-  const handleReject = (req: ProjectRequest) => {
-    setRejectNote('');
-    setRejectModal({ open: true, req });
-  };
-
-  const handleRejectConfirm = async () => {
-    const req = rejectModal.req;
-    if (!req) return;
+  const handleReject = async (req: ProjectRequest) => {
+    if (!confirm('Yakin ingin menolak request ini?')) return;
     const { error } = await supabase.from('project_requests').update({ status: 'rejected' }).eq('id', req.id);
     if (error) { notify('error', 'Gagal reject.'); return; }
     notify('info', 'Request ditolak.');
-    setRejectModal({ open: false, req: null });
     fetchRequests();
-    const noteMsg = rejectNote.trim() ? `\n📝 Alasan: ${rejectNote.trim()}` : '';
-    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `❌ Request ditolak oleh ${currentUser.full_name}.${noteMsg}` }]);
-    if (selectedRequest?.id === req.id) {
-      setSelectedRequest({ ...selectedRequest, status: 'rejected' });
-      fetchMessages(req.id);
-    }
+    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `❌ Request telah ditolak oleh ${currentUser.full_name}.` }]);
+    if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
   const handleStatusUpdate = async (req: ProjectRequest, newStatus: string) => {
@@ -338,76 +327,63 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handleOpenEditForm = () => {
     if (!selectedRequest) return;
     setEditFormData({
-      project_name: selectedRequest.project_name || '',
-      room_name: selectedRequest.room_name || '',
-      sales_name: selectedRequest.sales_name || '',
-      kebutuhan: selectedRequest.kebutuhan || [],
-      kebutuhan_other: selectedRequest.kebutuhan_other || '',
-      solution_product: selectedRequest.solution_product || [],
-      solution_other: selectedRequest.solution_other || '',
-      layout_signage: selectedRequest.layout_signage || [],
-      jaringan_cms: selectedRequest.jaringan_cms || [],
-      jumlah_input: selectedRequest.jumlah_input || '',
-      jumlah_output: selectedRequest.jumlah_output || '',
-      source: selectedRequest.source || [],
-      source_other: selectedRequest.source_other || '',
-      camera_conference: selectedRequest.camera_conference || 'No',
-      camera_jumlah: selectedRequest.camera_jumlah || '',
-      camera_tracking: selectedRequest.camera_tracking || [],
-      audio_system: selectedRequest.audio_system || 'No',
-      audio_detail: selectedRequest.audio_detail || [],
-      wallplate_input: selectedRequest.wallplate_input || 'No',
-      wallplate_jumlah: selectedRequest.wallplate_jumlah || '',
-      wireless_presentation: selectedRequest.wireless_presentation || 'No',
-      ukuran_ruangan: selectedRequest.ukuran_ruangan || '',
-      suggest_tampilan: selectedRequest.suggest_tampilan || '',
-      keterangan_lain: selectedRequest.keterangan_lain || '',
+      project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
+      sales_name: selectedRequest.sales_name || '', kebutuhan: selectedRequest.kebutuhan || [],
+      kebutuhan_other: selectedRequest.kebutuhan_other || '', solution_product: selectedRequest.solution_product || [],
+      solution_other: selectedRequest.solution_other || '', layout_signage: selectedRequest.layout_signage || [],
+      jaringan_cms: selectedRequest.jaringan_cms || [], jumlah_input: selectedRequest.jumlah_input || '',
+      jumlah_output: selectedRequest.jumlah_output || '', source: selectedRequest.source || [],
+      source_other: selectedRequest.source_other || '', camera_conference: selectedRequest.camera_conference || 'No',
+      camera_jumlah: selectedRequest.camera_jumlah || '', camera_tracking: selectedRequest.camera_tracking || [],
+      audio_system: selectedRequest.audio_system || 'No', audio_detail: selectedRequest.audio_detail || [],
+      wallplate_input: selectedRequest.wallplate_input || 'No', wallplate_jumlah: selectedRequest.wallplate_jumlah || '',
+      wireless_presentation: selectedRequest.wireless_presentation || 'No', ukuran_ruangan: selectedRequest.ukuran_ruangan || '',
+      suggest_tampilan: selectedRequest.suggest_tampilan || '', keterangan_lain: selectedRequest.keterangan_lain || '',
     });
     setEditFormModal(true);
   };
 
   const handleEditFormSubmit = async () => {
     if (!selectedRequest) return;
-    const { error } = await supabase.from('project_requests').update({
-      project_name: editFormData.project_name.trim(),
-      room_name: editFormData.room_name.trim(),
-      sales_name: editFormData.sales_name.trim(),
-      kebutuhan: editFormData.kebutuhan,
-      kebutuhan_other: editFormData.kebutuhan_other.trim(),
-      solution_product: editFormData.solution_product,
-      solution_other: editFormData.solution_other.trim(),
-      layout_signage: editFormData.layout_signage,
-      jaringan_cms: editFormData.jaringan_cms,
-      jumlah_input: editFormData.jumlah_input.trim(),
-      jumlah_output: editFormData.jumlah_output.trim(),
-      source: editFormData.source,
-      source_other: editFormData.source_other.trim(),
-      camera_conference: editFormData.camera_conference,
-      camera_jumlah: editFormData.camera_jumlah.trim(),
-      camera_tracking: editFormData.camera_tracking,
-      audio_system: editFormData.audio_system,
-      audio_detail: editFormData.audio_detail,
-      wallplate_input: editFormData.wallplate_input,
-      wallplate_jumlah: editFormData.wallplate_jumlah.trim(),
-      wireless_presentation: editFormData.wireless_presentation,
-      ukuran_ruangan: editFormData.ukuran_ruangan.trim(),
-      suggest_tampilan: editFormData.suggest_tampilan.trim(),
-      keterangan_lain: editFormData.keterangan_lain.trim(),
-    }).eq('id', selectedRequest.id);
+    const { error } = await supabase.from('project_requests').update({ ...editFormData }).eq('id', selectedRequest.id);
     if (error) { notify('error', 'Gagal menyimpan perubahan.'); return; }
     notify('success', 'Detail kebutuhan berhasil diperbarui!');
-    // Log ke chat
     await supabase.from('project_messages').insert([{
-      request_id: selectedRequest.id, sender_id: currentUser.id,
-      sender_name: 'System', sender_role: 'system',
-      message: `✏️ Detail kebutuhan diperbarui oleh ${currentUser.full_name} pada ${new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`,
+      request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
+      message: 'Detail kebutuhan diperbarui oleh ' + currentUser.full_name + ' pada ' + new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.',
     }]);
     setEditFormModal(false);
-    const updated = { ...selectedRequest, ...editFormData };
-    setSelectedRequest(updated as ProjectRequest);
+    setSelectedRequest({ ...selectedRequest, ...editFormData } as ProjectRequest);
     fetchRequests();
     fetchMessages(selectedRequest.id);
   };
+
+  const handlePrint = () => {
+    if (!selectedRequest) return;
+    const sldList = attachments.filter(a => a.attachment_category === 'sld');
+    const boqList = attachments.filter(a => a.attachment_category === 'boq');
+    const generalList = attachments.filter(a => !a.attachment_category || a.attachment_category === 'general');
+    const row = (label: string, value: string) => value ? '<tr><td style="padding:6px 10px;font-weight:700;color:#374151;width:40%;border-bottom:1px solid #e5e7eb">' + label + '</td><td style="padding:6px 10px;color:#1f2937;border-bottom:1px solid #e5e7eb">' + value + '</td></tr>' : '';
+    const sec = (title: string, rows: string) => '<div style="margin-bottom:20px"><div style="background:#dc2626;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none">' + rows + '</table></div>';
+    const attachSec = (title: string, color: string, list: ProjectAttachment[]) => list.length === 0 ? '' : '<div style="margin-bottom:20px"><div style="background:' + color + ';color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div><table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f9fafb"><th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">File</th><th style="padding:8px;font-size:12px;color:#6b7280">Versi</th><th style="padding:8px;font-size:12px;color:#6b7280">Oleh</th><th style="padding:8px;font-size:12px;color:#6b7280">Tanggal</th></tr></thead><tbody>' + list.map(a => '<tr><td style="padding:7px 10px;font-size:12px;font-weight:600">' + a.file_name + '</td><td style="padding:7px 8px;font-size:12px">' + (a.revision_version ? 'Rev.' + a.revision_version : '-') + '</td><td style="padding:7px 8px;font-size:12px;color:#6b7280">' + a.uploaded_by + '</td><td style="padding:7px 8px;font-size:12px;color:#6b7280">' + formatDate(a.uploaded_at) + '</td></tr>').join('') + '</tbody></table></div>';
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title><style>@media print{body{margin:0}@page{margin:15mm}}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:20px;max-width:960px;margin:auto}</style></head><body>'
+      + '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px"><p style="font-size:11px;color:#6b7280;margin:0">IVP Product - Portal Terpadu Support (PTS)</p><h1 style="font-size:20px;font-weight:900;color:#dc2626;margin:6px 0">Form Require Project</h1><h2 style="font-size:16px;font-weight:700;margin:0">' + selectedRequest.project_name + '</h2><p style="font-size:11px;color:#6b7280;margin:6px 0">Dicetak: ' + new Date().toLocaleString('id-ID') + ' | Status: ' + selectedRequest.status.toUpperCase() + '</p></div>'
+      + sec('Informasi Umum', row('Nama Project', selectedRequest.project_name) + row('Nama Ruangan', selectedRequest.room_name) + row('Sales', selectedRequest.sales_name) + row('Requester', selectedRequest.requester_name) + row('Tanggal Dibuat', formatDate(selectedRequest.created_at)) + row('Status', selectedRequest.status.toUpperCase()) + row('Approved By', selectedRequest.approved_by || '-') + row('Target Selesai', selectedRequest.due_date ? formatDueDate(selectedRequest.due_date) : '-'))
+      + sec('Detail Kebutuhan', row('Kebutuhan', (selectedRequest.kebutuhan || []).join(', ')) + row('Solution Product', (selectedRequest.solution_product || []).join(', ')) + row('Layout Signage', (selectedRequest.layout_signage || []).join(', ')) + row('Jaringan CMS', (selectedRequest.jaringan_cms || []).join(', ')) + row('Jumlah Input', selectedRequest.jumlah_input) + row('Jumlah Output', selectedRequest.jumlah_output) + row('Source', (selectedRequest.source || []).join(', ')))
+      + sec('Camera & Audio', row('Camera Conference', selectedRequest.camera_conference) + row('Jumlah Kamera', selectedRequest.camera_jumlah) + row('Audio System', selectedRequest.audio_system) + row('Audio Detail', (selectedRequest.audio_detail || []).join(', ')))
+      + sec('Wallplate & Ukuran', row('Wallplate Input', selectedRequest.wallplate_input) + row('Wireless Presentation', selectedRequest.wireless_presentation) + row('Ukuran Ruangan', selectedRequest.ukuran_ruangan) + row('Suggest Tampilan', selectedRequest.suggest_tampilan) + row('Keterangan Lain', selectedRequest.keterangan_lain))
+      + attachSec('SLD (System Layout Diagram)', '#2563eb', sldList)
+      + attachSec('BOQ (Bill of Quantity)', '#059669', boqList)
+      + attachSec('Lampiran Lainnya', '#64748b', generalList)
+      + '</body></html>';
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.print(); };
+  };
+
+  const handleOpenDetail = async (req: ProjectRequest) => {
     setSelectedRequest(req);
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
@@ -428,36 +404,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (error) { notify('error', 'Gagal kirim pesan.'); return; }
     setMsgText('');
     fetchMessages(selectedRequest.id);
-  };
-
-  const handlePrint = () => {
-    if (!selectedRequest) return;
-    const sldList = attachments.filter(a => a.attachment_category === 'sld');
-    const boqList = attachments.filter(a => a.attachment_category === 'boq');
-    const generalList = attachments.filter(a => !a.attachment_category || a.attachment_category === 'general');
-    const row = (label: string, value: string) => value ? `<tr><td style="padding:6px 10px;font-weight:700;color:#374151;width:40%;border-bottom:1px solid #e5e7eb">${label}</td><td style="padding:6px 10px;color:#1f2937;border-bottom:1px solid #e5e7eb">${value}</td></tr>` : '';
-    const sec = (title: string, icon: string, rows: string) => `<div style="margin-bottom:20px"><div style="background:#dc2626;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">${icon} ${title}</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">${rows}</table></div>`;
-    const attachSec = (title: string, icon: string, color: string, list: ProjectAttachment[]) => list.length === 0 ? '' : `<div style="margin-bottom:20px"><div style="background:${color};color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">${icon} ${title}</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f9fafb"><th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">File</th><th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">Versi</th><th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">Oleh</th><th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">Tanggal Upload</th></tr></thead><tbody>${list.map(a => `<tr style="border-top:1px solid #f3f4f6"><td style="padding:7px 10px;font-size:12px;font-weight:600;color:#1f2937">${a.file_name}</td><td style="padding:7px 10px;font-size:12px">${a.revision_version ? `Rev.${a.revision_version}` : '-'}</td><td style="padding:7px 10px;font-size:12px;color:#6b7280">${a.uploaded_by}</td><td style="padding:7px 10px;font-size:12px;color:#6b7280">${formatDate(a.uploaded_at)}</td></tr>`).join('')}</tbody></table></div>`;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print — ${selectedRequest.project_name}</title><style>@media print{body{margin:0}@page{margin:15mm}}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:20px;max-width:960px;margin:auto}</style></head><body>
-      <div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px">
-        <p style="font-size:11px;color:#6b7280;margin:0">IVP Product · Portal Terpadu Support (PTS)</p>
-        <h1 style="font-size:22px;font-weight:900;color:#dc2626;margin:6px 0">🏗️ Form Require Project</h1>
-        <h2 style="font-size:17px;font-weight:700;margin:0;color:#1f2937">${selectedRequest.project_name}</h2>
-        <p style="font-size:11px;color:#6b7280;margin:6px 0">Dicetak: ${new Date().toLocaleString('id-ID', {day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})} · Status: <b>${selectedRequest.status.toUpperCase()}</b></p>
-      </div>
-      ${sec('Informasi Umum', '📋', [row('Nama Project',selectedRequest.project_name),row('Nama Ruangan',selectedRequest.room_name),row('Sales',selectedRequest.sales_name),row('Requester',selectedRequest.requester_name),row('Tanggal Dibuat',formatDate(selectedRequest.created_at)),row('Status',selectedRequest.status.toUpperCase()),row('Approved By',selectedRequest.approved_by||'-'),row('Target Selesai',selectedRequest.due_date?formatDueDate(selectedRequest.due_date):'-')].join(''))}
-      ${sec('Detail Kebutuhan', '📝', [row('Kebutuhan',(selectedRequest.kebutuhan||[]).join(', ')),row('Kebutuhan Other',selectedRequest.kebutuhan_other),row('Solution Product',(selectedRequest.solution_product||[]).join(', ')),row('Solution Other',selectedRequest.solution_other),row('Layout Signage',(selectedRequest.layout_signage||[]).join(', ')),row('Jaringan CMS',(selectedRequest.jaringan_cms||[]).join(', ')),row('Jumlah Input',selectedRequest.jumlah_input),row('Jumlah Output',selectedRequest.jumlah_output),row('Source',(selectedRequest.source||[]).join(', ')),row('Source Other',selectedRequest.source_other)].join(''))}
-      ${sec('Camera & Audio', '📷', [row('Camera Conference',selectedRequest.camera_conference),row('Jumlah Kamera',selectedRequest.camera_jumlah),row('Camera Tracking',(selectedRequest.camera_tracking||[]).join(', ')),row('Audio System',selectedRequest.audio_system),row('Audio Detail',(selectedRequest.audio_detail||[]).join(', '))].join(''))}
-      ${sec('Wallplate & Ukuran', '📐', [row('Wallplate Input',selectedRequest.wallplate_input),row('Jumlah Wallplate',selectedRequest.wallplate_jumlah),row('Wireless Presentation',selectedRequest.wireless_presentation),row('Ukuran Ruangan',selectedRequest.ukuran_ruangan),row('Suggest Tampilan',selectedRequest.suggest_tampilan),row('Keterangan Lain',selectedRequest.keterangan_lain)].join(''))}
-      ${attachSec('SLD (System Layout Diagram)', '📐', '#2563eb', sldList)}
-      ${attachSec('BOQ (Bill of Quantity)', '📊', '#059669', boqList)}
-      ${attachSec('Lampiran Lainnya', '📎', '#64748b', generalList)}
-    </body></html>`;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => { win.print(); };
   };
 
   const handleFileUpload = async (file: File) => {
@@ -618,12 +564,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 `ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
                   currentUser.role === 'superadmin' ? 'bg-red-100 text-red-800' :
                   currentUser.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                  currentUser.role === 'team_pts' || currentUser.role === 'team' ? 'bg-emerald-100 text-emerald-800' :
+                  (currentUser.role === 'team_pts' || currentUser.role === 'team') ? 'bg-emerald-100 text-emerald-800' :
                   'bg-blue-100 text-blue-800'
                 }`}>
                 {currentUser.role === 'superadmin' ? 'Super Admin' :
                  currentUser.role === 'admin' ? 'Admin / PTS' :
-                 currentUser.role === 'team_pts' || currentUser.role === 'team' ? 'Team PTS' :
+                 (currentUser.role === 'team_pts' || currentUser.role === 'team') ? 'Team PTS' :
                  'User / Sales'}
               </span>
               {unreadCount > 0 && (
@@ -1174,7 +1120,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const detailDueStatus = getDueStatus(selectedRequest.due_date, selectedRequest.status);
 
     return (
-      <>
       <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <NotifToast />
 
@@ -1209,7 +1154,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </p>
             </div>
             {isPTS && !isTeamPTS && (
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0 flex-wrap">
                 {isPending && (
                   <>
                     <button onClick={() => handleApprove(selectedRequest)}
@@ -1220,31 +1165,21 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 )}
                 {selectedRequest.status === 'approved' && (
                   <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
-                    className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🔄 In Progress</button>
+                    className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">������ In Progress</button>
                 )}
                 {selectedRequest.status === 'in_progress' && (
                   <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
                     className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">✅ Selesai</button>
                 )}
-                <button onClick={handlePrint} title="Print PDF"
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1">🖨️ Print</button>
+                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">Print</button>
               </div>
             )}
-            {/* Print button for non-PTS (sales/user) */}
+            {isTeamPTS && <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex-shrink-0">Print</button>}
             {!isPTS && (
               <div className="flex gap-2 flex-shrink-0">
-                {selectedRequest.status !== 'rejected' && (
-                  <button onClick={handleOpenEditForm}
-                    className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-2 border-amber-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">✏️ Edit Kebutuhan</button>
-                )}
-                <button onClick={handlePrint} title="Print PDF"
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1">🖨️ Print</button>
+                {selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-2 border-amber-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">Edit Kebutuhan</button>}
+                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">Print</button>
               </div>
-            )}
-            {/* Print for team_pts (isTeamPTS) */}
-            {isTeamPTS && (
-              <button onClick={handlePrint} title="Print PDF"
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1 flex-shrink-0">🖨️ Print</button>
             )}
           </div>
         </div>
@@ -1254,12 +1189,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           <div className="w-[400px] flex-shrink-0 border-r-2 border-gray-200 flex flex-col overflow-hidden bg-white/90 backdrop-blur-sm">
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 space-y-2.5 text-sm border-2 border-gray-200 shadow-md">
-                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
-                  <p className="text-xs font-bold text-red-600 tracking-widest uppercase">Detail Kebutuhan</p>
-                  {!isPTS && selectedRequest.status !== 'rejected' && (
-                    <button onClick={handleOpenEditForm} className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-lg font-bold transition-all">✏️ Edit</button>
-                  )}
-                </div>
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200"><p className="text-xs font-bold text-red-600 tracking-widest uppercase">Detail Kebutuhan</p>{!isPTS && selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-lg font-bold transition-all">Edit</button>}</div>
                 {selectedRequest.kebutuhan?.length > 0 && <div><span className="font-bold text-gray-700">Kebutuhan:</span> <span className="text-gray-600">{selectedRequest.kebutuhan.join(', ')}</span></div>}
                 {selectedRequest.kebutuhan_other && <div><span className="font-bold text-gray-700">Other:</span> <span className="text-gray-600">{selectedRequest.kebutuhan_other}</span></div>}
                 {selectedRequest.solution_product?.length > 0 && <div><span className="font-bold text-gray-700">Solution:</span> <span className="text-gray-600">{selectedRequest.solution_product.join(', ')}</span></div>}
@@ -1486,7 +1416,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             <div className="bg-white border-t-2 border-gray-200 p-4 flex-shrink-0">
               {selectedRequest.status === 'rejected' ? (
                 <div className="flex items-center justify-center gap-2 bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-3 text-sm font-bold text-red-700">
-                  🔒 Request ini telah ditolak. Chat tidak tersedia.
+                  Request ini telah ditolak. Chat tidak tersedia.
                 </div>
               ) : (
                 <div className="flex gap-3">
@@ -1512,152 +1442,105 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </button>
                 </div>
               )}
-            </div>
+            </div>            </div>
           </div>
         </div>
-      </div>
 
-        {/* ── REJECT MODAL ── */}
+
+        {/* REJECT MODAL */}
         {rejectModal.open && rejectModal.req && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-red-500 animate-scale-in">
-              <div className="flex items-center gap-3 mb-5">
-                <span className="text-3xl">❌</span>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800">Tolak Request</h3>
-                  <p className="text-xs text-gray-500">{rejectModal.req.project_name}</p>
-                </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div><h3 className="text-lg font-bold text-gray-800">Tolak Request</h3><p className="text-xs text-gray-500">{rejectModal.req.project_name}</p></div>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-xs text-red-800 font-medium">
-                ⚠️ Request yang ditolak tidak bisa diubah kembali. Alasan penolakan akan terlihat di chat oleh semua pihak.
+                Alasan penolakan akan terlihat di chat oleh semua pihak.
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold mb-2 text-gray-700">Alasan Penolakan <span className="text-gray-400 font-normal">(opsional)</span></label>
-                <textarea
-                  value={rejectNote}
-                  onChange={e => setRejectNote(e.target.value)}
-                  placeholder="Tuliskan alasan penolakan agar Sales/User mengetahui..."
-                  rows={3}
-                  className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none resize-none transition-all"
-                />
-              </div>
+              <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)}
+                placeholder="Tuliskan alasan penolakan (opsional)..." rows={3}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-sm mb-4 focus:border-red-500 outline-none resize-none transition-all" />
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={handleRejectConfirm}
-                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all shadow-lg">
-                  ❌ Tolak Request
-                </button>
-                <button onClick={() => { setRejectModal({ open: false, req: null }); setRejectNote(''); }}
-                  className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all">
-                  Batal
-                </button>
+                <button onClick={handleRejectConfirm} className="bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all">Tolak Request</button>
+                <button onClick={() => { setRejectModal({ open: false, req: null }); setRejectNote(''); }} className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── EDIT FORM MODAL (for Sales/User) ── */}
+        {/* EDIT FORM MODAL */}
         {editFormModal && selectedRequest && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4 border-2 border-amber-400 animate-scale-in">
-              <div className="bg-gradient-to-r from-amber-500 to-amber-700 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">✏️</span>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border-2 border-amber-400 animate-scale-in">
+              <div className="bg-gradient-to-r from-amber-500 to-amber-700 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0">
+                <div><h3 className="font-bold text-lg">Edit Detail Kebutuhan</h3><p className="text-amber-100 text-xs">{selectedRequest.project_name}</p></div>
+                <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-all text-white font-bold">X</button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-medium">
+                  Setiap perubahan yang disimpan akan tercatat otomatis di Activity &amp; Q&amp;A.
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Nama Project</label>
+                    <input value={editFormData.project_name} onChange={e => setEditFormData({...editFormData, project_name: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-all" />
+                  </div>
                   <div>
-                    <h3 className="font-bold text-lg">Edit Detail Kebutuhan</h3>
-                    <p className="text-amber-100 text-xs">{selectedRequest.project_name} · Perubahan akan tercatat di chat</p>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                    <input value={editFormData.room_name} onChange={e => setEditFormData({...editFormData, room_name: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Sales</label>
+                    <input value={editFormData.sales_name} onChange={e => setEditFormData({...editFormData, sales_name: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-all" />
                   </div>
                 </div>
-                <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-all">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-                {/* Info Banner */}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-medium flex items-start gap-2">
-                  <span className="text-base flex-shrink-0">ℹ️</span>
-                  Setiap perubahan yang disimpan akan tercatat otomatis di Activity & Q&A sebagai update resmi.
-                </div>
-                {/* Basic Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  {[['Nama Project','project_name'],['Nama Ruangan','room_name'],['Sales','sales_name']].map(([label, key]) => (
-                    <div key={key} className={key === 'project_name' ? 'col-span-2' : ''}>
-                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">{label}</label>
-                      <input value={(editFormData as any)[key]} onChange={e => setEditFormData({...editFormData, [key]: e.target.value})}
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none transition-all" />
-                    </div>
-                  ))}
-                </div>
-                {/* Kebutuhan */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Kategori Kebutuhan</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['LED Wall','Video Wall','Interactive Display','Meeting Room','Digital Signage','Lecture System','Event'].map(opt => {
-                      const checked = editFormData.kebutuhan.includes(opt);
-                      return <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, kebutuhan: toggleArr(editFormData.kebutuhan, opt)})}
-                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${checked ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>;
-                    })}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['LED Wall','Video Wall','Interactive Display','Meeting Room','Digital Signage','Lecture System','Event'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, kebutuhan: toggleArr(editFormData.kebutuhan, opt)})}
+                        className={"px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all " + (editFormData.kebutuhan.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300')}>{opt}</button>
+                    ))}
                   </div>
-                  <input value={editFormData.kebutuhan_other} onChange={e => setEditFormData({...editFormData, kebutuhan_other: e.target.value})}
-                    placeholder="Other..." className="mt-2 w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                  <input value={editFormData.kebutuhan_other} onChange={e => setEditFormData({...editFormData, kebutuhan_other: e.target.value})} placeholder="Other..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
                 </div>
-                {/* Solution */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Solution Product</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['LED Direct View','Laser Projector','LCD Videowall','Interactive Flat Panel','Wireless Presentation','NVR/VMS','CMS','Control System'].map(opt => {
-                      const checked = editFormData.solution_product.includes(opt);
-                      return <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, solution_product: toggleArr(editFormData.solution_product, opt)})}
-                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${checked ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>;
-                    })}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['LED Direct View','Laser Projector','LCD Videowall','Interactive Flat Panel','Wireless Presentation','NVR/VMS','CMS','Control System'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, solution_product: toggleArr(editFormData.solution_product, opt)})}
+                        className={"px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all " + (editFormData.solution_product.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300')}>{opt}</button>
+                    ))}
                   </div>
-                  <input value={editFormData.solution_other} onChange={e => setEditFormData({...editFormData, solution_other: e.target.value})}
-                    placeholder="Other..." className="mt-2 w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                  <input value={editFormData.solution_other} onChange={e => setEditFormData({...editFormData, solution_other: e.target.value})} placeholder="Other..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
                 </div>
-                {/* I/O + Ukuran */}
                 <div className="grid grid-cols-2 gap-4">
-                  {[['Jumlah Input','jumlah_input','e.g. 4'],['Jumlah Output','jumlah_output','e.g. 2'],['Ukuran Ruangan','ukuran_ruangan','e.g. 8m × 6m × 3m'],['Suggest Tampilan','suggest_tampilan','e.g. 4K']].map(([label,key,ph]) => (
-                    <div key={key}>
-                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">{label}</label>
-                      <input value={(editFormData as any)[key]} onChange={e => setEditFormData({...editFormData, [key]: e.target.value})}
-                        placeholder={ph} className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
-                    </div>
-                  ))}
+                  <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Jumlah Input</label><input value={editFormData.jumlah_input} onChange={e => setEditFormData({...editFormData, jumlah_input: e.target.value})} placeholder="e.g. 4" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
+                  <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Jumlah Output</label><input value={editFormData.jumlah_output} onChange={e => setEditFormData({...editFormData, jumlah_output: e.target.value})} placeholder="e.g. 2" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
+                  <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Ukuran Ruangan</label><input value={editFormData.ukuran_ruangan} onChange={e => setEditFormData({...editFormData, ukuran_ruangan: e.target.value})} placeholder="e.g. 8m x 6m x 3m" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
+                  <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Suggest Tampilan</label><input value={editFormData.suggest_tampilan} onChange={e => setEditFormData({...editFormData, suggest_tampilan: e.target.value})} placeholder="e.g. 4K" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
                 </div>
-                {/* Camera */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Camera Conference</label>
                   <div className="flex gap-2 mb-2">
-                    {['Yes','No'].map(opt => <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, camera_conference: opt})}
-                      className={`px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all ${editFormData.camera_conference === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600'}`}>{opt}</button>)}
+                    {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, camera_conference: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.camera_conference === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
                   </div>
-                  {editFormData.camera_conference === 'Yes' && (
-                    <input value={editFormData.camera_jumlah} onChange={e => setEditFormData({...editFormData, camera_jumlah: e.target.value})}
-                      placeholder="Jumlah kamera..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
-                  )}
+                  {editFormData.camera_conference === 'Yes' && (<input value={editFormData.camera_jumlah} onChange={e => setEditFormData({...editFormData, camera_jumlah: e.target.value})} placeholder="Jumlah kamera..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />)}
                 </div>
-                {/* Audio */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Audio System</label>
                   <div className="flex gap-2">
-                    {['Yes','No'].map(opt => <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, audio_system: opt})}
-                      className={`px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all ${editFormData.audio_system === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600'}`}>{opt}</button>)}
+                    {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, audio_system: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.audio_system === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
                   </div>
                 </div>
-                {/* Keterangan */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Keterangan Lain</label>
-                  <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData({...editFormData, keterangan_lain: e.target.value})}
-                    rows={3} placeholder="Informasi tambahan..."
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-all resize-none" />
+                  <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData({...editFormData, keterangan_lain: e.target.value})} rows={3} placeholder="Informasi tambahan..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 transition-all resize-none" />
                 </div>
               </div>
-              <div className="px-6 pb-6 flex gap-3">
-                <button onClick={() => setEditFormModal(false)}
-                  className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
-                <button onClick={handleEditFormSubmit}
-                  className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg transition-all">
-                  💾 Simpan Perubahan
-                </button>
+              <div className="px-6 pb-6 flex gap-3 flex-shrink-0">
+                <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
+                <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg transition-all">Simpan Perubahan</button>
               </div>
             </div>
           </div>
@@ -1667,7 +1550,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           @keyframes scale-in { from { opacity:0; transform:scale(0.92); } to { opacity:1; transform:scale(1); } }
           .animate-scale-in { animation: scale-in 0.2s ease-out; }
         `}</style>
-      </>
+      </div>
     );
   }
 
