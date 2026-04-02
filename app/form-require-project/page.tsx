@@ -1174,6 +1174,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const detailDueStatus = getDueStatus(selectedRequest.due_date, selectedRequest.status);
 
     return (
+      <>
       <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <NotifToast />
 
@@ -1514,6 +1515,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </div>
           </div>
         </div>
+      </div>
 
         {/* ── REJECT MODAL ── */}
         {rejectModal.open && rejectModal.req && (
@@ -1665,7 +1667,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           @keyframes scale-in { from { opacity:0; transform:scale(0.92); } to { opacity:1; transform:scale(1); } }
           .animate-scale-in { animation: scale-in 0.2s ease-out; }
         `}</style>
-      </div>
+      </>
     );
   }
 
