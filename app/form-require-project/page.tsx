@@ -189,7 +189,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   const fetchAttachments = useCallback(async (requestId: string) => {
     const { data, error } = await supabase.from('project_attachments').select('*').eq('request_id', requestId).order('uploaded_at', { ascending: false });
-    if (!error && data) setAttachments(data as ProjectAttachment[]);
+    if (!error && data) {
+      // Normalize: if attachment_category is missing from DB schema, it will be undefined — treat as 'general'
+      const normalized = (data as ProjectAttachment[]).map(a => ({
+        ...a,
+        attachment_category: a.attachment_category || 'general',
+      }));
+      setAttachments(normalized);
+    }
   }, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
@@ -369,27 +376,144 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   const handlePrint = () => {
     if (!selectedRequest) return;
-    const sldList = attachments.filter(a => a.attachment_category === 'sld');
-    const boqList = attachments.filter(a => a.attachment_category === 'boq');
+    const sldList = attachments.filter(a => a.attachment_category === 'sld').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
+    const boqList = attachments.filter(a => a.attachment_category === 'boq').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
     const generalList = attachments.filter(a => !a.attachment_category || a.attachment_category === 'general');
+
     const row = (label: string, value: string) => value ? '<tr><td style="padding:6px 10px;font-weight:700;color:#374151;width:40%;border-bottom:1px solid #e5e7eb">' + label + '</td><td style="padding:6px 10px;color:#1f2937;border-bottom:1px solid #e5e7eb">' + value + '</td></tr>' : '';
     const sec = (title: string, rows: string) => '<div style="margin-bottom:20px"><div style="background:#dc2626;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none">' + rows + '</table></div>';
-    const attachSec = (title: string, color: string, list: ProjectAttachment[]) => list.length === 0 ? '' : '<div style="margin-bottom:20px"><div style="background:' + color + ';color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div><table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f9fafb"><th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">File</th><th style="padding:8px;font-size:12px;color:#6b7280">Versi</th><th style="padding:8px;font-size:12px;color:#6b7280">Oleh</th><th style="padding:8px;font-size:12px;color:#6b7280">Tanggal</th></tr></thead><tbody>' + list.map(a => '<tr><td style="padding:7px 10px;font-size:12px;font-weight:600">' + a.file_name + '</td><td style="padding:7px 8px;font-size:12px">' + (a.revision_version ? 'Rev.' + a.revision_version : '-') + '</td><td style="padding:7px 8px;font-size:12px;color:#6b7280">' + a.uploaded_by + '</td><td style="padding:7px 8px;font-size:12px;color:#6b7280">' + formatDate(a.uploaded_at) + '</td></tr>').join('') + '</tbody></table></div>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title><style>@media print{body{margin:0}@page{margin:15mm}}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:20px;max-width:960px;margin:auto}</style></head><body>'
-      + '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px"><p style="font-size:11px;color:#6b7280;margin:0">IVP Product - Work Management Support (PTS)</p><h1 style="font-size:20px;font-weight:900;color:#dc2626;margin:6px 0">Form Require Project</h1><h2 style="font-size:16px;font-weight:700;margin:0">' + selectedRequest.project_name + '</h2><p style="font-size:11px;color:#6b7280;margin:6px 0">Dicetak: ' + new Date().toLocaleString('id-ID') + ' | Status: ' + selectedRequest.status.toUpperCase() + '</p></div>'
-      + sec('Informasi Umum', row('Nama Project', selectedRequest.project_name) + row('Nama Ruangan', selectedRequest.room_name) + row('Sales', selectedRequest.sales_name) + row('Requester', selectedRequest.requester_name) + row('Tanggal Dibuat', formatDate(selectedRequest.created_at)) + row('Status', selectedRequest.status.toUpperCase()) + row('Approved By', selectedRequest.approved_by || '-') + row('Target Selesai', selectedRequest.due_date ? formatDueDate(selectedRequest.due_date) : '-'))
-      + sec('Detail Kebutuhan', row('Kebutuhan', (selectedRequest.kebutuhan || []).join(', ')) + row('Solution Product', (selectedRequest.solution_product || []).join(', ')) + row('Layout Signage', (selectedRequest.layout_signage || []).join(', ')) + row('Jaringan CMS', (selectedRequest.jaringan_cms || []).join(', ')) + row('Jumlah Input', selectedRequest.jumlah_input) + row('Jumlah Output', selectedRequest.jumlah_output) + row('Source', (selectedRequest.source || []).join(', ')))
-      + sec('Camera & Audio', row('Camera Conference', selectedRequest.camera_conference) + row('Jumlah Kamera', selectedRequest.camera_jumlah) + row('Audio System', selectedRequest.audio_system) + row('Audio Detail', (selectedRequest.audio_detail || []).join(', ')))
-      + sec('Wallplate & Ukuran', row('Wallplate Input', selectedRequest.wallplate_input) + row('Wireless Presentation', selectedRequest.wireless_presentation) + row('Ukuran Ruangan', selectedRequest.ukuran_ruangan) + row('Suggest Tampilan', selectedRequest.suggest_tampilan) + row('Keterangan Lain', selectedRequest.keterangan_lain))
-      + attachSec('SLD (System Layout Diagram)', '#2563eb', sldList)
-      + attachSec('BOQ (Bill of Quantity)', '#059669', boqList)
-      + attachSec('Lampiran Lainnya', '#64748b', generalList)
+
+    const revHistory = (list: ProjectAttachment[]) => list.length <= 1 ? '' :
+      '<div style="padding:8px 14px;background:#f1f5f9;border-top:1px solid #e2e8f0">'
+      + '<p style="font-size:11px;font-weight:700;color:#64748b;margin:0 0 4px;text-transform:uppercase;letter-spacing:.05em">Riwayat Revisi Sebelumnya</p>'
+      + '<table style="width:100%;border-collapse:collapse;font-size:11px">'
+      + list.slice(1).map(a => '<tr><td style="padding:3px 6px;color:#94a3b8;width:60px">' + (a.revision_version ? 'Rev.' + a.revision_version : '-') + '</td>'
+        + '<td style="padding:3px 6px;color:#64748b">' + a.file_name + '</td>'
+        + '<td style="padding:3px 6px;color:#94a3b8;text-align:right">' + a.uploaded_by + ' · ' + formatDate(a.uploaded_at) + '</td></tr>').join('')
+      + '</table></div>';
+
+    // SLD = PDF — embed via <iframe> full page (landscape)
+    const sldSec = () => {
+      if (sldList.length === 0) return '<div style="margin-bottom:24px"><div style="background:#2563eb;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📐 SLD — System Layout Diagram</div><div style="border:2px solid #2563eb;border-top:none;border-radius:0 0 8px 8px;padding:20px;text-align:center;color:#94a3b8;font-size:13px;background:#f8fafc">Belum ada file SLD</div></div>';
+      const latest = sldList[0];
+      const revLabel = latest.revision_version ? 'Rev.' + latest.revision_version : 'Latest';
+      return '<div style="margin-bottom:24px;page-break-inside:avoid">'
+        + '<div style="background:#2563eb;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📐 SLD — System Layout Diagram <span style="font-weight:400;font-size:11px;opacity:.8">(versi terbaru: ' + revLabel + ')</span></div>'
+        + '<div style="border:2px solid #2563eb;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">'
+        + '<div style="background:#eff6ff;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #bfdbfe">'
+        + '<span style="font-size:12px;font-weight:700;color:#1d4ed8">📄 ' + latest.file_name + '</span>'
+        + '<span style="font-size:11px;color:#3b82f6">' + revLabel + ' · ' + latest.uploaded_by + ' · ' + formatDate(latest.uploaded_at) + '</span>'
+        + '</div>'
+        + '<iframe src="' + latest.file_url + '" style="width:100%;height:700px;border:none;display:block;background:#fff" title="SLD Preview"></iframe>'
+        + '<div style="background:#eff6ff;padding:8px 14px;text-align:center;border-top:1px solid #bfdbfe">'
+        + '<a href="' + latest.file_url + '" target="_blank" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none">↗ Buka SLD di tab baru untuk tampilan penuh</a>'
+        + '</div>'
+        + revHistory(sldList)
+        + '</div></div>';
+    };
+
+    // BOQ = PDF — embed via <iframe> same as SLD
+    const boqSec = () => {
+      if (boqList.length === 0) return '<div style="margin-bottom:24px"><div style="background:#059669;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📊 BOQ — Bill of Quantity</div><div style="border:2px solid #059669;border-top:none;border-radius:0 0 8px 8px;padding:20px;text-align:center;color:#94a3b8;font-size:13px;background:#f8fafc">Belum ada file BOQ</div></div>';
+      const latest = boqList[0];
+      const revLabel = latest.revision_version ? 'Rev.' + latest.revision_version : 'Latest';
+      return '<div style="margin-bottom:24px;page-break-inside:avoid">'
+        + '<div style="background:#059669;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📊 BOQ — Bill of Quantity <span style="font-weight:400;font-size:11px;opacity:.8">(versi terbaru: ' + revLabel + ')</span></div>'
+        + '<div style="border:2px solid #059669;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">'
+        + '<div style="background:#f0fdf4;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #86efac">'
+        + '<span style="font-size:12px;font-weight:700;color:#15803d">📄 ' + latest.file_name + '</span>'
+        + '<span style="font-size:11px;color:#16a34a">' + revLabel + ' · ' + latest.uploaded_by + ' · ' + formatDate(latest.uploaded_at) + '</span>'
+        + '</div>'
+        + '<iframe src="' + latest.file_url + '" style="width:100%;height:700px;border:none;display:block;background:#fff" title="BOQ Preview"></iframe>'
+        + '<div style="background:#f0fdf4;padding:8px 14px;text-align:center;border-top:1px solid #86efac">'
+        + '<a href="' + latest.file_url + '" target="_blank" style="font-size:12px;font-weight:700;color:#059669;text-decoration:none">↗ Buka BOQ di tab baru untuk tampilan penuh</a>'
+        + '</div>'
+        + revHistory(boqList)
+        + '</div></div>';
+    };
+
+    const attachSec = (title: string, color: string, list: ProjectAttachment[]) => list.length === 0 ? '' :
+      '<div style="margin-bottom:20px"><div style="background:' + color + ';color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div>'
+      + '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f9fafb">'
+      + '<th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">File</th>'
+      + '<th style="padding:8px;font-size:12px;color:#6b7280">Oleh</th>'
+      + '<th style="padding:8px;font-size:12px;color:#6b7280">Tanggal</th>'
+      + '</tr></thead><tbody>'
+      + list.map(a => '<tr><td style="padding:7px 10px;font-size:12px;font-weight:600"><a href="' + a.file_url + '" style="color:#2563eb;text-decoration:none">' + a.file_name + '</a></td>'
+        + '<td style="padding:7px 8px;font-size:12px;color:#6b7280">' + a.uploaded_by + '</td>'
+        + '<td style="padding:7px 8px;font-size:12px;color:#6b7280">' + formatDate(a.uploaded_at) + '</td></tr>').join('')
+      + '</tbody></table></div>';
+
+    const css = [
+      '@media print{',
+      '  body{margin:0}',
+      '  @page{margin:12mm;size:A4}',
+      '  @page:first{margin:12mm}',
+      '  .no-print{display:none!important}',
+      '  iframe{height:680px!important;page-break-before:always}',
+      '  .page-break{page-break-before:always}',
+      '}',
+      'body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:24px;max-width:960px;margin:auto}',
+      'a{color:#2563eb}',
+    ].join('');
+
+    const printBtn = '<div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px">'
+      + '<button onclick="window.print()" style="background:#dc2626;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(220,38,38,.4)">🖨️ Print / Save PDF</button>'
+      + '<button onclick="window.close()" style="background:#6b7280;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✕ Tutup</button>'
+      + '</div>';
+
+    const header = '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px">'
+      + '<p style="font-size:11px;color:#6b7280;margin:0;text-transform:uppercase;letter-spacing:.08em">IVP Product — Portal Terpadu Support (PTS)</p>'
+      + '<h1 style="font-size:22px;font-weight:900;color:#dc2626;margin:6px 0">Form Require Project</h1>'
+      + '<h2 style="font-size:17px;font-weight:700;margin:0 0 6px">' + selectedRequest.project_name + '</h2>'
+      + '<p style="font-size:11px;color:#6b7280;margin:0">Dicetak: ' + new Date().toLocaleString('id-ID') + '&nbsp;&nbsp;|&nbsp;&nbsp;Status: <strong>' + selectedRequest.status.toUpperCase() + '</strong></p>'
+      + '</div>';
+
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>FRP — ' + selectedRequest.project_name + '</title><style>' + css + '</style></head><body>'
+      + printBtn
+      + header
+      + sec('Informasi Umum',
+          row('Nama Project', selectedRequest.project_name)
+          + row('Nama Ruangan', selectedRequest.room_name)
+          + row('Sales', selectedRequest.sales_name)
+          + row('Requester', selectedRequest.requester_name)
+          + row('Tanggal Dibuat', formatDate(selectedRequest.created_at))
+          + row('Status', selectedRequest.status.toUpperCase())
+          + row('Approved By', selectedRequest.approved_by || '-')
+          + row('Target Selesai', selectedRequest.due_date ? formatDueDate(selectedRequest.due_date) : '-'))
+      + sec('Detail Kebutuhan',
+          row('Kebutuhan', (selectedRequest.kebutuhan || []).join(', '))
+          + row('Other Kebutuhan', selectedRequest.kebutuhan_other)
+          + row('Solution Product', (selectedRequest.solution_product || []).join(', '))
+          + row('Other Solution', selectedRequest.solution_other)
+          + row('Layout Signage', (selectedRequest.layout_signage || []).join(', '))
+          + row('Jaringan CMS', (selectedRequest.jaringan_cms || []).join(', '))
+          + row('Jumlah Input', selectedRequest.jumlah_input)
+          + row('Jumlah Output', selectedRequest.jumlah_output)
+          + row('Source', (selectedRequest.source || []).join(', ')))
+      + sec('Camera & Audio',
+          row('Camera Conference', selectedRequest.camera_conference)
+          + row('Jumlah Kamera', selectedRequest.camera_jumlah)
+          + row('Camera Tracking', (selectedRequest.camera_tracking || []).join(', '))
+          + row('Audio System', selectedRequest.audio_system)
+          + row('Audio Detail', (selectedRequest.audio_detail || []).join(', ')))
+      + sec('Wallplate & Lainnya',
+          row('Wallplate Input', selectedRequest.wallplate_input)
+          + row('Jumlah Wallplate', selectedRequest.wallplate_jumlah)
+          + row('Wireless Presentation', selectedRequest.wireless_presentation)
+          + row('Ukuran Ruangan', selectedRequest.ukuran_ruangan)
+          + row('Suggest Tampilan', selectedRequest.suggest_tampilan)
+          + row('Keterangan Lain', selectedRequest.keterangan_lain))
+      + '<div class="page-break"></div>'
+      + sldSec()
+      + boqSec()
+      + (generalList.length > 0 ? attachSec('📎 Lampiran Umum', '#64748b', generalList) : '')
       + '</body></html>';
+
     const win = window.open('', '_blank');
-    if (!win) return;
+    if (!win) { alert('Pop-up diblokir. Izinkan pop-up untuk halaman ini.'); return; }
     win.document.write(html);
     win.document.close();
-    win.onload = () => { win.print(); };
   };
 
   const handleOpenDetail = async (req: ProjectRequest) => {
@@ -423,7 +547,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const { error: storageError } = await supabase.storage.from('project-files').upload(filePath, file, { cacheControl: '3600', upsert: false });
     if (storageError) { notify('error', 'Upload gagal: ' + storageError.message); setUploadingFile(false); return; }
     const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
-    const { error: dbError } = await supabase.from('project_attachments').insert([{ request_id: selectedRequest.id, message_id: null, file_name: file.name, file_url: urlData.publicUrl, file_type: file.type || ext || 'unknown', file_size: file.size, uploaded_by: currentUser.full_name }]);
+    const { error: dbError } = await supabase.from('project_attachments').insert([{ request_id: selectedRequest.id, message_id: null, file_name: file.name, file_url: urlData.publicUrl, file_type: file.type || ext || 'unknown', file_size: file.size, uploaded_by: currentUser.full_name, attachment_category: 'general' }]);
     setUploadingFile(false);
     if (dbError) { notify('error', 'Gagal menyimpan info file.'); return; }
     notify('success', `File "${file.name}" berhasil diupload!`);
@@ -1269,7 +1393,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
                 <input ref={sldFileRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf,.svg,.visio,.vsd,.vsdx"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
-                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls,.csv,.pdf,.doc,.docx"
+                <input ref={boqFileRef} type="file" className="hidden" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
 
                 {/* Tab header + upload buttons */}
@@ -1288,8 +1412,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     })}
                   </div>
 
-                  {/* Upload buttons — only for PTS roles */}
-                  {isPTS && (
+                  {/* Upload buttons — available for all users when request is not rejected */}
+                  {selectedRequest.status !== 'rejected' && (
                     <div className="flex gap-2">
                       <button onClick={() => fileInputRef.current?.click()}
                         className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1">
@@ -1316,8 +1440,20 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     const filtered = activeAttachTab === 'all' ? attachments
                       : attachments.filter(a => a.attachment_category === activeAttachTab);
                     if (filtered.length === 0) return (
-                      <div className="text-center py-6 text-gray-400 text-sm bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 font-medium">
-                        {activeAttachTab === 'sld' ? '📐 Belum ada SLD' : activeAttachTab === 'boq' ? '📊 Belum ada BOQ' : '📂 Belum ada lampiran'}
+                      <div className="text-center py-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                        <p className="text-gray-400 text-sm font-medium mb-2">
+                          {activeAttachTab === 'sld' ? '📐 Belum ada SLD' : activeAttachTab === 'boq' ? '📊 Belum ada BOQ' : '📂 Belum ada lampiran'}
+                        </p>
+                        {activeAttachTab === 'sld' && selectedRequest.status !== 'rejected' && (
+                          <button onClick={() => sldFileRef.current?.click()} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-bold transition-all">
+                            + Upload SLD
+                          </button>
+                        )}
+                        {activeAttachTab === 'boq' && selectedRequest.status !== 'rejected' && (
+                          <button onClick={() => boqFileRef.current?.click()} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg font-bold transition-all">
+                            + Upload BOQ
+                          </button>
+                        )}
                       </div>
                     );
                     return filtered.map(att => {
