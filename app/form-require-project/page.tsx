@@ -478,8 +478,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       if (buf) {
         folder!.file('02_SLD' + revLabel + '.' + ext, buf);
       } else {
-        folder!.file('02_SLD_link.txt', 'File tidak dapat didownload otomatis.
-Buka manual: ' + latest.file_url);
+        folder!.file('02_SLD_link.txt', 'File tidak dapat didownload otomatis.\nBuka manual: ' + latest.file_url);
       }
     } else {
       folder!.file('02_SLD_KOSONG.txt', 'Belum ada file SLD diupload.');
@@ -494,8 +493,7 @@ Buka manual: ' + latest.file_url);
       if (buf) {
         folder!.file('03_BOQ' + revLabel + '.' + ext, buf);
       } else {
-        folder!.file('03_BOQ_link.txt', 'File tidak dapat didownload otomatis.
-Buka manual: ' + latest.file_url);
+        folder!.file('03_BOQ_link.txt', 'File tidak dapat didownload otomatis.\nBuka manual: ' + latest.file_url);
       }
     } else {
       folder!.file('03_BOQ_KOSONG.txt', 'Belum ada file BOQ diupload.');
