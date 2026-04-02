@@ -1444,10 +1444,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               )}
             </div>            </div>
           </div>
-        </div>
 
 
         {/* REJECT MODAL */}
+
         {rejectModal.open && rejectModal.req && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-red-500 animate-scale-in">
@@ -1556,6 +1556,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   return null;
 }
+
 
 // ─── Page Entry Point ─────────────────────────────────────────────────────────
 
