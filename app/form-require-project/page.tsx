@@ -304,13 +304,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
-  const handleReject = async (req: ProjectRequest) => {
-    if (!confirm('Yakin ingin menolak request ini?')) return;
+  const handleReject = (req: ProjectRequest) => {
+    setRejectNote('');
+    setRejectModal({ open: true, req });
+  };
+
+  const handleRejectConfirm = async () => {
+    const req = rejectModal.req;
+    if (!req) return;
     const { error } = await supabase.from('project_requests').update({ status: 'rejected' }).eq('id', req.id);
     if (error) { notify('error', 'Gagal reject.'); return; }
     notify('info', 'Request ditolak.');
+    setRejectModal({ open: false, req: null });
+    setRejectNote('');
     fetchRequests();
-    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `❌ Request telah ditolak oleh ${currentUser.full_name}.` }]);
+    const noteMsg = rejectNote.trim() ? ` Alasan: ${rejectNote.trim()}` : '';
+    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `❌ Request telah ditolak oleh ${currentUser.full_name}.${noteMsg}` }]);
     if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
