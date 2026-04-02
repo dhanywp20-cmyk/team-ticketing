@@ -374,104 +374,65 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     fetchMessages(selectedRequest.id);
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!selectedRequest) return;
     const sldList = attachments.filter(a => a.attachment_category === 'sld').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
     const boqList = attachments.filter(a => a.attachment_category === 'boq').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
-    const generalList = attachments.filter(a => !a.attachment_category || a.attachment_category === 'general');
 
+    // Build filename prefix: ProjectName_DDMMYYYY
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const safeProjectName = selectedRequest.project_name.replace(/[^a-zA-Z0-9_\-. ]/g, '').replace(/\s+/g, '_').slice(0, 40);
+    const folderName = safeProjectName + '_' + dd + mm + yyyy;
+
+    notify('info', '⏳ Menyiapkan file untuk didownload...');
+
+    // Load JSZip dynamically
+    let JSZip: any;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).JSZip) { JSZip = (window as any).JSZip; resolve(); return; }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        script.onload = () => { JSZip = (window as any).JSZip; resolve(); };
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    } catch {
+      notify('error', 'Gagal memuat library ZIP. Cek koneksi internet.');
+      return;
+    }
+
+    const zip = new JSZip();
+    const folder = zip.folder(folderName);
+
+    // Helper: fetch file as ArrayBuffer via proxy to avoid CORS
+    const fetchFile = async (url: string): Promise<ArrayBuffer | null> => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await res.arrayBuffer();
+      } catch { return null; }
+    };
+
+    // ── 1. Generate Detail Kebutuhan HTML → include as .html (prints to PDF easily)
     const row = (label: string, value: string) => value ? '<tr><td style="padding:6px 10px;font-weight:700;color:#374151;width:40%;border-bottom:1px solid #e5e7eb">' + label + '</td><td style="padding:6px 10px;color:#1f2937;border-bottom:1px solid #e5e7eb">' + value + '</td></tr>' : '';
-    const sec = (title: string, rows: string) => '<div style="margin-bottom:20px"><div style="background:#dc2626;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none">' + rows + '</table></div>';
-
-    const revHistory = (list: ProjectAttachment[]) => list.length <= 1 ? '' :
-      '<div style="padding:8px 14px;background:#f1f5f9;border-top:1px solid #e2e8f0">'
-      + '<p style="font-size:11px;font-weight:700;color:#64748b;margin:0 0 4px;text-transform:uppercase;letter-spacing:.05em">Riwayat Revisi Sebelumnya</p>'
-      + '<table style="width:100%;border-collapse:collapse;font-size:11px">'
-      + list.slice(1).map(a => '<tr><td style="padding:3px 6px;color:#94a3b8;width:60px">' + (a.revision_version ? 'Rev.' + a.revision_version : '-') + '</td>'
-        + '<td style="padding:3px 6px;color:#64748b">' + a.file_name + '</td>'
-        + '<td style="padding:3px 6px;color:#94a3b8;text-align:right">' + a.uploaded_by + ' · ' + formatDate(a.uploaded_at) + '</td></tr>').join('')
-      + '</table></div>';
-
-    // SLD = PDF — embed via <iframe> full page (landscape)
-    const sldSec = () => {
-      if (sldList.length === 0) return '<div style="margin-bottom:24px"><div style="background:#2563eb;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📐 SLD — System Layout Diagram</div><div style="border:2px solid #2563eb;border-top:none;border-radius:0 0 8px 8px;padding:20px;text-align:center;color:#94a3b8;font-size:13px;background:#f8fafc">Belum ada file SLD</div></div>';
-      const latest = sldList[0];
-      const revLabel = latest.revision_version ? 'Rev.' + latest.revision_version : 'Latest';
-      return '<div style="margin-bottom:24px;page-break-inside:avoid">'
-        + '<div style="background:#2563eb;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📐 SLD — System Layout Diagram <span style="font-weight:400;font-size:11px;opacity:.8">(versi terbaru: ' + revLabel + ')</span></div>'
-        + '<div style="border:2px solid #2563eb;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">'
-        + '<div style="background:#eff6ff;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #bfdbfe">'
-        + '<span style="font-size:12px;font-weight:700;color:#1d4ed8">📄 ' + latest.file_name + '</span>'
-        + '<span style="font-size:11px;color:#3b82f6">' + revLabel + ' · ' + latest.uploaded_by + ' · ' + formatDate(latest.uploaded_at) + '</span>'
-        + '</div>'
-        + '<iframe src="' + latest.file_url + '" style="width:100%;height:700px;border:none;display:block;background:#fff" title="SLD Preview"></iframe>'
-        + '<div style="background:#eff6ff;padding:8px 14px;text-align:center;border-top:1px solid #bfdbfe">'
-        + '<a href="' + latest.file_url + '" target="_blank" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none">↗ Buka SLD di tab baru untuk tampilan penuh</a>'
-        + '</div>'
-        + revHistory(sldList)
-        + '</div></div>';
-    };
-
-    // BOQ = PDF — embed via <iframe> same as SLD
-    const boqSec = () => {
-      if (boqList.length === 0) return '<div style="margin-bottom:24px"><div style="background:#059669;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📊 BOQ — Bill of Quantity</div><div style="border:2px solid #059669;border-top:none;border-radius:0 0 8px 8px;padding:20px;text-align:center;color:#94a3b8;font-size:13px;background:#f8fafc">Belum ada file BOQ</div></div>';
-      const latest = boqList[0];
-      const revLabel = latest.revision_version ? 'Rev.' + latest.revision_version : 'Latest';
-      return '<div style="margin-bottom:24px;page-break-inside:avoid">'
-        + '<div style="background:#059669;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">📊 BOQ — Bill of Quantity <span style="font-weight:400;font-size:11px;opacity:.8">(versi terbaru: ' + revLabel + ')</span></div>'
-        + '<div style="border:2px solid #059669;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">'
-        + '<div style="background:#f0fdf4;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #86efac">'
-        + '<span style="font-size:12px;font-weight:700;color:#15803d">📄 ' + latest.file_name + '</span>'
-        + '<span style="font-size:11px;color:#16a34a">' + revLabel + ' · ' + latest.uploaded_by + ' · ' + formatDate(latest.uploaded_at) + '</span>'
-        + '</div>'
-        + '<iframe src="' + latest.file_url + '" style="width:100%;height:700px;border:none;display:block;background:#fff" title="BOQ Preview"></iframe>'
-        + '<div style="background:#f0fdf4;padding:8px 14px;text-align:center;border-top:1px solid #86efac">'
-        + '<a href="' + latest.file_url + '" target="_blank" style="font-size:12px;font-weight:700;color:#059669;text-decoration:none">↗ Buka BOQ di tab baru untuk tampilan penuh</a>'
-        + '</div>'
-        + revHistory(boqList)
-        + '</div></div>';
-    };
-
-    const attachSec = (title: string, color: string, list: ProjectAttachment[]) => list.length === 0 ? '' :
-      '<div style="margin-bottom:20px"><div style="background:' + color + ';color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px">' + title + '</div>'
-      + '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f9fafb">'
-      + '<th style="padding:8px 10px;text-align:left;font-size:12px;color:#6b7280">File</th>'
-      + '<th style="padding:8px;font-size:12px;color:#6b7280">Oleh</th>'
-      + '<th style="padding:8px;font-size:12px;color:#6b7280">Tanggal</th>'
-      + '</tr></thead><tbody>'
-      + list.map(a => '<tr><td style="padding:7px 10px;font-size:12px;font-weight:600"><a href="' + a.file_url + '" style="color:#2563eb;text-decoration:none">' + a.file_name + '</a></td>'
-        + '<td style="padding:7px 8px;font-size:12px;color:#6b7280">' + a.uploaded_by + '</td>'
-        + '<td style="padding:7px 8px;font-size:12px;color:#6b7280">' + formatDate(a.uploaded_at) + '</td></tr>').join('')
-      + '</tbody></table></div>';
-
-    const css = [
-      '@media print{',
-      '  body{margin:0}',
-      '  @page{margin:12mm;size:A4}',
-      '  @page:first{margin:12mm}',
-      '  .no-print{display:none!important}',
-      '  iframe{height:680px!important;page-break-before:always}',
-      '  .page-break{page-break-before:always}',
-      '}',
-      'body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:24px;max-width:960px;margin:auto}',
-      'a{color:#2563eb}',
-    ].join('');
-
-    const printBtn = '<div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px">'
-      + '<button onclick="window.print()" style="background:#dc2626;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(220,38,38,.4)">🖨️ Print / Save PDF</button>'
-      + '<button onclick="window.close()" style="background:#6b7280;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✕ Tutup</button>'
-      + '</div>';
-
-    const header = '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px">'
+    const sec = (title: string, rows: string) => '<div style="margin-bottom:20px"><div style="background:#dc2626;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px;letter-spacing:.03em">' + title + '</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none">' + rows + '</table></div>';
+    const detailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Detail Kebutuhan — ' + selectedRequest.project_name + '</title>'
+      + '<style>@media print{body{margin:0}@page{margin:15mm;size:A4}.no-print{display:none!important}}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:28px;max-width:820px;margin:auto}</style>'
+      + '</head><body>'
+      + '<div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px">'
+      + '<button onclick="window.print()" style="background:#dc2626;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ Print / Save PDF</button>'
+      + '<button onclick="window.close()" style="background:#6b7280;color:white;border:none;padding:10px 14px;border-radius:8px;font-size:14px;cursor:pointer">✕</button>'
+      + '</div>'
+      + '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px">'
       + '<p style="font-size:11px;color:#6b7280;margin:0;text-transform:uppercase;letter-spacing:.08em">IVP Product — Portal Terpadu Support (PTS)</p>'
       + '<h1 style="font-size:22px;font-weight:900;color:#dc2626;margin:6px 0">Form Require Project</h1>'
-      + '<h2 style="font-size:17px;font-weight:700;margin:0 0 6px">' + selectedRequest.project_name + '</h2>'
-      + '<p style="font-size:11px;color:#6b7280;margin:0">Dicetak: ' + new Date().toLocaleString('id-ID') + '&nbsp;&nbsp;|&nbsp;&nbsp;Status: <strong>' + selectedRequest.status.toUpperCase() + '</strong></p>'
-      + '</div>';
-
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>FRP — ' + selectedRequest.project_name + '</title><style>' + css + '</style></head><body>'
-      + printBtn
-      + header
+      + '<h2 style="font-size:17px;font-weight:700;margin:0 0 4px">' + selectedRequest.project_name + '</h2>'
+      + '<p style="font-size:11px;color:#6b7280;margin:0">Tanggal: ' + now.toLocaleString('id-ID') + ' &nbsp;|&nbsp; Status: <strong>' + selectedRequest.status.toUpperCase() + '</strong></p>'
+      + '</div>'
       + sec('Informasi Umum',
           row('Nama Project', selectedRequest.project_name)
           + row('Nama Ruangan', selectedRequest.room_name)
@@ -504,16 +465,57 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           + row('Ukuran Ruangan', selectedRequest.ukuran_ruangan)
           + row('Suggest Tampilan', selectedRequest.suggest_tampilan)
           + row('Keterangan Lain', selectedRequest.keterangan_lain))
-      + '<div class="page-break"></div>'
-      + sldSec()
-      + boqSec()
-      + (generalList.length > 0 ? attachSec('📎 Lampiran Umum', '#64748b', generalList) : '')
       + '</body></html>';
 
-    const win = window.open('', '_blank');
-    if (!win) { alert('Pop-up diblokir. Izinkan pop-up untuk halaman ini.'); return; }
-    win.document.write(html);
-    win.document.close();
+    folder!.file('01_Detail_Kebutuhan.html', detailHtml);
+
+    // ── 2. Fetch & add SLD PDF
+    if (sldList.length > 0) {
+      const latest = sldList[0];
+      const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
+      const ext = latest.file_name.split('.').pop() || 'pdf';
+      const buf = await fetchFile(latest.file_url);
+      if (buf) {
+        folder!.file('02_SLD' + revLabel + '.' + ext, buf);
+      } else {
+        folder!.file('02_SLD_link.txt', 'File tidak dapat didownload otomatis.
+Buka manual: ' + latest.file_url);
+      }
+    } else {
+      folder!.file('02_SLD_KOSONG.txt', 'Belum ada file SLD diupload.');
+    }
+
+    // ── 3. Fetch & add BOQ PDF
+    if (boqList.length > 0) {
+      const latest = boqList[0];
+      const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
+      const ext = latest.file_name.split('.').pop() || 'pdf';
+      const buf = await fetchFile(latest.file_url);
+      if (buf) {
+        folder!.file('03_BOQ' + revLabel + '.' + ext, buf);
+      } else {
+        folder!.file('03_BOQ_link.txt', 'File tidak dapat didownload otomatis.
+Buka manual: ' + latest.file_url);
+      }
+    } else {
+      folder!.file('03_BOQ_KOSONG.txt', 'Belum ada file BOQ diupload.');
+    }
+
+    // ── 4. Generate ZIP and trigger download
+    try {
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = folderName + '.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      notify('success', '✅ ZIP berhasil didownload: ' + folderName + '.zip');
+    } catch {
+      notify('error', 'Gagal membuat file ZIP.');
+    }
   };
 
   const handleOpenDetail = async (req: ProjectRequest) => {
