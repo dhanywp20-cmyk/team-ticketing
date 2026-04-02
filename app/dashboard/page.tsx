@@ -572,7 +572,7 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-slate-800 mb-1 tracking-tight">Dashboard PTS IVP</h1>
+                <h1 className="text-4xl font-bold text-slate-800 mb-1 tracking-tight">Work Management PTS IVP</h1>
                 <p className="text-slate-600 font-medium">Support System - IndoVisual Professional Tools</p>
                 <p className="text-sm text-slate-500 mt-2">Welcome back, <span className="font-semibold text-rose-600">{currentUser?.full_name}</span></p>
               </div>
