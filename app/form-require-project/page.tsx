@@ -103,6 +103,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSales, setSearchSales] = useState('');
   const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -610,7 +612,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (diffDays <= 2) return { type: 'urgent', label: `${diffDays} hari lagi`, days: diffDays };
     return { type: 'ok', label: `${diffDays} hari lagi`, days: diffDays };
   };
-  const filteredRequests = filterStatus === 'all' ? requests : requests.filter(r => r.status === filterStatus);
+  const filteredRequests = requests.filter(r => {
+    const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+    const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSales = !searchSales || (r.sales_name || '').toLowerCase().includes(searchSales.toLowerCase()) || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase());
+    return matchStatus && matchProject && matchSales;
+  });
 
   // Stats
   const stats = {
@@ -766,39 +773,104 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       </div>
 
-      {/* ── Request List Card ── */}
-      <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-gray-300 overflow-hidden">
-        {/* Filter bar */}
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200 px-6 py-4 flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">Filter:</span>
-          {['all', 'pending', 'approved', 'in_progress', 'completed', 'rejected'].map(s => (
-            <button key={s} onClick={() => setFilterStatus(s)}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${filterStatus === s
-                ? 'bg-gradient-to-r from-red-600 to-red-800 text-white border-red-600 shadow-md'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-red-400 hover:text-red-600'}`}>
-              {s === 'all' ? 'Semua' : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+      {/* ── Search Bar (like reference image) ── */}
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 px-6 py-4 mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+        {/* Search Project */}
+        <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100 transition-all">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" /></svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Search Project</p>
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by project name..."
+              className="w-full bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none"
+            />
+          </div>
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-          ))}
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-500">{filteredRequests.length} request</span>
-            <button onClick={fetchRequests} className="bg-gray-200 hover:bg-gray-300 text-gray-600 p-1.5 rounded-lg transition-all" title="Refresh">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          )}
+        </div>
+
+        {/* Search Sales */}
+        <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100 transition-all">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Search Sales</p>
+            <input
+              value={searchSales}
+              onChange={e => setSearchSales(e.target.value)}
+              placeholder="Search by sales name..."
+              className="w-full bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none"
+            />
+          </div>
+          {searchSales && (
+            <button onClick={() => setSearchSales('')} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
+        </div>
+
+        {/* Filter Status */}
+        <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-red-400 transition-all min-w-[200px]">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Filter Status</p>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="w-full bg-transparent text-sm font-medium text-gray-700 outline-none cursor-pointer">
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Request List Card — Compact Table Style ── */}
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        {/* Table Header */}
+        <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-700">TICKET LIST</span>
+            <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">{filteredRequests.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={fetchRequests}
+              className="flex items-center gap-1.5 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Refresh
             </button>
           </div>
         </div>
 
+        {/* Column Headers */}
+        <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Ruangan</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status Handle</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Created By</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</span>
+        </div>
+
         {/* List */}
-        <div className="p-6">
+        <div className="divide-y divide-gray-100">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-12 h-12 border-4 border-gray-200 border-t-red-600 rounded-full animate-spin" />
               <p className="text-gray-500 font-semibold">Memuat data...</p>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <div className="text-center py-20">
-              {/* Inline SVG graphic — same decoration style as Ticketing */}
-              <div className="flex justify-center mb-6">
-                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <div className="text-center py-16">
+              <div className="flex justify-center mb-4">
+                <svg width="80" height="80" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="60" cy="60" r="55" fill="#FEF2F2" stroke="#FCA5A5" strokeWidth="2"/>
                   <rect x="35" y="30" width="50" height="60" rx="6" fill="white" stroke="#FCA5A5" strokeWidth="2"/>
                   <rect x="42" y="42" width="36" height="4" rx="2" fill="#FCA5A5"/>
@@ -808,100 +880,98 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <text x="57" y="87" fill="white" fontSize="10" fontWeight="bold">!</text>
                 </svg>
               </div>
-              <p className="text-gray-700 font-bold text-xl mb-2">Belum ada request</p>
-              <p className="text-gray-500 text-sm mb-6">
-                {filterStatus !== 'all'
-                  ? `Tidak ada request dengan status "${filterStatus}".`
-                  : 'Belum ada form yang masuk. Buat request pertama Anda!'}
+              <p className="text-gray-700 font-bold text-lg mb-1">Tidak ada data</p>
+              <p className="text-gray-400 text-sm mb-5">
+                {(searchQuery || searchSales) ? 'Tidak ada hasil yang cocok dengan pencarian Anda.' : filterStatus !== 'all' ? `Tidak ada request dengan status "${filterStatus}".` : 'Belum ada form yang masuk.'}
               </p>
-              {filterStatus === 'all' && !isPTS && (
+              {filterStatus === 'all' && !searchQuery && !searchSales && !isPTS && (
                 <button onClick={() => setView('new-form')}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white px-8 py-3.5 rounded-xl font-bold shadow-xl transition-all">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all text-sm">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Buat Request Baru
                 </button>
               )}
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredRequests.map(req => {
-                const sc = statusConfig[req.status] || statusConfig.pending;
-                const unread = unreadMsgMap[req.id] || 0;
-                const dueStatus = getDueStatus(req.due_date, req.status);
-                return (
-                  <div key={req.id} onClick={() => handleOpenDetail(req)}
-                    className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 rounded-2xl p-5 hover:shadow-xl transition-all cursor-pointer group ${dueStatus?.type === 'overdue' ? 'border-red-400 from-red-50/40 to-orange-50/20' : dueStatus?.type === 'urgent' ? 'border-amber-400 from-amber-50/30 to-yellow-50/20' : 'border-gray-300 hover:border-red-300 hover:from-red-50/30 hover:to-orange-50/20'}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-3 flex-wrap">
-                          <h3 className="font-bold text-gray-800 text-lg group-hover:text-red-700 transition-colors">{req.project_name}</h3>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                          {req.status === 'pending' && isPTS && !isTeamPTS && (
-                            <span className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">🔔 Perlu Approval</span>
-                          )}
-                          {dueStatus?.type === 'overdue' && (
-                            <span className="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 animate-pulse">
-                              ⚠️ {dueStatus.label}
-                            </span>
-                          )}
-                          {dueStatus?.type === 'urgent' && (
-                            <span className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                              ⏰ {dueStatus.label}
-                            </span>
-                          )}
-                          {dueStatus?.type === 'ok' && (
-                            <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-300">
-                              📅 {dueStatus.label}
-                            </span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1.5 text-sm text-gray-600">
-                          <span className="flex items-center gap-1">🏢 <span className="font-semibold text-gray-800">{req.room_name || '-'}</span></span>
-                          <span className="flex items-center gap-1">👤 <span className="font-semibold text-gray-800">{req.sales_name || req.requester_name}</span></span>
-                          <span className="flex items-center gap-1">📅 <span className="font-semibold text-gray-800">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
-                          {req.solution_product?.length > 0 && (
-                            <span className="col-span-2 md:col-span-3 flex items-center gap-1">📦 <span className="font-medium">{req.solution_product.join(', ')}</span></span>
-                          )}
-                          {req.pts_assigned && <span className="flex items-center gap-1">🔧 PTS: <span className="font-semibold text-gray-800">{req.pts_assigned}</span></span>}
-                          {req.due_date && (
-                            <span className="flex items-center gap-1">🗓️ Target: <span className={`font-semibold ${dueStatus?.type === 'overdue' ? 'text-red-600' : dueStatus?.type === 'urgent' ? 'text-amber-600' : 'text-gray-800'}`}>{formatDueDate(req.due_date)}</span></span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex-shrink-0 flex items-center gap-2">
-                        {unread > 0 && (
-                          <div className="relative flex items-center justify-center">
-                            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
-                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                            </div>
-                            <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white shadow animate-pulse">
-                              {unread > 9 ? '9+' : unread}
-                            </span>
-                          </div>
-                        )}
-                        {isPTS && !isTeamPTS && req.status === 'pending' && (
-                          <>
-                            <button onClick={e => { e.stopPropagation(); handleApprove(req); }}
-                              className="bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">
-                              ✅ Approve
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); handleReject(req); }}
-                              className="bg-red-50 hover:bg-red-100 text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">
-                              ❌ Tolak
-                            </button>
-                          </>
-                        )}
-                        <div className="w-9 h-9 bg-white border-2 border-gray-200 group-hover:border-red-300 group-hover:bg-red-50 rounded-xl flex items-center justify-center transition-all">
-                          <svg className="w-4 h-4 text-gray-400 group-hover:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </div>
+            filteredRequests.map(req => {
+              const sc = statusConfig[req.status] || statusConfig.pending;
+              const unread = unreadMsgMap[req.id] || 0;
+              const dueStatus = getDueStatus(req.due_date, req.status);
+              return (
+                <div key={req.id}
+                  className={`grid md:grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3.5 hover:bg-red-50/30 transition-colors cursor-pointer group items-center ${dueStatus?.type === 'overdue' ? 'bg-red-50/20' : ''}`}
+                  onClick={() => handleOpenDetail(req)}>
+
+                  {/* Nama Project */}
+                  <div className="min-w-0 pr-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-gray-800 text-sm group-hover:text-red-700 transition-colors truncate">{req.project_name}</p>
+                      {unread > 0 && (
+                        <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          {unread > 9 ? '9+' : unread}💬
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    {dueStatus?.type === 'overdue' && <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">⚠️ {dueStatus.label}</span>}
+                    {dueStatus?.type === 'urgent' && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">⏰ {dueStatus.label}</span>}
+                    <div className="md:hidden mt-1.5 flex flex-wrap gap-1.5">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Nama Ruangan */}
+                  <div className="hidden md:block pr-3">
+                    <p className="text-sm text-gray-700 font-medium truncate">{req.room_name || <span className="text-gray-300">—</span>}</p>
+                    {req.solution_product?.length > 0 && (
+                      <p className="text-[11px] text-gray-400 truncate">{req.solution_product.join(', ')}</p>
+                    )}
+                  </div>
+
+                  {/* Sales */}
+                  <div className="hidden md:block pr-3">
+                    <p className="text-sm text-gray-700 font-medium truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
+                  </div>
+
+                  {/* Status Handle */}
+                  <div className="hidden md:block pr-3">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                    {req.status === 'pending' && isPTS && !isTeamPTS && (
+                      <p className="text-[10px] font-bold text-red-600 mt-1 animate-pulse">🔔 Perlu Approval</p>
+                    )}
+                    {req.pts_assigned && <p className="text-[11px] text-gray-400 mt-0.5">🔧 {req.pts_assigned}</p>}
+                  </div>
+
+                  {/* Created By */}
+                  <div className="hidden md:block pr-3">
+                    <p className="text-sm text-gray-700 font-medium truncate">{req.requester_name}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{req.due_date ? `Target: ${formatDueDate(req.due_date)}` : ''}</p>
+                  </div>
+
+                  {/* Action */}
+                  <div className="hidden md:flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                    {isPTS && !isTeamPTS && req.status === 'pending' && (
+                      <>
+                        <button onClick={() => handleApprove(req)}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm">
+                          ✅ Approve
+                        </button>
+                        <button onClick={() => handleReject(req)}
+                          className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all">
+                          ❌ Tolak
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => handleOpenDetail(req)}
+                      className="w-8 h-8 bg-gray-100 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all group/btn">
+                      <svg className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </div>
