@@ -563,11 +563,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       folder!.file('02_SLD_KOSONG.txt', 'Belum ada file SLD diupload.');
     }
 
-    // ── 3. Fetch & add BOQ PDF
+    // ── 3. Fetch & add BOQ Excel
     if (boqList.length > 0) {
       const latest = boqList[0];
       const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
-      const ext = latest.file_name.split('.').pop() || 'pdf';
+      const ext = latest.file_name.split('.').pop() || 'xlsx';
       const buf = await fetchFile(latest.file_url);
       if (buf) {
         folder!.file('03_BOQ' + revLabel + '.' + ext, buf);
@@ -660,6 +660,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const revisionNum = existing.length + 1;
     const ext = file.name.split('.').pop();
     const label = category === 'sld' ? 'SLD' : category === 'boq' ? 'BOQ' : 'Design 3D';
+    const defaultExt = category === 'boq' ? 'xlsx' : 'pdf';
     const filePath = `project-files/${selectedRequest.id}/${category}-rev${revisionNum}-${Date.now()}-${file.name}`;
     const { error: storageError } = await supabase.storage.from('project-files').upload(filePath, file, { cacheControl: '3600', upsert: false });
     if (storageError) { notify('error', `Upload ${label} gagal: ${storageError.message}`); setUploadingCategory(null); return; }
@@ -679,7 +680,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     await supabase.from('project_messages').insert([{
       request_id: selectedRequest.id, sender_id: currentUser.id,
       sender_name: currentUser.full_name, sender_role: currentUser.role,
-      message: `${category === 'design3d' ? '🎨' : category === 'sld' ? '📐' : '📊'} Upload ${label} Revision ${revisionNum}: ${file.name}`,
+      message: `${category === 'design3d' ? '🎨' : category === 'sld' ? '📐' : '📊'} Upload ${label} Revision ${revisionNum}: ${file.name} (Excel)`,
     }]);
     // Pesan baru akan muncul via Realtime
   };
@@ -1596,7 +1597,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
                 <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
-                <input ref={boqFileRef} type="file" className="hidden" accept=".pdf"
+                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
                 <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
@@ -1661,7 +1662,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         )}
                         {activeAttachTab === 'boq' && selectedRequest.status !== 'rejected' && (
                           <button onClick={() => boqFileRef.current?.click()} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg font-bold transition-all">
-                            + Upload BOQ (PDF)
+                            + Upload BOQ (Excel)
                           </button>
                         )}
                         {activeAttachTab === 'design3d' && selectedRequest.status !== 'rejected' && (
@@ -1786,6 +1787,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               {selectedRequest.status === 'rejected' ? (
                 <div className="flex items-center justify-center gap-2 bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-3 text-sm font-bold text-red-700">
                   Request ini telah ditolak. Chat tidak tersedia.
+                </div>
+              ) : selectedRequest.status === 'pending' ? (
+                <div className="flex items-center justify-center gap-2 bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-amber-700">
+                  🔒 Chat tersedia setelah request di-approve oleh Admin/Superadmin.
                 </div>
               ) : (
                 <div className="flex gap-3">
