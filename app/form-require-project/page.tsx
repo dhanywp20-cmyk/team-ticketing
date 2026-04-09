@@ -45,10 +45,17 @@ interface ProjectRequest {
   camera_jumlah: string;
   camera_tracking: string[];
   audio_system: string;
+  audio_mixer: string;
   audio_detail: string[];
   wallplate_input: string;
   wallplate_jumlah: string;
+  tabletop_input: string;
+  tabletop_jumlah: string;
   wireless_presentation: string;
+  wireless_mode: string[];
+  wireless_dongle: string;
+  controller_automation: string;
+  controller_type: string[];
   ukuran_ruangan: string;
   suggest_tampilan: string;
   keterangan_lain: string;
@@ -119,7 +126,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
   const [editFormModal, setEditFormModal] = useState(false);
-  const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',wireless_presentation:'No',ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
+  const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_mixer:'',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',tabletop_input:'No',tabletop_jumlah:'',wireless_presentation:'No',wireless_mode:[] as string[],wireless_dongle:'No',controller_automation:'No',controller_type:[] as string[],ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
 
   const role = currentUser.role?.toLowerCase().trim() ?? '';
   const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
@@ -135,9 +142,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     jumlah_input: '', jumlah_output: '',
     source: [] as string[], source_other: '',
     camera_conference: 'No', camera_jumlah: '', camera_tracking: [] as string[],
-    audio_system: 'No', audio_detail: [] as string[],
+    audio_system: 'No', audio_mixer: '', audio_detail: [] as string[],
     wallplate_input: 'No', wallplate_jumlah: '',
-    wireless_presentation: 'No',
+    tabletop_input: 'No', tabletop_jumlah: '',
+    wireless_presentation: 'No', wireless_mode: [] as string[], wireless_dongle: 'No',
+    controller_automation: 'No', controller_type: [] as string[],
     ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
   };
 
@@ -316,9 +325,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         jumlah_input: form.jumlah_input.trim(), jumlah_output: form.jumlah_output.trim(),
         source: form.source, source_other: form.source_other.trim(),
         camera_conference: form.camera_conference, camera_jumlah: form.camera_jumlah.trim(), camera_tracking: form.camera_tracking,
-        audio_system: form.audio_system, audio_detail: form.audio_detail,
+        audio_system: form.audio_system, audio_mixer: form.audio_mixer, audio_detail: form.audio_detail,
         wallplate_input: form.wallplate_input, wallplate_jumlah: form.wallplate_jumlah.trim(),
-        wireless_presentation: form.wireless_presentation,
+        tabletop_input: form.tabletop_input, tabletop_jumlah: form.tabletop_jumlah.trim(),
+        wireless_presentation: form.wireless_presentation, wireless_mode: form.wireless_mode, wireless_dongle: form.wireless_dongle,
+        controller_automation: form.controller_automation, controller_type: form.controller_type,
         ukuran_ruangan: form.ukuran_ruangan.trim(), suggest_tampilan: form.suggest_tampilan.trim(), keterangan_lain: form.keterangan_lain.trim(),
         requester_id: currentUser.id, requester_name: currentUser.full_name, status: 'pending' as const,
         due_date: dueDateForm || null,
@@ -406,9 +417,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       jumlah_output: selectedRequest.jumlah_output || '', source: selectedRequest.source || [],
       source_other: selectedRequest.source_other || '', camera_conference: selectedRequest.camera_conference || 'No',
       camera_jumlah: selectedRequest.camera_jumlah || '', camera_tracking: selectedRequest.camera_tracking || [],
-      audio_system: selectedRequest.audio_system || 'No', audio_detail: selectedRequest.audio_detail || [],
+      audio_system: selectedRequest.audio_system || 'No', audio_mixer: selectedRequest.audio_mixer || '', audio_detail: selectedRequest.audio_detail || [],
       wallplate_input: selectedRequest.wallplate_input || 'No', wallplate_jumlah: selectedRequest.wallplate_jumlah || '',
-      wireless_presentation: selectedRequest.wireless_presentation || 'No', ukuran_ruangan: selectedRequest.ukuran_ruangan || '',
+      tabletop_input: selectedRequest.tabletop_input || 'No', tabletop_jumlah: selectedRequest.tabletop_jumlah || '',
+      wireless_presentation: selectedRequest.wireless_presentation || 'No', wireless_mode: selectedRequest.wireless_mode || [], wireless_dongle: selectedRequest.wireless_dongle || 'No',
+      controller_automation: selectedRequest.controller_automation || 'No', controller_type: selectedRequest.controller_type || [],
+      ukuran_ruangan: selectedRequest.ukuran_ruangan || '',
       suggest_tampilan: selectedRequest.suggest_tampilan || '', keterangan_lain: selectedRequest.keterangan_lain || '',
     });
     setEditFormModal(true);
@@ -511,14 +525,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       + sec('Camera & Audio',
           row('Camera Conference', selectedRequest.camera_conference)
           + row('Jumlah Kamera', selectedRequest.camera_jumlah)
-          + row('Camera Tracking', (selectedRequest.camera_tracking || []).join(', '))
+          + row('Mode Tracking', (selectedRequest.camera_tracking || []).join(', '))
           + row('Audio System', selectedRequest.audio_system)
-          + row('Audio Detail', (selectedRequest.audio_detail || []).join(', ')))
-      + sec('Wallplate & Lainnya',
+          + row('Mixer', selectedRequest.audio_mixer)
+          + row('Keperluan Audio', (selectedRequest.audio_detail || []).join(', ')))
+      + sec('Wallplate, Tabletop & Wireless',
           row('Wallplate Input', selectedRequest.wallplate_input)
           + row('Jumlah Wallplate', selectedRequest.wallplate_jumlah)
+          + row('Tabletop Input', selectedRequest.tabletop_input)
+          + row('Jumlah Tabletop', selectedRequest.tabletop_jumlah)
           + row('Wireless Presentation', selectedRequest.wireless_presentation)
-          + row('Ukuran Ruangan', selectedRequest.ukuran_ruangan)
+          + row('Wireless Mode', (selectedRequest.wireless_mode || []).join(', '))
+          + row('Wireless Dongle', selectedRequest.wireless_dongle))
+      + sec('Controller Automation',
+          row('Controller Automation', selectedRequest.controller_automation)
+          + row('Tipe Controller', (selectedRequest.controller_type || []).join(', ')))
+      + sec('Ukuran & Keterangan',
+          row('Ukuran Ruangan', selectedRequest.ukuran_ruangan)
           + row('Suggest Tampilan', selectedRequest.suggest_tampilan)
           + row('Keterangan Lain', selectedRequest.keterangan_lain))
       + '</body></html>';
@@ -1195,17 +1218,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
           <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system} onChange={v => setForm({ ...form, audio_system: v })} />
           {form.audio_system === 'Yes' && (
-            <CheckGroup label="Keperluan Audio" options={['Mic', 'PC Audio', 'Speaker']}
-              value={form.audio_detail} onChange={v => setForm({ ...form, audio_detail: v })} />
+            <div className="ml-0 pl-4 border-l-4 border-red-300 mb-4 space-y-3">
+              <RadioGroup label="Mixer" options={['Analog', 'DSP Mixer']} value={form.audio_mixer} onChange={v => setForm({ ...form, audio_mixer: v })} />
+              <CheckGroup label="Keperluan Audio" options={['Mic', 'PC Audio', 'Speaker']}
+                value={form.audio_detail} onChange={v => setForm({ ...form, audio_detail: v })} />
+            </div>
           )}
         </div>
 
-        {/* Wallplate & Wireless */}
+        {/* Wallplate, Tabletop & Wireless */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
             <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📡</span>
-            Wallplate & Wireless
+            Wallplate, Tabletop & Wireless
           </h3>
+
+          {/* Wallplate Input */}
           <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input} onChange={v => setForm({ ...form, wallplate_input: v })} />
           {form.wallplate_input === 'Yes' && (
             <div className="mb-4 pl-4 border-l-4 border-red-300">
@@ -1214,7 +1242,41 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 placeholder="e.g. 3" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
             </div>
           )}
+
+          {/* Tabletop Input */}
+          <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input} onChange={v => setForm({ ...form, tabletop_input: v })} />
+          {form.tabletop_input === 'Yes' && (
+            <div className="mb-4 pl-4 border-l-4 border-red-300">
+              <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Jumlah Tabletop</label>
+              <input value={form.tabletop_jumlah} onChange={e => setForm({ ...form, tabletop_jumlah: e.target.value })}
+                placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+            </div>
+          )}
+
+          {/* Wireless Presentation */}
           <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation} onChange={v => setForm({ ...form, wireless_presentation: v })} />
+          {form.wireless_presentation === 'Yes' && (
+            <div className="mb-4 pl-4 border-l-4 border-red-300 space-y-3">
+              <CheckGroup label="Wireless Mode" options={['BYOM', 'BYOD']}
+                value={form.wireless_mode} onChange={v => setForm({ ...form, wireless_mode: v })} />
+              <RadioGroup label="Wireless Dongle" options={['Yes', 'No']} value={form.wireless_dongle} onChange={v => setForm({ ...form, wireless_dongle: v })} />
+            </div>
+          )}
+        </div>
+
+        {/* Controller Automation */}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
+          <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
+            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🎛️</span>
+            Controller Automation
+          </h3>
+          <RadioGroup label="Controller Automation" options={['Yes', 'No']} value={form.controller_automation} onChange={v => setForm({ ...form, controller_automation: v })} />
+          {form.controller_automation === 'Yes' && (
+            <div className="pl-4 border-l-4 border-red-300">
+              <CheckGroup label="Tipe Controller" options={['Tablet or iPad', 'Touchscreen 10"']}
+                value={form.controller_type} onChange={v => setForm({ ...form, controller_type: v })} />
+            </div>
+          )}
         </div>
 
         {/* Ukuran & Keterangan */}
@@ -1438,7 +1500,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 )}
                 {selectedRequest.status === 'approved' && (
                   <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
-                    className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">������ In Progress</button>
+                    className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🔄 In Progress</button>
                 )}
                 {selectedRequest.status === 'in_progress' && (
                   <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
@@ -1472,14 +1534,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 {selectedRequest.source?.length > 0 && <div><span className="font-bold text-gray-700">Source:</span> <span className="text-gray-600">{selectedRequest.source.join(', ')}</span></div>}
                 <div><span className="font-bold text-gray-700">Camera:</span> <span className="text-gray-600">{selectedRequest.camera_conference}{selectedRequest.camera_jumlah ? ` (${selectedRequest.camera_jumlah} unit)` : ''}</span></div>
                 {selectedRequest.camera_tracking?.length > 0 && <div><span className="font-bold text-gray-700">Tracking:</span> <span className="text-gray-600">{selectedRequest.camera_tracking.join(', ')}</span></div>}
-                <div><span className="font-bold text-gray-700">Audio:</span> <span className="text-gray-600">{selectedRequest.audio_system}{selectedRequest.audio_detail?.length > 0 ? ` — ${selectedRequest.audio_detail.join(', ')}` : ''}</span></div>
+                <div><span className="font-bold text-gray-700">Audio:</span> <span className="text-gray-600">{selectedRequest.audio_system}{selectedRequest.audio_mixer ? ` — ${selectedRequest.audio_mixer}` : ''}{selectedRequest.audio_detail?.length > 0 ? ` (${selectedRequest.audio_detail.join(', ')})` : ''}</span></div>
                 <div><span className="font-bold text-gray-700">Wallplate:</span> <span className="text-gray-600">{selectedRequest.wallplate_input}{selectedRequest.wallplate_jumlah ? ` (${selectedRequest.wallplate_jumlah})` : ''}</span></div>
-                <div><span className="font-bold text-gray-700">Wireless:</span> <span className="text-gray-600">{selectedRequest.wireless_presentation}</span></div>
-                {selectedRequest.ukuran_ruangan && <div><span className="font-bold text-gray-700">Ukuran:</span> <span className="text-gray-600">{selectedRequest.ukuran_ruangan}</span></div>}
+                {selectedRequest.tabletop_input && <div><span className="font-bold text-gray-700">Tabletop:</span> <span className="text-gray-600">{selectedRequest.tabletop_input}{selectedRequest.tabletop_jumlah ? ` (${selectedRequest.tabletop_jumlah})` : ''}</span></div>}
+                <div><span className="font-bold text-gray-700">WPS:</span> <span className="text-gray-600">{selectedRequest.wireless_presentation}{selectedRequest.wireless_mode?.length > 0 ? ` — ${selectedRequest.wireless_mode.join(', ')}` : ''}{selectedRequest.wireless_dongle === 'Yes' ? ' + Dongle' : ''}</span></div>
+                {selectedRequest.controller_automation && <div><span className="font-bold text-gray-700">Controller:</span> <span className="text-gray-600">{selectedRequest.controller_automation}{selectedRequest.controller_type?.length > 0 ? ` — ${selectedRequest.controller_type.join(', ')}` : ''}</span></div>}
+                {selectedRequest.ukuran_ruangan && <div><span className="font-bold text-gray-700">Ukuran Ruangan:</span> <span className="text-gray-600">{selectedRequest.ukuran_ruangan}</span></div>}
                 {selectedRequest.suggest_tampilan && <div><span className="font-bold text-gray-700">Display:</span> <span className="text-gray-600">{selectedRequest.suggest_tampilan}</span></div>}
                 {selectedRequest.keterangan_lain && <div><span className="font-bold text-gray-700">Catatan:</span> <span className="text-gray-600">{selectedRequest.keterangan_lain}</span></div>}
-                {selectedRequest.pts_assigned && <div className="pt-2 border-t border-gray-200"><span className="font-bold text-gray-700">PTS:</span> <span className="text-blue-700 font-semibold">{selectedRequest.pts_assigned}</span></div>}
-                {selectedRequest.approved_by && <div><span className="font-bold text-gray-700">Approved by:</span> <span className="text-emerald-700 font-semibold">{selectedRequest.approved_by}</span></div>}
+                {selectedRequest.pts_assigned && <div className="pt-2 border-t border-gray-200"><span className="font-bold text-gray-700">Sales:</span> <span className="text-blue-700 font-semibold">{selectedRequest.sales_name}</span></div>}     
                 {selectedRequest.due_date && (
                   <div className={`pt-2 border-t border-gray-200 rounded-lg p-2 -mx-1 ${detailDueStatus?.type === 'overdue' ? 'bg-red-50' : detailDueStatus?.type === 'urgent' ? 'bg-amber-50' : 'bg-emerald-50'}`}>
                     <span className="font-bold text-gray-700">🗓️ Target Selesai:</span>
@@ -1826,18 +1889,122 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Ukuran Ruangan</label><input value={editFormData.ukuran_ruangan} onChange={e => setEditFormData({...editFormData, ukuran_ruangan: e.target.value})} placeholder="e.g. 8m x 6m x 3m" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
                   <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Suggest Tampilan</label><input value={editFormData.suggest_tampilan} onChange={e => setEditFormData({...editFormData, suggest_tampilan: e.target.value})} placeholder="e.g. 4K" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
                 </div>
+                {/* Camera Conference */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Camera Conference</label>
                   <div className="flex gap-2 mb-2">
                     {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, camera_conference: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.camera_conference === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
                   </div>
-                  {editFormData.camera_conference === 'Yes' && (<input value={editFormData.camera_jumlah} onChange={e => setEditFormData({...editFormData, camera_jumlah: e.target.value})} placeholder="Jumlah kamera..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />)}
+                  {editFormData.camera_conference === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 space-y-2 mt-2">
+                      <input value={editFormData.camera_jumlah} onChange={e => setEditFormData({...editFormData, camera_jumlah: e.target.value})} placeholder="Jumlah kamera..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mode Tracking</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {['No Tracking','Voice','Human Detection','Track Mic Delegate'].map(opt => (
+                            <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, camera_tracking: editFormData.camera_tracking.includes(opt) ? editFormData.camera_tracking.filter(x=>x!==opt) : [...editFormData.camera_tracking, opt]})}
+                              className={"px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all " + (editFormData.camera_tracking.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+                {/* Audio System */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Audio System</label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mb-2">
                     {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, audio_system: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.audio_system === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
                   </div>
+                  {editFormData.audio_system === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 space-y-2 mt-2">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mixer</label>
+                        <div className="flex gap-2">
+                          {['Analog','DSP Mixer'].map(opt => (
+                            <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, audio_mixer: opt})}
+                              className={"px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all " + (editFormData.audio_mixer === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keperluan Audio</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {['Mic','PC Audio','Speaker'].map(opt => (
+                            <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, audio_detail: editFormData.audio_detail.includes(opt) ? editFormData.audio_detail.filter(x=>x!==opt) : [...editFormData.audio_detail, opt]})}
+                              className={"px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all " + (editFormData.audio_detail.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Wallplate Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Wallplate Input</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, wallplate_input: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.wallplate_input === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
+                  </div>
+                  {editFormData.wallplate_input === 'Yes' && (
+                    <input value={editFormData.wallplate_jumlah} onChange={e => setEditFormData({...editFormData, wallplate_jumlah: e.target.value})} placeholder="Jumlah wallplate..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all mt-1" />
+                  )}
+                </div>
+                {/* Tabletop Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Tabletop Input</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, tabletop_input: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.tabletop_input === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
+                  </div>
+                  {editFormData.tabletop_input === 'Yes' && (
+                    <input value={editFormData.tabletop_jumlah} onChange={e => setEditFormData({...editFormData, tabletop_jumlah: e.target.value})} placeholder="Jumlah tabletop..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all mt-1" />
+                  )}
+                </div>
+                {/* Wireless Presentation */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Wireless Presentation</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, wireless_presentation: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.wireless_presentation === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
+                  </div>
+                  {editFormData.wireless_presentation === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 space-y-2 mt-2">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Wireless Mode</label>
+                        <div className="flex gap-2">
+                          {['BYOM','BYOD'].map(opt => (
+                            <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, wireless_mode: editFormData.wireless_mode.includes(opt) ? editFormData.wireless_mode.filter(x=>x!==opt) : [...editFormData.wireless_mode, opt]})}
+                              className={"px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all " + (editFormData.wireless_mode.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Wireless Dongle</label>
+                        <div className="flex gap-2">
+                          {['Yes','No'].map(opt => (
+                            <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, wireless_dongle: opt})}
+                              className={"px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all " + (editFormData.wireless_dongle === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Controller Automation */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Controller Automation</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes','No'].map(opt => (<button key={opt} type="button" onClick={() => setEditFormData({...editFormData, controller_automation: opt})} className={"px-4 py-1.5 rounded-xl border-2 text-xs font-bold transition-all " + (editFormData.controller_automation === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>))}
+                  </div>
+                  {editFormData.controller_automation === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 mt-2">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Tipe Controller</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Tablet or iPad','Touchscreen 10"'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditFormData({...editFormData, controller_type: editFormData.controller_type.includes(opt) ? editFormData.controller_type.filter(x=>x!==opt) : [...editFormData.controller_type, opt]})}
+                            className={"px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all " + (editFormData.controller_type.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600')}>{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Keterangan Lain</label>
