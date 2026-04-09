@@ -113,6 +113,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const sldFileRef = useRef<HTMLInputElement>(null);
   const boqFileRef = useRef<HTMLInputElement>(null);
   const design3dFileRef = useRef<HTMLInputElement>(null);
+  const activeRequestIdRef = useRef<string | null>(null); // untuk menghindari stale closure di interval/subscription
   const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | 'design3d' | null>(null);
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
@@ -230,30 +231,71 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setUnreadCount(pendingCount);
   }, [requests, isPTS]);
 
+  // ── Auto-update chat & attachments saat detail view terbuka ──
+  // Menggunakan 2 mekanisme: (1) Supabase Realtime subscription, (2) polling fallback tiap 3 detik
+  // Ini memastikan pesan baru muncul otomatis tanpa refresh, bahkan jika Realtime tidak aktif di project Supabase.
   useEffect(() => {
-    if (!selectedRequest) return;
-    const channel = supabase.channel(`messages:${selectedRequest.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_messages', filter: `request_id=eq.${selectedRequest.id}` },
-        (payload) => {
-          setMessages(prev => {
-            // Hindari duplikat jika pesan sudah ada
-            const exists = prev.some(m => m.id === (payload.new as ProjectMessage).id);
-            if (exists) return prev;
-            return [...prev, payload.new as ProjectMessage];
-          });
-          // Mark as read since detail is open
-          const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
-          stored[selectedRequest.id] = Date.now();
-          localStorage.setItem('pts_last_seen', JSON.stringify(stored));
-        })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_attachments', filter: `request_id=eq.${selectedRequest.id}` },
-        () => {
-          // Auto-refresh daftar lampiran saat ada upload baru dari user lain
-          fetchAttachments(selectedRequest.id);
-        })
+    if (!selectedRequest) {
+      activeRequestIdRef.current = null;
+      return;
+    }
+    const reqId = selectedRequest.id;
+    activeRequestIdRef.current = reqId;
+
+    // ── 1. Realtime subscription ──
+    const channelName = `detail_chat:${reqId}_${Date.now()}`;
+    const channel = supabase.channel(channelName)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'project_messages',
+        filter: `request_id=eq.${reqId}`,
+      }, (payload) => {
+        if (activeRequestIdRef.current !== reqId) return;
+        setMessages(prev => {
+          const exists = prev.some(m => m.id === (payload.new as ProjectMessage).id);
+          if (exists) return prev;
+          return [...prev, payload.new as ProjectMessage];
+        });
+        const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+        stored[reqId] = Date.now();
+        localStorage.setItem('pts_last_seen', JSON.stringify(stored));
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'project_attachments',
+        filter: `request_id=eq.${reqId}`,
+      }, () => {
+        if (activeRequestIdRef.current !== reqId) return;
+        fetchAttachments(reqId);
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [selectedRequest, fetchAttachments]);
+
+    // ── 2. Polling fallback tiap 3 detik ──
+    // Mengambil pesan terbaru dan merge dengan state yang ada (tanpa replace keseluruhan)
+    const pollInterval = setInterval(async () => {
+      if (activeRequestIdRef.current !== reqId) return;
+      const { data } = await supabase
+        .from('project_messages')
+        .select('*')
+        .eq('request_id', reqId)
+        .order('created_at', { ascending: true });
+      if (data && activeRequestIdRef.current === reqId) {
+        setMessages(prev => {
+          // Hanya update jika ada pesan baru (bandingkan jumlah atau ID terakhir)
+          if (data.length === prev.length) return prev;
+          return data as ProjectMessage[];
+        });
+      }
+    }, 3000);
+
+    return () => {
+      activeRequestIdRef.current = null;
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [selectedRequest?.id, fetchAttachments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -546,6 +588,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   };
 
   const handleOpenDetail = async (req: ProjectRequest) => {
+    activeRequestIdRef.current = req.id;
     setSelectedRequest(req);
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
@@ -1360,7 +1403,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         {/* Detail Header */}
         <div className="bg-white/95 backdrop-blur-md border-b-4 border-red-600 px-6 py-4 flex-shrink-0 shadow-xl">
           <div className="flex items-center gap-4">
-            <button onClick={() => setView('list')} className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-md transition-all">
+            <button onClick={() => { activeRequestIdRef.current = null; setView('list'); }} className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-md transition-all">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <div className="flex-1 min-w-0">
