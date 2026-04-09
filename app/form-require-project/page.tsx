@@ -80,7 +80,7 @@ interface ProjectAttachment {
   file_size: number;
   uploaded_by: string;
   uploaded_at: string;
-  attachment_category?: 'general' | 'sld' | 'boq'; // category for revision tracking
+  attachment_category?: 'general' | 'sld' | 'boq' | 'design3d'; // category for revision tracking
   revision_version?: number;
 }
 
@@ -112,8 +112,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const chatFileRef = useRef<HTMLInputElement>(null);
   const sldFileRef = useRef<HTMLInputElement>(null);
   const boqFileRef = useRef<HTMLInputElement>(null);
-  const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | null>(null);
-  const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq'>('all');
+  const design3dFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | 'design3d' | null>(null);
+  const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
   const [editFormModal, setEditFormModal] = useState(false);
@@ -195,7 +196,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       // Normalize: if attachment_category is missing from DB schema, it will be undefined — treat as 'general'
       const normalized = (data as ProjectAttachment[]).map(a => ({
         ...a,
-        attachment_category: a.attachment_category || 'general',
+        attachment_category: (a.attachment_category as string) === 'design3d' ? 'design3d' : a.attachment_category || 'general',
       }));
       setAttachments(normalized);
     }
@@ -234,15 +235,25 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const channel = supabase.channel(`messages:${selectedRequest.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_messages', filter: `request_id=eq.${selectedRequest.id}` },
         (payload) => {
-          setMessages(prev => [...prev, payload.new as ProjectMessage]);
+          setMessages(prev => {
+            // Hindari duplikat jika pesan sudah ada
+            const exists = prev.some(m => m.id === (payload.new as ProjectMessage).id);
+            if (exists) return prev;
+            return [...prev, payload.new as ProjectMessage];
+          });
           // Mark as read since detail is open
           const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
           stored[selectedRequest.id] = Date.now();
           localStorage.setItem('pts_last_seen', JSON.stringify(stored));
         })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_attachments', filter: `request_id=eq.${selectedRequest.id}` },
+        () => {
+          // Auto-refresh daftar lampiran saat ada upload baru dari user lain
+          fetchAttachments(selectedRequest.id);
+        })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedRequest]);
+  }, [selectedRequest, fetchAttachments]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -380,6 +391,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (!selectedRequest) return;
     const sldList = attachments.filter(a => a.attachment_category === 'sld').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
     const boqList = attachments.filter(a => a.attachment_category === 'boq').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
+    const design3dList = attachments.filter(a => a.attachment_category === 'design3d').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
 
     // Build filename prefix: ProjectName_DDMMYYYY
     const now = new Date();
@@ -501,7 +513,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       folder!.file('03_BOQ_KOSONG.txt', 'Belum ada file BOQ diupload.');
     }
 
-    // ── 4. Generate ZIP and trigger download
+    // ── 4. Fetch & add Design/Simulasi 3D PDF
+    if (design3dList.length > 0) {
+      const latest = design3dList[0];
+      const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
+      const ext = latest.file_name.split('.').pop() || 'pdf';
+      const buf = await fetchFile(latest.file_url);
+      if (buf) {
+        folder!.file('04_Design3D' + revLabel + '.' + ext, buf);
+      } else {
+        folder!.file('04_Design3D_link.txt', 'File tidak dapat didownload otomatis.\nBuka manual: ' + latest.file_url);
+      }
+    } else {
+      folder!.file('04_Design3D_KOSONG.txt', 'Belum ada file Design/Simulasi 3D diupload.');
+    }
+
+    // ── 5. Generate ZIP and trigger download
     try {
       const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
       const url = URL.createObjectURL(blob);
@@ -538,7 +565,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setSendingMsg(false);
     if (error) { notify('error', 'Gagal kirim pesan.'); return; }
     setMsgText('');
-    fetchMessages(selectedRequest.id);
+    // Pesan baru akan muncul otomatis via Realtime subscription — tidak perlu fetchMessages manual
   };
 
   const handleFileUpload = async (file: File) => {
@@ -558,15 +585,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     fetchMessages(selectedRequest.id);
   };
 
-  // Upload SLD or BOQ with revision versioning
-  const handleCategoryUpload = async (file: File, category: 'sld' | 'boq') => {
+  // Upload SLD, BOQ, or Design 3D with revision versioning
+  const handleCategoryUpload = async (file: File, category: 'sld' | 'boq' | 'design3d') => {
     if (!selectedRequest) return;
     setUploadingCategory(category);
     // Count existing revisions for this category
     const existing = attachments.filter(a => a.attachment_category === category);
     const revisionNum = existing.length + 1;
     const ext = file.name.split('.').pop();
-    const label = category === 'sld' ? 'SLD' : 'BOQ';
+    const label = category === 'sld' ? 'SLD' : category === 'boq' ? 'BOQ' : 'Design 3D';
     const filePath = `project-files/${selectedRequest.id}/${category}-rev${revisionNum}-${Date.now()}-${file.name}`;
     const { error: storageError } = await supabase.storage.from('project-files').upload(filePath, file, { cacheControl: '3600', upsert: false });
     if (storageError) { notify('error', `Upload ${label} gagal: ${storageError.message}`); setUploadingCategory(null); return; }
@@ -586,9 +613,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     await supabase.from('project_messages').insert([{
       request_id: selectedRequest.id, sender_id: currentUser.id,
       sender_name: currentUser.full_name, sender_role: currentUser.role,
-      message: `📐 Upload ${label} Revision ${revisionNum}: ${file.name}`,
+      message: `${category === 'design3d' ? '🎨' : category === 'sld' ? '📐' : '📊'} Upload ${label} Revision ${revisionNum}: ${file.name}`,
     }]);
-    fetchMessages(selectedRequest.id);
+    // Pesan baru akan muncul via Realtime
   };
 
   const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -1461,18 +1488,20 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 {/* Hidden file inputs */}
                 <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-                <input ref={sldFileRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf,.svg,.visio,.vsd,.vsdx"
+                <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
-                <input ref={boqFileRef} type="file" className="hidden" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx"
+                <input ref={boqFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
+                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
 
                 {/* Tab header + upload buttons */}
                 <div className="mb-3 space-y-2">
                   {/* Tabs */}
                   <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-                    {(['all', 'sld', 'boq'] as const).map(tab => {
-                      const counts = { all: attachments.length, sld: attachments.filter(a => a.attachment_category === 'sld').length, boq: attachments.filter(a => a.attachment_category === 'boq').length };
-                      const labels = { all: `📎 Semua (${counts.all})`, sld: `📐 SLD (${counts.sld})`, boq: `📊 BOQ (${counts.boq})` };
+                    {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => {
+                      const counts = { all: attachments.length, sld: attachments.filter(a => a.attachment_category === 'sld').length, boq: attachments.filter(a => a.attachment_category === 'boq').length, design3d: attachments.filter(a => a.attachment_category === 'design3d').length };
+                      const labels = { all: `📎 Semua (${counts.all})`, sld: `📐 SLD (${counts.sld})`, boq: `📊 BOQ (${counts.boq})`, design3d: `🎨 3D (${counts.design3d})` };
                       return (
                         <button key={tab} onClick={() => setActiveAttachTab(tab)}
                           className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeAttachTab === tab ? 'bg-white shadow text-red-700 border border-red-200' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -1493,12 +1522,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <button onClick={() => sldFileRef.current?.click()}
                         className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1">
                         {uploadingCategory === 'sld' ? <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-700 rounded-full animate-spin" /> : '📐'}
-                        Upload SLD
+                        SLD
                       </button>
                       <button onClick={() => boqFileRef.current?.click()}
                         className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1">
                         {uploadingCategory === 'boq' ? <div className="w-3 h-3 border-2 border-emerald-300 border-t-emerald-700 rounded-full animate-spin" /> : '📊'}
-                        Upload BOQ
+                        BOQ
+                      </button>
+                      <button onClick={() => design3dFileRef.current?.click()}
+                        className="flex-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1">
+                        {uploadingCategory === 'design3d' ? <div className="w-3 h-3 border-2 border-purple-300 border-t-purple-700 rounded-full animate-spin" /> : '🎨'}
+                        3D
                       </button>
                     </div>
                   )}
@@ -1512,16 +1546,21 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     if (filtered.length === 0) return (
                       <div className="text-center py-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
                         <p className="text-gray-400 text-sm font-medium mb-2">
-                          {activeAttachTab === 'sld' ? '📐 Belum ada SLD' : activeAttachTab === 'boq' ? '📊 Belum ada BOQ' : '📂 Belum ada lampiran'}
+                          {activeAttachTab === 'sld' ? '📐 Belum ada SLD' : activeAttachTab === 'boq' ? '📊 Belum ada BOQ' : activeAttachTab === 'design3d' ? '🎨 Belum ada Design/Simulasi 3D' : '📂 Belum ada lampiran'}
                         </p>
                         {activeAttachTab === 'sld' && selectedRequest.status !== 'rejected' && (
                           <button onClick={() => sldFileRef.current?.click()} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-bold transition-all">
-                            + Upload SLD
+                            + Upload SLD (PDF)
                           </button>
                         )}
                         {activeAttachTab === 'boq' && selectedRequest.status !== 'rejected' && (
                           <button onClick={() => boqFileRef.current?.click()} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg font-bold transition-all">
-                            + Upload BOQ
+                            + Upload BOQ (PDF)
+                          </button>
+                        )}
+                        {activeAttachTab === 'design3d' && selectedRequest.status !== 'rejected' && (
+                          <button onClick={() => design3dFileRef.current?.click()} className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg font-bold transition-all">
+                            + Upload Design 3D (PDF)
                           </button>
                         )}
                       </div>
@@ -1529,9 +1568,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     return filtered.map(att => {
                       const isSLD = att.attachment_category === 'sld';
                       const isBOQ = att.attachment_category === 'boq';
-                      const borderColor = isSLD ? 'border-blue-200 hover:border-blue-400' : isBOQ ? 'border-emerald-200 hover:border-emerald-400' : 'border-gray-200 hover:border-red-300';
-                      const iconBg = isSLD ? 'bg-blue-50 border-blue-200' : isBOQ ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200';
-                      const icon = isSLD ? '📐' : isBOQ ? '📊' : isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📎';
+                      const is3D = att.attachment_category === 'design3d';
+                      const borderColor = isSLD ? 'border-blue-200 hover:border-blue-400' : isBOQ ? 'border-emerald-200 hover:border-emerald-400' : is3D ? 'border-purple-200 hover:border-purple-400' : 'border-gray-200 hover:border-red-300';
+                      const iconBg = isSLD ? 'bg-blue-50 border-blue-200' : isBOQ ? 'bg-emerald-50 border-emerald-200' : is3D ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-200';
+                      const icon = isSLD ? '📐' : isBOQ ? '📊' : is3D ? '🎨' : isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📎';
+                      const revBadgeColor = isSLD ? 'bg-blue-100 text-blue-700' : isBOQ ? 'bg-emerald-100 text-emerald-700' : is3D ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600';
                       return (
                         <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
                           className={`flex items-center gap-3 p-3 bg-white border-2 rounded-xl transition-all group ${borderColor}`}>
@@ -1542,10 +1583,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-sm font-bold text-gray-700 group-hover:text-red-700 truncate">{att.file_name}</p>
                               {att.revision_version && (
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${isSLD ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${revBadgeColor}`}>
                                   Rev.{att.revision_version}
                                 </span>
                               )}
+                              {is3D && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-purple-50 text-purple-600 border border-purple-200">3D</span>}
                             </div>
                             <p className="text-xs text-gray-400">{formatFileSize(att.file_size)} · {att.uploaded_by} · {formatDate(att.uploaded_at)}</p>
                           </div>
@@ -1556,18 +1598,24 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
 
                 {/* Revision summary for SLD & BOQ */}
-                {(attachments.filter(a => a.attachment_category === 'sld').length > 0 || attachments.filter(a => a.attachment_category === 'boq').length > 0) && (
+                {(attachments.filter(a => a.attachment_category === 'sld').length > 0 || attachments.filter(a => a.attachment_category === 'boq').length > 0 || attachments.filter(a => a.attachment_category === 'design3d').length > 0) && (
                   <div className="mt-3 flex gap-2">
                     {attachments.filter(a => a.attachment_category === 'sld').length > 0 && (
                       <div className="flex-1 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">SLD Revisions</p>
+                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">SLD Rev</p>
                         <p className="text-xl font-bold text-blue-700">{attachments.filter(a => a.attachment_category === 'sld').length}</p>
                       </div>
                     )}
                     {attachments.filter(a => a.attachment_category === 'boq').length > 0 && (
                       <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">BOQ Revisions</p>
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">BOQ Rev</p>
                         <p className="text-xl font-bold text-emerald-700">{attachments.filter(a => a.attachment_category === 'boq').length}</p>
+                      </div>
+                    )}
+                    {attachments.filter(a => a.attachment_category === 'design3d').length > 0 && (
+                      <div className="flex-1 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-center">
+                        <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest">3D Rev</p>
+                        <p className="text-xl font-bold text-purple-700">{attachments.filter(a => a.attachment_category === 'design3d').length}</p>
                       </div>
                     )}
                   </div>
