@@ -3765,11 +3765,6 @@ export default function TicketingSystem() {
                               Svc: {ticket.services_status}
                             </span>
                           )}
-                          {canAccessAccountSettings && overdueSetting && (
-                            <span className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 border border-orange-300 whitespace-nowrap">
-                              ⚙️ {overdueSetting.due_hours}h
-                            </span>
-                          )}
                         </div>
                       </td>
 						  <td className="px-2 py-3 border-r border-gray-100 align-middle">
