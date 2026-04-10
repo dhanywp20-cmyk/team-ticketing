@@ -679,7 +679,7 @@ export default function TicketingSystem() {
       if (!isAdmin) {
         supabase.functions.invoke('send-wa', {
           body: {
-            target: '08811735421',
+            target: '628811735421',
             message:
               `🔔 *Request Ticket Baru — Menunggu Approval*\n\n` +
               `📌 *Project:* ${newTicket.project_name}\n` +
