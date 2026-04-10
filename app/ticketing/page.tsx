@@ -613,22 +613,6 @@ export default function TicketingSystem() {
     }
   };
 
-  // ── Send WA notification via Fonnte ─────────────────────────────────────────
-  const sendWANotification = async (target: string, message: string) => {
-    try {
-      await fetch('https://api.fonnte.com/send', {
-        method: 'POST',
-        headers: {
-          'Authorization': process.env.NEXT_PUBLIC_FONNTE_TOKEN || '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ target, message, countryCode: '62' }),
-      });
-    } catch (e) {
-      console.warn('WA notification failed:', e);
-    }
-  };
-
   const createTicket = async () => {
     if (!newTicket.project_name || !newTicket.issue_case) {
       alert('Project name and Issue case must be filled!');
@@ -691,19 +675,23 @@ export default function TicketingSystem() {
         throw error;
       }
 
-      // ── Kirim WA notif ke Admin jika bukan admin yang buat ticket ──────────
+      // ── Kirim WA ke Admin saat ticket butuh approval (pakai cara yang sama dengan send-email) ──
       if (!isAdmin) {
-        const adminWAMsg =
-          `🔔 *Request Ticket Baru — Menunggu Approval*\n\n` +
-          `📌 *Project:* ${newTicket.project_name}\n` +
-          `⚠️ *Issue:* ${newTicket.issue_case}\n` +
-          `👤 *Requester:* ${currentUser?.full_name} (@${currentUser?.username})\n` +
-          `📅 *Tanggal:* ${newTicket.date}\n` +
-          `📝 *Deskripsi:* ${newTicket.description || '-'}\n\n` +
-          `Silakan buka portal PTS IVP untuk melakukan approval.`;
-        sendWANotification('08811735421', adminWAMsg);
+        supabase.functions.invoke('send-wa', {
+          body: {
+            target: '08811735421',
+            message:
+              `🔔 *Request Ticket Baru — Menunggu Approval*\n\n` +
+              `📌 *Project:* ${newTicket.project_name}\n` +
+              `⚠️ *Issue:* ${newTicket.issue_case}\n` +
+              `👤 *Requester:* ${currentUser?.full_name} (@${currentUser?.username})\n` +
+              `📅 *Tanggal:* ${newTicket.date}\n` +
+              `📝 *Deskripsi:* ${newTicket.description || '-'}\n\n` +
+              `Silakan buka portal PTS IVP untuk melakukan approval.`,
+          }
+        }).then(({ error: waErr }) => { if (waErr) console.error('WA admin error:', waErr); });
       }
-      // ─────────────────────────────────────────────────────────────────────────
+      // ────────────────────────────────────────────────────────────────────────────
 
       setNewTicket({
         project_name: '',
@@ -751,7 +739,7 @@ export default function TicketingSystem() {
         .eq('id', approvalTicket.id);
       if (error) throw error;
 
-      // ── Auto-create guest mapping untuk creator ticket (jika role = guest) ──
+      // ── Auto guest mapping untuk creator ticket jika role = guest ──────────
       if (approvalTicket.created_by) {
         const creatorUser = users.find(u => u.username === approvalTicket.created_by);
         if (creatorUser && creatorUser.role === 'guest') {
@@ -3335,12 +3323,8 @@ export default function TicketingSystem() {
           return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden border-2 border-teal-500 animate-scale-in relative flex flex-col">
-                <button
-                  onClick={() => setShowGuestMapping(false)}
-                  className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold z-10"
-                >✕</button>
+                <button onClick={() => setShowGuestMapping(false)} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold z-10">✕</button>
 
-                {/* Header */}
                 <div className="p-5 border-b border-teal-200 bg-gradient-to-r from-teal-600 to-teal-700 rounded-t-2xl flex-shrink-0">
                   <h2 className="text-xl font-bold text-white">👥 Guest Project Mapping</h2>
                   <p className="text-teal-100 text-sm mt-0.5">Pilih user guest → centang project yang boleh diakses</p>
@@ -3363,23 +3347,12 @@ export default function TicketingSystem() {
                           const mappingCount = guestMappings.filter(m => m.guest_username === u.username).length;
                           const isSelected = selectedGuestForMapping === u.username;
                           return (
-                            <button
-                              key={u.id}
-                              onClick={() => setNewMapping({ ...newMapping, guestUsername: u.username })}
-                              className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-all ${
-                                isSelected
-                                  ? 'bg-teal-50 border-l-4 border-l-teal-500'
-                                  : 'hover:bg-gray-50 border-l-4 border-l-transparent'
-                              }`}
-                            >
-                              <p className={`text-sm font-bold truncate ${isSelected ? 'text-teal-700' : 'text-gray-700'}`}>
-                                {u.full_name}
-                              </p>
+                            <button key={u.id} onClick={() => setNewMapping({ ...newMapping, guestUsername: u.username })}
+                              className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-all ${isSelected ? 'bg-teal-50 border-l-4 border-l-teal-500' : 'hover:bg-gray-50 border-l-4 border-l-transparent'}`}>
+                              <p className={`text-sm font-bold truncate ${isSelected ? 'text-teal-700' : 'text-gray-700'}`}>{u.full_name}</p>
                               <p className="text-xs text-gray-400">@{u.username}</p>
                               {mappingCount > 0 && (
-                                <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                  {mappingCount} project
-                                </span>
+                                <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{mappingCount} project</span>
                               )}
                             </button>
                           );
@@ -3392,9 +3365,7 @@ export default function TicketingSystem() {
                   <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                        {selectedGuestForMapping
-                          ? `Project untuk @${selectedGuestForMapping}`
-                          : 'Pilih guest terlebih dahulu'}
+                        {selectedGuestForMapping ? `Project untuk @${selectedGuestForMapping}` : 'Pilih guest terlebih dahulu'}
                       </p>
                       {selectedGuestForMapping && uniqueProjectNames.length > 0 && (
                         <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full">
@@ -3418,30 +3389,13 @@ export default function TicketingSystem() {
                           {uniqueProjectNames.map(projectName => {
                             const isMapped = mappedProjects.includes(projectName);
                             return (
-                              <button
-                                key={projectName}
-                                onClick={() => handleToggleProjectMapping(projectName)}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                                  isMapped
-                                    ? 'border-teal-400 bg-teal-50 text-teal-800'
-                                    : 'border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:bg-teal-50/50'
-                                }`}
-                              >
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                                  isMapped ? 'border-teal-500 bg-teal-500' : 'border-gray-300 bg-white'
-                                }`}>
-                                  {isMapped && (
-                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  )}
+                              <button key={projectName} onClick={() => handleToggleProjectMapping(projectName)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${isMapped ? 'border-teal-400 bg-teal-50 text-teal-800' : 'border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:bg-teal-50/50'}`}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${isMapped ? 'border-teal-500 bg-teal-500' : 'border-gray-300 bg-white'}`}>
+                                  {isMapped && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                                 </div>
                                 <span className="text-sm font-medium truncate flex-1">{projectName}</span>
-                                {isMapped && (
-                                  <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                                    ✓ Aktif
-                                  </span>
-                                )}
+                                {isMapped && <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Aktif</span>}
                               </button>
                             );
                           })}
@@ -3451,12 +3405,9 @@ export default function TicketingSystem() {
                   </div>
                 </div>
 
-                {/* Footer */}
                 <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                  <button
-                    onClick={() => setShowGuestMapping(false)}
-                    className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-lg"
-                  >
+                  <button onClick={() => setShowGuestMapping(false)}
+                    className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-lg">
                     ✓ Selesai
                   </button>
                 </div>
