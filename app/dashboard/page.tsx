@@ -43,6 +43,7 @@ const ALL_MENU_KEYS = [
   'daily-report',
   'database-pts',
   'unit-movement',
+  'reminder-schedule', // ← TAMBAHAN BARU
 ];
 
 interface AccountSettingsModalProps {
@@ -66,11 +67,12 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
 
   const menuLabels: Record<string, { label: string; icon: string; gradient: string }> = {
     'form-bast': { label: 'Form BAST & Demo', icon: '📋', gradient: 'from-slate-600 to-slate-500' },
-	'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
+    'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
     'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
     'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
     'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
+    'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' }, // ← TAMBAHAN
   };
 
   const notify = (type: 'success' | 'error', msg: string) => {
@@ -260,33 +262,30 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   <div key={user.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${user.role === 'superadmin' ? 'bg-gradient-to-br from-rose-500 to-rose-700' : user.role === 'admin' ? 'bg-gradient-to-br from-indigo-500 to-indigo-700' : user.role === 'team_pts' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : user.role === 'sales' ? 'bg-gradient-to-br from-amber-500 to-amber-700' : 'bg-gradient-to-br from-slate-500 to-slate-700'}`}>
-                          {user.full_name.charAt(0).toUpperCase()}
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
+                          style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.3)' }}>
+                          {user.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-bold text-slate-800 text-sm">{user.full_name}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${user.role === 'superadmin' ? 'bg-rose-100 text-rose-700' : user.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : user.role === 'team_pts' ? 'bg-emerald-100 text-emerald-700' : user.role === 'sales' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{user.role}</span>
-                          </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 text-sm truncate">{user.full_name}</p>
                           <p className="text-xs text-slate-500">@{user.username}</p>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {(user.allowed_menus ?? ALL_MENU_KEYS).map(key => (
-                              <span key={key} className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-md font-medium">
-                                {menuLabels[key]?.icon} {menuLabels[key]?.label.split(' ')[0]}
-                              </span>
-                            ))}
-                          </div>
+                          <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
                         </div>
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
-                        <button onClick={() => setEditingUser(user)} className="bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 p-2 rounded-lg transition-all">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        </button>
-                        <button onClick={() => handleDeleteUser(user.id)} className="bg-white border border-slate-200 hover:border-red-300 hover:bg-red-50 text-slate-600 hover:text-red-600 p-2 rounded-lg transition-all">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        <button onClick={() => setEditingUser(user)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">Edit</button>
+                        <button onClick={() => handleDeleteUser(user.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">Hapus</button>
                       </div>
                     </div>
+                    {user.allowed_menus && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {user.allowed_menus.map(key => (
+                          <span key={key} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 text-slate-600">
+                            {menuLabels[key]?.icon} {menuLabels[key]?.label ?? key}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -298,15 +297,15 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Full Name *</label>
-                  <input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} placeholder="Nama lengkap" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" />
+                  <input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" placeholder="Nama lengkap" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Username *</label>
-                  <input value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} placeholder="username" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" />
+                  <input value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" placeholder="username" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Password *</label>
-                  <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="Password" className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" />
+                  <input value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" placeholder="password" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
@@ -321,7 +320,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
               </div>
               <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
               <button onClick={handleAddUser} disabled={saving}
-                className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3.5 rounded-xl font-semibold hover:from-rose-700 hover:to-rose-800 transition-all shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-2">
+                className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
                 {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                 ➕ Tambah Akun
               </button>
@@ -363,7 +362,7 @@ export default function Dashboard() {
         { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/1hIpMsZIadnJu85FiJ5Qojn_fOcYLl3iMsBagzZI4LYM/edit?usp=sharing', icon: '📑', embed: true }
       ]
     },
-	{
+    {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
       gradient: 'from-violet-700 via-violet-600 to-violet-500',
       description: 'Solution request form untuk project Sales & Account',
@@ -399,6 +398,13 @@ export default function Dashboard() {
         { name: 'Submit Movement', url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true', icon: '✍️', embed: true },
         { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true', icon: '📑', embed: true }
       ]
+    },
+    // ─── MENU BARU: REMINDER SCHEDULE ───────────────────────────────────────
+    {
+      title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
+      gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
+      description: 'Jadwal & reminder pekerjaan team PTS',
+      items: [{ name: 'Buka Reminder', url: '/reminder-schedule', icon: '⏰', internal: true, embed: true }]
     },
   ];
 
@@ -445,7 +451,7 @@ export default function Dashboard() {
   const handleLogout = () => {
     setIsLoggedIn(false); setCurrentUser(null);
     localStorage.removeItem('currentUser');
-    setShowSidebar(false); setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing'); setInternalUrl('/ticketing'); setShowSettings(false);
+    setShowSidebar(false); setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing'); setShowSettings(false);
     router.push('/dashboard');
   };
 
@@ -464,7 +470,7 @@ export default function Dashboard() {
   };
 
   const handleBackToDashboard = () => {
-    setShowSidebar(false); setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing'); setInternalUrl('/ticketing'); setIframeTitle('');
+    setShowSidebar(false); setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing'); setIframeTitle('');
   };
 
   useEffect(() => {
@@ -475,7 +481,6 @@ export default function Dashboard() {
         const parsed: User = JSON.parse(saved);
         setCurrentUser(parsed);
         setIsLoggedIn(true);
-        // Re-fetch dari DB agar role selalu fresh (tidak stale setelah admin ubah role)
         const { data, error } = await supabase.from('users').select('*').eq('id', parsed.id).single();
         if (!error && data) {
           const fresh = data as User;
@@ -572,25 +577,36 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-slate-800 mb-1 tracking-tight">Work Management PTS IVP</h1>
-                <p className="text-slate-600 font-medium">Support System - IndoVisual Professional Tools</p>
-                <p className="text-sm text-slate-500 mt-2">Welcome back, <span className="font-semibold text-rose-600">{currentUser?.full_name}</span></p>
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">Work Management Portal</h1>
+                <p className="text-slate-600 font-medium mt-1">IndoVisual Professional Tools — PTS Division</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-3 px-5 py-3 rounded-lg border border-slate-200 bg-white/60">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.3)' }}>
+                  {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{currentUser?.full_name}</p>
+                  <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#b8760d' }}>{currentUser?.role}</p>
+                </div>
+              </div>
               {(['admin', 'superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
                 <button onClick={() => setShowSettings(true)}
-                  className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-6 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm transition-all"
+                  style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#4338ca' }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Account Settings
+                  Settings
                 </button>
               )}
               <button onClick={handleLogout}
-                className="bg-slate-700 hover:bg-slate-800 text-white px-8 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                className="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm transition-all"
+                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#b91c1c' }}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
                 Sign Out
@@ -600,36 +616,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1">
-        <div className="max-w-[2000px] mx-auto px-6 py-8">
-          <div className="bg-gradient-to-br from-slate-700 via-slate-600 to-slate-500 rounded-lg shadow-xl p-8 mb-8 text-white border border-slate-700 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24"></div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight">Welcome to Your Portal</h2>
-              </div>
-              <p className="text-white/80 text-lg font-medium">Access all your essential tools and resources in one centralized platform. Select a module below to begin.</p>
-            </div>
-          </div>
-
+      <div className="flex-1 overflow-y-auto py-10 px-6">
+        <div className="max-w-[2000px] mx-auto">
           {menuLoading ? <MenuLoadingOverlay /> : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {visibleMenuItems.map((menu, index) => (
-                <div key={menu.key}
-                  className="bg-white/75 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] group"
-                  style={{ animation: `fadeInUp 0.5s ease-out ${index * 100}ms both` }}>
-                  <div className={`bg-gradient-to-r ${menu.gradient} p-6 text-white relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 text-8xl opacity-10 -mr-4 -mt-4 transition-transform group-hover:scale-110 duration-300">{menu.icon}</div>
+                <div key={menu.key} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1"
+                  style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}>
+                  <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
+                    <div className="absolute inset-0 opacity-10">
+                      <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white"></div>
+                      <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white"></div>
+                    </div>
                     <div className="relative z-10">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="text-4xl">{menu.icon}</div>
-                        <h3 className="text-xl font-bold tracking-tight">{menu.title}</h3>
+                        <h3 className="text-xl font-bold tracking-tight text-white">{menu.title}</h3>
                       </div>
                       <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
                     </div>
@@ -761,7 +763,7 @@ export default function Dashboard() {
                         </span>
                         <div className="flex flex-col gap-1 w-full">
                           {menu.items.map((item, itemIndex) => {
-                            const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
+                            const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
                             return (
                               <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)} title={`${menu.title} — ${item.name}`}
                                 className="w-full h-7 rounded-lg flex items-center justify-center text-sm transition-all"
@@ -793,7 +795,7 @@ export default function Dashboard() {
                       </div>
                       <div className="px-2 py-2 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
                         {menu.items.map((item, itemIndex) => {
-                          const isActive = (showTicketing && item.internal) || (iframeUrl === item.url);
+                          const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
                           return (
                             <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
                               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
@@ -852,37 +854,37 @@ export default function Dashboard() {
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col overflow-y-auto">
         <>
-            <div className="bg-white/75 backdrop-blur-sm shadow-lg p-6 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{iframeTitle}</h1>
-                  <p className="text-sm text-slate-600 font-medium mt-1">Use the sidebar to navigate or return to the dashboard</p>
-                </div>
-                <button onClick={handleBackToDashboard}
-                  className="bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white px-6 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  Back to Dashboard
-                </button>
+          <div className="bg-white/75 backdrop-blur-sm shadow-lg p-6 border-b border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{iframeTitle}</h1>
+                <p className="text-sm text-slate-600 font-medium mt-1">Use the sidebar to navigate or return to the dashboard</p>
               </div>
+              <button onClick={handleBackToDashboard}
+                className="bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 text-white px-6 py-3 rounded-md font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Dashboard
+              </button>
             </div>
+          </div>
 
-            <div className="flex-1 overflow-hidden bg-white">
-              {showTicketing ? (
-                <div className="w-full h-full overflow-auto">
-                  <iframe src={internalUrl || '/ticketing'} className="w-full h-full border-0" title={iframeTitle} />
-                </div>
-              ) : iframeUrl ? (
-                <iframe src={iframeUrl} className="w-full h-full border-0" title={iframeTitle} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-              ) : null}
-            </div>
-
-            <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-              <div className="px-6 py-5">
-                <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
+          <div className="flex-1 overflow-hidden bg-white">
+            {showTicketing ? (
+              <div className="w-full h-full overflow-auto">
+                <iframe src={internalUrl} className="w-full h-full border-0" title={iframeTitle} />
               </div>
+            ) : iframeUrl ? (
+              <iframe src={iframeUrl} className="w-full h-full border-0" title={iframeTitle} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+            ) : null}
+          </div>
+
+          <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
+            <div className="px-6 py-5">
+              <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
             </div>
+          </div>
         </>
       </div>
 
