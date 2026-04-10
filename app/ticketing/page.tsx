@@ -613,6 +613,22 @@ export default function TicketingSystem() {
     }
   };
 
+  // ── Send WA notification via Fonnte ─────────────────────────────────────────
+  const sendWANotification = async (target: string, message: string) => {
+    try {
+      await fetch('https://api.fonnte.com/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': process.env.NEXT_PUBLIC_FONNTE_TOKEN || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ target, message, countryCode: '62' }),
+      });
+    } catch (e) {
+      console.warn('WA notification failed:', e);
+    }
+  };
+
   const createTicket = async () => {
     if (!newTicket.project_name || !newTicket.issue_case) {
       alert('Project name and Issue case must be filled!');
@@ -675,6 +691,20 @@ export default function TicketingSystem() {
         throw error;
       }
 
+      // ── Kirim WA notif ke Admin jika bukan admin yang buat ticket ──────────
+      if (!isAdmin) {
+        const adminWAMsg =
+          `🔔 *Request Ticket Baru — Menunggu Approval*\n\n` +
+          `📌 *Project:* ${newTicket.project_name}\n` +
+          `⚠️ *Issue:* ${newTicket.issue_case}\n` +
+          `👤 *Requester:* ${currentUser?.full_name} (@${currentUser?.username})\n` +
+          `📅 *Tanggal:* ${newTicket.date}\n` +
+          `📝 *Deskripsi:* ${newTicket.description || '-'}\n\n` +
+          `Silakan buka portal PTS IVP untuk melakukan approval.`;
+        sendWANotification('08811735421', adminWAMsg);
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       setNewTicket({
         project_name: '',
         address: '',
@@ -720,6 +750,26 @@ export default function TicketingSystem() {
         .update({ status: 'Pending', assigned_to: approvalAssignee })
         .eq('id', approvalTicket.id);
       if (error) throw error;
+
+      // ── Auto-create guest mapping untuk creator ticket (jika role = guest) ──
+      if (approvalTicket.created_by) {
+        const creatorUser = users.find(u => u.username === approvalTicket.created_by);
+        if (creatorUser && creatorUser.role === 'guest') {
+          const { data: existingMapping } = await supabase
+            .from('guest_mappings')
+            .select('id')
+            .eq('guest_username', approvalTicket.created_by)
+            .eq('project_name', approvalTicket.project_name)
+            .maybeSingle();
+          if (!existingMapping) {
+            await supabase.from('guest_mappings').insert([{
+              guest_username: approvalTicket.created_by,
+              project_name: approvalTicket.project_name,
+            }]);
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
 
       setShowApprovalModal(false);
       setApprovalTicket(null);
@@ -3255,108 +3305,165 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {showGuestMapping && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-teal-500 animate-scale-in relative">
-            <button 
-                onClick={() => setShowGuestMapping(false)}
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold"
-            >
-                ✕
-            </button>
-            <h2 className="text-2xl font-bold mb-4 text-teal-800">👥 Guest Mapping - Project Access</h2>
-            <p className="text-gray-600 mb-6">Manage guest user access to specific projects. One guest can have access to multiple projects.</p>
-            
-            <div className="bg-white/50 rounded-xl p-6 border-2 border-teal-300 mb-6">
-              <h3 className="font-bold mb-4 text-lg text-teal-900">➕ Add New Mapping</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700">Guest Username</label>
-                  <select 
-                    value={newMapping.guestUsername} 
-                    onChange={(e) => setNewMapping({...newMapping, guestUsername: e.target.value})} 
-                    className="input-field-simple"
-                  >
-                    <option value="">Select Guest User</option>
-                    {users.filter(u => u.role === 'guest').map(u => (
-                      <option key={u.id} value={u.username}>{u.username} - {u.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700">Project Name</label>
-                  <select 
-                    value={newMapping.projectName} 
-                    onChange={(e) => setNewMapping({...newMapping, projectName: e.target.value})} 
-                    className="input-field-simple"
-                  >
-                    <option value="">Select Project Name</option>
-                    {uniqueProjectNames.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <button onClick={addGuestMapping} disabled={uploading} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-xl transition-all disabled:opacity-50">
-                {uploading ? '⏳ Processing...' : '➕ Add Mapping'}
-              </button>
-            </div>
+        {showGuestMapping && canAccessAccountSettings && (() => {
+          const guestUsers = users.filter(u => u.role === 'guest');
+          const selectedGuestForMapping = newMapping.guestUsername;
+          const guestMappingsForSelected = guestMappings.filter(
+            m => m.guest_username === selectedGuestForMapping
+          );
+          const mappedProjects = guestMappingsForSelected.map(m => m.project_name);
 
-            <div className="bg-white/50 rounded-xl p-6 border-2 border-gray-300">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-lg text-gray-800">📋 Mapping List</h3>
-                <span className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm font-bold">
-                  {guestMappings.length} mappings
-                </span>
-              </div>
-              
-              {guestMappings.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-4xl mb-3">📭</div>
-                  <p className="text-gray-500 font-medium">No mappings yet</p>
-                  <p className="text-sm text-gray-400 mt-2">Add mapping to grant guest access to projects</p>
+          const handleToggleProjectMapping = async (projectName: string) => {
+            if (!selectedGuestForMapping) return;
+            const isAlreadyMapped = mappedProjects.includes(projectName);
+            if (isAlreadyMapped) {
+              const mapping = guestMappings.find(
+                m => m.guest_username === selectedGuestForMapping && m.project_name === projectName
+              );
+              if (mapping) {
+                await supabase.from('guest_mappings').delete().eq('id', mapping.id);
+              }
+            } else {
+              await supabase.from('guest_mappings').insert([{
+                guest_username: selectedGuestForMapping,
+                project_name: projectName,
+              }]);
+            }
+            await fetchGuestMappings();
+          };
+
+          return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden border-2 border-teal-500 animate-scale-in relative flex flex-col">
+                <button
+                  onClick={() => setShowGuestMapping(false)}
+                  className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-xl font-bold z-10"
+                >✕</button>
+
+                {/* Header */}
+                <div className="p-5 border-b border-teal-200 bg-gradient-to-r from-teal-600 to-teal-700 rounded-t-2xl flex-shrink-0">
+                  <h2 className="text-xl font-bold text-white">👥 Guest Project Mapping</h2>
+                  <p className="text-teal-100 text-sm mt-0.5">Pilih user guest → centang project yang boleh diakses</p>
                 </div>
-              ) : (
-                <div className="max-h-[400px] overflow-y-auto space-y-3">
-                  {guestMappings.map(mapping => (
-                    <div key={mapping.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-lg text-sm font-bold">
-                            👤 {mapping.guest_username}
-                          </span>
-                          <span className="text-gray-400 font-bold">→</span>
-                          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm font-bold">
-                            🏢 {mapping.project_name}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Created: {new Date(mapping.created_at).toLocaleDateString('id-ID', { 
-                            day: '2-digit', 
-                            month: 'long', 
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => deleteGuestMapping(mapping.id)}
-                        disabled={uploading}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold transition-all disabled:opacity-50 ml-4"
-                      >
-                        🗑️ Delete
-                      </button>
+
+                <div className="flex flex-1 overflow-hidden min-h-0">
+                  {/* LEFT — Guest List */}
+                  <div className="w-56 border-r-2 border-gray-100 flex flex-col flex-shrink-0">
+                    <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">User Guest</p>
                     </div>
-                  ))}
+                    <div className="flex-1 overflow-y-auto">
+                      {guestUsers.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-xs py-10">
+                          <div className="text-3xl mb-2">🙅</div>
+                          <p>Belum ada user guest</p>
+                        </div>
+                      ) : (
+                        guestUsers.map(u => {
+                          const mappingCount = guestMappings.filter(m => m.guest_username === u.username).length;
+                          const isSelected = selectedGuestForMapping === u.username;
+                          return (
+                            <button
+                              key={u.id}
+                              onClick={() => setNewMapping({ ...newMapping, guestUsername: u.username })}
+                              className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-all ${
+                                isSelected
+                                  ? 'bg-teal-50 border-l-4 border-l-teal-500'
+                                  : 'hover:bg-gray-50 border-l-4 border-l-transparent'
+                              }`}
+                            >
+                              <p className={`text-sm font-bold truncate ${isSelected ? 'text-teal-700' : 'text-gray-700'}`}>
+                                {u.full_name}
+                              </p>
+                              <p className="text-xs text-gray-400">@{u.username}</p>
+                              {mappingCount > 0 && (
+                                <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                  {mappingCount} project
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* RIGHT — Project Checklist */}
+                  <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                    <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        {selectedGuestForMapping
+                          ? `Project untuk @${selectedGuestForMapping}`
+                          : 'Pilih guest terlebih dahulu'}
+                      </p>
+                      {selectedGuestForMapping && uniqueProjectNames.length > 0 && (
+                        <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full">
+                          {mappedProjects.length}/{uniqueProjectNames.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3">
+                      {!selectedGuestForMapping ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
+                          <div className="text-5xl mb-3">👈</div>
+                          <p className="text-sm font-medium">Pilih user guest di sebelah kiri</p>
+                        </div>
+                      ) : uniqueProjectNames.length === 0 ? (
+                        <div className="text-center text-gray-400 py-8 text-sm">
+                          <div className="text-3xl mb-2">📭</div>
+                          <p>Belum ada project ticket tersedia</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {uniqueProjectNames.map(projectName => {
+                            const isMapped = mappedProjects.includes(projectName);
+                            return (
+                              <button
+                                key={projectName}
+                                onClick={() => handleToggleProjectMapping(projectName)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                                  isMapped
+                                    ? 'border-teal-400 bg-teal-50 text-teal-800'
+                                    : 'border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:bg-teal-50/50'
+                                }`}
+                              >
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                  isMapped ? 'border-teal-500 bg-teal-500' : 'border-gray-300 bg-white'
+                                }`}>
+                                  {isMapped && (
+                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <span className="text-sm font-medium truncate flex-1">{projectName}</span>
+                                {isMapped && (
+                                  <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                                    ✓ Aktif
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* Footer */}
+                <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                  <button
+                    onClick={() => setShowGuestMapping(false)}
+                    className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-lg"
+                  >
+                    ✓ Selesai
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-blue-500">
           <div className="flex flex-col md:flex-row gap-4">
