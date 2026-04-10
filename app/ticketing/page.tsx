@@ -669,29 +669,36 @@ export default function TicketingSystem() {
         photo_name: photoName || null
       };
 
-      const { error } = await supabase.from('tickets').insert([ticketData]);
+      const { data: insertedTicket, error } = await supabase
+        .from('tickets')
+        .insert([ticketData])
+        .select('id')
+        .single();
       if (error) {
         console.error('Supabase error:', error);
         throw error;
       }
 
-      // ── Kirim WA ke Admin saat ticket butuh approval (pakai cara yang sama dengan send-email) ──
+      // ── Kirim WA ke Admin via notify-handler saat ticket butuh approval ──────
+      // Pola sama dengan notify-handler yang dipakai saat assign ke Team Services
       if (!isAdmin) {
-        supabase.functions.invoke('send-wa', {
+        supabase.functions.invoke('notify-handler', {
           body: {
-            target: '628811735421',
-            message:
-              `🔔 *Request Ticket Baru — Menunggu Approval*\n\n` +
-              `📌 *Project:* ${newTicket.project_name}\n` +
-              `⚠️ *Issue:* ${newTicket.issue_case}\n` +
-              `👤 *Requester:* ${currentUser?.full_name} (@${currentUser?.username})\n` +
-              `📅 *Tanggal:* ${newTicket.date}\n` +
-              `📝 *Deskripsi:* ${newTicket.description || '-'}\n\n` +
-              `Silakan buka portal PTS IVP untuk melakukan approval.`,
+            type: 'approval_request',
+            ticketId: insertedTicket?.id || '',
+            projectName: newTicket.project_name,
+            issueCase: newTicket.issue_case,
+            requesterName: currentUser?.full_name || '',
+            requesterUsername: currentUser?.username || '',
+            date: newTicket.date,
+            description: newTicket.description || '-',
+            snUnit: newTicket.sn_unit || '-',
+            customerPhone: newTicket.customer_phone || '-',
+            salesName: newTicket.sales_name || '-',
           }
-        }).then(({ error: waErr }) => { if (waErr) console.error('WA admin error:', waErr); });
+        }).then(({ error: waErr }) => { if (waErr) console.error('notify-handler approval error:', waErr); });
       }
-      // ────────────────────────────────────────────────────────────────────────────
+      // ──────────────────────────────────────────────────────────────────────────
 
       setNewTicket({
         project_name: '',
