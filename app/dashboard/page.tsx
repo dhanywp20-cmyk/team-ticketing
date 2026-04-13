@@ -354,6 +354,18 @@ export default function Dashboard() {
 
   const allMenuItems: MenuItem[] = [
     {
+      title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
+      gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
+      description: 'Jadwal & reminder pekerjaan team PTS',
+      items: [{ name: 'Buka Reminder', url: '/reminder-schedule', icon: '⏰', internal: true, embed: true }]
+    },
+    {
+      title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
+      gradient: 'from-violet-700 via-violet-600 to-violet-500',
+      description: 'Solution request form untuk project Sales & Account',
+      items: [{ name: 'Buka Platform', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
+    },
+	{
       title: 'Form BAST & Demo', icon: '📋', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
       description: 'Product review & handover documentation',
@@ -361,12 +373,6 @@ export default function Dashboard() {
         { name: 'Input Form', url: 'https://portal.indovisual.co.id/form-review-demo-produk-bast-pts/', icon: '✍️', embed: true },
         { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/1hIpMsZIadnJu85FiJ5Qojn_fOcYLl3iMsBagzZI4LYM/edit?usp=sharing', icon: '📑', embed: true }
       ]
-    },
-    {
-      title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
-      gradient: 'from-violet-700 via-violet-600 to-violet-500',
-      description: 'Solution request form untuk project Sales & Account',
-      items: [{ name: 'Buka Platform', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
     },
     {
       title: 'Ticket Troubleshooting', icon: '🎫', key: 'ticket-troubleshooting',
@@ -398,13 +404,6 @@ export default function Dashboard() {
         { name: 'Submit Movement', url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true', icon: '✍️', embed: true },
         { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true', icon: '📑', embed: true }
       ]
-    },
-    // ─── MENU BARU: REMINDER SCHEDULE ───────────────────────────────────────
-    {
-      title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
-      gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
-      description: 'Jadwal & reminder pekerjaan team PTS',
-      items: [{ name: 'Buka Reminder', url: '/reminder-schedule', icon: '⏰', internal: true, embed: true }]
     },
   ];
 
