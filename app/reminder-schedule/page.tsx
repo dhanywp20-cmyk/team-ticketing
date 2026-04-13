@@ -159,13 +159,7 @@ function isDueToday(due_date: string) {
   return due_date === new Date().toISOString().split('T')[0];
 }
 
-function isH1Before(due_date: string): boolean {
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  return due_date === tomorrowStr;
-}
+// isH1Before: dipindah ke daily-reminder edge function
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -614,50 +608,9 @@ export default function ReminderSchedulePage() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  // ─── H-1 WA auto-send check (runs on reminders load) ─────────────────────
-  // Kirim ke phone_number handler (Team PTS) yang di-assign di reminder
-
-  useEffect(() => {
-    if (!reminders.length) return;
-    const checkAndSendH1 = async () => {
-      const h1Pending = reminders.filter(r =>
-        r.status === 'pending' &&
-        !r.wa_sent_h1 &&
-        isH1Before(r.due_date) &&
-        r.assigned_to
-      );
-      for (const r of h1Pending) {
-        // Ambil phone_number dari tabel users
-        const { data: handlerData } = await supabase
-          .from('users')
-          .select('phone_number, full_name')
-          .eq('username', r.assigned_to)
-          .eq('team_type', 'Team PTS')
-          .single();
-
-        if (!handlerData?.phone_number) continue; // skip jika no. belum diisi
-
-        const msg =
-          `⏰ *REMINDER H-1 JADWAL*\n\n` +
-          `Halo *${handlerData.full_name}*, besok kamu ada jadwal:\n\n` +
-          `📋 *${r.title}*\n` +
-          `🏷️ Kategori: ${r.category}\n` +
-          `📍 Lokasi: ${r.project_location || '-'}\n` +
-          `👤 Sales: ${r.sales_name || '-'}\n` +
-          `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
-          (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
-          (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
-          (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
-          `\n_Pesan otomatis dari Reminder Schedule PTS IVP_`;
-
-        const { ok } = await sendFonnteWA(handlerData.phone_number, msg, { reminderType: 'h1_auto', reminderId: r.id });
-        if (ok) {
-          await supabase.from('reminders').update({ wa_sent_h1: true }).eq('id', r.id);
-        }
-      }
-    };
-    checkAndSendH1();
-  }, [reminders, teamUsers]);
+  // ─── H-1 WA auto-send ────────────────────────────────────────────────────
+  // Ditangani oleh Supabase Edge Function: daily-reminder (pg_cron)
+  // Berjalan otomatis setiap hari tanpa perlu buka halaman
 
   const fetchTeamUsers = async () => {
     const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
