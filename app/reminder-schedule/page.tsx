@@ -59,7 +59,7 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; 
   cancelled:   { label: 'Cancelled',  color: '#374151', bg: '#f3f4f6', border: '#6b7280', icon: '❌' },
 };
 
-const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Troubleshooting'];
+const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Troubleshooting', 'Training'];
 
 const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string; accent: string }> = {
   'Demo Product':     { icon: '🖥️', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.4)', accent: '#7c3aed' },
