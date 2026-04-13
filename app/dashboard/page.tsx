@@ -561,41 +561,137 @@ export default function Dashboard() {
     </div>
   );
 
+  // ── Kategori menu ──
+  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'ticket-troubleshooting', 'form-bast'];
+  const INTERNAL_KEYS = ['daily-report', 'database-pts', 'unit-movement'];
+
+  const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
+  const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
+
+  // ── Render menu card ──
+  const renderMenuCard = (menu: MenuItem, index: number, accentColor: string) => (
+    <div
+      key={menu.key}
+      className="group relative bg-white/85 backdrop-blur-md rounded-2xl overflow-hidden border border-white/70 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+      style={{
+        animation: `fadeInUp 0.45s ease forwards`,
+        animationDelay: `${index * 70}ms`,
+        opacity: 0,
+        boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
+      }}
+    >
+      {/* Top accent bar */}
+      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
+
+      <div className="p-5">
+        {/* Header row */}
+        <div className="flex items-start gap-4 mb-4">
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm"
+            style={{ background: `linear-gradient(135deg, ${accentColor}22, ${accentColor}11)`, border: `1.5px solid ${accentColor}30` }}
+          >
+            {menu.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-800 text-sm leading-tight tracking-tight">{menu.title}</h3>
+              {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
+                <span className="bg-red-500 text-white text-[9px] font-bold rounded-full h-4 px-1.5 flex items-center justify-center animate-pulse flex-shrink-0">
+                  {formRequireNotifCount}
+                </span>
+              )}
+            </div>
+            <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{menu.description}</p>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="space-y-2">
+          {menu.items.map((item, itemIndex) => (
+            <button
+              key={itemIndex}
+              onClick={() => handleMenuClick(item, menu.title)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-sm font-semibold transition-all duration-200 group/btn"
+              style={{
+                background: 'rgba(248,250,252,0.9)',
+                border: '1px solid rgba(0,0,0,0.07)',
+                color: '#334155',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}12`;
+                (e.currentTarget as HTMLButtonElement).style.border = `1px solid ${accentColor}40`;
+                (e.currentTarget as HTMLButtonElement).style.color = accentColor;
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(248,250,252,0.9)';
+                (e.currentTarget as HTMLButtonElement).style.border = '1px solid rgba(0,0,0,0.07)';
+                (e.currentTarget as HTMLButtonElement).style.color = '#334155';
+              }}
+            >
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0 bg-white shadow-sm border border-slate-100">
+                {item.icon}
+              </span>
+              <span className="flex-1 truncate">{item.name}</span>
+              {item.external && !item.embed ? (
+                <svg className="w-3.5 h-3.5 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5 opacity-30 flex-shrink-0 transition-transform group-hover/btn:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   if (!showSidebar) return (
     <div className="min-h-screen flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       {showSettings && <AccountSettingsModal onClose={() => setShowSettings(false)} />}
       <FormRequireBell />
 
-      <div className="bg-white/75 backdrop-blur-sm shadow-xl border-b border-slate-200">
-        <div className="max-w-[2000px] mx-auto px-6 py-6">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
-            <div className="flex items-center gap-6">
-              <div className="hidden md:flex w-16 h-16 bg-gradient-to-br from-rose-600 to-rose-700 rounded-lg shadow-lg items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* ── HEADER ── */}
+      <div className="bg-white/80 backdrop-blur-md shadow-md border-b border-slate-200/70" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-rose-600 to-rose-700 rounded-xl shadow-md flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">Work Management Portal</h1>
-                <p className="text-slate-600 font-medium mt-1">IndoVisual Professional Tools — PTS Division</p>
+                <div className="flex items-baseline gap-2">
+                  <h1 className="text-xl font-bold text-slate-800 tracking-tight">Work Management Portal</h1>
+                  <span className="hidden md:inline text-xs font-bold tracking-widest uppercase text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">PTS Division</span>
+                </div>
+                <p className="text-slate-500 text-xs font-medium mt-0.5">IndoVisual Professional Tools</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-3 px-5 py-3 rounded-lg border border-slate-200 bg-white/60">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.3)' }}>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* User badge */}
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
                   {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{currentUser?.full_name}</p>
-                  <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#b8760d' }}>{currentUser?.role}</p>
+                <div className="leading-tight">
+                  <p className="text-xs font-bold text-slate-800">{currentUser?.full_name}</p>
+                  <p className="text-[9px] font-bold tracking-widest uppercase text-amber-600">{currentUser?.role}</p>
                 </div>
               </div>
+
               {(['admin', 'superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
                 <button onClick={() => setShowSettings(true)}
-                  className="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm transition-all"
-                  style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#4338ca' }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#4338ca' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.15)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.08)'; }}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
@@ -603,9 +699,11 @@ export default function Dashboard() {
                 </button>
               )}
               <button onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm transition-all"
-                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#b91c1c' }}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', color: '#b91c1c' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.13)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; }}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
                 Sign Out
@@ -615,66 +713,78 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-10 px-6">
-        <div className="max-w-[2000px] mx-auto">
+      {/* ── MAIN CONTENT ── */}
+      <div className="flex-1 overflow-y-auto py-8 px-4 md:px-8">
+        <div className="max-w-[1600px] mx-auto">
           {menuLoading ? <MenuLoadingOverlay /> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {visibleMenuItems.map((menu, index) => (
-                <div key={menu.key} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1"
-                  style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}>
-                  <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
-                    <div className="absolute inset-0 opacity-10">
-                      <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white"></div>
-                      <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white"></div>
-                    </div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="text-4xl">{menu.icon}</div>
-                        <h3 className="text-xl font-bold tracking-tight text-white">{menu.title}</h3>
-                      </div>
-                      <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+              {/* ── KOLOM 1: PROJECT ── */}
+              <div className="space-y-4" style={{ animation: 'fadeInUp 0.4s ease forwards', opacity: 0 }}>
+                {/* Category header */}
+                <div className="flex items-center gap-3 px-1">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', boxShadow: '0 4px 12px rgba(14,165,233,0.3)' }}>
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
                   </div>
-                  <div className="p-5 space-y-3">
-                    {menu.items.map((item, itemIndex) => (
-                      <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
-                        className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item relative">
-                        {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
-                          <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                            {formRequireNotifCount}
-                          </span>
-                        )}
-                        {item.external && !item.embed ? (
-                          <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                        )}
-                        <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
-                        <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
-                          {item.icon}
-                        </div>
-                      </button>
-                    ))}
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight">Project</h2>
+                    <p className="text-xs text-slate-500 font-medium">Tools & workflow untuk project</p>
                   </div>
+                  <div className="flex-1 h-px ml-2" style={{ background: 'linear-gradient(90deg, rgba(14,165,233,0.3), transparent)' }} />
                 </div>
-              ))}
+                {/* Cards */}
+                {projectMenuItems.length > 0 ? (
+                  projectMenuItems.map((menu, i) => renderMenuCard(menu, i, '#0ea5e9'))
+                ) : (
+                  <div className="text-center py-8 text-slate-400 text-sm bg-white/50 rounded-2xl border border-white/60">
+                    Tidak ada menu Project tersedia
+                  </div>
+                )}
+              </div>
+
+              {/* ── KOLOM 2: INTERNAL DAILY ── */}
+              <div className="space-y-4" style={{ animation: 'fadeInUp 0.4s ease 0.1s forwards', opacity: 0 }}>
+                {/* Category header */}
+                <div className="flex items-center gap-3 px-1">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight">Internal Daily</h2>
+                    <p className="text-xs text-slate-500 font-medium">Aktivitas & data operasional harian</p>
+                  </div>
+                  <div className="flex-1 h-px ml-2" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.3), transparent)' }} />
+                </div>
+                {/* Cards */}
+                {internalMenuItems.length > 0 ? (
+                  internalMenuItems.map((menu, i) => renderMenuCard(menu, i, '#10b981'))
+                ) : (
+                  <div className="text-center py-8 text-slate-400 text-sm bg-white/50 rounded-2xl border border-white/60">
+                    Tidak ada menu Internal Daily tersedia
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </div>
       </div>
 
-      <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-        <div className="max-w-[2000px] mx-auto px-6 py-5">
-          <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
+      {/* ── FOOTER ── */}
+      <div className="bg-white/70 backdrop-blur-sm border-t border-slate-200/60">
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <p className="text-slate-500 text-xs font-medium tracking-wide text-center">© 2026 IndoVisual — Work Management Support (PTS IVP)</p>
         </div>
       </div>
 
       <style jsx>{`
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
