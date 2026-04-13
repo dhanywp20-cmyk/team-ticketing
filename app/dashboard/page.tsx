@@ -638,7 +638,6 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-baseline gap-2">
                   <h1 className="text-xl font-bold text-slate-800 tracking-tight">Work Management Portal</h1>
-                  <span className="hidden md:inline text-xs font-bold tracking-widest uppercase text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">PTS Division</span>
                 </div>
                 <p className="text-slate-500 text-xs font-medium mt-0.5">IndoVisual Professional Tools</p>
               </div>
@@ -703,7 +702,6 @@ export default function Dashboard() {
                       </svg>
                     </div>
                     <span className="text-white font-bold text-sm tracking-wide">Project</span>
-                    <span className="text-white/50 text-xs font-medium">— {projectMenuItems.length} menu</span>
                   </div>
                   {/* Grid card horizontal */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -724,7 +722,6 @@ export default function Dashboard() {
                       </svg>
                     </div>
                     <span className="text-white font-bold text-sm tracking-wide">Internal Daily</span>
-                    <span className="text-white/50 text-xs font-medium">— {internalMenuItems.length} menu</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {internalMenuItems.map((menu, i) => renderMenuCard(menu, i, '#10b981'))}
