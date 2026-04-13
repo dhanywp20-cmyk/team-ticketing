@@ -9,39 +9,49 @@ const supabase = createClient(
 );
 
 // ─── Fonnte WA via Supabase Edge Function (same pattern as ticketing) ────────
+// ── Fonnte token di-cache dari Supabase app_settings ─────────────────────────
+let _fonnteToken: string | null = null;
+async function getFonnteToken(): Promise<string | null> {
+  if (_fonnteToken) return _fonnteToken;
+  try {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'fonnte_token')
+      .single();
+    if (data?.value) { _fonnteToken = String(data.value); return _fonnteToken; }
+  } catch { /* fallback ke env */ }
+  const envToken = process.env.NEXT_PUBLIC_FONNTE_TOKEN;
+  if (envToken) { _fonnteToken = envToken; return _fonnteToken; }
+  return null;
+}
+
 async function sendFonnteWA(
   target: string,
   message: string,
-  meta?: Record<string, unknown>
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _meta?: Record<string, unknown>
 ): Promise<{ ok: boolean; reason?: string }> {
   try {
+    const token = await getFonnteToken();
+    if (!token) return { ok: false, reason: 'Token Fonnte tidak ditemukan. Set di app_settings (key: fonnte_token) atau env NEXT_PUBLIC_FONNTE_TOKEN.' };
+
     const phone = target.replace(/\D/g, '').replace(/^0/, '62');
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const anonKey    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const form = new FormData();
+    form.append('target', phone);
+    form.append('message', message);
+    form.append('countryCode', '62');
 
-    // Gunakan fetch langsung — functions.invoke butuh Supabase Auth session
-    // yang tidak ada karena Reminder pakai custom login (bukan supabase.auth)
-    const res = await fetch(`${supabaseUrl}/functions/v1/notify-handler`, {
+    const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${anonKey}`,
-        'apikey': anonKey,
-      },
-      body: JSON.stringify({
-        type: 'reminder_wa',
-        target: phone,
-        message,
-        ...meta,
-      }),
+      headers: { 'Authorization': token },
+      body: form,
     });
-
     const data = await res.json();
-    console.log('[notify-handler response]', data);
+    console.log('[Fonnte response]', data);
 
-    if (!res.ok) return { ok: false, reason: data?.error || `HTTP ${res.status}` };
-    if (data?.ok === true) return { ok: true };
-    return { ok: false, reason: data?.reason || data?.message || JSON.stringify(data) };
+    if (data.status === true) return { ok: true };
+    return { ok: false, reason: data.reason || data.message || JSON.stringify(data) };
   } catch (err) {
     return { ok: false, reason: String(err) };
   }
