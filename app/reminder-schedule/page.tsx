@@ -1535,9 +1535,6 @@ export default function ReminderSchedulePage() {
 
         </div>
 
-        <footer className="py-4 text-center text-xs font-semibold" style={{ borderTop: '1px solid rgba(0,0,0,0.06)', color: '#64748b' }}>
-          © 2026 IndoVisual PTS — Reminder Schedule Platform
-        </footer>
       </div>
 
       <style jsx>{`
