@@ -377,7 +377,7 @@ function LoadingScreen({ userName }: { userName?: string }) {
   }, []);
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[9999]"
-      style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <div className="flex flex-col items-center gap-8 p-10 rounded-3xl max-w-sm w-full mx-4"
         style={{ background: 'rgba(255,255,255,0.95)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
         <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
