@@ -8,10 +8,28 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// ─── Fonnte WA ────────────────────────────────────────────────────────────────
+const FONNTE_TOKEN = process.env.NEXT_PUBLIC_FONNTE_TOKEN ?? '';
+
+async function sendFonnteWA(target: string, message: string): Promise<boolean> {
+  try {
+    const phone = target.replace(/\D/g, '').replace(/^0/, '62');
+    const res = await fetch('https://api.fonnte.com/send', {
+      method: 'POST',
+      headers: { 'Authorization': FONNTE_TOKEN },
+      body: new URLSearchParams({ target: phone, message, countryCode: '62' }),
+    });
+    const data = await res.json();
+    return data.status === true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
-type Status = 'pending' | 'in_progress' | 'done' | 'cancelled';
+type Status = 'pending' | 'done' | 'cancelled';
 type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface Reminder {
@@ -33,6 +51,7 @@ interface Reminder {
   created_by: string;
   created_at: string;
   notes?: string;
+  wa_sent_h1?: boolean;
 }
 
 interface TeamUser {
@@ -53,10 +72,9 @@ const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: stri
 };
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; border: string; icon: string }> = {
-  pending:     { label: 'Pending',     color: '#92400e', bg: '#fef3c7', border: '#f59e0b', icon: '⏳' },
-  in_progress: { label: 'In Progress', color: '#1e3a8a', bg: '#dbeafe', border: '#3b82f6', icon: '🔄' },
-  done:        { label: 'Completed',   color: '#065f46', bg: '#d1fae5', border: '#10b981', icon: '✅' },
-  cancelled:   { label: 'Cancelled',  color: '#374151', bg: '#f3f4f6', border: '#6b7280', icon: '❌' },
+  pending:     { label: 'Pending',    color: '#92400e', bg: '#fef3c7', border: '#f59e0b', icon: '⏳' },
+  done:        { label: 'Completed',  color: '#065f46', bg: '#d1fae5', border: '#10b981', icon: '✅' },
+  cancelled:   { label: 'Cancelled', color: '#374151', bg: '#f3f4f6', border: '#6b7280', icon: '❌' },
 };
 
 const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Troubleshooting', 'Training'];
@@ -66,7 +84,7 @@ const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string;
   'Meeting & Survey': { icon: '🤝', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)',   border: 'rgba(56,189,248,0.4)',   accent: '#0ea5e9' },
   'Konfigurasi':      { icon: '⚙️', color: '#34d399', bg: 'rgba(52,211,153,0.15)',   border: 'rgba(52,211,153,0.4)',   accent: '#10b981' },
   'Troubleshooting':  { icon: '🔧', color: '#fb7185', bg: 'rgba(251,113,133,0.15)',   border: 'rgba(251,113,133,0.4)',  accent: '#e11d48' },
-  'Training':      { icon: '🎓', color: '#34d399', bg: 'rgba(52,211,153,0.15)',   border: 'rgba(52,211,153,0.4)',   accent: '#10b981' },
+  'Training':         { icon: '🎓', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)',    border: 'rgba(251,191,36,0.4)',   accent: '#d97706' },
 };
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
@@ -92,18 +110,16 @@ function formatDatetime(createdAt: string) {
     d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
-function isOverdue(due_date: string, due_time: string, status: Status) {
-  if (status === 'done' || status === 'cancelled') return false;
-  return new Date(`${due_date}T${due_time || '23:59'}`) < new Date();
-}
-
 function isDueToday(due_date: string) {
   return due_date === new Date().toISOString().split('T')[0];
 }
 
-function getDaysLate(due_date: string, due_time: string) {
-  const diff = Date.now() - new Date(`${due_date}T${due_time || '23:59'}`).getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+function isH1Before(due_date: string): boolean {
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  return due_date === tomorrowStr;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -180,7 +196,14 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value?: 
 
 // ─── Pie Chart Component ─────────────────────────────────────────────────────
 
-function MiniPieChart({ data, title, icon }: { data: { label: string; value: number; color: string }[]; title: string; icon: string }) {
+function MiniPieChart({
+  data, title, icon,
+  onSliceClick,
+}: {
+  data: { label: string; value: number; color: string }[];
+  title: string; icon: string;
+  onSliceClick?: (label: string) => void;
+}) {
   const [hovered, setHovered] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return (
@@ -218,9 +241,10 @@ function MiniPieChart({ data, title, icon }: { data: { label: string; value: num
           {slices.map((s) => (
             <path key={s.i} d={s.path} fill={s.color}
               opacity={hovered === null || hovered === s.i ? 1 : 0.45}
-              style={{ cursor: 'pointer', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
               onMouseEnter={() => setHovered(s.i)}
-              onMouseLeave={() => setHovered(null)} />
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => onSliceClick && onSliceClick(s.label)} />
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
@@ -231,7 +255,8 @@ function MiniPieChart({ data, title, icon }: { data: { label: string; value: num
               className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
               style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
               onMouseEnter={() => setHovered(s.i)}
-              onMouseLeave={() => setHovered(null)}>
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => onSliceClick && onSliceClick(s.label)}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
               <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
               <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
@@ -258,7 +283,6 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
   const today = new Date().toISOString().split('T')[0];
 
   const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
-  const dayNames = ['M','S','R','K','J','S','M'];
 
   const getCount = (day: number) => {
     const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
@@ -269,7 +293,6 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
 
   return (
     <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 380 }}>
-      {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
         <button onClick={() => setCalendarMonth(new Date(y, m-1, 1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
         <div className="text-center">
@@ -280,14 +303,12 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
       </div>
 
       <div className="p-3">
-        {/* Day names */}
         <div className="grid grid-cols-7 mb-1.5">
           {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i) => (
             <div key={i} className="text-center text-[10px] font-bold py-1" style={{ color: '#94a3b8' }}>{d}</div>
           ))}
         </div>
 
-        {/* Days grid */}
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: (firstDay === 0 ? 6 : firstDay - 1) }).map((_, i) => <div key={`e-${i}`} />)}
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
@@ -318,135 +339,50 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
         </div>
       </div>
 
-      {/* Selected day reminders */}
+      {/* Selected day events */}
       {selectedCalDay && (() => {
         const dayRems = reminders.filter(r => r.due_date === selectedCalDay);
-        const selDate = new Date(selectedCalDay + 'T00:00:00');
-        const dayNum = selDate.getDate();
-        const dayName = selDate.toLocaleDateString('id-ID', { weekday: 'long' });
-        const monthYear = selDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-        const isTodaySel = selectedCalDay === new Date().toISOString().split('T')[0];
-        return (
-          <div className="px-3 pb-3">
-            {/* Big date header */}
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(220,38,38,0.25)', boxShadow: '0 4px 16px rgba(220,38,38,0.12)' }}>
-              <div className="flex items-center gap-4 px-4 py-3"
-                style={{ background: isTodaySel ? 'linear-gradient(135deg,#dc2626,#991b1b)' : 'linear-gradient(135deg,#1e293b,#334155)' }}>
-                {/* Big date number */}
-                <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl"
-                  style={{ background: 'rgba(255,255,255,0.15)', border: '2px solid rgba(255,255,255,0.3)' }}>
-                  <span className="text-3xl font-black text-white leading-none">{dayNum}</span>
-                  {isTodaySel && <span className="text-[8px] font-bold text-white/80 uppercase tracking-wider">Hari Ini</span>}
-                </div>
-                {/* Day & month info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-sm capitalize">{dayName}</p>
-                  <p className="text-white/70 text-[11px] capitalize">{monthYear}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
-                    <span className="text-[10px] font-semibold text-white/80">{dayRems.length} jadwal</span>
+        return dayRems.length > 0 ? (
+          <div className="border-t p-3 space-y-2" style={{ borderColor: 'rgba(0,0,0,0.08)', background: 'rgba(249,250,251,0.8)' }}>
+            <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500 px-1">
+              📅 {formatDate(selectedCalDay)} — {dayRems.length} jadwal
+            </p>
+            {dayRems.map(r => (
+              <div key={r.id} className="rounded-xl p-3 border"
+                style={{ background: 'white', borderColor: 'rgba(0,0,0,0.08)' }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800 truncate">{r.title}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assigned_name}</p>
                   </div>
+                  <CategoryBadge category={r.category} />
                 </div>
               </div>
-
-              {/* Schedule cards */}
-              <div className="max-h-48 overflow-y-auto" style={{ background: 'rgba(255,255,255,0.97)' }}>
-                {dayRems.length === 0 ? (
-                  <div className="flex flex-col items-center py-5 gap-1">
-                    <span className="text-2xl">📭</span>
-                    <p className="text-xs text-gray-400 font-medium">Tidak ada jadwal</p>
-                  </div>
-                ) : dayRems.map((r, idx) => {
-                  const ov = isOverdue(r.due_date, r.due_time, r.status);
-                  const catConf = CATEGORY_CONFIG[r.category] ?? { icon: '📁', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)', accent: '#64748b' };
-                  const stConf = STATUS_CONFIG[r.status];
-                  return (
-                    <div key={r.id}
-                      className="mx-2 my-1.5 rounded-xl p-2.5 transition-all"
-                      style={{
-                        background: ov ? 'rgba(254,242,242,0.9)' : catConf.bg,
-                        border: ov ? '1px solid rgba(239,68,68,0.3)' : `1px solid ${catConf.border}`,
-                        borderLeft: `3px solid ${ov ? '#ef4444' : catConf.accent}`,
-                      }}>
-                      <div className="flex items-start gap-2">
-                        <span className="text-base flex-shrink-0 mt-0.5">{catConf.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-gray-800 truncate">{r.title}</p>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            {r.due_time && <span className="text-[10px] text-gray-500 font-semibold">🕐 {r.due_time}</span>}
-                            {r.assigned_name && <span className="text-[10px] text-gray-400">· {r.assigned_name}</span>}
-                          </div>
-                          {r.sales_name && <p className="text-[10px] text-gray-400 mt-0.5">👤 {r.sales_name}</p>}
-                        </div>
-                        <span className="flex-shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full"
-                          style={{ background: stConf.bg, color: stConf.color, border: `1px solid ${stConf.border}` }}>
-                          {stConf.label}
-                        </span>
-                      </div>
-                      {ov && <p className="text-[9px] font-bold text-red-600 mt-1.5">🔥 OVERDUE</p>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            ))}
           </div>
-        );
+        ) : null;
       })()}
     </div>
   );
 }
 
-// ─── App Loading Screen ────────────────────────────────────────────────────────
-function AppLoadingScreen() {
-  return (
-    <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
-      <div className="relative z-10 flex flex-col items-center gap-6">
-        <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl"
-          style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 8px 40px rgba(220,38,38,0.5)' }}>
-          <span className="text-4xl">🗓️</span>
-        </div>
-        <div className="text-center">
-          <h1 className="text-3xl font-black text-white tracking-tight">Reminder Schedule</h1>
-          <p className="text-red-300 font-bold mt-1 tracking-widest text-sm uppercase">PTS IVP — Team Work Planner</p>
-        </div>
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex gap-1.5">
-            {[0,1,2,3].map(i => (
-              <div key={i} className="w-2.5 h-2.5 rounded-full bg-red-500"
-                style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-            ))}
-          </div>
-          <p className="text-white/70 text-sm font-medium">Memuat platform...</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ─── Loading screen ────────────────────────────────────────────────────────────
 
-// ─── Dashboard Loading ─────────────────────────────────────────────────────────
-function DashboardLoadingScreen({ userName }: { userName: string }) {
+function LoadingScreen({ userName }: { userName?: string }) {
   const [step, setStep] = useState(0);
-  const steps = [
-    '✅ Autentikasi berhasil',
-    '📋 Memuat daftar reminder...',
-    '🔔 Mengecek notifikasi aktif...',
-    '📅 Menyiapkan dashboard...',
-  ];
+  const steps = ['Menghubungkan ke server...', 'Memuat data reminder...', 'Menyiapkan tampilan...', 'Hampir siap...'];
   useEffect(() => {
-    const timers = steps.map((_, i) => setTimeout(() => setStep(i + 1), (i + 1) * 420));
+    const timers = steps.map((_, i) => setTimeout(() => setStep(i + 1), 400 * (i + 1)));
     return () => timers.forEach(clearTimeout);
   }, []);
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
-      <div className="relative z-10 bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-10 w-full max-w-sm flex flex-col items-center gap-6"
-        style={{ border: '2px solid rgba(220,38,38,0.3)' }}>
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 6px 24px rgba(220,38,38,0.4)' }}>
-          <span className="text-3xl">🗓️</span>
+    <div className="fixed inset-0 flex items-center justify-center z-[9999]"
+      style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+      <div className="flex flex-col items-center gap-8 p-10 rounded-3xl max-w-sm w-full mx-4"
+        style={{ background: 'rgba(255,255,255,0.95)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 8px 24px rgba(220,38,38,0.4)' }}>
+          <span className="text-4xl">🗓️</span>
         </div>
         <div className="text-center">
           <p className="text-gray-500 text-sm">Selamat datang,</p>
@@ -471,6 +407,87 @@ function DashboardLoadingScreen({ userName }: { userName: string }) {
   );
 }
 
+// ─── Reschedule Modal ─────────────────────────────────────────────────────────
+
+function RescheduleModal({
+  reminder,
+  onClose,
+  onSave,
+}: {
+  reminder: Reminder;
+  onClose: () => void;
+  onSave: (newDate: string, newTime: string, reason: string) => void;
+}) {
+  const [newDate, setNewDate] = useState(reminder.due_date);
+  const [newTime, setNewTime] = useState(reminder.due_time);
+  const [reason, setReason] = useState('');
+  const inputStyle = { background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.15)' };
+  const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(245,158,11,0.5)' }}>
+        {/* Header */}
+        <div className="px-6 py-5" style={{ background: 'linear-gradient(135deg,#d97706,#b45309)' }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-white">📅 Re-Schedule Jadwal</h3>
+              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.title}</p>
+            </div>
+            <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">✕</button>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          {/* Current date info */}
+          <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <span className="text-xl">📌</span>
+            <div>
+              <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Jadwal Sekarang</p>
+              <p className="text-sm font-bold text-gray-800">{formatDate(reminder.due_date)} · {reminder.due_time}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Tanggal Baru *</label>
+              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+                className={inputCls} style={inputStyle} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Waktu Baru</label>
+              <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)}
+                className={inputCls} style={inputStyle} />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Alasan Re-Schedule</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
+              className={`${inputCls} resize-none`} style={inputStyle}
+              placeholder="Contoh: Permintaan klien untuk mengundur jadwal..." />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose}
+              className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
+              style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
+              Batal
+            </button>
+            <button onClick={() => { if (newDate) onSave(newDate, newTime, reason); }}
+              disabled={!newDate}
+              className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', boxShadow: '0 4px 14px rgba(217,119,6,0.35)' }}>
+              📅 Simpan Re-Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ReminderSchedulePage() {
@@ -487,26 +504,32 @@ export default function ReminderSchedulePage() {
   const [reminders, setReminders]           = useState<Reminder[]>([]);
   const [listLoading, setListLoading]       = useState(false);
   const [saving, setSaving]                 = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<Reminder | null>(null);
 
   const [view, setView]                     = useState<'list' | 'form'>('list');
   const [detailReminder, setDetailReminder] = useState<Reminder | null>(null);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
+  // Filters — extended with team handler & category
   const [filterStatus, setFilterStatus]     = useState<Status | 'all'>('all');
   const [filterYear, setFilterYear]         = useState<string>('all');
   const [searchProject, setSearchProject]   = useState('');
   const [searchSales, setSearchSales]       = useState('');
+  const [searchTeamHandler, setSearchTeamHandler] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+
   const [calendarMonth, setCalendarMonth]   = useState(new Date());
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
   const [exportLoading, setExportLoading]   = useState(false);
+  const [sendingWA, setSendingWA]           = useState<string | null>(null);
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3500);
   };
 
-  const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'assigned_name' | 'created_by'> = {
+  const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'assigned_name' | 'created_by' | 'wa_sent_h1'> = {
     title: '', description: '', assigned_to: '',
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
@@ -545,6 +568,39 @@ export default function ReminderSchedulePage() {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
+
+  // ─── H-1 WA auto-send check (runs on reminders load) ─────────────────────
+
+  useEffect(() => {
+    if (!reminders.length || !FONNTE_TOKEN) return;
+    const checkAndSendH1 = async () => {
+      const h1Pending = reminders.filter(r =>
+        r.status === 'pending' &&
+        !r.wa_sent_h1 &&
+        isH1Before(r.due_date) &&
+        r.pic_phone
+      );
+      for (const r of h1Pending) {
+        const assigneeUser = teamUsers.find(u => u.username === r.assigned_to);
+        const msg =
+          `⏰ *REMINDER H-1 JADWAL*\n\n` +
+          `📋 *${r.title}*\n` +
+          `🏷️ Kategori: ${r.category}\n` +
+          `📍 Lokasi: ${r.project_location || '-'}\n` +
+          `👤 Sales: ${r.sales_name || '-'}\n` +
+          `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
+          `👷 Handler: ${r.assigned_name || '-'}\n` +
+          (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
+          `\n_Pesan otomatis dari Reminder Schedule PTS IVP_`;
+
+        const ok = await sendFonnteWA(r.pic_phone, msg);
+        if (ok) {
+          await supabase.from('reminders').update({ wa_sent_h1: true }).eq('id', r.id);
+        }
+      }
+    };
+    checkAndSendH1();
+  }, [reminders, teamUsers]);
 
   const fetchTeamUsers = async () => {
     const { data } = await supabase.from('users').select('id, username, full_name, role, team_type').order('full_name');
@@ -619,50 +675,70 @@ export default function ReminderSchedulePage() {
     setView('form');
   };
 
+  // ─── Re-Schedule ───────────────────────────────────────────────────────────
+
+  const handleReschedule = async (newDate: string, newTime: string, reason: string) => {
+    if (!rescheduleTarget) return;
+    const noteAdd = reason ? `\n[Re-Schedule ${formatDate(newDate)}: ${reason}]` : '';
+    const { error } = await supabase.from('reminders').update({
+      due_date: newDate,
+      due_time: newTime,
+      wa_sent_h1: false,
+      notes: (rescheduleTarget.notes ?? '') + noteAdd,
+    }).eq('id', rescheduleTarget.id);
+    if (error) { notify('error', 'Gagal re-schedule.'); return; }
+    notify('success', `Jadwal berhasil dipindah ke ${formatDate(newDate)}!`);
+    setRescheduleTarget(null);
+    setDetailReminder(null);
+    fetchRemindersQuiet();
+  };
+
+  // ─── Manual WA send ────────────────────────────────────────────────────────
+
+  const handleSendWA = async (r: Reminder) => {
+    if (!r.pic_phone) { notify('error', 'Nomor PIC tidak tersedia.'); return; }
+    setSendingWA(r.id);
+    const msg =
+      `📋 *REMINDER JADWAL PTS IVP*\n\n` +
+      `*${r.title}*\n` +
+      `🏷️ Kategori: ${r.category}\n` +
+      `📍 Lokasi: ${r.project_location || '-'}\n` +
+      `👤 Sales: ${r.sales_name || '-'}\n` +
+      `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
+      `👷 Handler: ${r.assigned_name || '-'}\n` +
+      (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
+      `\n_Pesan dari Reminder Schedule PTS IVP_`;
+    const ok = await sendFonnteWA(r.pic_phone, msg);
+    setSendingWA(null);
+    if (ok) notify('success', `WA berhasil dikirim ke ${r.pic_name || r.pic_phone}!`);
+    else notify('error', 'Gagal kirim WA. Cek token Fonnte.');
+  };
+
   // ─── Export Excel ──────────────────────────────────────────────────────────
+
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      // Build CSV content (as TSV for Excel compatibility)
       const headers = ['No','Judul','Kategori','Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1,
-        r.title,
-        r.category,
-        r.sales_name,
-        r.project_location,
-        r.assigned_name,
-        STATUS_CONFIG[r.status].label,
-        PRIORITY_CONFIG[r.priority].label,
-        r.due_date,
-        r.due_time,
-        r.pic_name,
-        r.pic_phone,
-        r.created_by,
-        r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '',
-        r.notes ?? '',
+        i + 1, r.title, r.category, r.sales_name, r.project_location, r.assigned_name,
+        STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
+        r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
+        r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '',
       ]);
-
-      // Build CSV
       const csvContent = [headers, ...rows]
         .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
         .join('\n');
-
       const BOM = '\uFEFF';
       const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const dateStr = new Date().toISOString().split('T')[0];
-      a.download = `Reminder_Schedule_PTS_IVP_${dateStr}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      a.download = `Reminder_Schedule_PTS_IVP_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      notify('success', 'Export berhasil! File tersimpan.');
-    } catch (e) {
-      notify('error', 'Gagal export.');
-    }
+      notify('success', 'Export berhasil!');
+    } catch { notify('error', 'Gagal export.'); }
     setExportLoading(false);
   };
 
@@ -673,18 +749,19 @@ export default function ReminderSchedulePage() {
   const filteredReminders = reminders.filter(r => {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
+    if (filterCategory !== 'all' && r.category !== filterCategory) return false;
     if (searchProject && !r.title.toLowerCase().includes(searchProject.toLowerCase()) &&
         !r.project_location?.toLowerCase().includes(searchProject.toLowerCase())) return false;
-    if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase()) &&
-        !r.assigned_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
+    if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
+    if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
+        !r.assigned_to?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
+    if (selectedCalDay && r.due_date !== selectedCalDay) return false;
     return true;
   });
 
-  const overdueCount    = reminders.filter(r => isOverdue(r.due_date, r.due_time, r.status)).length;
   const todayCount      = reminders.filter(r => isDueToday(r.due_date) && r.status !== 'done' && r.status !== 'cancelled').length;
   const pendingCount    = reminders.filter(r => r.status === 'pending').length;
   const doneCount       = reminders.filter(r => r.status === 'done').length;
-  const inProgressCount = reminders.filter(r => r.status === 'in_progress').length;
   const totalCount      = reminders.length;
 
   // ─── Pie chart data ────────────────────────────────────────────────────────
@@ -709,21 +786,23 @@ export default function ReminderSchedulePage() {
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
-  // ─── Calendar data ─────────────────────────────────────────────────────────
   const isAdmin = ['admin', 'superadmin', 'team_pts'].includes(currentUser?.role?.toLowerCase() ?? '');
-  // Team PTS juga bisa tambah reminder
   const canAddReminder = isAdmin || currentUser?.team_type === 'Team PTS';
 
   const myActiveReminders = reminders.filter(r =>
     currentUser && r.assigned_to === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
   );
-  const myOverdueCount = myActiveReminders.filter(r => isOverdue(r.due_date, r.due_time, r.status)).length;
 
   // ─── Style helpers ─────────────────────────────────────────────────────────
   const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
   const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
 
   // ─── Login handler ─────────────────────────────────────────────────────────
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
+    setCurrentUser(null); setIsLoggedIn(false); setLoginTime(null);
+  };
+
   const handleLogin = async () => {
     try {
       const { data, error } = await supabase.from('users').select('*')
@@ -736,30 +815,24 @@ export default function ReminderSchedulePage() {
       setLoginTime(now);
       localStorage.setItem('currentUser', JSON.stringify(data));
       localStorage.setItem('loginTime', now.toString());
-      setTimeout(() => {
-        setDashLoading(false);
-        const assigned = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
-        if (assigned.length > 0) { setMyReminders(assigned); setShowNotificationPopup(true); }
-      }, 2100);
-    } catch { notify('error', 'Login gagal!'); }
+
+      const active = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
+      setMyReminders(active);
+      if (active.length > 0) setTimeout(() => setShowNotificationPopup(true), 600);
+      setTimeout(() => setDashLoading(false), 2200);
+    } catch { notify('error', 'Terjadi kesalahan.'); }
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false); setCurrentUser(null); setLoginTime(null);
-    setView('list'); setDetailReminder(null);
-    localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
-  };
+  // ─── Not ready ─────────────────────────────────────────────────────────────
+  if (!appReady) return <LoadingScreen userName="..." />;
+  if (dashLoading) return <LoadingScreen userName={currentUser?.full_name} />;
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
-
-  if (!appReady) return <AppLoadingScreen />;
-  if (dashLoading && currentUser) return <DashboardLoadingScreen userName={currentUser.full_name} />;
-
+  // ─── Login page ────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed"
-        style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.35)' }} />
+      <div className="min-h-screen flex items-center justify-center relative"
+        style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
         {toast && (
           <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
             {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
@@ -817,6 +890,15 @@ export default function ReminderSchedulePage() {
           </div>
         )}
 
+        {/* ── RESCHEDULE MODAL ── */}
+        {rescheduleTarget && (
+          <RescheduleModal
+            reminder={rescheduleTarget}
+            onClose={() => setRescheduleTarget(null)}
+            onSave={handleReschedule}
+          />
+        )}
+
         {/* ── NOTIFICATION POPUP ── */}
         {showNotificationPopup && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
@@ -835,34 +917,30 @@ export default function ReminderSchedulePage() {
                 </div>
               </div>
               <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
-                {myReminders.map(r => {
-                  const ov = isOverdue(r.due_date, r.due_time, r.status);
-                  return (
-                    <div key={r.id} onClick={() => { setDetailReminder(r); setShowNotificationPopup(false); }}
-                      className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
-                      style={{ background: ov ? 'rgba(254,242,242,0.9)' : 'rgba(249,250,251,0.9)', borderColor: ov ? '#fca5a5' : '#e5e7eb' }}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            {ov && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300">🔥 OVERDUE</span>}
-                            <CategoryBadge category={r.category} />
-                            <PriorityBadge priority={r.priority} />
-                          </div>
-                          <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
-                          {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                {myReminders.map(r => (
+                  <div key={r.id} onClick={() => { setDetailReminder(r); setShowNotificationPopup(false); }}
+                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <CategoryBadge category={r.category} />
+                          <PriorityBadge priority={r.priority} />
                         </div>
-                        <div className="flex-shrink-0 text-right">
-                          <StatusBadge status={r.status} />
-                          <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
-                        </div>
+                        <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
+                        {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <StatusBadge status={r.status} />
+                        <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button onClick={() => setShowNotificationPopup(false)}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all">
+                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold transition-all">
                   ✕ Tutup
                 </button>
               </div>
@@ -881,7 +959,7 @@ export default function ReminderSchedulePage() {
                     <span className="text-3xl">🔔</span>
                     <div>
                       <h3 className="text-lg font-bold text-white">Reminder Aktif Kamu</h3>
-                      <p className="text-sm text-white/90">{myActiveReminders.length} aktif · {myOverdueCount > 0 ? `${myOverdueCount} overdue` : 'tidak ada yang overdue'}</p>
+                      <p className="text-sm text-white/90">{myActiveReminders.length} aktif</p>
                     </div>
                   </div>
                   <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
@@ -893,29 +971,25 @@ export default function ReminderSchedulePage() {
                     <div className="text-5xl mb-3">✅</div>
                     <p className="font-semibold">Tidak ada reminder aktif</p>
                   </div>
-                ) : myActiveReminders.map(r => {
-                  const ov = isOverdue(r.due_date, r.due_time, r.status);
-                  return (
-                    <div key={r.id} onClick={() => { setDetailReminder(r); setShowBellPopup(false); }}
-                      className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
-                      style={{ background: ov ? 'rgba(254,242,242,0.9)' : 'rgba(249,250,251,0.9)', borderColor: ov ? '#fca5a5' : '#e5e7eb' }}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            {ov && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300">🔥 OVERDUE</span>}
-                            <CategoryBadge category={r.category} />
-                          </div>
-                          <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
-                          {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                ) : myActiveReminders.map(r => (
+                  <div key={r.id} onClick={() => { setDetailReminder(r); setShowBellPopup(false); }}
+                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <CategoryBadge category={r.category} />
                         </div>
-                        <div className="flex-shrink-0 text-right">
-                          <StatusBadge status={r.status} />
-                          <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
-                        </div>
+                        <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
+                        {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <StatusBadge status={r.status} />
+                        <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button onClick={() => setShowBellPopup(false)}
@@ -934,9 +1008,7 @@ export default function ReminderSchedulePage() {
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
               style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)' }}>
               <div className="px-8 py-6 relative" style={{
-                background: isOverdue(detailReminder.due_date, detailReminder.due_time, detailReminder.status)
-                  ? 'linear-gradient(135deg,#dc2626,#991b1b)'
-                  : (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
+                background: (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
               }}>
                 <button onClick={() => setDetailReminder(null)}
                   className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
@@ -948,6 +1020,9 @@ export default function ReminderSchedulePage() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">
                       🔁 {REPEAT_OPTIONS.find(r => r.value === detailReminder.repeat)?.label}
                     </span>
+                  )}
+                  {detailReminder.wa_sent_h1 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/80 text-white">✅ WA H-1 Terkirim</span>
                   )}
                 </div>
                 <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.title}</h2>
@@ -1002,7 +1077,7 @@ export default function ReminderSchedulePage() {
                 {detailReminder.notes && (
                   <div className="rounded-xl p-4" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
                     <p className="text-[10px] font-bold tracking-widest uppercase mb-1" style={{ color: '#f59e0b' }}>📝 Catatan</p>
-                    <p className="text-slate-700 text-sm leading-relaxed">{detailReminder.notes}</p>
+                    <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-line">{detailReminder.notes}</p>
                   </div>
                 )}
 
@@ -1011,13 +1086,11 @@ export default function ReminderSchedulePage() {
                   <div className="flex flex-wrap gap-2">
                     {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
                       const c = STATUS_CONFIG[s];
-                      const active = detailReminder.status === s;
+                      const isActive = detailReminder.status === s;
                       return (
                         <button key={s} onClick={() => handleStatusChange(detailReminder.id, s)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                          style={active
-                            ? { background: c.bg, color: c.color, border: `1px solid ${c.border}` }
-                            : { background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.1)' }}>
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive ? 'ring-2 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
+                          style={{ background: c.bg, color: c.color, border: `2px solid ${c.border}`, ringColor: c.border }}>
                           {c.icon} {c.label}
                         </button>
                       );
@@ -1025,16 +1098,33 @@ export default function ReminderSchedulePage() {
                   </div>
                 </div>
 
-                {/* Admin atau user yang adalah creator bisa edit/hapus */}
-                {(isAdmin || detailReminder.created_by === currentUser?.username) && (
-                  <div className="flex gap-3 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                {/* Action buttons */}
+                {isAdmin && (
+                  <div className="flex gap-3 pt-2 flex-wrap">
+                    {/* Re-Schedule button */}
+                    <button onClick={() => { setRescheduleTarget(detailReminder); }}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                      style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
+                      📅 Re-Schedule
+                    </button>
+                    {/* Send WA button */}
+                    {detailReminder.pic_phone && (
+                      <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
+                        {sendingWA === detailReminder.id
+                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : '💬'}
+                        Kirim WA
+                      </button>
+                    )}
                     <button onClick={() => openEdit(detailReminder)}
-                      className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-80"
-                      style={{ border: '1px solid rgba(59,130,246,0.35)', color: '#2563eb', background: 'rgba(59,130,246,0.08)' }}>
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
                       ✏️ Edit
                     </button>
                     <button onClick={() => handleDelete(detailReminder.id)}
-                      className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-80"
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
                       style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
                       🗑️ Hapus
                     </button>
@@ -1066,13 +1156,12 @@ export default function ReminderSchedulePage() {
                 </svg>
                 {myActiveReminders.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                    style={{ background: myOverdueCount > 0 ? '#dc2626' : '#f59e0b' }}>
+                    style={{ background: '#f59e0b' }}>
                     {myActiveReminders.length}
                   </span>
                 )}
               </button>
 
-              {/* Export Excel button */}
               {view === 'list' && (
                 <button onClick={handleExportExcel} disabled={exportLoading}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border"
@@ -1085,7 +1174,6 @@ export default function ReminderSchedulePage() {
                 </button>
               )}
 
-              {/* Tambah Reminder - admin dan team PTS bisa */}
               {canAddReminder && view === 'list' && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setView('form'); }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
@@ -1120,34 +1208,127 @@ export default function ReminderSchedulePage() {
           {/* ─── LIST VIEW ── */}
           {view === 'list' && (
             <>
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+              {/* ── Stat cards (clickable filter) ── */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: 'Total Jadwal', value: totalCount,      sub: 'Semua reminder',     gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)' },
-                  { label: 'Pending',      value: pendingCount,    sub: 'Menunggu tindakan',  gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)' },
-                  { label: 'In Progress',  value: inProgressCount, sub: 'Sedang dikerjakan',  gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)' },
-                  { label: 'Selesai',      value: doneCount,       sub: 'Terselesaikan',      gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '✅', shadow: 'rgba(5,150,105,0.35)' },
-                  { label: 'Overdue',      value: overdueCount,    sub: 'Berpotensi terlewat',gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🔥', shadow: 'rgba(220,38,38,0.35)' },
-                  { label: 'Hari Ini',     value: todayCount,      sub: 'Jadwal hari ini',    gradient: 'linear-gradient(135deg,#0891b2,#0e7490)', icon: '📅', shadow: 'rgba(8,145,178,0.35)' },
+                  {
+                    label: 'Total Jadwal', value: totalCount, sub: 'Semua reminder',
+                    gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',
+                    onClick: () => { setFilterStatus('all'); setSelectedCalDay(null); },
+                    active: filterStatus === 'all' && !selectedCalDay,
+                  },
+                  {
+                    label: 'Pending', value: pendingCount, sub: 'Menunggu tindakan',
+                    gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',
+                    onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),
+                    active: filterStatus === 'pending',
+                  },
+                  {
+                    label: 'Selesai', value: doneCount, sub: 'Terselesaikan',
+                    gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '✅', shadow: 'rgba(5,150,105,0.35)',
+                    onClick: () => setFilterStatus(filterStatus === 'done' ? 'all' : 'done'),
+                    active: filterStatus === 'done',
+                  },
+                  {
+                    label: 'Hari Ini', value: todayCount, sub: 'Jadwal hari ini',
+                    gradient: 'linear-gradient(135deg,#0891b2,#0e7490)', icon: '📅', shadow: 'rgba(8,145,178,0.35)',
+                    onClick: () => setSelectedCalDay(selectedCalDay === new Date().toISOString().split('T')[0] ? null : new Date().toISOString().split('T')[0]),
+                    active: selectedCalDay === new Date().toISOString().split('T')[0],
+                  },
                 ].map(card => (
-                  <div key={card.label} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2"
-                    style={{ background: card.gradient, boxShadow: `0 4px 16px ${card.shadow}` }}>
+                  <div key={card.label}
+                    onClick={card.onClick}
+                    className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
+                    style={{
+                      background: card.gradient,
+                      boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
+                      ring: card.active ? '3px solid white' : 'none',
+                      outline: card.active ? '3px solid white' : 'none',
+                      transform: card.active ? 'scale(1.04)' : undefined,
+                    }}>
                     <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
+                    {card.active && (
+                      <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />
+                    )}
                     <span className="text-3xl font-black text-white leading-none">{card.value}</span>
                     <div>
                       <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
                       <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
                     </div>
+                    {card.active && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
                   </div>
                 ))}
               </div>
 
-              {/* Pie Charts - selalu tampil */}
+              {/* ── Pie Charts — klick untuk filter ── */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <MiniPieChart data={projectPieData} title="Kegiatan / Kategori" icon="🖥️" />
-                <MiniPieChart data={salesPieData} title="Nama Sales" icon="👤" />
-                <MiniPieChart data={teamPtsPieData} title="Team PTS" icon="👥" />
+                <MiniPieChart
+                  data={projectPieData} title="Kegiatan / Kategori" icon="🖥️"
+                  onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
+                />
+                <MiniPieChart
+                  data={salesPieData} title="Nama Sales" icon="👤"
+                  onSliceClick={label => setSearchSales(searchSales === label ? '' : label)}
+                />
+                <MiniPieChart
+                  data={teamPtsPieData} title="Team PTS" icon="👥"
+                  onSliceClick={label => setSearchTeamHandler(searchTeamHandler === label ? '' : label)}
+                />
               </div>
+
+              {/* Active filter chips */}
+              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchTeamHandler || searchProject || selectedCalDay) && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
+                  {filterCategory !== 'all' && (
+                    <button onClick={() => setFilterCategory('all')}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#7c3aed' }}>
+                      🏷️ {filterCategory} ✕
+                    </button>
+                  )}
+                  {filterStatus !== 'all' && (
+                    <button onClick={() => setFilterStatus('all')}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#d97706' }}>
+                      Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕
+                    </button>
+                  )}
+                  {searchSales && (
+                    <button onClick={() => setSearchSales('')}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#0ea5e9' }}>
+                      👤 {searchSales} ✕
+                    </button>
+                  )}
+                  {searchTeamHandler && (
+                    <button onClick={() => setSearchTeamHandler('')}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#7c3aed' }}>
+                      👷 {searchTeamHandler} ✕
+                    </button>
+                  )}
+                  {searchProject && (
+                    <button onClick={() => setSearchProject('')}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#dc2626' }}>
+                      🔍 {searchProject} ✕
+                    </button>
+                  )}
+                  {selectedCalDay && (
+                    <button onClick={() => setSelectedCalDay(null)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#0891b2' }}>
+                      📅 {formatDate(selectedCalDay)} ✕
+                    </button>
+                  )}
+                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
+                    style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>
+                    Reset Semua
+                  </button>
+                </div>
+              )}
 
               {/* Main area: list + calendar */}
               <div className="flex gap-4 items-start">
@@ -1158,18 +1339,17 @@ export default function ReminderSchedulePage() {
                   {/* Search + filter bar */}
                   <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
                     {/* Search project */}
-                    <div className="flex-1 min-w-[160px] relative">
+                    <div className="flex-1 min-w-[150px] relative">
                       <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                       <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
                         className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
                         style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search project..." />
-                      {searchProject && <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">SEARCH PROJECT</span>}
+                        placeholder="Search project / lokasi..." />
                     </div>
                     {/* Search sales */}
-                    <div className="flex-1 min-w-[140px] relative">
+                    <div className="flex-1 min-w-[130px] relative">
                       <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
@@ -1177,7 +1357,14 @@ export default function ReminderSchedulePage() {
                         className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
                         style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
                         placeholder="Search sales..." />
-                      {searchSales && <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">SEARCH SALES</span>}
+                    </div>
+                    {/* Search Team Handler — NEW */}
+                    <div className="flex-1 min-w-[140px] relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
+                      <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
+                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-purple-400 outline-none"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                        placeholder="Search team handler..." />
                     </div>
                     {/* Filter status */}
                     <div className="relative">
@@ -1186,26 +1373,21 @@ export default function ReminderSchedulePage() {
                       </svg>
                       <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
                         className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 140 }}>
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
                         <option value="all">All Status</option>
                         {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
                       </select>
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">STATUS</span>
                     </div>
                     {/* Filter tahun */}
                     <div className="relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
                       <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                        className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 120 }}>
+                        className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
                         <option value="all">Semua Tahun</option>
                         {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
                       </select>
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">TAHUN</span>
                     </div>
                   </div>
 
@@ -1227,12 +1409,13 @@ export default function ReminderSchedulePage() {
                     </button>
                   </div>
 
-                  {/* Table header */}
+                  {/* Table header — with Team Handler column */}
                   <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-                    style={{ gridTemplateColumns: '2fr 1.3fr 1fr 1.4fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
+                    style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
                     <span>NAMA PROJECT</span>
                     <span>KEGIATAN</span>
                     <span>SALES</span>
+                    <span>TEAM HANDLER</span>
                     <span>PIC &amp; NO PIC</span>
                     <span>STATUS</span>
                     <span>TGL SCHEDULE</span>
@@ -1254,12 +1437,11 @@ export default function ReminderSchedulePage() {
                   ) : (
                     <div>
                       {filteredReminders.map((r) => {
-                        const overdue = isOverdue(r.due_date, r.due_time, r.status);
-                        const daysLate = overdue ? getDaysLate(r.due_date, r.due_time) : 0;
+                        const today = isDueToday(r.due_date);
                         return (
                           <div key={r.id}
                             className="px-5 py-4 transition-colors hover:bg-red-50/40 cursor-pointer"
-                            style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: overdue ? '3px solid #ef4444' : '3px solid transparent' }}
+                            style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: today ? '3px solid #dc2626' : '3px solid transparent' }}
                             onClick={() => setDetailReminder(r)}>
 
                             {/* Mobile layout */}
@@ -1271,7 +1453,6 @@ export default function ReminderSchedulePage() {
                                     <CategoryBadge category={r.category} />
                                   </div>
                                   <p className="text-xs text-gray-500">{formatDatetime(r.created_at)}</p>
-                                  {overdue && <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">⚠ Telat {daysLate} hari</span>}
                                 </div>
                                 <StatusBadge status={r.status} />
                               </div>
@@ -1282,28 +1463,38 @@ export default function ReminderSchedulePage() {
                               </div>
                             </div>
 
-                            {/* Desktop table row */}
+                            {/* Desktop table row — with Team Handler column */}
                             <div className="hidden md:grid items-center gap-3"
-                              style={{ gridTemplateColumns: '2fr 1.3fr 1fr 1.4fr 1.1fr 1.2fr 52px' }}>
+                              style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
                               {/* Nama Project */}
                               <div className="min-w-0">
                                 <span className="font-bold text-gray-800 text-sm truncate block">{r.title}</span>
                                 {r.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</p>}
-                                {overdue && (
-                                  <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                                    style={{ background: 'rgba(234,88,12,0.12)', color: '#c2410c', border: '1px solid rgba(234,88,12,0.25)' }}>
-                                    ⚠ Telat {daysLate} hari
-                                  </span>
-                                )}
                               </div>
-                              {/* Kegiatan */}
+                              {/* Kegiatan — larger text */}
                               <div className="min-w-0">
-                                <CategoryBadge category={r.category} />
-                                {r.description && <p className="text-[10px] text-gray-400 truncate mt-1">{r.description}</p>}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-lg">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
+                                  <span className="font-bold text-gray-800 text-sm">{r.category}</span>
+                                </div>
+                                {r.description && <p className="text-[10px] text-gray-400 truncate mt-0.5">{r.description}</p>}
                               </div>
                               {/* Sales */}
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-gray-700 truncate">{r.sales_name || '—'}</p>
+                              </div>
+                              {/* Team Handler — NEW COLUMN */}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                                    style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
+                                    {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-gray-800 truncate">{r.assigned_name}</p>
+                                    <p className="text-[10px] text-gray-400">@{r.assigned_to}</p>
+                                  </div>
+                                </div>
                               </div>
                               {/* PIC & No PIC */}
                               <div className="min-w-0">
@@ -1323,24 +1514,23 @@ export default function ReminderSchedulePage() {
                               {/* Status */}
                               <div className="space-y-1">
                                 <StatusBadge status={r.status} />
-                                <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                  {r.assigned_name}
-                                </p>
+                                {r.wa_sent_h1 && (
+                                  <p className="text-[9px] font-bold text-green-600 flex items-center gap-0.5">✅ WA H-1</p>
+                                )}
                               </div>
                               {/* Tanggal Schedule */}
                               <div className="min-w-0">
                                 <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
                                   style={{
-                                    background: overdue ? 'rgba(239,68,68,0.1)' : isDueToday(r.due_date) ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
-                                    border: overdue ? '1px solid rgba(239,68,68,0.3)' : isDueToday(r.due_date) ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
+                                    background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
+                                    border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
                                   }}>
                                   <span className="text-xl font-black leading-none"
-                                    style={{ color: overdue ? '#dc2626' : isDueToday(r.due_date) ? '#dc2626' : '#4f46e5' }}>
+                                    style={{ color: today ? '#dc2626' : '#4f46e5' }}>
                                     {new Date(r.due_date + 'T00:00:00').getDate()}
                                   </span>
                                   <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
-                                    style={{ color: overdue ? '#dc2626' : isDueToday(r.due_date) ? '#dc2626' : '#6366f1' }}>
+                                    style={{ color: today ? '#dc2626' : '#6366f1' }}>
                                     {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
                                   </span>
                                   {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
@@ -1373,7 +1563,6 @@ export default function ReminderSchedulePage() {
                   selectedCalDay={selectedCalDay}
                   setSelectedCalDay={setSelectedCalDay}
                 />
-
               </div>
             </>
           )}
@@ -1408,6 +1597,7 @@ export default function ReminderSchedulePage() {
                       rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Detail pekerjaan..." />
                   </FormField>
 
+                  {/* Category picker — larger text as requested */}
                   <div>
                     <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Kategori *</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1416,13 +1606,14 @@ export default function ReminderSchedulePage() {
                         const sel = formData.category === cat;
                         return (
                           <button key={cat} type="button" onClick={() => fd({ category: cat })}
-                            className="flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-left transition-all font-semibold text-sm"
+                            className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 text-left transition-all"
                             style={sel
                               ? { borderColor: c.accent, background: c.bg, color: c.color }
                               : { borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)', color: '#64748b' }}>
-                            <span className="text-xl">{c.icon}</span>
-                            <span className="leading-tight flex-1">{cat}</span>
-                            {sel && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                            <span className="text-2xl">{c.icon}</span>
+                            {/* ← Enlarged category label text */}
+                            <span className="text-base font-bold leading-tight flex-1">{cat}</span>
+                            {sel && <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                           </button>
                         );
                       })}
@@ -1500,7 +1691,7 @@ export default function ReminderSchedulePage() {
                           className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi" />
                       </div>
                     </FormField>
-                    <FormField label="No. Telepon PIC">
+                    <FormField label="No. Telepon PIC (untuk WA H-1)">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
                         <input type="tel" value={formData.pic_phone} onChange={e => fd({ pic_phone: e.target.value })}
@@ -1508,6 +1699,16 @@ export default function ReminderSchedulePage() {
                       </div>
                     </FormField>
                   </div>
+
+                  {formData.pic_phone && (
+                    <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
+                      <span className="text-green-500 text-lg">💬</span>
+                      <div>
+                        <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
+                        <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.pic_phone}</strong> sehari sebelum jadwal.</p>
+                      </div>
+                    </div>
+                  )}
 
                   <SectionHeader icon="📝" title="Catatan Tambahan" />
 
