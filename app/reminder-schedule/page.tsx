@@ -27,9 +27,9 @@ interface Reminder {
   repeat: RepeatType;
   category: string;
   sales_name: string;
-  sales_phone: string;
   project_location: string;
-  pic_project: string;
+  pic_name: string;
+  pic_phone: string;
   created_by: string;
   created_at: string;
   notes?: string;
@@ -40,6 +40,7 @@ interface TeamUser {
   username: string;
   full_name: string;
   role: string;
+  team_type?: string;
 }
 
 // ─── SQL Setup — jalankan di Supabase SQL Editor ──────────────────────────────
@@ -56,15 +57,21 @@ interface TeamUser {
 //   repeat TEXT DEFAULT 'none',
 //   category TEXT DEFAULT 'Demo Product',
 //   sales_name TEXT DEFAULT '',
-//   sales_phone TEXT DEFAULT '',
 //   project_location TEXT DEFAULT '',
-//   pic_project TEXT DEFAULT '',
+//   pic_name TEXT DEFAULT '',
+//   pic_phone TEXT DEFAULT '',
 //   created_by TEXT NOT NULL,
 //   created_at TIMESTAMPTZ DEFAULT NOW(),
 //   notes TEXT DEFAULT ''
 // );
 // ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
 // CREATE POLICY "Allow all" ON reminders FOR ALL USING (true);
+//
+// Migration (jika tabel sudah ada):
+// ALTER TABLE reminders DROP COLUMN IF EXISTS sales_phone;
+// ALTER TABLE reminders DROP COLUMN IF EXISTS pic_project;
+// ALTER TABLE reminders ADD COLUMN IF NOT EXISTS pic_name TEXT DEFAULT '';
+// ALTER TABLE reminders ADD COLUMN IF NOT EXISTS pic_phone TEXT DEFAULT '';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -195,6 +202,12 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value?: 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ReminderSchedulePage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginTime, setLoginTime] = useState<number | null>(null);
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [showBellPopup, setShowBellPopup] = useState(false);
+  const [myReminders, setMyReminders] = useState<Reminder[]>([]);
   const [currentUser, setCurrentUser]   = useState<TeamUser | null>(null);
   const [teamUsers, setTeamUsers]       = useState<TeamUser[]>([]);
   const [reminders, setReminders]       = useState<Reminder[]>([]);
@@ -223,7 +236,7 @@ export default function ReminderSchedulePage() {
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
-    sales_name: '', sales_phone: '', project_location: '', pic_project: '',
+    sales_name: '', project_location: '', pic_name: '', pic_phone: '',
     notes: '',
   };
   const [formData, setFormData] = useState(emptyForm);
@@ -233,7 +246,21 @@ export default function ReminderSchedulePage() {
 
   useEffect(() => {
     const saved = localStorage.getItem('currentUser');
-    if (saved) { try { setCurrentUser(JSON.parse(saved)); } catch { /* ignore */ } }
+    const savedTime = localStorage.getItem('loginTime');
+    if (saved && savedTime) {
+      const user = JSON.parse(saved);
+      const time = parseInt(savedTime);
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000;
+      if (now - time > sixHours) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('loginTime');
+      } else {
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setLoginTime(time);
+      }
+    }
     fetchTeamUsers();
     fetchReminders();
 
@@ -244,8 +271,8 @@ export default function ReminderSchedulePage() {
   }, []);
 
   const fetchTeamUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username, full_name, role').order('full_name');
-    if (data) setTeamUsers(data);
+    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type').order('full_name');
+    if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
   const fetchReminders = async () => {
@@ -303,8 +330,8 @@ export default function ReminderSchedulePage() {
     setEditingReminder(r);
     setFormData({ title: r.title, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
-      sales_name: r.sales_name ?? '', sales_phone: r.sales_phone ?? '',
-      project_location: r.project_location ?? '', pic_project: r.pic_project ?? '', notes: r.notes ?? '' });
+      sales_name: r.sales_name ?? '',
+      project_location: r.project_location ?? '', pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '' });
     setView('form');
   };
 
@@ -344,12 +371,115 @@ export default function ReminderSchedulePage() {
   const isAdmin = ['admin', 'superadmin', 'team_pts'].includes(currentUser?.role?.toLowerCase() ?? '');
   const calDayReminders = selectedCalDay ? reminders.filter(r => r.due_date === selectedCalDay) : [];
 
+  // ─── Login / Logout ───────────────────────────────────────────────────────
+  const handleLogin = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', loginForm.username)
+        .eq('password', loginForm.password)
+        .single();
+      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
+      const now = Date.now();
+      setCurrentUser(data);
+      setIsLoggedIn(true);
+      setLoginTime(now);
+      localStorage.setItem('currentUser', JSON.stringify(data));
+      localStorage.setItem('loginTime', now.toString());
+      // Show notification popup for assigned reminders
+      const assigned = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
+      if (assigned.length > 0) { setMyReminders(assigned); setShowNotificationPopup(true); }
+    } catch { notify('error', 'Login gagal!'); }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setLoginTime(null);
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('loginTime');
+  };
+
+  // Bell notification for current user's assigned reminders
+  const myActiveReminders = reminders.filter(r =>
+    currentUser && r.assigned_to === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
+  );
+  const myOverdueCount = myActiveReminders.filter(r => isOverdue(r.due_date, r.due_time, r.status)).length;
+
   // ─── Style helpers ─────────────────────────────────────────────────────────
   const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
   const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
   const cardStyle = { background: 'rgba(255,255,255,0.78)', border: '1px solid rgba(0,0,0,0.09)', backdropFilter: 'blur(10px)' };
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
+
+  // ── Loading screen ────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+        <div className="bg-white/75 backdrop-blur-md p-8 rounded-2xl shadow-2xl border-4 border-red-600 flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600"></div>
+          <p className="font-bold text-gray-700">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Login page ────────────────────────────────────────────────────────────
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+        {toast && (
+          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}
+            style={{ boxShadow: toast.type === 'success' ? '0 4px 20px rgba(16,185,129,0.4)' : '0 4px 20px rgba(220,38,38,0.4)' }}>
+            {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
+          </div>
+        )}
+        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border-4 border-red-600">
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+              <span className="text-3xl">🗓️</span>
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-center mb-1 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
+            Login
+          </h1>
+          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Reminder Schedule Platform<br/><span className="text-red-600 font-bold">PTS IVP — Team Work Planner</span></p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold mb-2 text-gray-700">Username</label>
+              <input
+                type="text"
+                value={loginForm.username}
+                onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white"
+                placeholder="Masukkan username"
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-2 text-gray-700">Password</label>
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white"
+                placeholder="Masukkan password"
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            <button
+              onClick={handleLogin}
+              className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all"
+            >
+              🔐 Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col relative" style={{
@@ -371,26 +501,163 @@ export default function ReminderSchedulePage() {
           </div>
         )}
 
+        {/* ── NOTIFICATION POPUP (on login) ────────────────────────────── */}
+        {showNotificationPopup && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400" style={{ animation: 'scale-in 0.3s ease-out' }}>
+              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl animate-bounce">🔔</span>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Reminder Kamu</h3>
+                      <p className="text-sm text-white/90">{myReminders.length} reminder aktif yang diassign ke kamu</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+                </div>
+              </div>
+              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
+                {myReminders.map(r => {
+                  const ov = isOverdue(r.due_date, r.due_time, r.status);
+                  const catCfg = CATEGORY_CONFIG[r.category] ?? { icon: '📁', accent: '#64748b' };
+                  return (
+                    <div key={r.id}
+                      onClick={() => { setSelectedReminder(r); setView('detail'); setShowNotificationPopup(false); }}
+                      className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                      style={{ background: ov ? 'rgba(254,242,242,0.9)' : 'rgba(249,250,251,0.9)', borderColor: ov ? '#fca5a5' : '#e5e7eb' }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            {ov && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300">🔥 OVERDUE</span>}
+                            <CategoryBadge category={r.category} />
+                            <PriorityBadge priority={r.priority} />
+                          </div>
+                          <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
+                          {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          <StatusBadge status={r.status} />
+                          <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+                <button
+                  onClick={() => setShowNotificationPopup(false)}
+                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all"
+                >
+                  ✕ Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── BELL POPUP ───────────────────────────────────────────────── */}
+        {showBellPopup && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400" style={{ animation: 'scale-in 0.3s ease-out' }}>
+              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">🔔</span>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Reminder Aktif Kamu</h3>
+                      <p className="text-sm text-white/90">{myActiveReminders.length} aktif · {myOverdueCount > 0 ? `${myOverdueCount} overdue` : 'tidak ada yang overdue'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+                </div>
+              </div>
+              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
+                {myActiveReminders.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500">
+                    <div className="text-5xl mb-3">✅</div>
+                    <p className="font-semibold">Tidak ada reminder aktif</p>
+                  </div>
+                ) : myActiveReminders.map(r => {
+                  const ov = isOverdue(r.due_date, r.due_time, r.status);
+                  return (
+                    <div key={r.id}
+                      onClick={() => { setSelectedReminder(r); setView('detail'); setShowBellPopup(false); }}
+                      className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                      style={{ background: ov ? 'rgba(254,242,242,0.9)' : 'rgba(249,250,251,0.9)', borderColor: ov ? '#fca5a5' : '#e5e7eb' }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            {ov && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300">🔥 OVERDUE</span>}
+                            <CategoryBadge category={r.category} />
+                          </div>
+                          <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
+                          {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          <StatusBadge status={r.status} />
+                          <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+                <button onClick={() => setShowBellPopup(false)} className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all">✕ Tutup</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.82)', borderBottom: '1px solid rgba(0,0,0,0.1)', backdropFilter: 'blur(16px)' }}>
+        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.85)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
                 <span className="text-lg">🗓️</span>
               </div>
               <div>
-                <h1 className="text-base font-black tracking-tight style colors via inline">Reminder Schedule</h1>
+                <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Reminder Schedule</h1>
                 <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#dc2626' }}>PTS IVP — Team Work Planner</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Bell icon */}
+              <button onClick={() => setShowBellPopup(true)} className="relative p-2 rounded-xl transition-all hover:bg-red-50 border-2 border-transparent hover:border-red-200">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {myActiveReminders.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                    style={{ background: myOverdueCount > 0 ? '#dc2626' : '#f59e0b' }}>
+                    {myActiveReminders.length}
+                  </span>
+                )}
+              </button>
               {isAdmin && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setView('form'); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-slate-800 transition-all hover:scale-105 hover:opacity-90"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                   Tambah Reminder
                 </button>
+              )}
+              {/* User info + logout */}
+              {currentUser && (
+                <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+                    {currentUser.full_name?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="hidden sm:block">
+                    <p className="text-xs font-bold text-gray-800 leading-tight">{currentUser.full_name}</p>
+                    <p className="text-[10px] text-gray-500">{currentUser.role}</p>
+                  </div>
+                  <button onClick={handleLogout} className="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border-2 border-red-200 hover:bg-red-50 transition-all">
+                    Logout
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -642,12 +909,16 @@ export default function ReminderSchedulePage() {
                                 {r.sales_name && (
                                   <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
                                     <span>👤</span><span className="font-medium truncate text-slate-400">{r.sales_name}</span>
-                                    {r.sales_phone && <span className="flex-shrink-0">· {r.sales_phone}</span>}
                                   </div>
                                 )}
                                 {r.project_location && (
                                   <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
                                     <span>📍</span><span className="truncate">{r.project_location}</span>
+                                  </div>
+                                )}
+                                {r.pic_name && (
+                                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
+                                    <span>🙋</span><span className="truncate">{r.pic_name}{r.pic_phone ? ` · ${r.pic_phone}` : ''}</span>
                                   </div>
                                 )}
                               </div>
@@ -779,30 +1050,33 @@ export default function ReminderSchedulePage() {
                           className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama Sales" />
                       </div>
                     </FormField>
-                    <FormField label="No. Telepon Sales">
+                    <FormField label="Lokasi Project *">
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
-                        <input type="tel" value={formData.sales_phone} onChange={e => fd({ sales_phone: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxxxxxxxxx" />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
+                        <input value={formData.project_location} onChange={e => fd({ project_location: e.target.value })}
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
                       </div>
                     </FormField>
                   </div>
 
-                  <FormField label="Lokasi Project *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
-                      <input value={formData.project_location} onChange={e => fd({ project_location: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12, Jakarta Pusat" />
-                    </div>
-                  </FormField>
+                  <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
 
-                  <FormField label="PIC Project (Opsional)">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🎯</span>
-                      <input value={formData.pic_project} onChange={e => fd({ pic_project: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi (opsional)" />
-                    </div>
-                  </FormField>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField label="Nama PIC">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🙋</span>
+                        <input value={formData.pic_name} onChange={e => fd({ pic_name: e.target.value })}
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi" />
+                      </div>
+                    </FormField>
+                    <FormField label="No. Telepon PIC">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
+                        <input type="tel" value={formData.pic_phone} onChange={e => fd({ pic_phone: e.target.value })}
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxxxxxxxxx" />
+                      </div>
+                    </FormField>
+                  </div>
 
                   <SectionHeader icon="📝" title="Catatan Tambahan" />
 
@@ -886,18 +1160,22 @@ export default function ReminderSchedulePage() {
                     <SectionHeaderSmall icon="🏢" title="Informasi Project" />
                     <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                       <InfoRow icon="👤" label="Nama Sales" value={selectedReminder.sales_name} />
-                      {selectedReminder.sales_phone && (
-                        <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                          <span className="text-base flex-shrink-0">📱</span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#64748b' }}>No. Telepon Sales</p>
-                            <a href={`tel:${selectedReminder.sales_phone}`} className="text-sm font-semibold hover:underline" style={{ color: '#60a5fa' }}
-                              onClick={e => e.stopPropagation()}>{selectedReminder.sales_phone}</a>
-                          </div>
-                        </div>
-                      )}
                       <InfoRow icon="📍" label="Lokasi Project" value={selectedReminder.project_location} />
-                      {selectedReminder.pic_project && <InfoRow icon="🎯" label="PIC Project" value={selectedReminder.pic_project} />}
+                      {(selectedReminder.pic_name || selectedReminder.pic_phone) && (
+                        <>
+                          {selectedReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={selectedReminder.pic_name} />}
+                          {selectedReminder.pic_phone && (
+                            <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                              <span className="text-base flex-shrink-0">📱</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#64748b' }}>No. Telepon PIC</p>
+                                <a href={`tel:${selectedReminder.pic_phone}`} className="text-sm font-semibold hover:underline" style={{ color: '#60a5fa' }}
+                                  onClick={e => e.stopPropagation()}>{selectedReminder.pic_phone}</a>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -958,12 +1236,16 @@ export default function ReminderSchedulePage() {
           from { opacity:0; transform:translateY(14px); }
           to   { opacity:1; transform:translateY(0); }
         }
-        select option { background: #0c1223; color: #e2e8f0; }
+        @keyframes scale-in {
+          from { opacity:0; transform:scale(0.92); }
+          to   { opacity:1; transform:scale(1); }
+        }
+        select option { background: #ffffff; color: #1e293b; }
         input[type="date"]::-webkit-calendar-picker-indicator,
-        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.3); cursor: pointer; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(220,38,38,0.25); border-radius: 4px; }
       `}</style>
     </div>
   );
