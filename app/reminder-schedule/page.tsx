@@ -76,10 +76,10 @@ const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: stri
 };
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; border: string; icon: string }> = {
-  pending:     { label: 'Pending',     color: '#fff', bg: '#f59e0b', border: '#f59e0b', icon: '⏳' },
-  in_progress: { label: 'In Progress', color: '#fff', bg: '#3b82f6', border: '#3b82f6', icon: '🔄' },
-  done:        { label: 'Done',        color: '#fff', bg: '#10b981', border: '#10b981', icon: '✅' },
-  cancelled:   { label: 'Cancelled',   color: '#fff', bg: '#6b7280', border: '#6b7280', icon: '❌' },
+  pending:     { label: 'Pending',     color: '#64748b', bg: '#f59e0b', border: '#f59e0b', icon: '⏳' },
+  in_progress: { label: 'In Progress', color: '#64748b', bg: '#3b82f6', border: '#3b82f6', icon: '🔄' },
+  done:        { label: 'Done',        color: '#64748b', bg: '#10b981', border: '#10b981', icon: '✅' },
+  cancelled:   { label: 'Cancelled',   color: '#64748b', bg: '#6b7280', border: '#6b7280', icon: '❌' },
 };
 
 const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Troubleshooting'];
@@ -164,9 +164,9 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
 
 function SectionHeader({ icon, title }: { icon: string; title: string }) {
   return (
-    <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+    <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
       <span className="text-lg">{icon}</span>
-      <span className="text-sm font-bold tracking-wide text-white">{title}</span>
+      <span className="text-sm font-bold tracking-wide text-slate-700">{title}</span>
     </div>
   );
 }
@@ -182,11 +182,11 @@ function SectionHeaderSmall({ icon, title }: { icon: string; title: string }) {
 function InfoRow({ icon, label, value }: { icon: string; label: string; value?: string | null }) {
   if (!value) return null;
   return (
-    <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+    <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
       <span className="text-base flex-shrink-0">{icon}</span>
       <div className="min-w-0">
         <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#64748b' }}>{label}</p>
-        <p className="text-sm font-semibold text-white break-words">{value}</p>
+        <p className="text-sm font-semibold text-slate-800 break-words">{value}</p>
       </div>
     </div>
   );
@@ -345,9 +345,9 @@ export default function ReminderSchedulePage() {
   const calDayReminders = selectedCalDay ? reminders.filter(r => r.due_date === selectedCalDay) : [];
 
   // ─── Style helpers ─────────────────────────────────────────────────────────
-  const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-white placeholder-slate-500 focus:ring-2 focus:ring-red-500/40";
-  const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' };
-  const cardStyle = { background: 'rgba(12,18,35,0.88)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)' };
+  const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
+  const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
+  const cardStyle = { background: 'rgba(255,255,255,0.78)', border: '1px solid rgba(0,0,0,0.09)', backdropFilter: 'blur(10px)' };
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
 
@@ -359,7 +359,7 @@ export default function ReminderSchedulePage() {
       backgroundAttachment: 'fixed',
     }}>
       {/* Dark overlay */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(4,8,20,0.83)' }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
       <div className="relative z-10 flex flex-col min-h-screen">
 
@@ -372,21 +372,21 @@ export default function ReminderSchedulePage() {
         )}
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="sticky top-0 z-50" style={{ background: 'rgba(4,8,20,0.95)', borderBottom: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(16px)' }}>
+        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.82)', borderBottom: '1px solid rgba(0,0,0,0.1)', backdropFilter: 'blur(16px)' }}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
                 <span className="text-lg">🗓️</span>
               </div>
               <div>
-                <h1 className="text-base font-black tracking-tight text-white">Reminder Schedule</h1>
-                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#ef4444' }}>PTS IVP — Team Work Planner</p>
+                <h1 className="text-base font-black tracking-tight style colors via inline">Reminder Schedule</h1>
+                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#dc2626' }}>PTS IVP — Team Work Planner</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {isAdmin && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setView('form'); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-slate-800 transition-all hover:scale-105 hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                   Tambah Reminder
@@ -414,10 +414,10 @@ export default function ReminderSchedulePage() {
                   <div key={card.label} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2"
                     style={{ background: card.gradient, boxShadow: `0 4px 16px ${card.shadow}` }}>
                     <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
-                    <span className="text-3xl font-black text-white leading-none">{card.value}</span>
+                    <span className="text-3xl font-black text-slate-800 leading-none">{card.value}</span>
                     <div>
-                      <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
-                      <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>{card.sub}</p>
+                      <p className="text-sm font-bold text-slate-800 leading-tight">{card.label}</p>
+                      <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
                     </div>
                   </div>
                 ))}
@@ -429,16 +429,16 @@ export default function ReminderSchedulePage() {
                 {/* ── CALENDAR (always inline) ── */}
                 <div className="rounded-2xl overflow-hidden flex flex-col" style={cardStyle}>
                   {/* Month nav */}
-                  <div className="px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div className="px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
                     <button onClick={() => { setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1)); setSelectedCalDay(null); }}
-                      className="p-1.5 rounded-lg transition-all hover:bg-white/10" style={{ color: '#64748b' }}>
+                      className="p-1.5 rounded-lg transition-all hover:bg-black/5" style={{ color: '#64748b' }}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                     </button>
-                    <h2 className="text-sm font-bold text-white">
+                    <h2 className="text-sm font-bold text-slate-800">
                       {calendarMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
                     </h2>
                     <button onClick={() => { setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1)); setSelectedCalDay(null); }}
-                      className="p-1.5 rounded-lg transition-all hover:bg-white/10" style={{ color: '#64748b' }}>
+                      className="p-1.5 rounded-lg transition-all hover:bg-black/5" style={{ color: '#64748b' }}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
                   </div>
@@ -447,7 +447,7 @@ export default function ReminderSchedulePage() {
                     {/* Day headers */}
                     <div className="grid grid-cols-7 mb-1">
                       {['Min','Sen','Sel','Rab','Kam','Jum','Sab'].map(d => (
-                        <div key={d} className="text-center text-[10px] font-bold tracking-widest py-1.5" style={{ color: '#334155' }}>{d}</div>
+                        <div key={d} className="text-center text-[10px] font-bold tracking-widest py-1.5" style={{ color: '#64748b' }}>{d}</div>
                       ))}
                     </div>
                     {/* Days grid */}
@@ -468,11 +468,11 @@ export default function ReminderSchedulePage() {
                             onClick={() => setSelectedCalDay(isSelected ? null : ds)}
                             className="h-14 rounded-xl p-1 cursor-pointer transition-all relative"
                             style={{
-                              border: isSelected ? '1.5px solid #dc2626' : isToday ? '1.5px solid rgba(59,130,246,0.5)' : '1px solid rgba(255,255,255,0.04)',
+                              border: isSelected ? '1.5px solid #dc2626' : isToday ? '1.5px solid rgba(59,130,246,0.6)' : '1px solid rgba(0,0,0,0.06)',
                               background: isSelected ? 'rgba(220,38,38,0.12)' : isToday ? 'rgba(59,130,246,0.08)' : 'transparent',
                             }}>
                             <div className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center mb-0.5 mx-auto"
-                              style={isToday ? { background: '#3b82f6', color: '#fff' } : { color: isSelected ? '#fca5a5' : '#475569' }}>
+                              style={isToday ? { background: '#3b82f6', color: '#64748b' } : { color: isSelected ? '#dc2626' : '#374151' }}>
                               {day}
                             </div>
                             {dayRems.length > 0 && (
@@ -482,7 +482,7 @@ export default function ReminderSchedulePage() {
                                   const cc = CATEGORY_CONFIG[r.category] ?? { accent: '#64748b' };
                                   return <span key={r.id} className="w-1.5 h-1.5 rounded-full" style={{ background: ov ? '#ef4444' : cc.accent }} />;
                                 })}
-                                {dayRems.length > 3 && <span className="text-[8px] font-bold" style={{ color: '#475569' }}>+{dayRems.length - 3}</span>}
+                                {dayRems.length > 3 && <span className="text-[8px] font-bold" style={{ color: '#64748b' }}>+{dayRems.length - 3}</span>}
                               </div>
                             )}
                             {hasOverdue && <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-red-500" />}
@@ -495,14 +495,14 @@ export default function ReminderSchedulePage() {
 
                   {/* Selected day detail */}
                   {selectedCalDay ? (
-                    <div className="flex-1" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div className="flex-1" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
                       <div className="px-4 py-3">
-                        <p className="text-xs font-bold text-white mb-2">
+                        <p className="text-xs font-bold text-slate-800 mb-2">
                           📅 {new Date(selectedCalDay + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
-                          <span className="ml-2 text-xs font-normal" style={{ color: '#475569' }}>({calDayReminders.length} jadwal)</span>
+                          <span className="ml-2 text-xs font-normal" style={{ color: '#64748b' }}>({calDayReminders.length} jadwal)</span>
                         </p>
                         {calDayReminders.length === 0 ? (
-                          <p className="text-xs py-2" style={{ color: '#475569' }}>Tidak ada jadwal pada hari ini.</p>
+                          <p className="text-xs py-2" style={{ color: '#64748b' }}>Tidak ada jadwal pada hari ini.</p>
                         ) : (
                           <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                             {calDayReminders.map(r => {
@@ -511,12 +511,12 @@ export default function ReminderSchedulePage() {
                               return (
                                 <button key={r.id} onClick={() => { setSelectedReminder(r); setView('detail'); }}
                                   className="w-full text-left rounded-lg px-3 py-2 transition-all hover:opacity-80"
-                                  style={{ background: ov ? 'rgba(220,38,38,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${ov ? 'rgba(220,38,38,0.3)' : 'rgba(255,255,255,0.07)'}` }}>
+                                  style={{ background: ov ? 'rgba(220,38,38,0.10)' : 'rgba(255,255,255,0.55)', border: `1px solid ${ov ? 'rgba(220,38,38,0.3)' : 'rgba(0,0,0,0.07)'}` }}>
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-semibold text-white truncate">{cc.icon} {r.title}</span>
+                                    <span className="text-xs font-semibold text-slate-800 truncate">{cc.icon} {r.title}</span>
                                     <StatusBadge status={r.status} />
                                   </div>
-                                  <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>{r.assigned_name} · {r.due_time}</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>{r.assigned_name} · {r.due_time}</p>
                                 </button>
                               );
                             })}
@@ -525,11 +525,11 @@ export default function ReminderSchedulePage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="px-4 pb-3 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                      <p className="text-[10px] mb-1.5" style={{ color: '#334155' }}>Klik tanggal untuk lihat jadwal</p>
+                    <div className="px-4 pb-3 pt-1" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+                      <p className="text-[10px] mb-1.5" style={{ color: '#64748b' }}>Klik tanggal untuk lihat jadwal</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1">
                         {Object.entries(CATEGORY_CONFIG).map(([cat, c]) => (
-                          <span key={cat} className="flex items-center gap-1 text-[10px]" style={{ color: '#334155' }}>
+                          <span key={cat} className="flex items-center gap-1 text-[10px]" style={{ color: '#64748b' }}>
                             <span className="w-2 h-2 rounded-full" style={{ background: c.accent }} />{cat}
                           </span>
                         ))}
@@ -543,7 +543,7 @@ export default function ReminderSchedulePage() {
                   {/* Search + Filter */}
                   <div className="rounded-2xl p-4 flex flex-wrap gap-3 items-center" style={cardStyle}>
                     <div className="flex-1 min-w-[160px] relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#475569' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#64748b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                       <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                         className={`${inputCls} pl-9`} style={inputStyle}
                         placeholder="Cari judul, sales, lokasi..." />
@@ -565,8 +565,8 @@ export default function ReminderSchedulePage() {
                     <button onClick={() => setFilterCategory('all')}
                       className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
                       style={filterCategory === 'all'
-                        ? { background: '#dc2626', color: '#fff', boxShadow: '0 2px 10px rgba(220,38,38,0.4)' }
-                        : { background: 'rgba(255,255,255,0.05)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        ? { background: '#dc2626', color: '#64748b', boxShadow: '0 2px 10px rgba(220,38,38,0.4)' }
+                        : { background: 'rgba(255,255,255,0.05)', color: '#64748b', border: '1px solid rgba(0,0,0,0.08)' }}>
                       🗂️ Semua
                     </button>
                     {CATEGORIES.map(cat => {
@@ -576,13 +576,13 @@ export default function ReminderSchedulePage() {
                         <button key={cat} onClick={() => setFilterCategory(cat)}
                           className="px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1"
                           style={active
-                            ? { background: c.accent, color: '#fff', boxShadow: `0 2px 10px ${c.accent}66` }
-                            : { background: 'rgba(255,255,255,0.05)', color: c.color, border: `1px solid ${c.border}` }}>
+                            ? { background: c.accent, color: '#64748b', boxShadow: `0 2px 10px ${c.accent}66` }
+                            : { background: 'rgba(255,255,255,0.5)', color: c.color, border: `1px solid ${c.border}` }}>
                           {c.icon} {cat}
                         </button>
                       );
                     })}
-                    <span className="ml-auto text-xs font-semibold" style={{ color: '#334155' }}>
+                    <span className="ml-auto text-xs font-semibold" style={{ color: '#64748b' }}>
                       {filteredReminders.length} / {reminders.length}
                     </span>
                   </div>
@@ -595,8 +595,8 @@ export default function ReminderSchedulePage() {
                   ) : filteredReminders.length === 0 ? (
                     <div className="text-center py-20 rounded-2xl" style={cardStyle}>
                       <div className="text-5xl mb-3">📭</div>
-                      <p className="text-white font-semibold">Tidak ada reminder ditemukan</p>
-                      <p className="text-sm mt-1" style={{ color: '#334155' }}>Coba ubah filter atau tambahkan reminder baru</p>
+                      <p className="text-slate-800 font-semibold">Tidak ada reminder ditemukan</p>
+                      <p className="text-sm mt-1" style={{ color: '#64748b' }}>Coba ubah filter atau tambahkan reminder baru</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
@@ -610,10 +610,10 @@ export default function ReminderSchedulePage() {
                           <div key={r.id}
                             className="rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                             style={{
-                              background: 'rgba(12,18,35,0.90)',
-                              border: overdue ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(255,255,255,0.07)',
+                              background: 'rgba(255,255,255,0.78)',
+                              border: overdue ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(0,0,0,0.09)',
                               borderLeft: `3px solid ${overdue ? '#ef4444' : catCfg.accent}`,
-                              boxShadow: overdue ? '0 2px 12px rgba(220,38,38,0.15)' : '0 2px 8px rgba(0,0,0,0.3)',
+                              boxShadow: overdue ? '0 2px 12px rgba(220,38,38,0.15)' : '0 2px 8px rgba(0,0,0,0.06)',
                               animation: 'fadeInUp 0.35s ease forwards',
                               animationDelay: `${idx * 30}ms`,
                               opacity: 0,
@@ -636,32 +636,32 @@ export default function ReminderSchedulePage() {
                                 <StatusBadge status={r.status} />
                               </div>
 
-                              <h3 className="font-bold text-white text-sm leading-snug line-clamp-2 mb-1.5">{r.title}</h3>
+                              <h3 className="font-bold text-gray-800 text-sm leading-snug line-clamp-2 mb-1.5">{r.title}</h3>
 
                               <div className="space-y-0.5">
                                 {r.sales_name && (
-                                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#475569' }}>
+                                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
                                     <span>👤</span><span className="font-medium truncate text-slate-400">{r.sales_name}</span>
                                     {r.sales_phone && <span className="flex-shrink-0">· {r.sales_phone}</span>}
                                   </div>
                                 )}
                                 {r.project_location && (
-                                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#475569' }}>
+                                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
                                     <span>📍</span><span className="truncate">{r.project_location}</span>
                                   </div>
                                 )}
                               </div>
                             </div>
 
-                            <div className="px-4 pb-3 pt-2 flex items-center justify-between gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div className="px-4 pb-3 pt-2 flex items-center justify-between gap-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0"
                                   style={{ background: catCfg.bg, color: catCfg.color }}>
                                   {r.assigned_name.charAt(0).toUpperCase()}
                                 </div>
-                                <span className="text-xs font-semibold truncate" style={{ color: '#64748b' }}>{r.assigned_name}</span>
+                                <span className="text-xs font-semibold truncate text-slate-600">{r.assigned_name}</span>
                               </div>
-                              <div className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: '#334155' }}>
+                              <div className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: '#64748b' }}>
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                 {formatDate(r.due_date)} · {r.due_time}
                               </div>
@@ -679,11 +679,11 @@ export default function ReminderSchedulePage() {
           {/* ─── FORM VIEW ───────────────────────────────────────────────── */}
           {view === 'form' && (
             <div className="max-w-2xl mx-auto">
-              <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle, border: '1px solid rgba(0,0,0,0.1)' }}>
                 <div className="px-8 py-6" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-white">{editingReminder ? '✏️ Edit Reminder' : '➕ Tambah Reminder'}</h2>
+                      <h2 className="text-xl font-bold text-slate-800">{editingReminder ? '✏️ Edit Reminder' : '➕ Tambah Reminder'}</h2>
                       <p className="text-red-200/70 text-xs mt-1">Isi detail jadwal & informasi project</p>
                     </div>
                     <button onClick={() => { setView('list'); setEditingReminder(null); setFormData(emptyForm); }}
@@ -717,7 +717,7 @@ export default function ReminderSchedulePage() {
                             className="flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-left transition-all font-semibold text-sm"
                             style={sel
                               ? { borderColor: c.accent, background: c.bg, color: c.color }
-                              : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', color: '#475569' }}>
+                              : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.5)', color: '#64748b' }}>
                             <span className="text-xl">{c.icon}</span>
                             <span className="leading-tight flex-1">{cat}</span>
                             {sel && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
@@ -814,7 +814,7 @@ export default function ReminderSchedulePage() {
                   <div className="flex gap-3 pt-2">
                     <button onClick={() => { setView('list'); setEditingReminder(null); setFormData(emptyForm); }}
                       className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
-                      style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
                       Batal
                     </button>
                     <button onClick={handleSave} disabled={saving}
@@ -833,7 +833,7 @@ export default function ReminderSchedulePage() {
           {view === 'detail' && selectedReminder && (
             <div className="max-w-2xl mx-auto">
               <button onClick={() => setView('list')} className="mb-4 flex items-center gap-2 font-semibold text-sm transition-all hover:opacity-70"
-                style={{ color: '#ef4444' }}>
+                style={{ color: '#dc2626' }}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 Kembali ke List
               </button>
@@ -854,43 +854,43 @@ export default function ReminderSchedulePage() {
                       </span>
                     )}
                   </div>
-                  <h2 className="text-2xl font-bold text-white leading-tight">{selectedReminder.title}</h2>
-                  {selectedReminder.description && <p className="text-white/70 text-sm mt-2 leading-relaxed">{selectedReminder.description}</p>}
+                  <h2 className="text-2xl font-bold text-slate-800 leading-tight">{selectedReminder.title}</h2>
+                  {selectedReminder.description && <p className="text-white/80 text-sm mt-2 leading-relaxed">{selectedReminder.description}</p>}
                 </div>
 
                 <div className="p-8 space-y-6">
                   <div>
                     <SectionHeaderSmall icon="📋" title="Detail Jadwal" />
                     <div className="mt-3 grid grid-cols-2 gap-4">
-                      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#475569' }}>Assign To</p>
+                      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)' }}>
+                        <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Assign To</p>
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ background: 'rgba(220,38,38,0.2)', color: '#fca5a5' }}>
                             {selectedReminder.assigned_name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-white">{selectedReminder.assigned_name}</p>
-                            <p className="text-xs" style={{ color: '#475569' }}>@{selectedReminder.assigned_to}</p>
+                            <p className="text-sm font-bold text-slate-800">{selectedReminder.assigned_name}</p>
+                            <p className="text-xs" style={{ color: '#64748b' }}>@{selectedReminder.assigned_to}</p>
                           </div>
                         </div>
                       </div>
-                      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#475569' }}>Tenggat Waktu</p>
-                        <p className="text-sm font-bold text-white">{formatDate(selectedReminder.due_date)}</p>
-                        <p className="text-xs mt-0.5" style={{ color: '#475569' }}>⏰ {selectedReminder.due_time}</p>
+                      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)' }}>
+                        <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Tenggat Waktu</p>
+                        <p className="text-sm font-bold text-slate-800">{formatDate(selectedReminder.due_date)}</p>
+                        <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>⏰ {selectedReminder.due_time}</p>
                       </div>
                     </div>
                   </div>
 
                   <div>
                     <SectionHeaderSmall icon="🏢" title="Informasi Project" />
-                    <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                       <InfoRow icon="👤" label="Nama Sales" value={selectedReminder.sales_name} />
                       {selectedReminder.sales_phone && (
-                        <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                           <span className="text-base flex-shrink-0">📱</span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#475569' }}>No. Telepon Sales</p>
+                            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#64748b' }}>No. Telepon Sales</p>
                             <a href={`tel:${selectedReminder.sales_phone}`} className="text-sm font-semibold hover:underline" style={{ color: '#60a5fa' }}
                               onClick={e => e.stopPropagation()}>{selectedReminder.sales_phone}</a>
                           </div>
@@ -902,14 +902,14 @@ export default function ReminderSchedulePage() {
                   </div>
 
                   {selectedReminder.notes && (
-                    <div className="rounded-xl p-4" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                    <div className="rounded-xl p-4" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
                       <p className="text-[10px] font-bold tracking-widest uppercase mb-1" style={{ color: '#f59e0b' }}>📝 Catatan</p>
-                      <p className="text-slate-300 text-sm leading-relaxed">{selectedReminder.notes}</p>
+                      <p className="text-slate-700 text-sm leading-relaxed">{selectedReminder.notes}</p>
                     </div>
                   )}
 
                   <div>
-                    <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#475569' }}>Update Status</p>
+                    <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Update Status</p>
                     <div className="flex flex-wrap gap-2">
                       {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
                         const c = STATUS_CONFIG[s];
@@ -919,7 +919,7 @@ export default function ReminderSchedulePage() {
                             className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                             style={active
                               ? { background: c.bg, color: c.color }
-                              : { background: 'rgba(255,255,255,0.04)', color: '#475569', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              : { background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.1)' }}>
                             {c.icon} {c.label}
                           </button>
                         );
@@ -928,15 +928,15 @@ export default function ReminderSchedulePage() {
                   </div>
 
                   {isAdmin && (
-                    <div className="flex gap-3 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="flex gap-3 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                       <button onClick={() => openEdit(selectedReminder)}
                         className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-80"
-                        style={{ border: '1px solid rgba(59,130,246,0.35)', color: '#60a5fa', background: 'rgba(59,130,246,0.07)' }}>
+                        style={{ border: '1px solid rgba(59,130,246,0.35)', color: '#60a5fa', background: 'rgba(59,130,246,0.08)' }}>
                         ✏️ Edit
                       </button>
                       <button onClick={() => handleDelete(selectedReminder.id)}
                         className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-80"
-                        style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#fca5a5', background: 'rgba(220,38,38,0.07)' }}>
+                        style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#fca5a5', background: 'rgba(220,38,38,0.08)' }}>
                         🗑️ Hapus
                       </button>
                     </div>
@@ -948,7 +948,7 @@ export default function ReminderSchedulePage() {
 
         </div>
 
-        <footer className="py-4 text-center text-xs font-semibold" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#1e293b' }}>
+        <footer className="py-4 text-center text-xs font-semibold" style={{ borderTop: '1px solid rgba(0,0,0,0.06)', color: '#64748b' }}>
           © 2026 IndoVisual PTS — Reminder Schedule Platform
         </footer>
       </div>
@@ -963,7 +963,7 @@ export default function ReminderSchedulePage() {
         input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
       `}</style>
     </div>
   );
