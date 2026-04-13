@@ -267,28 +267,27 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
   const totalThisMonth = reminders.filter(r => r.due_date.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 
   return (
-    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 220 }}>
+    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 380 }}>
       {/* Header */}
-      <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
-        <button onClick={() => setCalendarMonth(new Date(y, m-1, 1))} className="text-white/80 hover:text-white font-bold text-sm px-1">‹</button>
+      <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+        <button onClick={() => setCalendarMonth(new Date(y, m-1, 1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
         <div className="text-center">
-          <p className="text-white font-bold text-xs">{monthNames[m]} {y}</p>
-          <p className="text-white/70 text-[9px]">{totalThisMonth} jadwal bulan ini</p>
+          <p className="text-white font-bold text-sm">{monthNames[m]} {y}</p>
+          <p className="text-white/70 text-[10px] mt-0.5">{totalThisMonth} jadwal bulan ini</p>
         </div>
-        <button onClick={() => setCalendarMonth(new Date(y, m+1, 1))} className="text-white/80 hover:text-white font-bold text-sm px-1">›</button>
+        <button onClick={() => setCalendarMonth(new Date(y, m+1, 1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">›</button>
       </div>
 
-      <div className="p-2">
-        {/* Day names - Senin sebagai hari pertama */}
-        <div className="grid grid-cols-7 mb-1">
-          {['S','S','R','K','J','S','M'].map((d,i) => (
-            <div key={i} className="text-center text-[9px] font-bold py-0.5" style={{ color: '#94a3b8' }}>{d}</div>
+      <div className="p-3">
+        {/* Day names */}
+        <div className="grid grid-cols-7 mb-1.5">
+          {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i) => (
+            <div key={i} className="text-center text-[10px] font-bold py-1" style={{ color: '#94a3b8' }}>{d}</div>
           ))}
         </div>
 
-        {/* Days grid - Senin pertama */}
-        <div className="grid grid-cols-7 gap-0.5">
-          {/* Offset: firstDay 0=Minggu, ubah ke Senin-first */}
+        {/* Days grid */}
+        <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: (firstDay === 0 ? 6 : firstDay - 1) }).map((_, i) => <div key={`e-${i}`} />)}
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
             const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
@@ -297,16 +296,16 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
             const isToday = ds === today;
             return (
               <button key={day} onClick={() => setSelectedCalDay(isSel ? null : ds)}
-                className="relative flex flex-col items-center justify-center rounded-md transition-all"
+                className="relative flex flex-col items-center justify-center rounded-lg transition-all hover:scale-105"
                 style={{
                   width: '100%', aspectRatio: '1',
                   background: isSel ? '#dc2626' : isToday ? 'rgba(220,38,38,0.12)' : cnt > 0 ? 'rgba(220,38,38,0.06)' : 'transparent',
-                  border: isToday && !isSel ? '1.5px solid rgba(220,38,38,0.5)' : '1.5px solid transparent',
+                  border: isToday && !isSel ? '2px solid rgba(220,38,38,0.5)' : isSel ? '2px solid #b91c1c' : '2px solid transparent',
                 }}>
-                <span className="text-[10px] font-semibold leading-none" style={{ color: isSel ? 'white' : isToday ? '#dc2626' : '#374151' }}>{day}</span>
+                <span className="text-xs font-semibold leading-none" style={{ color: isSel ? 'white' : isToday ? '#dc2626' : '#374151' }}>{day}</span>
                 {cnt > 0 && (
-                  <span className="text-[7px] font-bold leading-none mt-0.5 px-1 rounded-full"
-                    style={{ background: isSel ? 'rgba(255,255,255,0.3)' : '#dc2626', color: isSel ? 'white' : 'white' }}>
+                  <span className="text-[8px] font-bold leading-none mt-0.5 px-1.5 rounded-full"
+                    style={{ background: isSel ? 'rgba(255,255,255,0.35)' : '#dc2626', color: 'white' }}>
                     {cnt}
                   </span>
                 )}
@@ -320,23 +319,23 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
       {selectedCalDay && (() => {
         const dayRems = reminders.filter(r => r.due_date === selectedCalDay);
         return (
-          <div className="px-2 pb-2">
+          <div className="px-3 pb-3">
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(220,38,38,0.2)', background: 'rgba(220,38,38,0.04)' }}>
-              <div className="px-2.5 py-1.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(220,38,38,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-red-600">{formatDate(selectedCalDay)}</p>
-                <span className="text-[9px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">{dayRems.length}</span>
+              <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(220,38,38,0.15)', background: 'rgba(220,38,38,0.06)' }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-red-600">{formatDate(selectedCalDay)}</p>
+                <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">{dayRems.length} jadwal</span>
               </div>
-              <div className="max-h-24 overflow-y-auto">
+              <div className="max-h-36 overflow-y-auto">
                 {dayRems.length === 0 ? (
-                  <p className="text-[9px] text-gray-400 text-center py-2">Tidak ada jadwal</p>
+                  <p className="text-xs text-gray-400 text-center py-3">Tidak ada jadwal</p>
                 ) : dayRems.map(r => (
-                  <div key={r.id} className="px-2 py-1.5 flex items-center gap-1.5" style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                    <span className="text-[9px]">{CATEGORY_CONFIG[r.category]?.icon ?? '📁'}</span>
+                  <div key={r.id} className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    <span className="text-sm flex-shrink-0">{CATEGORY_CONFIG[r.category]?.icon ?? '📁'}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[9px] font-semibold text-gray-700 truncate">{r.title}</p>
-                      <p className="text-[8px] text-gray-400">{r.due_time} · {r.assigned_name}</p>
+                      <p className="text-xs font-semibold text-gray-700 truncate">{r.title}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{r.due_time} · {r.assigned_name}</p>
                     </div>
-                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_CONFIG[r.status].border }} />
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STATUS_CONFIG[r.status].border }} />
                   </div>
                 ))}
               </div>
@@ -452,7 +451,6 @@ export default function ReminderSchedulePage() {
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
   const [exportLoading, setExportLoading]   = useState(false);
-  const [showCharts, setShowCharts]         = useState(false);
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -1038,16 +1036,6 @@ export default function ReminderSchedulePage() {
                 </button>
               )}
 
-              {/* Chart button */}
-              {view === 'list' && (
-                <button onClick={() => setShowCharts(!showCharts)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border"
-                  style={{ background: showCharts ? '#7c3aed' : 'rgba(124,58,237,0.1)', color: showCharts ? 'white' : '#7c3aed', borderColor: '#7c3aed' }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
-                  <span className="hidden sm:inline">Charts</span>
-                </button>
-              )}
-
               {/* Tambah Reminder - admin dan team PTS bisa */}
               {canAddReminder && view === 'list' && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setView('form'); }}
@@ -1105,14 +1093,12 @@ export default function ReminderSchedulePage() {
                 ))}
               </div>
 
-              {/* Pie Charts - shown when toggled */}
-              {showCharts && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <MiniPieChart data={projectPieData} title="Kegiatan / Kategori" icon="🖥️" />
-                  <MiniPieChart data={salesPieData} title="Nama Sales" icon="👤" />
-                  <MiniPieChart data={teamPtsPieData} title="Team PTS" icon="👥" />
-                </div>
-              )}
+              {/* Pie Charts - selalu tampil */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <MiniPieChart data={projectPieData} title="Kegiatan / Kategori" icon="🖥️" />
+                <MiniPieChart data={salesPieData} title="Nama Sales" icon="👤" />
+                <MiniPieChart data={teamPtsPieData} title="Team PTS" icon="👥" />
+              </div>
 
               {/* Main area: list + calendar */}
               <div className="flex gap-4 items-start">
