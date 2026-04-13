@@ -1474,11 +1474,11 @@ export default function ReminderSchedulePage() {
                   <SectionHeader icon="🏢" title="Informasi Project" />
 
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Nama Sales *">
+                    <FormField label="Nama Sales & Divisi *">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
                         <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama Sales" />
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany - IVP" />
                       </div>
                     </FormField>
                     <FormField label="Lokasi Project *">
