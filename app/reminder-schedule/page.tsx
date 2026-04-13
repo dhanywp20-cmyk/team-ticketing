@@ -104,6 +104,7 @@ interface TeamUser {
   full_name: string;
   role: string;
   team_type?: string;
+  phone_number?: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -614,6 +615,7 @@ export default function ReminderSchedulePage() {
   }, []);
 
   // ─── H-1 WA auto-send check (runs on reminders load) ─────────────────────
+  // Kirim ke phone_number handler (Team PTS) yang di-assign di reminder
 
   useEffect(() => {
     if (!reminders.length) return;
@@ -622,22 +624,33 @@ export default function ReminderSchedulePage() {
         r.status === 'pending' &&
         !r.wa_sent_h1 &&
         isH1Before(r.due_date) &&
-        r.pic_phone
+        r.assigned_to
       );
       for (const r of h1Pending) {
-        const assigneeUser = teamUsers.find(u => u.username === r.assigned_to);
+        // Ambil phone_number dari tabel users
+        const { data: handlerData } = await supabase
+          .from('users')
+          .select('phone_number, full_name')
+          .eq('username', r.assigned_to)
+          .eq('team_type', 'Team PTS')
+          .single();
+
+        if (!handlerData?.phone_number) continue; // skip jika no. belum diisi
+
         const msg =
           `⏰ *REMINDER H-1 JADWAL*\n\n` +
+          `Halo *${handlerData.full_name}*, besok kamu ada jadwal:\n\n` +
           `📋 *${r.title}*\n` +
           `🏷️ Kategori: ${r.category}\n` +
           `📍 Lokasi: ${r.project_location || '-'}\n` +
           `👤 Sales: ${r.sales_name || '-'}\n` +
           `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
-          `👷 Handler: ${r.assigned_name || '-'}\n` +
+          (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
+          (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
           (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           `\n_Pesan otomatis dari Reminder Schedule PTS IVP_`;
 
-        const { ok: ok } = await sendFonnteWA(r.pic_phone, msg, { reminderType: 'h1_auto', reminderId: r.id });
+        const { ok } = await sendFonnteWA(handlerData.phone_number, msg, { reminderType: 'h1_auto', reminderId: r.id });
         if (ok) {
           await supabase.from('reminders').update({ wa_sent_h1: true }).eq('id', r.id);
         }
@@ -647,7 +660,7 @@ export default function ReminderSchedulePage() {
   }, [reminders, teamUsers]);
 
   const fetchTeamUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type').order('full_name');
+    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
@@ -750,21 +763,39 @@ export default function ReminderSchedulePage() {
   // ─── Manual WA send ────────────────────────────────────────────────────────
 
   const handleSendWA = async (r: Reminder) => {
-    if (!r.pic_phone) { notify('error', 'Nomor PIC tidak tersedia.'); return; }
+    if (!r.assigned_to) { notify('error', 'Reminder belum di-assign ke handler.'); return; }
     setSendingWA(r.id);
+
+    // Ambil phone_number handler dari tabel users
+    const { data: handlerData, error: handlerErr } = await supabase
+      .from('users')
+      .select('phone_number, full_name')
+      .eq('username', r.assigned_to)
+      .eq('team_type', 'Team PTS')
+      .single();
+
+    if (handlerErr || !handlerData?.phone_number) {
+      setSendingWA(null);
+      notify('error', `Nomor WA handler (${r.assigned_name || r.assigned_to}) tidak tersedia di database.`);
+      return;
+    }
+
     const msg =
       `📋 *REMINDER JADWAL PTS IVP*\n\n` +
+      `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
       `*${r.title}*\n` +
       `🏷️ Kategori: ${r.category}\n` +
       `📍 Lokasi: ${r.project_location || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
       `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
-      `👷 Handler: ${r.assigned_name || '-'}\n` +
+      (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
+      (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
       (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
       `\n_Pesan dari Reminder Schedule PTS IVP_`;
-    const result = await sendFonnteWA(r.pic_phone, msg, { reminderType: 'manual', reminderId: r.id });
+
+    const result = await sendFonnteWA(handlerData.phone_number, msg, { reminderType: 'manual', reminderId: r.id });
     setSendingWA(null);
-    if (result.ok) notify('success', `WA berhasil dikirim ke ${r.pic_name || r.pic_phone}!`);
+    if (result.ok) notify('success', `WA berhasil dikirim ke ${handlerData.full_name}!`);
     else notify('error', `Gagal kirim WA: ${result.reason ?? 'Unknown error'}`);
   };
 
