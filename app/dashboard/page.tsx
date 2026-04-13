@@ -413,7 +413,7 @@ function NotifBell({ icon, label, count, color, bgColor, borderColor, dotColor, 
       {/* Dropdown */}
       {open && (
         <div
-          className="absolute top-full mt-2 right-0 z-[200] rounded-2xl shadow-2xl overflow-hidden"
+          className="absolute top-full mt-2 right-0 z-[9999] rounded-2xl shadow-2xl overflow-hidden"
           style={{
             width: 320,
             background: 'rgba(255,255,255,0.97)',
@@ -553,6 +553,11 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     } catch {}
 
     // ── 3. Reminder Schedule ──
+    // Hanya untuk admin, superadmin, team_pts, team — TIDAK untuk guest, sales, team_service
+    const reminderAllowedRoles = ['admin', 'superadmin', 'team_pts', 'team'];
+    if (!reminderAllowedRoles.includes(roleLC)) {
+      setReminderNotifs([]);
+    } else {
     try {
       let q = supabase.from('reminders').select('id, title, category, due_date, due_time, assigned_to, assigned_name, status, created_at');
       if (roleLC === 'team') {
@@ -582,6 +587,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         })));
       }
     } catch {}
+    }
   }, [currentUser, lastFetch, isPTS, isAdmin, roleLC]);
 
   useEffect(() => {
@@ -678,7 +684,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         onItemClick={handleClick}
       />
 
-      {/* Reminder Bell */}
+      {/* Reminder Bell — hanya tampil untuk admin, superadmin, team_pts, team */}
+      {['admin', 'superadmin', 'team_pts', 'team'].includes(roleLC) && (
       <NotifBell
         icon="⏰"
         label="Reminder"
@@ -690,6 +697,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         items={reminderNotifs}
         onItemClick={handleClick}
       />
+      )}
     </div>
   );
 }
@@ -975,7 +983,7 @@ export default function Dashboard() {
       {showSettings && <AccountSettingsModal onClose={() => setShowSettings(false)} />}
 
       {/* ── HEADER ── */}
-      <div className="bg-white/80 backdrop-blur-md shadow-md border-b border-slate-200/70" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+      <div className="bg-white/80 backdrop-blur-md shadow-md border-b border-slate-200/70" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'relative', zIndex: 9999 }}>
         <div className="max-w-[1600px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
 
