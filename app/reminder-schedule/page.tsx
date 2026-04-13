@@ -299,13 +299,15 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
                 className="relative flex flex-col items-center justify-center rounded-lg transition-all hover:scale-105"
                 style={{
                   width: '100%', aspectRatio: '1',
-                  background: isSel ? '#dc2626' : isToday ? 'rgba(220,38,38,0.12)' : cnt > 0 ? 'rgba(220,38,38,0.06)' : 'transparent',
-                  border: isToday && !isSel ? '2px solid rgba(220,38,38,0.5)' : isSel ? '2px solid #b91c1c' : '2px solid transparent',
+                  background: isSel ? '#dc2626' : isToday ? 'rgba(220,38,38,0.12)' : cnt > 0 ? 'rgba(99,102,241,0.08)' : 'transparent',
+                  border: isToday && !isSel ? '2px solid rgba(220,38,38,0.5)' : isSel ? '2px solid #b91c1c' : cnt > 0 ? '1.5px solid rgba(99,102,241,0.22)' : '2px solid transparent',
+                  boxShadow: isSel ? '0 2px 8px rgba(220,38,38,0.35)' : 'none',
                 }}>
-                <span className="text-xs font-semibold leading-none" style={{ color: isSel ? 'white' : isToday ? '#dc2626' : '#374151' }}>{day}</span>
+                <span className={`leading-none font-${cnt > 0 ? 'black' : 'semibold'} text-xs`}
+                  style={{ color: isSel ? 'white' : isToday ? '#dc2626' : cnt > 0 ? '#4f46e5' : '#374151' }}>{day}</span>
                 {cnt > 0 && (
                   <span className="text-[8px] font-bold leading-none mt-0.5 px-1.5 rounded-full"
-                    style={{ background: isSel ? 'rgba(255,255,255,0.35)' : '#dc2626', color: 'white' }}>
+                    style={{ background: isSel ? 'rgba(255,255,255,0.35)' : '#4f46e5', color: 'white' }}>
                     {cnt}
                   </span>
                 )}
@@ -318,26 +320,72 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
       {/* Selected day reminders */}
       {selectedCalDay && (() => {
         const dayRems = reminders.filter(r => r.due_date === selectedCalDay);
+        const selDate = new Date(selectedCalDay + 'T00:00:00');
+        const dayNum = selDate.getDate();
+        const dayName = selDate.toLocaleDateString('id-ID', { weekday: 'long' });
+        const monthYear = selDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        const isTodaySel = selectedCalDay === new Date().toISOString().split('T')[0];
         return (
           <div className="px-3 pb-3">
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(220,38,38,0.2)', background: 'rgba(220,38,38,0.04)' }}>
-              <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(220,38,38,0.15)', background: 'rgba(220,38,38,0.06)' }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-red-600">{formatDate(selectedCalDay)}</p>
-                <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">{dayRems.length} jadwal</span>
-              </div>
-              <div className="max-h-36 overflow-y-auto">
-                {dayRems.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-3">Tidak ada jadwal</p>
-                ) : dayRems.map(r => (
-                  <div key={r.id} className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                    <span className="text-sm flex-shrink-0">{CATEGORY_CONFIG[r.category]?.icon ?? '📁'}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-gray-700 truncate">{r.title}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{r.due_time} · {r.assigned_name}</p>
-                    </div>
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STATUS_CONFIG[r.status].border }} />
+            {/* Big date header */}
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(220,38,38,0.25)', boxShadow: '0 4px 16px rgba(220,38,38,0.12)' }}>
+              <div className="flex items-center gap-4 px-4 py-3"
+                style={{ background: isTodaySel ? 'linear-gradient(135deg,#dc2626,#991b1b)' : 'linear-gradient(135deg,#1e293b,#334155)' }}>
+                {/* Big date number */}
+                <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl"
+                  style={{ background: 'rgba(255,255,255,0.15)', border: '2px solid rgba(255,255,255,0.3)' }}>
+                  <span className="text-3xl font-black text-white leading-none">{dayNum}</span>
+                  {isTodaySel && <span className="text-[8px] font-bold text-white/80 uppercase tracking-wider">Hari Ini</span>}
+                </div>
+                {/* Day & month info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-bold text-sm capitalize">{dayName}</p>
+                  <p className="text-white/70 text-[11px] capitalize">{monthYear}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                    <span className="text-[10px] font-semibold text-white/80">{dayRems.length} jadwal</span>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              {/* Schedule cards */}
+              <div className="max-h-48 overflow-y-auto" style={{ background: 'rgba(255,255,255,0.97)' }}>
+                {dayRems.length === 0 ? (
+                  <div className="flex flex-col items-center py-5 gap-1">
+                    <span className="text-2xl">📭</span>
+                    <p className="text-xs text-gray-400 font-medium">Tidak ada jadwal</p>
+                  </div>
+                ) : dayRems.map((r, idx) => {
+                  const ov = isOverdue(r.due_date, r.due_time, r.status);
+                  const catConf = CATEGORY_CONFIG[r.category] ?? { icon: '📁', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)', accent: '#64748b' };
+                  const stConf = STATUS_CONFIG[r.status];
+                  return (
+                    <div key={r.id}
+                      className="mx-2 my-1.5 rounded-xl p-2.5 transition-all"
+                      style={{
+                        background: ov ? 'rgba(254,242,242,0.9)' : catConf.bg,
+                        border: ov ? '1px solid rgba(239,68,68,0.3)' : `1px solid ${catConf.border}`,
+                        borderLeft: `3px solid ${ov ? '#ef4444' : catConf.accent}`,
+                      }}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-base flex-shrink-0 mt-0.5">{catConf.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{r.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {r.due_time && <span className="text-[10px] text-gray-500 font-semibold">🕐 {r.due_time}</span>}
+                            {r.assigned_name && <span className="text-[10px] text-gray-400">· {r.assigned_name}</span>}
+                          </div>
+                          {r.sales_name && <p className="text-[10px] text-gray-400 mt-0.5">👤 {r.sales_name}</p>}
+                        </div>
+                        <span className="flex-shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ background: stConf.bg, color: stConf.color, border: `1px solid ${stConf.border}` }}>
+                          {stConf.label}
+                        </span>
+                      </div>
+                      {ov && <p className="text-[9px] font-bold text-red-600 mt-1.5">🔥 OVERDUE</p>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1180,13 +1228,14 @@ export default function ReminderSchedulePage() {
 
                   {/* Table header */}
                   <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-                    style={{ gridTemplateColumns: '2.5fr 1.5fr 1fr 1.2fr 1.2fr 60px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
+                    style={{ gridTemplateColumns: '2fr 1.3fr 1fr 1.4fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
                     <span>NAMA PROJECT</span>
-                    <span>NAMA RUANGAN</span>
+                    <span>KEGIATAN</span>
                     <span>SALES</span>
-                    <span>STATUS HANDLE</span>
-                    <span>CREATED BY</span>
-                    <span className="text-right">ACTION</span>
+                    <span>PIC &amp; NO PIC</span>
+                    <span>STATUS</span>
+                    <span>TGL SCHEDULE</span>
+                    <span className="text-right">ACT</span>
                   </div>
 
                   {/* Table body */}
@@ -1234,13 +1283,11 @@ export default function ReminderSchedulePage() {
 
                             {/* Desktop table row */}
                             <div className="hidden md:grid items-center gap-3"
-                              style={{ gridTemplateColumns: '2.5fr 1.5fr 1fr 1.2fr 1.2fr 60px' }}>
+                              style={{ gridTemplateColumns: '2fr 1.3fr 1fr 1.4fr 1.1fr 1.2fr 52px' }}>
+                              {/* Nama Project */}
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                  <span className="font-bold text-gray-800 text-sm truncate">{r.title}</span>
-                                  <CategoryBadge category={r.category} />
-                                </div>
-                                <p className="text-[11px] text-gray-400">{formatDatetime(r.created_at)}</p>
+                                <span className="font-bold text-gray-800 text-sm truncate block">{r.title}</span>
+                                {r.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</p>}
                                 {overdue && (
                                   <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
                                     style={{ background: 'rgba(234,88,12,0.12)', color: '#c2410c', border: '1px solid rgba(234,88,12,0.25)' }}>
@@ -1248,17 +1295,31 @@ export default function ReminderSchedulePage() {
                                   </span>
                                 )}
                               </div>
+                              {/* Kegiatan */}
                               <div className="min-w-0">
-                                {r.project_location ? (
+                                <CategoryBadge category={r.category} />
+                                {r.description && <p className="text-[10px] text-gray-400 truncate mt-1">{r.description}</p>}
+                              </div>
+                              {/* Sales */}
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-700 truncate">{r.sales_name || '—'}</p>
+                              </div>
+                              {/* PIC & No PIC */}
+                              <div className="min-w-0">
+                                {r.pic_name ? (
                                   <>
-                                    <p className="text-sm font-medium text-gray-700 truncate">{r.project_location.split(',')[0]}</p>
-                                    <p className="text-[11px] text-gray-400 truncate">{r.category}</p>
+                                    <p className="text-sm font-semibold text-gray-700 truncate flex items-center gap-1">
+                                      <span className="text-[11px]">🙋</span>{r.pic_name}
+                                    </p>
+                                    {r.pic_phone && (
+                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
+                                        <span>📱</span>{r.pic_phone}
+                                      </p>
+                                    )}
                                   </>
-                                ) : <span className="text-gray-300">—</span>}
+                                ) : <span className="text-gray-300 text-sm">—</span>}
                               </div>
-                              <div>
-                                <p className="text-sm font-medium text-gray-700 truncate">{r.sales_name || '—'}</p>
-                              </div>
+                              {/* Status */}
                               <div className="space-y-1">
                                 <StatusBadge status={r.status} />
                                 <p className="text-[10px] text-gray-400 flex items-center gap-1">
@@ -1266,10 +1327,25 @@ export default function ReminderSchedulePage() {
                                   {r.assigned_name}
                                 </p>
                               </div>
-                              <div>
-                                <p className="text-sm font-medium text-gray-700">{r.created_by}</p>
-                                <p className="text-[11px] text-gray-400">Target: {formatDate(r.due_date)}</p>
+                              {/* Tanggal Schedule */}
+                              <div className="min-w-0">
+                                <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
+                                  style={{
+                                    background: overdue ? 'rgba(239,68,68,0.1)' : isDueToday(r.due_date) ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
+                                    border: overdue ? '1px solid rgba(239,68,68,0.3)' : isDueToday(r.due_date) ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
+                                  }}>
+                                  <span className="text-xl font-black leading-none"
+                                    style={{ color: overdue ? '#dc2626' : isDueToday(r.due_date) ? '#dc2626' : '#4f46e5' }}>
+                                    {new Date(r.due_date + 'T00:00:00').getDate()}
+                                  </span>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
+                                    style={{ color: overdue ? '#dc2626' : isDueToday(r.due_date) ? '#dc2626' : '#6366f1' }}>
+                                    {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
+                                  </span>
+                                  {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
+                                </div>
                               </div>
+                              {/* Action */}
                               <div className="flex justify-end">
                                 <button
                                   onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
