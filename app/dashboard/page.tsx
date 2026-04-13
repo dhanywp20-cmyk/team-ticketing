@@ -34,6 +34,19 @@ interface MenuItem {
   }[];
 }
 
+// ─── Notification Types ───────────────────────────────────────────────────────
+
+interface NotificationItem {
+  id: string;
+  type: 'ticket' | 'require' | 'reminder';
+  title: string;
+  subtitle: string;
+  time: string;
+  url: string;
+  internalUrl?: string;
+  menuTitle: string;
+}
+
 // ─── Account Settings Modal ──────────────────────────────────────────────────
 
 const ALL_MENU_KEYS = [
@@ -43,7 +56,7 @@ const ALL_MENU_KEYS = [
   'daily-report',
   'database-pts',
   'unit-movement',
-  'reminder-schedule', // ← TAMBAHAN BARU
+  'reminder-schedule',
 ];
 
 interface AccountSettingsModalProps {
@@ -72,7 +85,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
     'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
-    'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' }, // ← TAMBAHAN
+    'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
   };
 
   const notify = (type: 'success' | 'error', msg: string) => {
@@ -332,6 +345,355 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
   );
 }
 
+// ─── Notification Bell Component ─────────────────────────────────────────────
+
+interface NotifBellProps {
+  icon: string;
+  label: string;
+  count: number;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  dotColor: string;
+  items: NotificationItem[];
+  onItemClick: (item: NotificationItem) => void;
+}
+
+function NotifBell({ icon, label, count, color, bgColor, borderColor, dotColor, items, onItemClick }: NotifBellProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const formatTime = (ts: string) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Baru saja';
+    if (diffMins < 60) return `${diffMins}m lalu`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs}j lalu`;
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+  };
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="relative flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+        style={{
+          background: count > 0 ? bgColor : 'rgba(255,255,255,0.55)',
+          border: `1.5px solid ${count > 0 ? borderColor : 'rgba(0,0,0,0.1)'}`,
+          boxShadow: count > 0 ? `0 2px 12px ${borderColor}55` : 'none',
+        }}
+      >
+        <span className="text-base leading-none">{icon}</span>
+        <span className="text-xs font-bold hidden sm:block" style={{ color: count > 0 ? color : '#64748b' }}>{label}</span>
+        {count > 0 && (
+          <span
+            className="flex items-center justify-center rounded-full text-white font-black text-[10px] min-w-[18px] h-[18px] px-1 animate-pulse"
+            style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}88` }}
+          >
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+        {count === 0 && (
+          <span className="text-[10px] font-semibold text-slate-400">0</span>
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          className="absolute top-full mt-2 right-0 z-[200] rounded-2xl shadow-2xl overflow-hidden"
+          style={{
+            width: 320,
+            background: 'rgba(255,255,255,0.97)',
+            border: `1.5px solid ${borderColor}`,
+            backdropFilter: 'blur(16px)',
+            boxShadow: `0 8px 40px rgba(0,0,0,0.18), 0 0 0 1px ${borderColor}33`,
+            animation: 'dropIn 0.18s cubic-bezier(0.34,1.56,0.64,1)',
+          }}
+        >
+          {/* Header */}
+          <div className="px-4 py-3 flex items-center justify-between" style={{ background: bgColor, borderBottom: `1px solid ${borderColor}44` }}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{icon}</span>
+              <span className="text-sm font-bold" style={{ color }}>{label}</span>
+            </div>
+            {count > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black text-white" style={{ background: dotColor }}>
+                {count} baru
+              </span>
+            )}
+          </div>
+
+          {/* Items */}
+          <div className="max-h-72 overflow-y-auto">
+            {items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <span className="text-3xl opacity-40">✅</span>
+                <p className="text-xs text-slate-400 font-medium">Tidak ada notifikasi</p>
+              </div>
+            ) : (
+              items.map((item, i) => (
+                <button
+                  key={item.id}
+                  onClick={() => { onItemClick(item); setOpen(false); }}
+                  className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors border-b border-slate-100/80 last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate leading-tight">{item.title}</p>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.subtitle}</p>
+                  </div>
+                  <span className="text-[10px] text-slate-400 flex-shrink-0 mt-0.5">{formatTime(item.time)}</span>
+                </button>
+              ))
+            )}
+          </div>
+
+          {items.length > 0 && (
+            <div className="px-4 py-2.5 border-t border-slate-100">
+              <p className="text-[10px] text-center text-slate-400 font-medium">Klik item untuk membuka</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Notification Bar Component ───────────────────────────────────────────────
+
+interface NotificationBarProps {
+  currentUser: User;
+  onNavigate: (internalUrl: string, title: string) => void;
+}
+
+function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
+  const [ticketNotifs, setTicketNotifs]   = useState<NotificationItem[]>([]);
+  const [requireNotifs, setRequireNotifs] = useState<NotificationItem[]>([]);
+  const [reminderNotifs, setReminderNotifs] = useState<NotificationItem[]>([]);
+  const [lastFetch, setLastFetch]         = useState(0);
+
+  const roleLC = currentUser.role?.toLowerCase() ?? '';
+  const isPTS  = ['admin', 'superadmin', 'team_pts', 'team'].includes(roleLC);
+  const isAdmin = ['admin', 'superadmin'].includes(roleLC);
+
+  const fetchAll = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastFetch < 15000) return; // debounce 15s
+    setLastFetch(now);
+
+    // ── 1. Ticket Troubleshooting ──
+    try {
+      let q = supabase.from('tickets').select('id, project_name, issue_case, assigned_to, status, created_at').neq('status', 'Solved');
+      if (isAdmin) {
+        // Admin: lihat semua Waiting Approval + semua Pending/In Progress
+        q = q.in('status', ['Waiting Approval', 'Pending', 'In Progress', 'Call', 'Onsite']);
+      } else {
+        // Team: hanya yang di-assign ke mereka
+        const { data: member } = await supabase
+          .from('team_members')
+          .select('name')
+          .eq('username', currentUser.username)
+          .maybeSingle();
+        if (member?.name) {
+          q = q.eq('assigned_to', member.name).in('status', ['Pending', 'In Progress', 'Call', 'Onsite']);
+        } else {
+          q = q.eq('assigned_to', currentUser.full_name).in('status', ['Pending', 'In Progress', 'Call', 'Onsite']);
+        }
+      }
+      const { data } = await q.order('created_at', { ascending: false }).limit(20);
+      if (data) {
+        setTicketNotifs(data.map((t: any) => ({
+          id: t.id,
+          type: 'ticket' as const,
+          title: t.project_name,
+          subtitle: `${t.status} · ${t.issue_case}`,
+          time: t.created_at,
+          url: '/ticketing',
+          internalUrl: '/ticketing',
+          menuTitle: 'Ticket Troubleshooting',
+        })));
+      }
+    } catch {}
+
+    // ── 2. Form Require Project ──
+    try {
+      let q = supabase.from('project_requests').select('id, project_name, requester_name, status, created_at, requester_id');
+      if (isPTS) {
+        // PTS/Admin: semua yang pending approval atau baru
+        q = q.in('status', ['pending', 'approved', 'in_progress']);
+      } else {
+        // User biasa / sales: hanya milik sendiri
+        q = q.eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected');
+      }
+      const { data } = await q.order('created_at', { ascending: false }).limit(20);
+      if (data) {
+        setRequireNotifs(data.map((r: any) => ({
+          id: r.id,
+          type: 'require' as const,
+          title: r.project_name,
+          subtitle: `${r.status === 'pending' ? '⏳ Menunggu Approval' : r.status === 'approved' ? '✅ Approved' : '🔄 In Progress'} · ${r.requester_name}`,
+          time: r.created_at,
+          url: '/form-require-project',
+          internalUrl: '/form-require-project',
+          menuTitle: 'Form Require Project',
+        })));
+      }
+    } catch {}
+
+    // ── 3. Reminder Schedule ──
+    try {
+      let q = supabase.from('reminders').select('id, title, category, due_date, due_time, assigned_to, assigned_name, status, created_at');
+      if (roleLC === 'team') {
+        q = q.eq('assigned_to', currentUser.username).eq('status', 'pending');
+      } else {
+        q = q.eq('status', 'pending');
+      }
+      const { data } = await q.order('due_date', { ascending: true }).limit(20);
+      if (data) {
+        const today = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+        // Prioritaskan yang hari ini dan besok
+        const prioritized = [...(data as any[])].sort((a, b) => {
+          const aToday = a.due_date === today || a.due_date === tomorrow ? -1 : 0;
+          const bToday = b.due_date === today || b.due_date === tomorrow ? -1 : 0;
+          return aToday - bToday;
+        });
+        setReminderNotifs(prioritized.map((r: any) => ({
+          id: r.id,
+          type: 'reminder' as const,
+          title: r.title,
+          subtitle: `${r.category} · ${r.due_date === today ? '📅 Hari ini' : r.due_date === tomorrow ? '⏰ Besok' : r.due_date} ${r.due_time} · ${r.assigned_name}`,
+          time: r.created_at,
+          url: '/reminder-schedule',
+          internalUrl: '/reminder-schedule',
+          menuTitle: 'Reminder Schedule',
+        })));
+      }
+    } catch {}
+  }, [currentUser, lastFetch, isPTS, isAdmin, roleLC]);
+
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    const ch1 = supabase.channel('dash-notif-tickets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+        setLastFetch(0); // reset debounce
+        setTimeout(fetchAll, 500);
+      })
+      .subscribe();
+    const ch2 = supabase.channel('dash-notif-requires')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_requests' }, () => {
+        setLastFetch(0);
+        setTimeout(fetchAll, 500);
+      })
+      .subscribe();
+    const ch3 = supabase.channel('dash-notif-reminders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
+        setLastFetch(0);
+        setTimeout(fetchAll, 500);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch1);
+      supabase.removeChannel(ch2);
+      supabase.removeChannel(ch3);
+    };
+  }, [fetchAll]);
+
+  const handleClick = (item: NotificationItem) => {
+    if (item.internalUrl) {
+      onNavigate(item.internalUrl, item.menuTitle);
+    }
+  };
+
+  const totalCount = ticketNotifs.length + requireNotifs.length + reminderNotifs.length;
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-2xl"
+      style={{
+        background: totalCount > 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)',
+        border: totalCount > 0 ? '1.5px solid rgba(0,0,0,0.12)' : '1.5px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(12px)',
+        boxShadow: totalCount > 0 ? '0 2px 16px rgba(0,0,0,0.10)' : 'none',
+      }}
+    >
+      {/* Total badge */}
+      {totalCount > 0 && (
+        <div className="flex items-center gap-1.5 pr-2 border-r border-slate-200 mr-1">
+          <div className="relative">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center animate-bounce">
+              {totalCount > 9 ? '9+' : totalCount}
+            </span>
+          </div>
+          <span className="text-[10px] font-bold text-slate-600 hidden md:block">Notif</span>
+        </div>
+      )}
+
+      {/* Ticket Bell */}
+      <NotifBell
+        icon="🎫"
+        label="Ticket"
+        count={ticketNotifs.length}
+        color="#dc2626"
+        bgColor="rgba(254,242,242,0.9)"
+        borderColor="rgba(252,165,165,0.8)"
+        dotColor="#ef4444"
+        items={ticketNotifs}
+        onItemClick={handleClick}
+      />
+
+      {/* Require Bell */}
+      <NotifBell
+        icon="🏗️"
+        label="Require"
+        count={requireNotifs.length}
+        color="#7c3aed"
+        bgColor="rgba(245,243,255,0.9)"
+        borderColor="rgba(196,181,253,0.8)"
+        dotColor="#8b5cf6"
+        items={requireNotifs}
+        onItemClick={handleClick}
+      />
+
+      {/* Reminder Bell */}
+      <NotifBell
+        icon="⏰"
+        label="Reminder"
+        count={reminderNotifs.length}
+        color="#0891b2"
+        bgColor="rgba(236,254,255,0.9)"
+        borderColor="rgba(103,232,249,0.8)"
+        dotColor="#06b6d4"
+        items={reminderNotifs}
+        onItemClick={handleClick}
+      />
+    </div>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -365,7 +727,7 @@ export default function Dashboard() {
       description: 'Solution request form untuk project Sales & Account',
       items: [{ name: 'Submit Require', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
     },
-	{
+    {
       title: 'Form BAST & Demo', icon: '📋', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
       description: 'Product review & handover documentation',
@@ -425,7 +787,7 @@ export default function Dashboard() {
     return () => clearTimeout(timer);
   }, [currentUser]);
 
-  // Fetch pending form require count for bell notification
+  // Legacy bottom bell (kept for backward compat, hidden when notif bar shows)
   useEffect(() => {
     if (!currentUser || !['admin', 'superadmin', 'team_pts', 'team'].includes(currentUser.role?.toLowerCase() ?? '')) return;
     const fetchPending = async () => {
@@ -466,6 +828,15 @@ export default function Dashboard() {
       setShowSidebar(true); setIframeUrl(item.url);
       setIframeTitle(`${menuTitle} - ${item.name}`);
     }
+  };
+
+  // Handler for notification bar navigation
+  const handleNotifNavigate = (navInternalUrl: string, title: string) => {
+    setIframeUrl(null);
+    setShowTicketing(true);
+    setInternalUrl(navInternalUrl);
+    setIframeTitle(title);
+    setShowSidebar(true);
   };
 
   const handleBackToDashboard = () => {
@@ -536,24 +907,6 @@ export default function Dashboard() {
     </div>
   );
 
-  // Bell notif button for Form Require
-  const FormRequireBell = () => (
-    formRequireNotifCount > 0 ? (
-      <div className="fixed bottom-6 z-50" style={{ left: '50%', transform: 'translateX(-50%)' }}>
-        <button onClick={() => { setShowSidebar(true); setShowTicketing(true); setInternalUrl('/form-require-project'); setIframeTitle('Form Require Project'); setIframeUrl(null); }}
-          className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-5 py-3 rounded-full shadow-2xl hover:shadow-violet-500/50 transition-all duration-300 hover:scale-105 flex items-center gap-2 font-bold text-sm">
-          <span className="relative flex items-center">
-            🔔
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-white animate-pulse">
-              {formRequireNotifCount}
-            </span>
-          </span>
-          {formRequireNotifCount} Request Baru — Form Require Project
-        </button>
-      </div>
-    ) : null
-  );
-
   const MenuLoadingOverlay = () => (
     <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
       <div className="w-12 h-12 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin"></div>
@@ -561,15 +914,12 @@ export default function Dashboard() {
     </div>
   );
 
-  // ── Kategori menu ──
   const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'ticket-troubleshooting', 'form-bast'];
   const INTERNAL_KEYS = ['daily-report', 'database-pts', 'unit-movement'];
 
   const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
   const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
 
-  // ── Render menu card (style asli: gradient header + tombol di bawah) ──
-  // ── Render menu card (style asli: gradient header + tombol di bawah) ──
   const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => (
     <div
       key={menu.key}
@@ -623,13 +973,14 @@ export default function Dashboard() {
   if (!showSidebar) return (
     <div className="min-h-screen flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       {showSettings && <AccountSettingsModal onClose={() => setShowSettings(false)} />}
-      <FormRequireBell />
 
       {/* ── HEADER ── */}
       <div className="bg-white/80 backdrop-blur-md shadow-md border-b border-slate-200/70" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
         <div className="max-w-[1600px] mx-auto px-6 py-4">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-4">
+
+            {/* LEFT: Logo */}
+            <div className="flex items-center gap-4 flex-shrink-0">
               <div className="w-12 h-12 bg-gradient-to-br from-rose-600 to-rose-700 rounded-xl shadow-md flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -643,7 +994,18 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* CENTER: Notification Bar */}
+            {currentUser && (
+              <div className="flex-1 flex justify-center px-4">
+                <NotificationBar
+                  currentUser={currentUser}
+                  onNavigate={handleNotifNavigate}
+                />
+              </div>
+            )}
+
+            {/* RIGHT: User + Actions */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               {/* User badge */}
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
@@ -689,10 +1051,8 @@ export default function Dashboard() {
         <div className="max-w-[1600px] mx-auto space-y-8">
           {menuLoading ? <MenuLoadingOverlay /> : (
             <>
-              {/* ── KATEGORI 1: PROJECT ── */}
               {projectMenuItems.length > 0 && (
                 <div style={{ animation: 'fadeInUp 0.45s ease forwards', opacity: 0 }}>
-                  {/* Label kategori dengan backdrop solid agar kontras */}
                   <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-xl"
                     style={{ background: 'rgba(15,23,42,0.72)', backdropFilter: 'blur(8px)', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
                     <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
@@ -703,14 +1063,12 @@ export default function Dashboard() {
                     </div>
                     <span className="text-white font-bold text-sm tracking-wide">Project</span>
                   </div>
-                  {/* Grid card horizontal */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {projectMenuItems.map((menu, i) => renderMenuCard(menu, i, '#0ea5e9'))}
                   </div>
                 </div>
               )}
 
-              {/* ── KATEGORI 2: INTERNAL DAILY ── */}
               {internalMenuItems.length > 0 && (
                 <div style={{ animation: 'fadeInUp 0.45s ease 0.1s forwards', opacity: 0 }}>
                   <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-xl"
@@ -742,6 +1100,7 @@ export default function Dashboard() {
 
       <style jsx>{`
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
       `}</style>
     </div>
   );
@@ -954,6 +1313,9 @@ export default function Dashboard() {
         </>
       </div>
 
+      <style jsx>{`
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
     </div>
   );
 }
