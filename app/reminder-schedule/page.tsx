@@ -8,21 +8,31 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ─── Fonnte WA ────────────────────────────────────────────────────────────────
-const FONNTE_TOKEN = process.env.NEXT_PUBLIC_FONNTE_TOKEN ?? '';
-
-async function sendFonnteWA(target: string, message: string): Promise<boolean> {
+// ─── Fonnte WA via Supabase Edge Function (same pattern as ticketing) ────────
+async function sendFonnteWA(
+  target: string,
+  message: string,
+  meta?: Record<string, unknown>
+): Promise<{ ok: boolean; reason?: string }> {
   try {
     const phone = target.replace(/\D/g, '').replace(/^0/, '62');
-    const res = await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: { 'Authorization': FONNTE_TOKEN },
-      body: new URLSearchParams({ target: phone, message, countryCode: '62' }),
+    const { data, error } = await supabase.functions.invoke('notify-handler', {
+      body: {
+        type: 'reminder_wa',
+        target: phone,
+        message,
+        ...meta,
+      },
     });
-    const data = await res.json();
-    return data.status === true;
-  } catch {
-    return false;
+    if (error) {
+      console.error('[notify-handler error]', error);
+      return { ok: false, reason: error.message };
+    }
+    console.log('[notify-handler response]', data);
+    if (data?.status === true || data?.ok === true) return { ok: true };
+    return { ok: false, reason: data?.reason || data?.message || JSON.stringify(data) };
+  } catch (err) {
+    return { ok: false, reason: String(err) };
   }
 }
 
@@ -572,7 +582,7 @@ export default function ReminderSchedulePage() {
   // ─── H-1 WA auto-send check (runs on reminders load) ─────────────────────
 
   useEffect(() => {
-    if (!reminders.length || !FONNTE_TOKEN) return;
+    if (!reminders.length) return;
     const checkAndSendH1 = async () => {
       const h1Pending = reminders.filter(r =>
         r.status === 'pending' &&
@@ -593,7 +603,7 @@ export default function ReminderSchedulePage() {
           (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           `\n_Pesan otomatis dari Reminder Schedule PTS IVP_`;
 
-        const ok = await sendFonnteWA(r.pic_phone, msg);
+        const { ok: ok } = await sendFonnteWA(r.pic_phone, msg, { reminderType: 'h1_auto', reminderId: r.id });
         if (ok) {
           await supabase.from('reminders').update({ wa_sent_h1: true }).eq('id', r.id);
         }
@@ -607,16 +617,26 @@ export default function ReminderSchedulePage() {
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
-  const fetchRemindersQuiet = async () => {
-    const { data, error } = await supabase.from('reminders').select('*')
+  const fetchRemindersQuiet = async (user?: TeamUser | null) => {
+    const activeUser = user ?? currentUser;
+    let query = supabase.from('reminders').select('*')
       .order('due_date', { ascending: true }).order('due_time', { ascending: true });
+    // role 'team' hanya lihat reminder yang diassign ke dia (sama seperti ticketing)
+    if (activeUser?.role === 'team') {
+      query = query.eq('assigned_to', activeUser.username);
+    }
+    const { data, error } = await query;
     if (!error && data) setReminders(data as Reminder[]);
   };
 
   const fetchReminders = async () => {
     setListLoading(true);
-    const { data, error } = await supabase.from('reminders').select('*')
+    let query = supabase.from('reminders').select('*')
       .order('due_date', { ascending: true }).order('due_time', { ascending: true });
+    if (currentUser?.role === 'team') {
+      query = query.eq('assigned_to', currentUser.username);
+    }
+    const { data, error } = await query;
     if (!error && data) setReminders(data as Reminder[]);
     setTimeout(() => setListLoading(false), 400);
   };
@@ -708,10 +728,10 @@ export default function ReminderSchedulePage() {
       `👷 Handler: ${r.assigned_name || '-'}\n` +
       (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
       `\n_Pesan dari Reminder Schedule PTS IVP_`;
-    const ok = await sendFonnteWA(r.pic_phone, msg);
+    const result = await sendFonnteWA(r.pic_phone, msg, { reminderType: 'manual', reminderId: r.id });
     setSendingWA(null);
-    if (ok) notify('success', `WA berhasil dikirim ke ${r.pic_name || r.pic_phone}!`);
-    else notify('error', 'Gagal kirim WA. Cek token Fonnte.');
+    if (result.ok) notify('success', `WA berhasil dikirim ke ${r.pic_name || r.pic_phone}!`);
+    else notify('error', `Gagal kirim WA: ${result.reason ?? 'Unknown error'}`);
   };
 
   // ─── Export Excel ──────────────────────────────────────────────────────────
@@ -786,8 +806,8 @@ export default function ReminderSchedulePage() {
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
-  const isAdmin = ['admin', 'superadmin', 'team_pts'].includes(currentUser?.role?.toLowerCase() ?? '');
-  const canAddReminder = isAdmin || currentUser?.team_type === 'Team PTS';
+  const isAdmin = currentUser?.role === 'admin';
+  const canAddReminder = currentUser?.role === 'admin' || currentUser?.role === 'team';
 
   const myActiveReminders = reminders.filter(r =>
     currentUser && r.assigned_to === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
@@ -815,6 +835,7 @@ export default function ReminderSchedulePage() {
       setLoginTime(now);
       localStorage.setItem('currentUser', JSON.stringify(data));
       localStorage.setItem('loginTime', now.toString());
+      await fetchRemindersQuiet(data); // re-fetch dengan filter role yang baru login
 
       const active = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
       setMyReminders(active);
