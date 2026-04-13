@@ -1242,7 +1242,6 @@ export default function ReminderSchedulePage() {
                     style={{
                       background: card.gradient,
                       boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
-                      ring: card.active ? '3px solid white' : 'none',
                       outline: card.active ? '3px solid white' : 'none',
                       transform: card.active ? 'scale(1.04)' : undefined,
                     }}>
