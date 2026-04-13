@@ -1090,7 +1090,7 @@ export default function ReminderSchedulePage() {
                       return (
                         <button key={s} onClick={() => handleStatusChange(detailReminder.id, s)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive ? 'ring-2 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
-                          style={{ background: c.bg, color: c.color, border: `2px solid ${c.border}`, ringColor: c.border }}>
+                          style={{ background: c.bg, color: c.color, border: `2px solid ${c.border}`, '--tw-ring-color': c.border } as React.CSSProperties}>
                           {c.icon} {c.label}
                         </button>
                       );
