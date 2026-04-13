@@ -16,20 +16,31 @@ async function sendFonnteWA(
 ): Promise<{ ok: boolean; reason?: string }> {
   try {
     const phone = target.replace(/\D/g, '').replace(/^0/, '62');
-    const { data, error } = await supabase.functions.invoke('notify-handler', {
-      body: {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    // Gunakan fetch langsung — functions.invoke butuh Supabase Auth session
+    // yang tidak ada karena Reminder pakai custom login (bukan supabase.auth)
+    const res = await fetch(`${supabaseUrl}/functions/v1/notify-handler`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
+      },
+      body: JSON.stringify({
         type: 'reminder_wa',
         target: phone,
         message,
         ...meta,
-      },
+      }),
     });
-    if (error) {
-      console.error('[notify-handler error]', error);
-      return { ok: false, reason: error.message };
-    }
+
+    const data = await res.json();
     console.log('[notify-handler response]', data);
-    if (data?.status === true || data?.ok === true) return { ok: true };
+
+    if (!res.ok) return { ok: false, reason: data?.error || `HTTP ${res.status}` };
+    if (data?.ok === true) return { ok: true };
     return { ok: false, reason: data?.reason || data?.message || JSON.stringify(data) };
   } catch (err) {
     return { ok: false, reason: String(err) };
