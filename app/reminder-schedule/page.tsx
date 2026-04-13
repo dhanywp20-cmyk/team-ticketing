@@ -19,7 +19,12 @@ async function getFonnteToken(): Promise<string | null> {
       .select('value')
       .eq('key', 'fonnte_token')
       .single();
-    if (data?.value) { _fonnteToken = String(data.value); return _fonnteToken; }
+    if (data?.value) {
+      // value di JSONB bisa berupa string dengan kutip: '"token"' → strip kutip
+      const raw = data.value;
+      _fonnteToken = typeof raw === 'string' ? raw.replace(/^"|"$/g, '') : String(raw);
+      return _fonnteToken;
+    }
   } catch { /* fallback ke env */ }
   const envToken = process.env.NEXT_PUBLIC_FONNTE_TOKEN;
   if (envToken) { _fonnteToken = envToken; return _fonnteToken; }
@@ -37,15 +42,23 @@ async function sendFonnteWA(
     if (!token) return { ok: false, reason: 'Token Fonnte tidak ditemukan. Set di app_settings (key: fonnte_token) atau env NEXT_PUBLIC_FONNTE_TOKEN.' };
 
     const phone = target.replace(/\D/g, '').replace(/^0/, '62');
-    const form = new FormData();
+    console.log('[Fonnte debug] token length:', token.length, '| token:', token);
+    console.log('[Fonnte debug] phone:', phone);
+
+    if (!phone) return { ok: false, reason: 'Nomor telepon kosong setelah formatting.' };
+
+    const form = new URLSearchParams();
     form.append('target', phone);
     form.append('message', message);
     form.append('countryCode', '62');
 
     const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
-      headers: { 'Authorization': token },
-      body: form,
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form.toString(),
     });
     const data = await res.json();
     console.log('[Fonnte response]', data);
