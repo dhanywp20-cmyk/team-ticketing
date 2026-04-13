@@ -357,13 +357,13 @@ export default function Dashboard() {
       title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
       gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
       description: 'Jadwal & reminder pekerjaan team PTS',
-      items: [{ name: 'Buka Reminder', url: '/reminder-schedule', icon: '⏰', internal: true, embed: true }]
+      items: [{ name: 'Reminder', url: '/reminder-schedule', icon: '⏰', internal: true, embed: true }]
     },
     {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
       gradient: 'from-violet-700 via-violet-600 to-violet-500',
       description: 'Solution request form untuk project Sales & Account',
-      items: [{ name: 'Buka Platform', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
+      items: [{ name: 'Submit Require', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
     },
 	{
       title: 'Form BAST & Demo', icon: '📋', key: 'form-bast',
