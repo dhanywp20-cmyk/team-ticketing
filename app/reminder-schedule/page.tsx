@@ -676,6 +676,33 @@ export default function ReminderSchedulePage() {
   const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
   const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
 
+  // ─── Login handler ─────────────────────────────────────────────────────────
+  const handleLogin = async () => {
+    try {
+      const { data, error } = await supabase.from('users').select('*')
+        .eq('username', loginForm.username).eq('password', loginForm.password).single();
+      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
+      const now = Date.now();
+      setDashLoading(true);
+      setCurrentUser(data);
+      setIsLoggedIn(true);
+      setLoginTime(now);
+      localStorage.setItem('currentUser', JSON.stringify(data));
+      localStorage.setItem('loginTime', now.toString());
+      setTimeout(() => {
+        setDashLoading(false);
+        const assigned = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
+        if (assigned.length > 0) { setMyReminders(assigned); setShowNotificationPopup(true); }
+      }, 2100);
+    } catch { notify('error', 'Login gagal!'); }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false); setCurrentUser(null); setLoginTime(null);
+    setView('list'); setDetailReminder(null);
+    localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
+  };
+
   // ─── RENDER ────────────────────────────────────────────────────────────────
 
   if (!appReady) return <AppLoadingScreen />;
@@ -726,32 +753,6 @@ export default function ReminderSchedulePage() {
       </div>
     );
   }
-
-  const handleLogin = async () => {
-    try {
-      const { data, error } = await supabase.from('users').select('*')
-        .eq('username', loginForm.username).eq('password', loginForm.password).single();
-      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
-      const now = Date.now();
-      setDashLoading(true);
-      setCurrentUser(data);
-      setIsLoggedIn(true);
-      setLoginTime(now);
-      localStorage.setItem('currentUser', JSON.stringify(data));
-      localStorage.setItem('loginTime', now.toString());
-      setTimeout(() => {
-        setDashLoading(false);
-        const assigned = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
-        if (assigned.length > 0) { setMyReminders(assigned); setShowNotificationPopup(true); }
-      }, 2100);
-    } catch { notify('error', 'Login gagal!'); }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false); setCurrentUser(null); setLoginTime(null);
-    setView('list'); setDetailReminder(null);
-    localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
-  };
 
   return (
     <div className="min-h-screen flex flex-col relative" style={{
