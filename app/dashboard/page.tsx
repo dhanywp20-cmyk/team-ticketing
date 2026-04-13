@@ -568,82 +568,54 @@ export default function Dashboard() {
   const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
   const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
 
-  // ── Render menu card ──
-  const renderMenuCard = (menu: MenuItem, index: number, accentColor: string) => (
+  // ── Render menu card (style asli: gradient header + tombol di bawah) ──
+  // ── Render menu card (style asli: gradient header + tombol di bawah) ──
+  const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => (
     <div
       key={menu.key}
-      className="group relative bg-white/85 backdrop-blur-md rounded-2xl overflow-hidden border border-white/70 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
-      style={{
-        animation: `fadeInUp 0.45s ease forwards`,
-        animationDelay: `${index * 70}ms`,
-        opacity: 0,
-        boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
-      }}
+      className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1"
+      style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
     >
-      {/* Top accent bar */}
-      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
-
-      <div className="p-5">
-        {/* Header row */}
-        <div className="flex items-start gap-4 mb-4">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 shadow-sm"
-            style={{ background: `linear-gradient(135deg, ${accentColor}22, ${accentColor}11)`, border: `1.5px solid ${accentColor}30` }}
-          >
-            {menu.icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-800 text-sm leading-tight tracking-tight">{menu.title}</h3>
-              {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
-                <span className="bg-red-500 text-white text-[9px] font-bold rounded-full h-4 px-1.5 flex items-center justify-center animate-pulse flex-shrink-0">
-                  {formRequireNotifCount}
-                </span>
-              )}
-            </div>
-            <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{menu.description}</p>
-          </div>
+      <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
+          <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white" />
         </div>
-
-        {/* Action buttons */}
-        <div className="space-y-2">
-          {menu.items.map((item, itemIndex) => (
-            <button
-              key={itemIndex}
-              onClick={() => handleMenuClick(item, menu.title)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-sm font-semibold transition-all duration-200 group/btn"
-              style={{
-                background: 'rgba(248,250,252,0.9)',
-                border: '1px solid rgba(0,0,0,0.07)',
-                color: '#334155',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}12`;
-                (e.currentTarget as HTMLButtonElement).style.border = `1px solid ${accentColor}40`;
-                (e.currentTarget as HTMLButtonElement).style.color = accentColor;
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(248,250,252,0.9)';
-                (e.currentTarget as HTMLButtonElement).style.border = '1px solid rgba(0,0,0,0.07)';
-                (e.currentTarget as HTMLButtonElement).style.color = '#334155';
-              }}
-            >
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0 bg-white shadow-sm border border-slate-100">
-                {item.icon}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="text-4xl">{menu.icon}</div>
+            <h3 className="text-xl font-bold tracking-tight text-white leading-tight">{menu.title}</h3>
+            {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
+              <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                {formRequireNotifCount}
               </span>
-              <span className="flex-1 truncate">{item.name}</span>
-              {item.external && !item.embed ? (
-                <svg className="w-3.5 h-3.5 opacity-40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5 opacity-30 flex-shrink-0 transition-transform group-hover/btn:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+            )}
+          </div>
+          <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
         </div>
+      </div>
+      <div className="p-5 space-y-3">
+        {menu.items.map((item, itemIndex) => (
+          <button
+            key={itemIndex}
+            onClick={() => handleMenuClick(item, menu.title)}
+            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item"
+          >
+            {item.external && !item.embed ? (
+              <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            )}
+            <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
+            <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
+              {item.icon}
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
