@@ -75,6 +75,8 @@ const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: 'monthly', label: 'Setiap Bulan' },
 ];
 
+const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string) {
@@ -96,12 +98,6 @@ function isOverdue(due_date: string, due_time: string, status: Status) {
 
 function isDueToday(due_date: string) {
   return due_date === new Date().toISOString().split('T')[0];
-}
-
-function isDueSoon(due_date: string, due_time: string, status: Status) {
-  if (status === 'done' || status === 'cancelled') return false;
-  const diff = (new Date(`${due_date}T${due_time || '23:59'}`).getTime() - Date.now()) / 3600000;
-  return diff > 0 && diff <= 24;
 }
 
 function getDaysLate(due_date: string, due_time: string) {
@@ -181,7 +177,178 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value?: 
   );
 }
 
-// ─── App Loading Screen (first-ever open) ─────────────────────────────────────
+// ─── Pie Chart Component ─────────────────────────────────────────────────────
+
+function MiniPieChart({ data, title, icon }: { data: { label: string; value: number; color: string }[]; title: string; icon: string }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return (
+    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
+      <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
+    </div>
+  );
+
+  let cumulativeAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, innerR = 28;
+
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumulativeAngle);
+    const y1 = cy + r * Math.sin(cumulativeAngle);
+    const x2 = cx + r * Math.cos(cumulativeAngle + angle);
+    const y2 = cy + r * Math.sin(cumulativeAngle + angle);
+    const xi1 = cx + innerR * Math.cos(cumulativeAngle);
+    const yi1 = cy + innerR * Math.sin(cumulativeAngle);
+    const xi2 = cx + innerR * Math.cos(cumulativeAngle + angle);
+    const yi2 = cy + innerR * Math.sin(cumulativeAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    const midAngle = cumulativeAngle + angle / 2;
+    cumulativeAngle += angle;
+    return { ...d, path, midAngle, i };
+  });
+
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+      <div className="flex items-center gap-3">
+        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+          {slices.map((s) => (
+            <path key={s.i} d={s.path} fill={s.color}
+              opacity={hovered === null || hovered === s.i ? 1 : 0.45}
+              style={{ cursor: 'pointer', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+              onMouseEnter={() => setHovered(s.i)}
+              onMouseLeave={() => setHovered(null)} />
+          ))}
+          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+        </svg>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          {slices.map((s) => (
+            <div key={s.i}
+              className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
+              onMouseEnter={() => setHovered(s.i)}
+              onMouseLeave={() => setHovered(null)}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mini Calendar ────────────────────────────────────────────────────────────
+
+function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalDay, setSelectedCalDay }: {
+  reminders: Reminder[];
+  calendarMonth: Date;
+  setCalendarMonth: (d: Date) => void;
+  selectedCalDay: string | null;
+  setSelectedCalDay: (s: string | null) => void;
+}) {
+  const y = calendarMonth.getFullYear(), m = calendarMonth.getMonth();
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+
+  const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+  const dayNames = ['M','S','R','K','J','S','M'];
+
+  const getCount = (day: number) => {
+    const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    return reminders.filter(r => r.due_date === ds).length;
+  };
+
+  const totalThisMonth = reminders.filter(r => r.due_date.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
+
+  return (
+    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 220 }}>
+      {/* Header */}
+      <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+        <button onClick={() => setCalendarMonth(new Date(y, m-1, 1))} className="text-white/80 hover:text-white font-bold text-sm px-1">‹</button>
+        <div className="text-center">
+          <p className="text-white font-bold text-xs">{monthNames[m]} {y}</p>
+          <p className="text-white/70 text-[9px]">{totalThisMonth} jadwal bulan ini</p>
+        </div>
+        <button onClick={() => setCalendarMonth(new Date(y, m+1, 1))} className="text-white/80 hover:text-white font-bold text-sm px-1">›</button>
+      </div>
+
+      <div className="p-2">
+        {/* Day names - Senin sebagai hari pertama */}
+        <div className="grid grid-cols-7 mb-1">
+          {['S','S','R','K','J','S','M'].map((d,i) => (
+            <div key={i} className="text-center text-[9px] font-bold py-0.5" style={{ color: '#94a3b8' }}>{d}</div>
+          ))}
+        </div>
+
+        {/* Days grid - Senin pertama */}
+        <div className="grid grid-cols-7 gap-0.5">
+          {/* Offset: firstDay 0=Minggu, ubah ke Senin-first */}
+          {Array.from({ length: (firstDay === 0 ? 6 : firstDay - 1) }).map((_, i) => <div key={`e-${i}`} />)}
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+            const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const cnt = getCount(day);
+            const isSel = selectedCalDay === ds;
+            const isToday = ds === today;
+            return (
+              <button key={day} onClick={() => setSelectedCalDay(isSel ? null : ds)}
+                className="relative flex flex-col items-center justify-center rounded-md transition-all"
+                style={{
+                  width: '100%', aspectRatio: '1',
+                  background: isSel ? '#dc2626' : isToday ? 'rgba(220,38,38,0.12)' : cnt > 0 ? 'rgba(220,38,38,0.06)' : 'transparent',
+                  border: isToday && !isSel ? '1.5px solid rgba(220,38,38,0.5)' : '1.5px solid transparent',
+                }}>
+                <span className="text-[10px] font-semibold leading-none" style={{ color: isSel ? 'white' : isToday ? '#dc2626' : '#374151' }}>{day}</span>
+                {cnt > 0 && (
+                  <span className="text-[7px] font-bold leading-none mt-0.5 px-1 rounded-full"
+                    style={{ background: isSel ? 'rgba(255,255,255,0.3)' : '#dc2626', color: isSel ? 'white' : 'white' }}>
+                    {cnt}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected day reminders */}
+      {selectedCalDay && (() => {
+        const dayRems = reminders.filter(r => r.due_date === selectedCalDay);
+        return (
+          <div className="px-2 pb-2">
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(220,38,38,0.2)', background: 'rgba(220,38,38,0.04)' }}>
+              <div className="px-2.5 py-1.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(220,38,38,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-red-600">{formatDate(selectedCalDay)}</p>
+                <span className="text-[9px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">{dayRems.length}</span>
+              </div>
+              <div className="max-h-24 overflow-y-auto">
+                {dayRems.length === 0 ? (
+                  <p className="text-[9px] text-gray-400 text-center py-2">Tidak ada jadwal</p>
+                ) : dayRems.map(r => (
+                  <div key={r.id} className="px-2 py-1.5 flex items-center gap-1.5" style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                    <span className="text-[9px]">{CATEGORY_CONFIG[r.category]?.icon ?? '📁'}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-semibold text-gray-700 truncate">{r.title}</p>
+                      <p className="text-[8px] text-gray-400">{r.due_time} · {r.assigned_name}</p>
+                    </div>
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: STATUS_CONFIG[r.status].border }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── App Loading Screen ────────────────────────────────────────────────────────
 function AppLoadingScreen() {
   return (
     <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-cover bg-center bg-fixed"
@@ -210,7 +377,7 @@ function AppLoadingScreen() {
   );
 }
 
-// ─── Dashboard Loading (after login — check-in list) ─────────────────────────
+// ─── Dashboard Loading ─────────────────────────────────────────────────────────
 function DashboardLoadingScreen({ userName }: { userName: string }) {
   const [step, setStep] = useState(0);
   const steps = [
@@ -219,14 +386,10 @@ function DashboardLoadingScreen({ userName }: { userName: string }) {
     '🔔 Mengecek notifikasi aktif...',
     '📅 Menyiapkan dashboard...',
   ];
-
   useEffect(() => {
-    const timers = steps.map((_, i) =>
-      setTimeout(() => setStep(i + 1), (i + 1) * 420)
-    );
+    const timers = steps.map((_, i) => setTimeout(() => setStep(i + 1), (i + 1) * 420));
     return () => timers.forEach(clearTimeout);
   }, []);
-
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-cover bg-center bg-fixed"
       style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
@@ -263,8 +426,8 @@ function DashboardLoadingScreen({ userName }: { userName: string }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ReminderSchedulePage() {
-  const [appReady, setAppReady]             = useState(false); // initial platform load
-  const [dashLoading, setDashLoading]       = useState(false); // post-login checkin screen
+  const [appReady, setAppReady]             = useState(false);
+  const [dashLoading, setDashLoading]       = useState(false);
   const [isLoggedIn, setIsLoggedIn]         = useState(false);
   const [loginForm, setLoginForm]           = useState({ username: '', password: '' });
   const [loginTime, setLoginTime]           = useState<number | null>(null);
@@ -278,15 +441,18 @@ export default function ReminderSchedulePage() {
   const [saving, setSaving]                 = useState(false);
 
   const [view, setView]                     = useState<'list' | 'form'>('list');
-  const [detailReminder, setDetailReminder] = useState<Reminder | null>(null); // popup detail
+  const [detailReminder, setDetailReminder] = useState<Reminder | null>(null);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
   const [filterStatus, setFilterStatus]     = useState<Status | 'all'>('all');
+  const [filterYear, setFilterYear]         = useState<string>('all');
   const [searchProject, setSearchProject]   = useState('');
   const [searchSales, setSearchSales]       = useState('');
   const [calendarMonth, setCalendarMonth]   = useState(new Date());
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
+  const [exportLoading, setExportLoading]   = useState(false);
+  const [showCharts, setShowCharts]         = useState(false);
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -307,18 +473,15 @@ export default function ReminderSchedulePage() {
   // ─── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Show app loading screen first, then check session
     const initApp = async () => {
       await fetchTeamUsers();
       await fetchRemindersQuiet();
-
       const saved = localStorage.getItem('currentUser');
       const savedTime = localStorage.getItem('loginTime');
       if (saved && savedTime) {
         const user = JSON.parse(saved);
         const time = parseInt(savedTime);
-        const sixHours = 6 * 60 * 60 * 1000;
-        if (Date.now() - time > sixHours) {
+        if (Date.now() - time > 6 * 60 * 60 * 1000) {
           localStorage.removeItem('currentUser');
           localStorage.removeItem('loginTime');
         } else {
@@ -327,13 +490,9 @@ export default function ReminderSchedulePage() {
           setLoginTime(time);
         }
       }
-
-      // Show app loading briefly so it's visible, min 1.8s
       setTimeout(() => setAppReady(true), 1800);
     };
-
     initApp();
-
     const ch = supabase.channel('reminders-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => fetchRemindersQuiet())
       .subscribe();
@@ -345,20 +504,18 @@ export default function ReminderSchedulePage() {
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
-  // Silent fetch (no list spinner) — used by realtime
   const fetchRemindersQuiet = async () => {
     const { data, error } = await supabase.from('reminders').select('*')
       .order('due_date', { ascending: true }).order('due_time', { ascending: true });
     if (!error && data) setReminders(data as Reminder[]);
   };
 
-  // Manual refresh with spinner
   const fetchReminders = async () => {
     setListLoading(true);
     const { data, error } = await supabase.from('reminders').select('*')
       .order('due_date', { ascending: true }).order('due_time', { ascending: true });
     if (!error && data) setReminders(data as Reminder[]);
-    setTimeout(() => setListLoading(false), 400); // min 400ms so spinner is visible
+    setTimeout(() => setListLoading(false), 400);
   };
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
@@ -415,10 +572,60 @@ export default function ReminderSchedulePage() {
     setView('form');
   };
 
+  // ─── Export Excel ──────────────────────────────────────────────────────────
+  const handleExportExcel = async () => {
+    setExportLoading(true);
+    try {
+      // Build CSV content (as TSV for Excel compatibility)
+      const headers = ['No','Judul','Kategori','Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan'];
+      const rows = filteredReminders.map((r, i) => [
+        i + 1,
+        r.title,
+        r.category,
+        r.sales_name,
+        r.project_location,
+        r.assigned_name,
+        STATUS_CONFIG[r.status].label,
+        PRIORITY_CONFIG[r.priority].label,
+        r.due_date,
+        r.due_time,
+        r.pic_name,
+        r.pic_phone,
+        r.created_by,
+        r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '',
+        r.notes ?? '',
+      ]);
+
+      // Build CSV
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().split('T')[0];
+      a.download = `Reminder_Schedule_PTS_IVP_${dateStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notify('success', 'Export berhasil! File tersimpan.');
+    } catch (e) {
+      notify('error', 'Gagal export.');
+    }
+    setExportLoading(false);
+  };
+
   // ─── Filters ───────────────────────────────────────────────────────────────
+
+  const availableYears = Array.from(new Set(reminders.map(r => r.due_date.substring(0, 4)))).sort((a, b) => b.localeCompare(a));
 
   const filteredReminders = reminders.filter(r => {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+    if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
     if (searchProject && !r.title.toLowerCase().includes(searchProject.toLowerCase()) &&
         !r.project_location?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase()) &&
@@ -433,61 +640,32 @@ export default function ReminderSchedulePage() {
   const inProgressCount = reminders.filter(r => r.status === 'in_progress').length;
   const totalCount      = reminders.length;
 
-  // ─── Calendar ──────────────────────────────────────────────────────────────
+  // ─── Pie chart data ────────────────────────────────────────────────────────
 
-  const getDaysInMonth = (date: Date) => {
-    const y = date.getFullYear(), m = date.getMonth();
-    return { firstDay: new Date(y, m, 1).getDay(), daysInMonth: new Date(y, m + 1, 0).getDate(), year: y, month: m };
-  };
+  const sourceReminders = filterYear === 'all' ? reminders : reminders.filter(r => r.due_date.startsWith(filterYear));
 
-  const getRemindersForDay = (day: number) => {
-    const { year, month } = getDaysInMonth(calendarMonth);
-    const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return reminders.filter(r => r.due_date === ds);
-  };
+  const projectPieData = (() => {
+    const map: Record<string, number> = {};
+    sourceReminders.forEach(r => { const k = r.category; map[k] = (map[k] || 0) + 1; });
+    return Object.entries(map).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
 
+  const salesPieData = (() => {
+    const map: Record<string, number> = {};
+    sourceReminders.forEach(r => { if (r.sales_name) { map[r.sales_name] = (map[r.sales_name] || 0) + 1; } });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
+
+  const teamPtsPieData = (() => {
+    const map: Record<string, number> = {};
+    sourceReminders.forEach(r => { if (r.assigned_name) { map[r.assigned_name] = (map[r.assigned_name] || 0) + 1; } });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
+
+  // ─── Calendar data ─────────────────────────────────────────────────────────
   const isAdmin = ['admin', 'superadmin', 'team_pts'].includes(currentUser?.role?.toLowerCase() ?? '');
-  const calDayReminders = selectedCalDay ? reminders.filter(r => r.due_date === selectedCalDay) : [];
-
-  // ─── Login / Logout ───────────────────────────────────────────────────────
-
-  const handleLogin = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', loginForm.username)
-        .eq('password', loginForm.password)
-        .single();
-      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
-      const now = Date.now();
-
-      // Show dashboard loading check-in screen
-      setDashLoading(true);
-      setCurrentUser(data);
-      setIsLoggedIn(true);
-      setLoginTime(now);
-      localStorage.setItem('currentUser', JSON.stringify(data));
-      localStorage.setItem('loginTime', now.toString());
-
-      // Show loading for ~2.1s (matches the 4 steps × 420ms), then show notification if any
-      setTimeout(() => {
-        setDashLoading(false);
-        const assigned = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
-        if (assigned.length > 0) { setMyReminders(assigned); setShowNotificationPopup(true); }
-      }, 2100);
-    } catch { notify('error', 'Login gagal!'); }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setLoginTime(null);
-    setView('list');
-    setDetailReminder(null);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('loginTime');
-  };
+  // Team PTS juga bisa tambah reminder
+  const canAddReminder = isAdmin || currentUser?.team_type === 'Team PTS';
 
   const myActiveReminders = reminders.filter(r =>
     currentUser && r.assigned_to === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
@@ -497,29 +675,19 @@ export default function ReminderSchedulePage() {
   // ─── Style helpers ─────────────────────────────────────────────────────────
   const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
   const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
-  const cardStyle = { background: 'rgba(255,255,255,0.78)', border: '1px solid rgba(0,0,0,0.09)', backdropFilter: 'blur(10px)' };
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
 
-  // App loading — shown on very first load
-  if (!appReady) {
-    return <AppLoadingScreen />;
-  }
+  if (!appReady) return <AppLoadingScreen />;
+  if (dashLoading && currentUser) return <DashboardLoadingScreen userName={currentUser.full_name} />;
 
-  // Dashboard check-in loading — shown right after login
-  if (dashLoading && currentUser) {
-    return <DashboardLoadingScreen userName={currentUser.full_name} />;
-  }
-
-  // Login page
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed"
         style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.35)' }} />
         {toast && (
-          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}
-            style={{ boxShadow: toast.type === 'success' ? '0 4px 20px rgba(16,185,129,0.4)' : '0 4px 20px rgba(220,38,38,0.4)' }}>
+          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
             {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
           </div>
         )}
@@ -559,17 +727,38 @@ export default function ReminderSchedulePage() {
     );
   }
 
-  // ─── Main Dashboard ───────────────────────────────────────────────────────
+  const handleLogin = async () => {
+    try {
+      const { data, error } = await supabase.from('users').select('*')
+        .eq('username', loginForm.username).eq('password', loginForm.password).single();
+      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
+      const now = Date.now();
+      setDashLoading(true);
+      setCurrentUser(data);
+      setIsLoggedIn(true);
+      setLoginTime(now);
+      localStorage.setItem('currentUser', JSON.stringify(data));
+      localStorage.setItem('loginTime', now.toString());
+      setTimeout(() => {
+        setDashLoading(false);
+        const assigned = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
+        if (assigned.length > 0) { setMyReminders(assigned); setShowNotificationPopup(true); }
+      }, 2100);
+    } catch { notify('error', 'Login gagal!'); }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false); setCurrentUser(null); setLoginTime(null);
+    setView('list'); setDetailReminder(null);
+    localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
+  };
 
   return (
     <div className="min-h-screen flex flex-col relative" style={{
       backgroundImage: `url('/IVP_Background.png')`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundAttachment: 'fixed',
+      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
     }}>
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
-
       <div className="relative z-10 flex flex-col min-h-screen">
 
         {/* Toast */}
@@ -580,7 +769,7 @@ export default function ReminderSchedulePage() {
           </div>
         )}
 
-        {/* ── NOTIFICATION POPUP (on login) ───────────────────────────── */}
+        {/* ── NOTIFICATION POPUP ── */}
         {showNotificationPopup && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
@@ -594,15 +783,14 @@ export default function ReminderSchedulePage() {
                       <p className="text-sm text-white/90">{myReminders.length} reminder aktif yang diassign ke kamu</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
                 </div>
               </div>
               <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
                 {myReminders.map(r => {
                   const ov = isOverdue(r.due_date, r.due_time, r.status);
                   return (
-                    <div key={r.id}
-                      onClick={() => { setDetailReminder(r); setShowNotificationPopup(false); }}
+                    <div key={r.id} onClick={() => { setDetailReminder(r); setShowNotificationPopup(false); }}
                       className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
                       style={{ background: ov ? 'rgba(254,242,242,0.9)' : 'rgba(249,250,251,0.9)', borderColor: ov ? '#fca5a5' : '#e5e7eb' }}>
                       <div className="flex items-start justify-between gap-2">
@@ -634,7 +822,7 @@ export default function ReminderSchedulePage() {
           </div>
         )}
 
-        {/* ── BELL POPUP ────────────────────────────────────────────────── */}
+        {/* ── BELL POPUP ── */}
         {showBellPopup && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
@@ -648,7 +836,7 @@ export default function ReminderSchedulePage() {
                       <p className="text-sm text-white/90">{myActiveReminders.length} aktif · {myOverdueCount > 0 ? `${myOverdueCount} overdue` : 'tidak ada yang overdue'}</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button>
+                  <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
                 </div>
               </div>
               <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
@@ -660,8 +848,7 @@ export default function ReminderSchedulePage() {
                 ) : myActiveReminders.map(r => {
                   const ov = isOverdue(r.due_date, r.due_time, r.status);
                   return (
-                    <div key={r.id}
-                      onClick={() => { setDetailReminder(r); setShowBellPopup(false); }}
+                    <div key={r.id} onClick={() => { setDetailReminder(r); setShowBellPopup(false); }}
                       className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
                       style={{ background: ov ? 'rgba(254,242,242,0.9)' : 'rgba(249,250,251,0.9)', borderColor: ov ? '#fca5a5' : '#e5e7eb' }}>
                       <div className="flex items-start justify-between gap-2">
@@ -684,7 +871,7 @@ export default function ReminderSchedulePage() {
               </div>
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button onClick={() => setShowBellPopup(false)}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all">
+                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold transition-all">
                   ✕ Tutup
                 </button>
               </div>
@@ -692,22 +879,19 @@ export default function ReminderSchedulePage() {
           </div>
         )}
 
-        {/* ── DETAIL POPUP ─────────────────────────────────────────────── */}
+        {/* ── DETAIL POPUP ── */}
         {detailReminder && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto"
             onClick={e => { if (e.target === e.currentTarget) setDetailReminder(null); }}>
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
               style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)' }}>
-              {/* Hero */}
               <div className="px-8 py-6 relative" style={{
                 background: isOverdue(detailReminder.due_date, detailReminder.due_time, detailReminder.status)
                   ? 'linear-gradient(135deg,#dc2626,#991b1b)'
                   : (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
               }}>
                 <button onClick={() => setDetailReminder(null)}
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold transition-all text-lg">
-                  ✕
-                </button>
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <PriorityBadge priority={detailReminder.priority} />
                   <StatusBadge status={detailReminder.status} />
@@ -719,7 +903,7 @@ export default function ReminderSchedulePage() {
                   )}
                 </div>
                 <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.title}</h2>
-                {detailReminder.description && <p className="text-white/80 text-sm mt-2 leading-relaxed">{detailReminder.description}</p>}
+                {detailReminder.description && <p className="text-white/80 text-sm mt-2">{detailReminder.description}</p>}
               </div>
 
               <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
@@ -743,11 +927,6 @@ export default function ReminderSchedulePage() {
                       <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Tenggat Waktu</p>
                       <p className="text-sm font-bold text-slate-800">{formatDate(detailReminder.due_date)}</p>
                       <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>⏰ {detailReminder.due_time}</p>
-                      {detailReminder.created_at && (
-                        <p className="text-xs mt-1" style={{ color: '#64748b' }}>
-                          Target: {formatDate(detailReminder.due_date)}
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -798,7 +977,8 @@ export default function ReminderSchedulePage() {
                   </div>
                 </div>
 
-                {isAdmin && (
+                {/* Admin atau user yang adalah creator bisa edit/hapus */}
+                {(isAdmin || detailReminder.created_by === currentUser?.username) && (
                   <div className="flex gap-3 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                     <button onClick={() => openEdit(detailReminder)}
                       className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-80"
@@ -817,7 +997,7 @@ export default function ReminderSchedulePage() {
           </div>
         )}
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
+        {/* ── HEADER ── */}
         <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
@@ -843,7 +1023,32 @@ export default function ReminderSchedulePage() {
                   </span>
                 )}
               </button>
-              {isAdmin && view === 'list' && (
+
+              {/* Export Excel button */}
+              {view === 'list' && (
+                <button onClick={handleExportExcel} disabled={exportLoading}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border"
+                  style={{ background: exportLoading ? '#f0fdf4' : '#16a34a', color: exportLoading ? '#16a34a' : 'white', borderColor: '#16a34a', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}>
+                  {exportLoading
+                    ? <div className="w-3.5 h-3.5 border-2 border-green-300 border-t-green-600 rounded-full animate-spin" />
+                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  }
+                  <span className="hidden sm:inline">{exportLoading ? 'Exporting...' : 'Export Excel'}</span>
+                </button>
+              )}
+
+              {/* Chart button */}
+              {view === 'list' && (
+                <button onClick={() => setShowCharts(!showCharts)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border"
+                  style={{ background: showCharts ? '#7c3aed' : 'rgba(124,58,237,0.1)', color: showCharts ? 'white' : '#7c3aed', borderColor: '#7c3aed' }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+                  <span className="hidden sm:inline">Charts</span>
+                </button>
+              )}
+
+              {/* Tambah Reminder - admin dan team PTS bisa */}
+              {canAddReminder && view === 'list' && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setView('form'); }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}>
@@ -851,6 +1056,7 @@ export default function ReminderSchedulePage() {
                   Tambah Reminder
                 </button>
               )}
+
               {currentUser && (
                 <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
@@ -873,7 +1079,7 @@ export default function ReminderSchedulePage() {
 
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
-          {/* ─── LIST VIEW ───────────────────────────────────────────────── */}
+          {/* ─── LIST VIEW ── */}
           {view === 'list' && (
             <>
               {/* Stat cards */}
@@ -898,196 +1104,217 @@ export default function ReminderSchedulePage() {
                 ))}
               </div>
 
-              {/* ── TICKET LIST (table layout matching screenshot) ── */}
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
-
-                {/* Search bar row */}
-                <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                  {/* Search project */}
-                  <div className="flex-1 min-w-[180px] relative">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                      className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                      placeholder="Search by project name..." />
-                    {searchProject && <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">SEARCH PROJECT</span>}
-                  </div>
-                  {/* Search sales */}
-                  <div className="flex-1 min-w-[180px] relative">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                      className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                      placeholder="Search by sales name..." />
-                    {searchSales && <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">SEARCH SALES</span>}
-                  </div>
-                  {/* Filter status */}
-                  <div className="relative">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                    </svg>
-                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
-                      className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 transition-all focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 160 }}>
-                      <option value="all">All Status</option>
-                      {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                    </select>
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                    <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">FILTER STATUS</span>
-                  </div>
+              {/* Pie Charts - shown when toggled */}
+              {showCharts && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <MiniPieChart data={projectPieData} title="Kegiatan / Kategori" icon="🖥️" />
+                  <MiniPieChart data={salesPieData} title="Nama Sales" icon="👤" />
+                  <MiniPieChart data={teamPtsPieData} title="Team PTS" icon="👥" />
                 </div>
+              )}
 
-                {/* Ticket list header */}
-                <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
-                    <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">
-                      {filteredReminders.length}
-                    </span>
+              {/* Main area: list + calendar */}
+              <div className="flex gap-4 items-start">
+
+                {/* ── TICKET LIST ── */}
+                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+
+                  {/* Search + filter bar */}
+                  <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    {/* Search project */}
+                    <div className="flex-1 min-w-[160px] relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
+                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                        placeholder="Search project..." />
+                      {searchProject && <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">SEARCH PROJECT</span>}
+                    </div>
+                    {/* Search sales */}
+                    <div className="flex-1 min-w-[140px] relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                        placeholder="Search sales..." />
+                      {searchSales && <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">SEARCH SALES</span>}
+                    </div>
+                    {/* Filter status */}
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                      </svg>
+                      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
+                        className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 140 }}>
+                        <option value="all">All Status</option>
+                        {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+                      </select>
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                      <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">STATUS</span>
+                    </div>
+                    {/* Filter tahun */}
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                        className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 120 }}>
+                        <option value="all">Semua Tahun</option>
+                        {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                      <span className="absolute left-3 -top-2 text-[9px] font-bold text-gray-500 uppercase tracking-widest bg-white px-1">TAHUN</span>
+                    </div>
                   </div>
-                  <button onClick={fetchReminders} disabled={listLoading}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
-                    style={{ background: 'white' }}>
-                    <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh
-                  </button>
-                </div>
 
-                {/* Table header */}
-                <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-                  style={{ gridTemplateColumns: '2.5fr 1.5fr 1fr 1.2fr 1.2fr 60px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
-                  <span>NAMA PROJECT</span>
-                  <span>NAMA RUANGAN</span>
-                  <span>SALES</span>
-                  <span>STATUS HANDLE</span>
-                  <span>CREATED BY</span>
-                  <span className="text-right">ACTION</span>
-                </div>
-
-                {/* Table body */}
-                {listLoading ? (
-                  <div className="flex flex-col items-center justify-center py-16 gap-4">
-                    <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
-                    <p className="text-sm text-gray-500 font-medium">Memuat list...</p>
+                  {/* Ticket list header */}
+                  <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
+                      <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">
+                        {filteredReminders.length}
+                      </span>
+                    </div>
+                    <button onClick={fetchReminders} disabled={listLoading}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
+                      style={{ background: 'white' }}>
+                      <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
                   </div>
-                ) : filteredReminders.length === 0 ? (
-                  <div className="text-center py-16">
-                    <div className="text-4xl mb-3">📭</div>
-                    <p className="text-gray-600 font-semibold">Tidak ada reminder ditemukan</p>
-                    <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
+
+                  {/* Table header */}
+                  <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
+                    style={{ gridTemplateColumns: '2.5fr 1.5fr 1fr 1.2fr 1.2fr 60px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
+                    <span>NAMA PROJECT</span>
+                    <span>NAMA RUANGAN</span>
+                    <span>SALES</span>
+                    <span>STATUS HANDLE</span>
+                    <span>CREATED BY</span>
+                    <span className="text-right">ACTION</span>
                   </div>
-                ) : (
-                  <div>
-                    {filteredReminders.map((r, idx) => {
-                      const overdue = isOverdue(r.due_date, r.due_time, r.status);
-                      const daysLate = overdue ? getDaysLate(r.due_date, r.due_time) : 0;
-                      const catCfg = CATEGORY_CONFIG[r.category] ?? { icon: '📁', accent: '#64748b' };
 
-                      return (
-                        <div key={r.id}
-                          className="px-5 py-4 transition-colors hover:bg-red-50/40 cursor-pointer"
-                          style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: overdue ? '3px solid #ef4444' : '3px solid transparent' }}
-                          onClick={() => setDetailReminder(r)}>
+                  {/* Table body */}
+                  {listLoading ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-4">
+                      <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
+                      <p className="text-sm text-gray-500 font-medium">Memuat list...</p>
+                    </div>
+                  ) : filteredReminders.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="text-4xl mb-3">📭</div>
+                      <p className="text-gray-600 font-semibold">Tidak ada reminder ditemukan</p>
+                      <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {filteredReminders.map((r) => {
+                        const overdue = isOverdue(r.due_date, r.due_time, r.status);
+                        const daysLate = overdue ? getDaysLate(r.due_date, r.due_time) : 0;
+                        return (
+                          <div key={r.id}
+                            className="px-5 py-4 transition-colors hover:bg-red-50/40 cursor-pointer"
+                            style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: overdue ? '3px solid #ef4444' : '3px solid transparent' }}
+                            onClick={() => setDetailReminder(r)}>
 
-                          {/* Mobile layout */}
-                          <div className="md:hidden space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-base font-bold text-gray-800">{r.title}</span>
+                            {/* Mobile layout */}
+                            <div className="md:hidden space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-base font-bold text-gray-800">{r.title}</span>
+                                    <CategoryBadge category={r.category} />
+                                  </div>
+                                  <p className="text-xs text-gray-500">{formatDatetime(r.created_at)}</p>
+                                  {overdue && <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">⚠ Telat {daysLate} hari</span>}
+                                </div>
+                                <StatusBadge status={r.status} />
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                {r.project_location && <span>📍 {r.project_location}</span>}
+                                {r.sales_name && <span>👤 {r.sales_name}</span>}
+                                <span>🎯 Target: {formatDate(r.due_date)}</span>
+                              </div>
+                            </div>
+
+                            {/* Desktop table row */}
+                            <div className="hidden md:grid items-center gap-3"
+                              style={{ gridTemplateColumns: '2.5fr 1.5fr 1fr 1.2fr 1.2fr 60px' }}>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <span className="font-bold text-gray-800 text-sm truncate">{r.title}</span>
                                   <CategoryBadge category={r.category} />
                                 </div>
-                                <p className="text-xs text-gray-500">{formatDatetime(r.created_at)}</p>
-                                {overdue && <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">⚠ Telat {daysLate} hari</span>}
+                                <p className="text-[11px] text-gray-400">{formatDatetime(r.created_at)}</p>
+                                {overdue && (
+                                  <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                    style={{ background: 'rgba(234,88,12,0.12)', color: '#c2410c', border: '1px solid rgba(234,88,12,0.25)' }}>
+                                    ⚠ Telat {daysLate} hari
+                                  </span>
+                                )}
                               </div>
-                              <StatusBadge status={r.status} />
-                            </div>
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                              {r.project_location && <span>📍 {r.project_location}</span>}
-                              {r.sales_name && <span>👤 {r.sales_name}</span>}
-                              <span>🎯 Target: {formatDate(r.due_date)}</span>
+                              <div className="min-w-0">
+                                {r.project_location ? (
+                                  <>
+                                    <p className="text-sm font-medium text-gray-700 truncate">{r.project_location.split(',')[0]}</p>
+                                    <p className="text-[11px] text-gray-400 truncate">{r.category}</p>
+                                  </>
+                                ) : <span className="text-gray-300">—</span>}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 truncate">{r.sales_name || '—'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <StatusBadge status={r.status} />
+                                <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                  {r.assigned_name}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">{r.created_by}</p>
+                                <p className="text-[11px] text-gray-400">Target: {formatDate(r.due_date)}</p>
+                              </div>
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+                                  style={{ border: '1px solid #e5e7eb' }}>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                          {/* Desktop table row */}
-                          <div className="hidden md:grid items-center gap-3"
-                            style={{ gridTemplateColumns: '2.5fr 1.5fr 1fr 1.2fr 1.2fr 60px' }}>
+                {/* ── MINI CALENDAR SIDEBAR ── */}
+                <MiniCalendar
+                  reminders={reminders}
+                  calendarMonth={calendarMonth}
+                  setCalendarMonth={setCalendarMonth}
+                  selectedCalDay={selectedCalDay}
+                  setSelectedCalDay={setSelectedCalDay}
+                />
 
-                            {/* Nama Project */}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="font-bold text-gray-800 text-sm truncate">{r.title}</span>
-                                <CategoryBadge category={r.category} />
-                              </div>
-                              <p className="text-[11px] text-gray-400">{formatDatetime(r.created_at)}</p>
-                              {overdue && (
-                                <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                                  style={{ background: 'rgba(234,88,12,0.12)', color: '#c2410c', border: '1px solid rgba(234,88,12,0.25)' }}>
-                                  ⚠ Telat {daysLate} hari
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Nama Ruangan */}
-                            <div className="min-w-0">
-                              {r.project_location ? (
-                                <>
-                                  <p className="text-sm font-medium text-gray-700 truncate">{r.project_location.split(',')[0]}</p>
-                                  <p className="text-[11px] text-gray-400 truncate">{r.category}</p>
-                                </>
-                              ) : (
-                                <span className="text-gray-300">—</span>
-                              )}
-                            </div>
-
-                            {/* Sales */}
-                            <div>
-                              <p className="text-sm font-medium text-gray-700 truncate">{r.sales_name || '—'}</p>
-                            </div>
-
-                            {/* Status Handle */}
-                            <div className="space-y-1">
-                              <StatusBadge status={r.status} />
-                              <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                {r.assigned_name}
-                              </p>
-                            </div>
-
-                            {/* Created By */}
-                            <div>
-                              <p className="text-sm font-medium text-gray-700">{r.created_by}</p>
-                              <p className="text-[11px] text-gray-400">Target: {formatDate(r.due_date)}</p>
-                            </div>
-
-                            {/* Action */}
-                            <div className="flex justify-end">
-                              <button
-                                onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-                                style={{ border: '1px solid #e5e7eb' }}>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </>
           )}
 
-          {/* ─── FORM VIEW ───────────────────────────────────────────────── */}
+          {/* ─── FORM VIEW ── */}
           {view === 'form' && (
             <div className="max-w-2xl mx-auto">
               <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}>
