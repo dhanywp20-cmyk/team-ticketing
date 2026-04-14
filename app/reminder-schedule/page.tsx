@@ -96,6 +96,7 @@ interface Reminder {
   created_at: string;
   notes?: string;
   wa_sent_h1?: boolean;
+  completion_photo_url?: string;
 }
 
 interface TeamUser {
@@ -859,12 +860,12 @@ export default function ReminderSchedulePage() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const headers = ['No','Judul','Kategori','Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan'];
+      const headers = ['No','Judul','Kategori','Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
         i + 1, r.title, r.category, r.sales_name, r.project_location, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
-        r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '',
+        r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
       ]);
       const csvContent = [headers, ...rows]
         .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
@@ -1224,8 +1225,17 @@ export default function ReminderSchedulePage() {
 
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: '#64748b' }}>Update Status</p>
+                  {detailReminder.status === 'done' ? (
+                    <div className="rounded-xl px-4 py-3 flex items-center gap-2 mb-3" style={{ background: 'rgba(16,185,129,0.1)', border: '1.5px solid rgba(16,185,129,0.35)' }}>
+                      <span className="text-lg">✅</span>
+                      <div>
+                        <p className="text-xs font-bold text-emerald-700">Jadwal Selesai</p>
+                        <p className="text-[10px] text-emerald-600">Status completed tidak dapat diubah kembali.</p>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
+                    {(Object.keys(STATUS_CONFIG) as Status[]).filter(s => s !== 'done' || detailReminder.status !== 'done').map(s => {
                       const c = STATUS_CONFIG[s];
                       const isActive = (pendingStatus ?? detailReminder.status) === s;
                       return (
@@ -1240,13 +1250,14 @@ export default function ReminderSchedulePage() {
                         </button>
                       );
                     })}
-                    {/* Re-Schedule inline setelah Cancelled - semua user */}
+                    {/* Re-Schedule — hanya tampil jika status bukan done */}
                     <button onClick={() => { setRescheduleTarget(detailReminder); }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02]"
                       style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 2px 8px rgba(217,119,6,0.3)' }}>
                       📅 Re-Schedule
                     </button>
                   </div>
+                  )}
 
                   {/* Photo upload - wajib jika status Completed */}
                   {(pendingStatus ?? detailReminder.status) === 'done' && (
@@ -1315,6 +1326,32 @@ export default function ReminderSchedulePage() {
                     </div>
                   )}
                 </div>
+
+                {/* Foto Bukti Selesai - tampil jika status done dan ada foto */}
+                {detailReminder.status === 'done' && detailReminder.completion_photo_url && (
+                  <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.05)' }}>
+                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(16,185,129,0.12)', borderBottom: '1px solid rgba(16,185,129,0.2)' }}>
+                      <span className="text-base">📸</span>
+                      <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#059669' }}>Foto Bukti Selesai</p>
+                    </div>
+                    <div className="p-3">
+                      <img
+                        src={detailReminder.completion_photo_url}
+                        alt="Foto bukti selesai"
+                        className="w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        style={{ maxHeight: 220 }}
+                        onClick={() => window.open(detailReminder.completion_photo_url, '_blank')}
+                      />
+                      <a
+                        href={detailReminder.completion_photo_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 transition-colors">
+                        🔗 Buka foto di tab baru
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 {/* Action buttons - admin only */}
                 {isAdmin && (
