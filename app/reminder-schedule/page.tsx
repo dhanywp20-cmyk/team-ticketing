@@ -440,7 +440,6 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
 
 function LoadingScreen({ userName }: { userName?: string }) {
   const [step, setStep] = useState(0);
-  const steps = ['Menghubungkan ke server...', 'Memuat data reminder...', 'Menyiapkan tampilan...', 'Hampir siap...'];
   useEffect(() => {
     const timers = steps.map((_, i) => setTimeout(() => setStep(i + 1), 400 * (i + 1)));
     return () => timers.forEach(clearTimeout);
@@ -455,7 +454,7 @@ function LoadingScreen({ userName }: { userName?: string }) {
           <span className="text-4xl">🗓️</span>
         </div>
         <div className="text-center">
-          <p className="text-gray-500 text-sm">Selamat datang,</p>
+          <p className="text-gray-500 text-sm">Loading</p>
           <h2 className="text-xl font-black text-gray-800">{userName}</h2>
         </div>
         <div className="w-full space-y-2.5">
