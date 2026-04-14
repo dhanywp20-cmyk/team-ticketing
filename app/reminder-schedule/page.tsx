@@ -8,48 +8,68 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ─── WA via Supabase Edge Function notify-handler ────────────────────────────
-// Semua WA dikirim melalui edge function (tidak langsung dari browser)
-// agar token aman dan tidak terkena CORS block
+// ─── Fonnte WA via Supabase Edge Function (same pattern as ticketing) ────────
+// ── Fonnte token di-cache dari Supabase app_settings ─────────────────────────
+let _fonnteToken: string | null = null;
+async function getFonnteToken(): Promise<string | null> {
+  if (_fonnteToken) return _fonnteToken;
+  try {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'fonnte_token')
+      .single();
+    if (data?.value) {
+      // value di JSONB bisa berupa string dengan kutip: '"token"' → strip kutip
+      const raw = data.value;
+      _fonnteToken = typeof raw === 'string' ? raw.replace(/^"|"$/g, '') : String(raw);
+      return _fonnteToken;
+    }
+  } catch { /* fallback ke env */ }
+  const envToken = process.env.NEXT_PUBLIC_FONNTE_TOKEN;
+  if (envToken) { _fonnteToken = envToken; return _fonnteToken; }
+  return null;
+}
 
-async function sendReminderWA(
+async function sendFonnteWA(
   target: string,
   message: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _meta?: Record<string, unknown>
 ): Promise<{ ok: boolean; reason?: string }> {
   try {
+    const token = await getFonnteToken();
+    if (!token) return { ok: false, reason: 'Token Fonnte tidak ditemukan. Set di app_settings (key: fonnte_token) atau env NEXT_PUBLIC_FONNTE_TOKEN.' };
+
     const phone = target.replace(/\D/g, '').replace(/^0/, '62');
-    if (!phone) return { ok: false, reason: 'Nomor telepon kosong.' };
+    console.log('[Fonnte debug] token length:', token.length, '| token:', token);
+    console.log('[Fonnte debug] phone:', phone);
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const edgeUrl = `${supabaseUrl}/functions/v1/notify-handler`;
+    if (!phone) return { ok: false, reason: 'Nomor telepon kosong setelah formatting.' };
 
-    const res = await fetch(edgeUrl, {
+    const form = new URLSearchParams();
+    form.append('target', phone);
+    form.append('message', message);
+    form.append('countryCode', '62');
+
+    const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        type: 'reminder_wa',
-        target: phone,
-        message,
-      }),
+      body: form.toString(),
     });
-
     const data = await res.json();
-    console.log('[notify-handler reminder_wa response]', data);
+    console.log('[Fonnte response]', data);
 
-    if (data.ok === true) return { ok: true };
-    return { ok: false, reason: data.reason || JSON.stringify(data) };
+    if (data.status === true) return { ok: true };
+    return { ok: false, reason: data.reason || data.message || JSON.stringify(data) };
   } catch (err) {
     return { ok: false, reason: String(err) };
   }
 }
 
-// Alias agar kompatibel dengan pemanggilan lama di handleSendWA
-const sendFonnteWA = sendReminderWA;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
@@ -625,68 +645,9 @@ export default function ReminderSchedulePage() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  // ─── H-1 WA auto-send (client-side fallback) ────────────────────────────────
-  // Fungsi ini sebagai FALLBACK jika pg_cron daily-reminder edge function tidak jalan.
-  // Dipanggil saat admin buka halaman. wa_sent_h1 diupdate via notify-handler.
-  const sendH1Reminders = async (allReminders: Reminder[]) => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    const due = allReminders.filter(r =>
-      r.due_date === tomorrowStr &&
-      r.status === 'pending' &&
-      !r.wa_sent_h1 &&
-      r.assigned_to
-    );
-    for (const r of due) {
-      const assignee = teamUsers.find(u => u.username === r.assigned_to);
-      if (!assignee?.phone_number) continue;
-      const msgH1 =
-        `⏰ *REMINDER H-1 JADWAL PTS IVP*\n` +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `Halo *${r.assigned_name}*, besok kamu ada jadwal:\n\n` +
-        `📋 *${r.title}*\n` +
-        `🏷️ *Kategori :* ${r.category}\n` +
-        `📍 *Lokasi   :* ${r.project_location || '-'}\n` +
-        `👤 *Sales    :* ${r.sales_name || '-'}\n` +
-        `🕐 *Jadwal   :* *${formatDate(r.due_date)} · ${r.due_time}*\n` +
-        (r.pic_name  ? `🙋 *PIC      :* ${r.pic_name}\n`      : '') +
-        (r.pic_phone ? `📱 *No. PIC  :* ${r.pic_phone}\n` : '') +
-        (r.notes     ? `📝 *Catatan  :* ${r.notes}\n`     : '') +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `Pastikan persiapan sudah siap. Semangat! 💪\n` +
-        `_Pesan otomatis dari Reminder Schedule PTS IVP_`;
-
-      // Kirim via notify-handler edge function (bukan langsung Fonnte)
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      try {
-        const res = await fetch(`${supabaseUrl}/functions/v1/notify-handler`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-            'apikey': supabaseKey,
-          },
-          body: JSON.stringify({
-            type: 'reminder_wa',
-            target: assignee.phone_number,
-            message: msgH1,
-            reminder_id: r.id,
-            mark_h1_sent: true,
-          }),
-        });
-        const result = await res.json();
-        if (result.ok) {
-          console.log('[H-1 WA fallback] Terkirim ke', r.assigned_name, 'untuk', r.title);
-        } else {
-          console.warn('[H-1 WA fallback] Gagal ke', r.assigned_name, ':', result.reason);
-        }
-      } catch (e) {
-        console.warn('[H-1 WA fallback] Error:', e);
-      }
-    }
-  };
+  // ─── H-1 WA auto-send ────────────────────────────────────────────────────
+  // Ditangani oleh Supabase Edge Function: daily-reminder (pg_cron)
+  // Berjalan otomatis setiap hari tanpa perlu buka halaman
 
   const fetchTeamUsers = async () => {
     const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
@@ -697,18 +658,12 @@ export default function ReminderSchedulePage() {
     const activeUser = user ?? currentUser;
     let query = supabase.from('reminders').select('*')
       .order('due_date', { ascending: true }).order('due_time', { ascending: true });
+    // role 'team' hanya lihat reminder yang diassign ke dia (sama seperti ticketing)
     if (activeUser?.role === 'team') {
       query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
-    if (!error && data) {
-      const list = data as Reminder[];
-      setReminders(list);
-      // Cek & kirim WA H-1 otomatis (hanya admin yang trigger, bukan team)
-      if ((activeUser?.role === 'admin' || activeUser?.role === 'super_admin') && teamUsers.length > 0) {
-        sendH1Reminders(list);
-      }
-    }
+    if (!error && data) setReminders(data as Reminder[]);
   };
 
   const fetchReminders = async () => {
@@ -733,43 +688,15 @@ export default function ReminderSchedulePage() {
     if (!formData.project_location.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
     const assignee = teamUsers.find(u => u.username === formData.assigned_to);
-    const assigneeFull = assignee?.full_name ?? formData.assigned_to;
-    const payload = { ...formData, assigned_name: assigneeFull, created_by: currentUser?.username ?? 'system' };
-    const isNew = !editingReminder;
+    const payload = { ...formData, assigned_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
 
     setSaving(true);
-    const { error } = isNew
-      ? await supabase.from('reminders').insert([payload])
-      : await supabase.from('reminders').update(payload).eq('id', editingReminder.id);
+    const { error } = editingReminder
+      ? await supabase.from('reminders').update(payload).eq('id', editingReminder.id)
+      : await supabase.from('reminders').insert([payload]);
 
-    if (error) {
-      notify('error', 'Gagal menyimpan: ' + error.message);
-      setSaving(false);
-      return;
-    }
-    notify('success', isNew ? 'Reminder ditambahkan!' : 'Reminder diperbarui!');
-
-    // ── WA otomatis ke handler saat reminder BARU dibuat (via notify-handler) ──
-    if (isNew && assignee?.phone_number) {
-      const nowStr = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      const msgNew =
-        `📋 *REMINDER JADWAL BARU — PTS IVP*\n` +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `Halo *${assigneeFull}*, kamu mendapat jadwal baru:\n\n` +
-        `📋 *${formData.title}*\n` +
-        `🏷️ *Kategori :* ${formData.category}\n` +
-        `📍 *Lokasi   :* ${formData.project_location}\n` +
-        `👤 *Sales    :* ${formData.sales_name}\n` +
-        `🕐 *Jadwal   :* *${formatDate(formData.due_date)} · ${formData.due_time}*\n` +
-        (formData.pic_name  ? `🙋 *PIC      :* ${formData.pic_name}\n`  : '') +
-        (formData.pic_phone ? `📱 *No. PIC  :* ${formData.pic_phone}\n` : '') +
-        (formData.notes     ? `📝 *Catatan  :* ${formData.notes}\n`     : '') +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `📌 Dibuat oleh: ${currentUser?.full_name ?? currentUser?.username ?? 'Admin'} — ${nowStr}\n` +
-        `_Pesan otomatis dari Reminder Schedule PTS IVP_`;
-      const waResult = await sendReminderWA(assignee.phone_number, msgNew);
-      if (!waResult.ok) console.warn('[WA new reminder] Gagal:', waResult.reason);
-    }
+    if (error) notify('error', 'Gagal menyimpan: ' + error.message);
+    else notify('success', editingReminder ? 'Reminder diperbarui!' : 'Reminder ditambahkan!');
 
     setSaving(false);
     setView('list');
@@ -840,14 +767,7 @@ export default function ReminderSchedulePage() {
 
   const handleReschedule = async (newDate: string, newTime: string, reason: string) => {
     if (!rescheduleTarget) return;
-    const now = new Date();
-    const nowStr = now.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const oldDateStr = formatDate(rescheduleTarget.due_date);
-    const oldTime = rescheduleTarget.due_time;
-    const newDateStr = formatDate(newDate);
-    const byWho = currentUser?.full_name ?? currentUser?.username ?? 'Admin';
-    const reasonText = reason ? ` — Alasan: ${reason}` : '';
-    const noteAdd = `\n[📅 Re-Schedule oleh ${byWho} pada ${nowStr}${reasonText}\n   Dari: ${oldDateStr} ${oldTime} → Jadi: ${newDateStr} ${newTime}]`;
+    const noteAdd = reason ? `\n[Re-Schedule ${formatDate(newDate)}: ${reason}]` : '';
     const { error } = await supabase.from('reminders').update({
       due_date: newDate,
       due_time: newTime,
@@ -858,22 +778,7 @@ export default function ReminderSchedulePage() {
       notify('error', `Gagal re-schedule: ${error.message}`);
       return;
     }
-    // WA notif ke handler jika ada nomor
-    const assignee = teamUsers.find(u => u.username === rescheduleTarget.assigned_to);
-    if (assignee?.phone_number) {
-      const msgRS =
-        `📅 *JADWAL DIUBAH — PTS IVP*\n\n` +
-        `Halo *${rescheduleTarget.assigned_name}*, jadwal kamu telah diubah:\n\n` +
-        `*${rescheduleTarget.title}*\n` +
-        `🗓️ Jadwal lama: ${oldDateStr} · ${oldTime}\n` +
-        `🗓️ Jadwal baru: *${newDateStr} · ${newTime}*\n` +
-        (reason ? `📝 Alasan: ${reason}\n` : '') +
-        `\n📌 Diubah oleh: ${byWho} — ${nowStr}` +
-        `\n_Pesan otomatis dari Reminder Schedule PTS IVP_`;
-      const waResult = await sendFonnteWA(assignee.phone_number, msgRS, { reminderType: 'reschedule' });
-      if (!waResult.ok) console.warn('[WA reschedule] Gagal:', waResult.reason);
-    }
-    notify('success', `Jadwal berhasil dipindah ke ${newDateStr}!`);
+    notify('success', `Jadwal berhasil dipindah ke ${formatDate(newDate)}!`);
     setRescheduleTarget(null);
     setDetailReminder(null);
     fetchRemindersQuiet();
