@@ -163,8 +163,17 @@ function isDueToday(due_date: string) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function PriorityBadge({ priority }: { priority: Priority }) {
+function PriorityBadge({ priority, onHeader }: { priority: Priority; onHeader?: boolean }) {
   const c = PRIORITY_CONFIG[priority];
+  if (onHeader) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
+        style={{ color: '#fff', background: c.dot, border: '2px solid rgba(255,255,255,0.6)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+        <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
+        {c.label}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
       style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
@@ -174,8 +183,21 @@ function PriorityBadge({ priority }: { priority: Priority }) {
   );
 }
 
-function StatusBadge({ status }: { status: Status }) {
+function StatusBadge({ status, onHeader }: { status: Status; onHeader?: boolean }) {
   const c = STATUS_CONFIG[status];
+  const solidBg: Record<Status, string> = {
+    pending: '#d97706',
+    done: '#059669',
+    cancelled: '#4b5563',
+  };
+  if (onHeader) {
+    return (
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold"
+        style={{ color: '#fff', background: solidBg[status], border: '2px solid rgba(255,255,255,0.6)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+        {c.icon} {c.label}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold"
       style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
@@ -184,8 +206,16 @@ function StatusBadge({ status }: { status: Status }) {
   );
 }
 
-function CategoryBadge({ category }: { category: string }) {
+function CategoryBadge({ category, onHeader }: { category: string; onHeader?: boolean }) {
   const c = CATEGORY_CONFIG[category] ?? { icon: '📁', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.3)', accent: '#64748b' };
+  if (onHeader) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
+        style={{ color: '#fff', background: c.accent, border: '2px solid rgba(255,255,255,0.6)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+        {c.icon} {category}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
       style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
@@ -563,6 +593,13 @@ export default function ReminderSchedulePage() {
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
 
+  // ─── Update Status with photo ──────────────────────────────────────────────
+  const [pendingStatus, setPendingStatus]   = useState<Status | null>(null);
+  const [statusPhoto, setStatusPhoto]       = useState<File | null>(null);
+  const [statusPhotoPreview, setStatusPhotoPreview] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const statusPhotoRef = useRef<HTMLInputElement>(null);
+
   const notify = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3500);
@@ -677,12 +714,43 @@ export default function ReminderSchedulePage() {
     fetchRemindersQuiet();
   };
 
-  const handleStatusChange = async (id: string, status: Status) => {
-    const { error } = await supabase.from('reminders').update({ status }).eq('id', id);
+  const handleStatusChange = async (id: string, status: Status, photoUrl?: string) => {
+    const updatePayload: Record<string, unknown> = { status };
+    if (photoUrl) updatePayload['completion_photo_url'] = photoUrl;
+    const { error } = await supabase.from('reminders').update(updatePayload).eq('id', id);
     if (error) { notify('error', 'Gagal update status.'); return; }
     notify('success', 'Status diperbarui!');
     fetchRemindersQuiet();
     if (detailReminder?.id === id) setDetailReminder(prev => prev ? { ...prev, status } : null);
+  };
+
+  const handleConfirmStatusUpdate = async () => {
+    if (!detailReminder || !pendingStatus) return;
+    if (pendingStatus === 'done' && !statusPhoto) {
+      notify('error', 'Foto wajib diupload untuk status Completed!');
+      return;
+    }
+    setUpdatingStatus(true);
+    let photoUrl: string | undefined;
+    if (statusPhoto) {
+      const ext = statusPhoto.name.split('.').pop();
+      const fileName = `completion_${detailReminder.id}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('reminder-photos')
+        .upload(fileName, statusPhoto, { upsert: true });
+      if (upErr) {
+        notify('error', 'Gagal upload foto: ' + upErr.message);
+        setUpdatingStatus(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('reminder-photos').getPublicUrl(fileName);
+      photoUrl = urlData?.publicUrl;
+    }
+    await handleStatusChange(detailReminder.id, pendingStatus, photoUrl);
+    setPendingStatus(null);
+    setStatusPhoto(null);
+    setStatusPhotoPreview(null);
+    setUpdatingStatus(false);
   };
 
   const openEdit = (r: Reminder) => {
@@ -1043,18 +1111,18 @@ export default function ReminderSchedulePage() {
         {/* ── DETAIL POPUP ── */}
         {detailReminder && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto"
-            onClick={e => { if (e.target === e.currentTarget) setDetailReminder(null); }}>
+            onClick={e => { if (e.target === e.currentTarget) { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); } }}>
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
               style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)' }}>
               <div className="px-8 py-6 relative" style={{
                 background: (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
               }}>
-                <button onClick={() => setDetailReminder(null)}
+                <button onClick={() => { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); }}
                   className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <PriorityBadge priority={detailReminder.priority} />
-                  <StatusBadge status={detailReminder.status} />
-                  <CategoryBadge category={detailReminder.category} />
+                  <PriorityBadge priority={detailReminder.priority} onHeader />
+                  <StatusBadge status={detailReminder.status} onHeader />
+                  <CategoryBadge category={detailReminder.category} onHeader />
                   {detailReminder.repeat !== 'none' && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">
                       🔁 {REPEAT_OPTIONS.find(r => r.value === detailReminder.repeat)?.label}
@@ -1121,13 +1189,17 @@ export default function ReminderSchedulePage() {
                 )}
 
                 <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Update Status</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: '#64748b' }}>Update Status</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
                     {(Object.keys(STATUS_CONFIG) as Status[]).map(s => {
                       const c = STATUS_CONFIG[s];
-                      const isActive = detailReminder.status === s;
+                      const isActive = (pendingStatus ?? detailReminder.status) === s;
                       return (
-                        <button key={s} onClick={() => handleStatusChange(detailReminder.id, s)}
+                        <button key={s}
+                          onClick={() => {
+                            setPendingStatus(s);
+                            if (s !== 'done') { setStatusPhoto(null); setStatusPhotoPreview(null); }
+                          }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive ? 'ring-2 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
                           style={{ background: c.bg, color: c.color, border: `2px solid ${c.border}`, '--tw-ring-color': c.border } as React.CSSProperties}>
                           {c.icon} {c.label}
@@ -1135,6 +1207,73 @@ export default function ReminderSchedulePage() {
                       );
                     })}
                   </div>
+
+                  {/* Photo upload - wajib jika status Completed */}
+                  {(pendingStatus ?? detailReminder.status) === 'done' && (
+                    <div className="rounded-xl p-3 mb-3" style={{ background: 'rgba(16,185,129,0.07)', border: '1.5px solid rgba(16,185,129,0.3)' }}>
+                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#059669' }}>
+                        📸 Foto Bukti Selesai <span className="text-red-500">*Wajib</span>
+                      </p>
+                      <input
+                        ref={statusPhotoRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setStatusPhoto(file);
+                            const reader = new FileReader();
+                            reader.onload = ev => setStatusPhotoPreview(ev.target?.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      {statusPhotoPreview ? (
+                        <div className="relative">
+                          <img src={statusPhotoPreview} alt="preview" className="w-full max-h-40 object-cover rounded-lg" />
+                          <button
+                            onClick={() => { setStatusPhoto(null); setStatusPhotoPreview(null); if (statusPhotoRef.current) statusPhotoRef.current.value = ''; }}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600">
+                            ✕
+                          </button>
+                          <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">✅ {statusPhoto?.name}</p>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => statusPhotoRef.current?.click()}
+                          className="w-full border-2 border-dashed rounded-xl py-6 flex flex-col items-center gap-2 transition-all hover:bg-emerald-50"
+                          style={{ borderColor: 'rgba(16,185,129,0.5)' }}>
+                          <span className="text-2xl">📷</span>
+                          <span className="text-xs font-bold text-emerald-700">Klik untuk upload foto</span>
+                          <span className="text-[10px] text-gray-400">JPG, PNG, WEBP — maks. 10MB</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tombol Update Status */}
+                  {pendingStatus && pendingStatus !== detailReminder.status && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); }}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                        style={{ background: 'rgba(0,0,0,0.06)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleConfirmStatusUpdate}
+                        disabled={updatingStatus || (pendingStatus === 'done' && !statusPhoto)}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: 'linear-gradient(135deg,#059669,#047857)', boxShadow: '0 3px 12px rgba(5,150,105,0.35)' }}>
+                        {updatingStatus
+                          ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                        }
+                        {updatingStatus ? 'Menyimpan...' : 'Konfirmasi Update'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Action buttons */}
