@@ -984,11 +984,11 @@ export default function Dashboard() {
 
       {/* ── HEADER ── */}
       <div className="bg-white/80 backdrop-blur-md shadow-md border-b border-slate-200/70" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'relative', zIndex: 9999 }}>
-        <div className="max-w-[1600px] mx-auto px-10 py-4">
+        <div className="w-full px-4 py-4">
           <div className="flex items-center justify-between gap-4">
 
             {/* LEFT: Logo */}
-            <div className="flex items-center gap-4 flex-shrink-0 pl-2">
+            <div className="flex items-center gap-4 flex-shrink-0">
               <div className="w-12 h-12 bg-gradient-to-br from-rose-600 to-rose-700 rounded-xl shadow-md flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -1013,7 +1013,7 @@ export default function Dashboard() {
             )}
 
             {/* RIGHT: User + Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0 pr-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {/* User badge */}
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
@@ -1120,10 +1120,10 @@ export default function Dashboard() {
 
       {/* ── HEADER UTAMA (sama seperti dashboard) ── */}
       <div className="bg-white/80 backdrop-blur-md shadow-md flex-shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'relative', zIndex: 9999 }}>
-        <div className="max-w-[1600px] mx-auto px-10 py-4">
+        <div className="w-full px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             {/* LEFT: Logo */}
-            <div className="flex items-center gap-4 flex-shrink-0 pl-2">
+            <div className="flex items-center gap-4 flex-shrink-0">
               <div className="w-12 h-12 bg-gradient-to-br from-rose-600 to-rose-700 rounded-xl shadow-md flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -1141,7 +1141,7 @@ export default function Dashboard() {
               </div>
             )}
             {/* RIGHT: User + Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0 pr-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
