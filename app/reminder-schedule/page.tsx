@@ -89,6 +89,7 @@ interface Reminder {
   repeat: RepeatType;
   category: string;
   sales_name: string;
+  sales_division: string;
   project_location: string;
   pic_name: string;
   pic_phone: string;
@@ -562,6 +563,7 @@ export default function ReminderSchedulePage() {
   const [filterYear, setFilterYear]         = useState<string>('all');
   const [searchProject, setSearchProject]   = useState('');
   const [searchSales, setSearchSales]       = useState('');
+  const [searchDivisionSales, setSearchDivisionSales]       = useState('');
   const [searchTeamHandler, setSearchTeamHandler] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
@@ -588,7 +590,7 @@ export default function ReminderSchedulePage() {
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
-    sales_name: '', project_location: '', pic_name: '', pic_phone: '',
+    sales_name: '', sales_division: '', project_location: '', pic_name: '', pic_phone: '',
     notes: '',
   };
   const [formData, setFormData] = useState(emptyForm);
@@ -663,6 +665,7 @@ export default function ReminderSchedulePage() {
     if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
     if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
+    if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
     if (!formData.project_location.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
     const assignee = teamUsers.find(u => u.username === formData.assigned_to);
@@ -692,6 +695,7 @@ export default function ReminderSchedulePage() {
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.project_location || '-'}\n` +
         `👤 Sales: ${formData.sales_name || '-'}\n` +
+        `    Divisi Sales: ${formData.sales_division || '-'}\n` +
         `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
         (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}\n`    : '') +
         (formData.pic_phone ? `📱 No. PIC: ${formData.pic_phone}\n` : '') +
@@ -766,7 +770,7 @@ export default function ReminderSchedulePage() {
     setEditingReminder(r);
     setFormData({ title: r.title, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
-      sales_name: r.sales_name ?? '', project_location: r.project_location ?? '',
+      sales_name: r.sales_name ?? '', sales_name: r.sales_division ?? '', project_location: r.project_location ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '' });
     setDetailReminder(null);
     setView('form');
@@ -820,6 +824,7 @@ export default function ReminderSchedulePage() {
       `🏷️ Kategori: ${r.category}\n` +
       `📍 Lokasi: ${r.project_location || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
+      `    Divisi Sales: ${r.sales_division || '-'}\n` +
       `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
       (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
       (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
@@ -837,9 +842,9 @@ export default function ReminderSchedulePage() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const headers = ['No','Judul','Kategori','Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
+      const headers = ['No','Judul','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.title, r.category, r.sales_name, r.project_location, r.assigned_name,
+        i + 1, r.title, r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -871,6 +876,7 @@ export default function ReminderSchedulePage() {
     if (searchProject && !r.title.toLowerCase().includes(searchProject.toLowerCase()) &&
         !r.project_location?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
+    if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
     if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
         !r.assigned_to?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
@@ -894,7 +900,7 @@ export default function ReminderSchedulePage() {
 
   const salesPieData = (() => {
     const map: Record<string, number> = {};
-    sourceReminders.forEach(r => { if (r.sales_name) { map[r.sales_name] = (map[r.sales_name] || 0) + 1; } });
+    sourceReminders.forEach(r => { if (r.sales_division) { map[r.sales_division] = (map[r.sales_division] || 0) + 1; } });
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
@@ -1176,7 +1182,7 @@ export default function ReminderSchedulePage() {
                 <div>
                   <SectionHeaderSmall icon="🏢" title="Informasi Project" />
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                    <InfoRow icon="👤" label="Nama Sales" value={detailReminder.sales_name} />
+                    <InfoRow icon="👤" label="Nama Sales & Divisi" value={detailReminder.sales_name} value={detailReminder.sales_division} />
                     <InfoRow icon="📍" label="Lokasi Project" value={detailReminder.project_location} />
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
                     {detailReminder.pic_phone && (
@@ -1490,8 +1496,8 @@ export default function ReminderSchedulePage() {
                   onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
                 />
                 <MiniPieChart
-                  data={salesPieData} title="Nama Sales" icon="👤"
-                  onSliceClick={label => setSearchSales(searchSales === label ? '' : label)}
+                  data={salesPieData} title="Divisi Sales" icon="👤"
+                  onSliceClick={label => setSearchDivisionSales(searchDivisionSales === label ? '' : label)}
                 />
                 <MiniPieChart
                   data={teamPtsPieData} title="Team PTS" icon="👥"
@@ -1500,7 +1506,7 @@ export default function ReminderSchedulePage() {
               </div>
 
               {/* Active filter chips */}
-              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchTeamHandler || searchProject || selectedCalDay) && (
+              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay) && (
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
                   {filterCategory !== 'all' && (
@@ -1545,7 +1551,7 @@ export default function ReminderSchedulePage() {
                       📅 {formatDate(selectedCalDay)} ✕
                     </button>
                   )}
-                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
+                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
                     style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>
                     Reset Semua
@@ -1888,13 +1894,25 @@ export default function ReminderSchedulePage() {
                   <SectionHeader icon="🏢" title="Informasi Project" />
 
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Nama Sales & Divisi *">
+                    <FormField label="Nama Sales *">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
                         <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany - IVP" />
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
                       </div>
                     </FormField>
+                    <FormField label="Divisi *">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
+                        <input value={formData.sales_division} onChange={e => fd({ sales_division: e.target.value })}
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
+                      </div>
+                    </FormField>
+                  </div>
+
+                  <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
+
+                  <div className="grid grid-cols-3 gap-4">
                     <FormField label="Lokasi Project *">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
@@ -1902,11 +1920,6 @@ export default function ReminderSchedulePage() {
                           className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
                       </div>
                     </FormField>
-                  </div>
-
-                  <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
-
-                  <div className="grid grid-cols-2 gap-4">
                     <FormField label="Nama PIC">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">🙋</span>
@@ -1914,11 +1927,11 @@ export default function ReminderSchedulePage() {
                           className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi" />
                       </div>
                     </FormField>
-                    <FormField label="No. Telepon PIC (untuk WA H-1)">
+                    <FormField label="No. PIC">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
                         <input type="tel" value={formData.pic_phone} onChange={e => fd({ pic_phone: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxxxxxxxxx" />
+                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxx" />
                       </div>
                     </FormField>
                   </div>
