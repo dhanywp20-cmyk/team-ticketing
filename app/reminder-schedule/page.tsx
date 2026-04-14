@@ -1712,9 +1712,7 @@ export default function ReminderSchedulePage() {
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-gray-700 truncate">{r.sales_name || '—'}</p>
                                 {r.sales_division && (
-                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
-                                        <span>📱</span>{r.sales_division}
-                                      </p>
+                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">{r.sales_division}</p>
                                 )}
                               </div>
                               {/* Team Handler — NEW COLUMN */}
