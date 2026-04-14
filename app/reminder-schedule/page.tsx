@@ -771,10 +771,13 @@ export default function ReminderSchedulePage() {
     const { error } = await supabase.from('reminders').update({
       due_date: newDate,
       due_time: newTime,
-      wa_sent_h1: false,
       notes: (rescheduleTarget.notes ?? '') + noteAdd,
     }).eq('id', rescheduleTarget.id);
-    if (error) { notify('error', 'Gagal re-schedule.'); return; }
+    if (error) {
+      console.error('[Reschedule error]', error);
+      notify('error', `Gagal re-schedule: ${error.message}`);
+      return;
+    }
     notify('success', `Jadwal berhasil dipindah ke ${formatDate(newDate)}!`);
     setRescheduleTarget(null);
     setDetailReminder(null);
@@ -1113,8 +1116,8 @@ export default function ReminderSchedulePage() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto"
             onClick={e => { if (e.target === e.currentTarget) { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); } }}>
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
-              style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)' }}>
-              <div className="px-8 py-6 relative" style={{
+              style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)', maxHeight: '92vh' }}>
+              <div className="px-6 py-5 relative" style={{
                 background: (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
               }}>
                 <button onClick={() => { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); }}
@@ -1136,7 +1139,7 @@ export default function ReminderSchedulePage() {
                 {detailReminder.description && <p className="text-white/80 text-sm mt-2">{detailReminder.description}</p>}
               </div>
 
-              <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 160px)' }}>
                 <div>
                   <SectionHeaderSmall icon="📋" title="Detail Jadwal" />
                   <div className="mt-3 grid grid-cols-2 gap-4">
@@ -1277,37 +1280,40 @@ export default function ReminderSchedulePage() {
                 </div>
 
                 {/* Action buttons */}
-                {isAdmin && (
-                  <div className="flex gap-3 pt-2 flex-wrap">
-                    {/* Re-Schedule button */}
-                    <button onClick={() => { setRescheduleTarget(detailReminder); }}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
-                      📅 Re-Schedule
+                <div className="flex gap-3 pt-2 flex-wrap">
+                  {/* Re-Schedule - semua user bisa */}
+                  <button onClick={() => { setRescheduleTarget(detailReminder); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
+                    📅 Re-Schedule
+                  </button>
+                  {/* Send WA - semua user kalau ada pic_phone */}
+                  {detailReminder.pic_phone && (
+                    <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
+                      style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
+                      {sendingWA === detailReminder.id
+                        ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        : '💬'}
+                      Kirim WA
                     </button>
-                    {/* Send WA button */}
-                    {detailReminder.pic_phone && (
-                      <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
-                        style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
-                        {sendingWA === detailReminder.id
-                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : '💬'}
-                        Kirim WA
+                  )}
+                  {/* Edit & Hapus - admin only */}
+                  {isAdmin && (
+                    <>
+                      <button onClick={() => openEdit(detailReminder)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
+                        ✏️ Edit
                       </button>
-                    )}
-                    <button onClick={() => openEdit(detailReminder)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
-                      ✏️ Edit
-                    </button>
-                    <button onClick={() => handleDelete(detailReminder.id)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
-                      🗑️ Hapus
-                    </button>
-                  </div>
-                )}
+                      <button onClick={() => handleDelete(detailReminder.id)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                        style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
+                        🗑️ Hapus
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
