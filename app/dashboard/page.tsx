@@ -15,6 +15,7 @@ interface User {
   password: string;
   full_name: string;
   role: string;
+  team_type?: string;
   allowed_menus?: string[];
 }
 
@@ -69,11 +70,13 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
     full_name: '',
-    role: 'user',
+    role: 'guest',
+    team_type: '',
     allowed_menus: ALL_MENU_KEYS,
   });
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -109,12 +112,14 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     setSaving(true);
     const { error } = await supabase.from('users').insert([{
       username: newUser.username, password: newUser.password,
-      full_name: newUser.full_name, role: newUser.role, allowed_menus: newUser.allowed_menus,
+      full_name: newUser.full_name, role: newUser.role,
+      team_type: newUser.role === 'team' ? newUser.team_type : null,
+      allowed_menus: newUser.allowed_menus,
     }]);
     setSaving(false);
     if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
     notify('success', 'Akun berhasil ditambahkan!');
-    setNewUser({ username: '', password: '', full_name: '', role: 'user', allowed_menus: ALL_MENU_KEYS });
+    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', allowed_menus: ALL_MENU_KEYS });
     setActiveTab('list');
     fetchUsers();
   };
@@ -125,6 +130,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     const { error } = await supabase.from('users').update({
       username: editingUser.username, password: editingUser.password,
       full_name: editingUser.full_name, role: editingUser.role,
+      team_type: editingUser.role === 'team' ? (editingUser.team_type ?? '') : null,
       allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS,
     }).eq('id', editingUser.id);
     setSaving(false);
@@ -184,7 +190,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-8 py-6 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -251,15 +257,29 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     </div>
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
-                      <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
-                        <option value="user">User</option>
+                      <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value, team_type: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                        <option value="guest">Guest</option>
+                        <option value="team">Team</option>
                         <option value="sales">Sales</option>
-                        <option value="team_pts">Team PTS</option>
                         <option value="admin">Admin</option>
                         <option value="superadmin">Superadmin</option>
                       </select>
                     </div>
                   </div>
+                  {editingUser.role === 'team' && (
+                    <div>
+                      <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Team Type</label>
+                      <div className="flex gap-3">
+                        {['Team PTS', 'Team Services'].map(t => (
+                          <button key={t} type="button"
+                            onClick={() => setEditingUser({ ...editingUser, team_type: t })}
+                            className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${editingUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+                            {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
                   <div className="flex gap-3 pt-2">
                     <button onClick={() => setEditingUser(null)} className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-lg font-semibold hover:bg-slate-50 transition-all text-sm">Batal</button>
@@ -271,36 +291,86 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   </div>
                 </div>
               ) : (
-                users.map(user => (
-                  <div key={user.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                          style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.3)' }}>
-                          {user.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-800 text-sm truncate">{user.full_name}</p>
-                          <p className="text-xs text-slate-500">@{user.username}</p>
-                          <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 flex-shrink-0">
-                        <button onClick={() => setEditingUser(user)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">Edit</button>
-                        <button onClick={() => handleDeleteUser(user.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">Hapus</button>
-                      </div>
-                    </div>
-                    {user.allowed_menus && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {user.allowed_menus.map(key => (
-                          <span key={key} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 text-slate-600">
-                            {menuLabels[key]?.icon} {menuLabels[key]?.label ?? key}
-                          </span>
-                        ))}
-                      </div>
+                <>
+                  {/* Search bar */}
+                  <div className="relative mb-1">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Cari nama, username, atau role..."
+                      className="w-full pl-9 pr-9 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
                     )}
                   </div>
-                ))
+                  <p className="text-xs text-slate-400 font-medium mb-1">
+                    {users.filter(u =>
+                      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      u.role?.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length} akun ditemukan
+                  </p>
+                  {users
+                    .filter(u =>
+                      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      u.role?.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map(user => (
+                    <div key={user.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm"
+                            style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.3)' }}>
+                            {user.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 text-sm truncate">{user.full_name}</p>
+                            <p className="text-xs text-slate-500">@{user.username}</p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
+                              {user.team_type && (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-rose-100 text-rose-600 border border-rose-200">
+                                  {user.team_type === 'Team PTS' ? '🏗️' : '🔧'} {user.team_type}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button onClick={() => setEditingUser(user)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">Edit</button>
+                          <button onClick={() => handleDeleteUser(user.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">Hapus</button>
+                        </div>
+                      </div>
+                      {user.allowed_menus && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {user.allowed_menus.map(key => (
+                            <span key={key} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 text-slate-600">
+                              {menuLabels[key]?.icon} {menuLabels[key]?.label ?? key}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {searchQuery && users.filter(u =>
+                    u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    u.role?.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).length === 0 && (
+                    <div className="text-center py-10 text-slate-400 text-sm">
+                      <div className="text-3xl mb-2">🔍</div>
+                      Tidak ada akun yang cocok dengan &ldquo;{searchQuery}&rdquo;
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -322,15 +392,29 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
-                  <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
-                    <option value="user">User</option>
+                  <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value, team_type: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                    <option value="guest">Guest</option>
+                    <option value="team">Team</option>
                     <option value="sales">Sales</option>
-                    <option value="team_pts">Team PTS</option>
                     <option value="admin">Admin</option>
                     <option value="superadmin">Superadmin</option>
                   </select>
                 </div>
               </div>
+              {newUser.role === 'team' && (
+                <div>
+                  <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Team Type</label>
+                  <div className="flex gap-3">
+                    {['Team PTS', 'Team Services'].map(t => (
+                      <button key={t} type="button"
+                        onClick={() => setNewUser({ ...newUser, team_type: t })}
+                        className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${newUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+                        {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
               <button onClick={handleAddUser} disabled={saving}
                 className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
@@ -485,7 +569,9 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const [lastFetch, setLastFetch]         = useState(0);
 
   const roleLC = currentUser.role?.toLowerCase() ?? '';
-  const isPTS  = ['admin', 'superadmin', 'team_pts', 'team'].includes(roleLC);
+  const teamType = currentUser.team_type ?? '';
+  const isTeamServices = roleLC === 'team' && teamType === 'Team Services';
+  const isPTS  = ['admin', 'superadmin', 'team_pts'].includes(roleLC) || (roleLC === 'team' && teamType !== 'Team Services');
   const isAdmin = ['admin', 'superadmin'].includes(roleLC);
 
   const fetchAll = useCallback(async () => {
@@ -527,7 +613,10 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       }
     } catch {}
 
-    // ── 2. Form Require Project ──
+    // ── 2. Form Require Project ── (tidak untuk Team Services)
+    if (isTeamServices) {
+      setRequireNotifs([]);
+    } else {
     try {
       let q = supabase.from('project_requests').select('id, project_name, requester_name, status, created_at, requester_id');
       if (isPTS) {
@@ -551,11 +640,12 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         })));
       }
     } catch {}
+    }
 
     // ── 3. Reminder Schedule ──
-    // Hanya untuk admin, superadmin, team_pts, team — TIDAK untuk guest, sales, team_service
-    const reminderAllowedRoles = ['admin', 'superadmin', 'team_pts', 'team'];
-    if (!reminderAllowedRoles.includes(roleLC)) {
+    // Hanya untuk admin, superadmin, team_pts, Team PTS — TIDAK untuk guest, sales, Team Services
+    const reminderAllowed = ['admin', 'superadmin', 'team_pts'].includes(roleLC) || (roleLC === 'team' && teamType !== 'Team Services');
+    if (!reminderAllowed) {
       setReminderNotifs([]);
     } else {
     try {
@@ -588,7 +678,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       }
     } catch {}
     }
-  }, [currentUser, lastFetch, isPTS, isAdmin, roleLC]);
+  }, [currentUser, lastFetch, isPTS, isAdmin, roleLC, teamType]);
 
   useEffect(() => {
     fetchAll();
@@ -671,7 +761,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         onItemClick={handleClick}
       />
 
-      {/* Require Bell */}
+      {/* Require Bell — tidak untuk Team Services */}
+      {!isTeamServices && (
       <NotifBell
         icon="🏗️"
         label="Require"
@@ -683,9 +774,10 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         items={requireNotifs}
         onItemClick={handleClick}
       />
+      )}
 
-      {/* Reminder Bell — hanya tampil untuk admin, superadmin, team_pts, team */}
-      {['admin', 'superadmin', 'team_pts', 'team'].includes(roleLC) && (
+      {/* Reminder Bell — hanya tampil untuk admin, superadmin, team_pts, Team PTS — tidak untuk Team Services */}
+      {(['admin', 'superadmin', 'team_pts'].includes(roleLC) || (roleLC === 'team' && teamType !== 'Team Services')) && (
       <NotifBell
         icon="⏰"
         label="Reminder"
