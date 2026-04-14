@@ -93,6 +93,7 @@ interface Ticket {
   created_by?: string;
   current_team: string;
   services_status?: string;
+  sales_division?: string;
   photo_url?: string;
   photo_name?: string;
   activity_logs?: ActivityLog[];
@@ -113,6 +114,13 @@ interface OverdueSetting {
   set_by: string;
   created_at: string;
 }
+
+const SALES_DIVISIONS = [
+  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
+  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
+  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
+  'IOCBali', 'SGP', 'OSS'
+] as const;
 
 export default function TicketingSystem() {
   const ticketListRef = useRef<HTMLDivElement>(null);
@@ -195,6 +203,7 @@ export default function TicketingSystem() {
     address: '',
     customer_phone: '',
     sales_name: '',
+    sales_division: '',
     sn_unit: '',
     issue_case: '',
     description: '',
@@ -656,6 +665,7 @@ export default function TicketingSystem() {
         address: newTicket.address || null,
         customer_phone: newTicket.customer_phone || null,
         sales_name: newTicket.sales_name || null,
+        sales_division: newTicket.sales_division || null,
         sn_unit: newTicket.sn_unit || null,
         issue_case: newTicket.issue_case,
         description: newTicket.description || null,
@@ -705,6 +715,7 @@ export default function TicketingSystem() {
         address: '',
         customer_phone: '',
         sales_name: '',
+        sales_division: '',
         sn_unit: '',
         issue_case: '',
         description: '',
@@ -2143,6 +2154,9 @@ export default function TicketingSystem() {
                         <div>
                           <span className="text-gray-600 font-semibold">Project Sales:</span>
                           <p className="text-gray-800">{selectedTicket.sales_name}</p>
+                          {selectedTicket.sales_division && (
+                            <p className="text-xs text-purple-600 font-semibold mt-0.5">{selectedTicket.sales_division}</p>
+                          )}
                         </div>
                       )}
                       <div>
@@ -3556,6 +3570,19 @@ export default function TicketingSystem() {
                   />
                 </div>
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">🏢 Sales Division</label>
+                  <select
+                    value={newTicket.sales_division}
+                    onChange={(e) => setNewTicket({...newTicket, sales_division: e.target.value})}
+                    className="w-full border-2 border-purple-400 rounded-lg px-4 py-2.5 focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all font-medium bg-white"
+                  >
+                    <option value="">— Pilih Division —</option>
+                    {SALES_DIVISIONS.map(div => (
+                      <option key={div} value={div}>{div}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                   <label className="block text-sm font-bold text-gray-800 mb-2">🔢 SN Unit (Optional)</label>
                   <input 
                     type="text" 
@@ -3834,6 +3861,9 @@ export default function TicketingSystem() {
                       </td>
 						  <td className="px-2 py-3 border-r border-gray-100 align-middle">
                         <div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || '—'}</div>
+                        {ticket.sales_division && (
+                          <div className="text-xs text-purple-600 font-semibold mt-0.5">{ticket.sales_division}</div>
+                        )}
                       </td>
 					  <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                         <div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>
