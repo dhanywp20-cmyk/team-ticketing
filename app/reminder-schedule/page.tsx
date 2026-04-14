@@ -471,7 +471,7 @@ function LoadingScreen({ userName }: { userName?: string }) {
         </div>
         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-500"
-            style={{ width: `${(step / steps.length) * 100}%` }} />
+            style={{ width: `${(step / LOADING_STEPS.length) * 100}%` }} />
         </div>
       </div>
     </div>
