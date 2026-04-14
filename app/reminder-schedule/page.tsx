@@ -770,7 +770,7 @@ export default function ReminderSchedulePage() {
     setEditingReminder(r);
     setFormData({ title: r.title, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
-      sales_name: r.sales_name ?? '', sales_name: r.sales_division ?? '', project_location: r.project_location ?? '',
+      sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', project_location: r.project_location ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '' });
     setDetailReminder(null);
     setView('form');
