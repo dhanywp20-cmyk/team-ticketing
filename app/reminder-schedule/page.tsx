@@ -438,10 +438,12 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
 
 // ─── Loading screen ────────────────────────────────────────────────────────────
 
+const LOADING_STEPS = ['Menghubungkan ke server...', 'Memuat data reminder...', 'Menyiapkan tampilan...', 'Hampir siap...'];
+
 function LoadingScreen({ userName }: { userName?: string }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
-    const timers = steps.map((_, i) => setTimeout(() => setStep(i + 1), 400 * (i + 1)));
+    const timers = LOADING_STEPS.map((_, i) => setTimeout(() => setStep(i + 1), 400 * (i + 1)));
     return () => timers.forEach(clearTimeout);
   }, []);
   return (
@@ -454,11 +456,11 @@ function LoadingScreen({ userName }: { userName?: string }) {
           <span className="text-4xl">🗓️</span>
         </div>
         <div className="text-center">
-          <p className="text-gray-500 text-sm">Loading</p>
+          <p className="text-gray-500 text-sm">Selamat datang,</p>
           <h2 className="text-xl font-black text-gray-800">{userName}</h2>
         </div>
         <div className="w-full space-y-2.5">
-          {steps.map((s, i) => (
+          {LOADING_STEPS.map((s, i) => (
             <div key={i} className={`flex items-center gap-3 text-sm font-medium transition-all duration-300 ${step > i ? 'opacity-100' : 'opacity-30'}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs transition-all duration-300 ${step > i ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
                 {step > i ? '✓' : '○'}
