@@ -1182,7 +1182,7 @@ export default function ReminderSchedulePage() {
                 <div>
                   <SectionHeaderSmall icon="🏢" title="Informasi Project" />
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                    <InfoRow icon="👤" label="Nama Sales & Divisi" value={detailReminder.sales_name} value={detailReminder.sales_division} />
+                    <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
                     <InfoRow icon="📍" label="Lokasi Project" value={detailReminder.project_location} />
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
                     {detailReminder.pic_phone && (
