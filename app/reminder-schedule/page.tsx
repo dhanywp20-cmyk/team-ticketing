@@ -438,41 +438,17 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
 
 // ─── Loading screen ────────────────────────────────────────────────────────────
 
-const LOADING_STEPS = ['Menghubungkan ke server...', 'Memuat data reminder...', 'Menyiapkan tampilan...', 'Hampir siap...'];
-
-function LoadingScreen({ userName }: { userName?: string }) {
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    const timers = LOADING_STEPS.map((_, i) => setTimeout(() => setStep(i + 1), 400 * (i + 1)));
-    return () => timers.forEach(clearTimeout);
-  }, []);
+function LoadingScreen() {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[9999]"
       style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <div className="flex flex-col items-center gap-8 p-10 rounded-3xl max-w-sm w-full mx-4"
-        style={{ background: 'rgba(255,255,255,0.95)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-        <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 8px 24px rgba(220,38,38,0.4)' }}>
-          <span className="text-4xl">🗓️</span>
-        </div>
-        <div className="text-center">
-          <p className="text-gray-500 text-sm">Selamat datang,</p>
-          <h2 className="text-xl font-black text-gray-800">{userName}</h2>
-        </div>
-        <div className="w-full space-y-2.5">
-          {LOADING_STEPS.map((s, i) => (
-            <div key={i} className={`flex items-center gap-3 text-sm font-medium transition-all duration-300 ${step > i ? 'opacity-100' : 'opacity-30'}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs transition-all duration-300 ${step > i ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                {step > i ? '✓' : '○'}
-              </span>
-              <span className={step > i ? 'text-gray-700' : 'text-gray-400'}>{s}</span>
-            </div>
-          ))}
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-red-700 transition-all duration-500"
-            style={{ width: `${(step / LOADING_STEPS.length) * 100}%` }} />
-        </div>
+      <div className="flex flex-col items-center gap-3 px-10 py-8 rounded-2xl"
+        style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <svg className="w-12 h-12 animate-spin" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="25" cy="25" r="20" stroke="#f1f1f1" strokeWidth="5" />
+          <path d="M25 5 A20 20 0 0 1 45 25" stroke="#dc2626" strokeWidth="5" strokeLinecap="round" />
+        </svg>
+        <p className="text-gray-700 font-semibold text-sm tracking-wide">Loading...</p>
       </div>
     </div>
   );
@@ -967,8 +943,8 @@ export default function ReminderSchedulePage() {
   };
 
   // ─── Not ready ─────────────────────────────────────────────────────────────
-  if (!appReady) return <LoadingScreen userName="..." />;
-  if (dashLoading) return <LoadingScreen userName={currentUser?.full_name} />;
+  if (!appReady) return <LoadingScreen />;
+  if (dashLoading) return <LoadingScreen />;
 
   // ─── Login page ────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
