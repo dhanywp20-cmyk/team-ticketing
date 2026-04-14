@@ -1148,7 +1148,7 @@ export default function ReminderSchedulePage() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto"
             onClick={e => { if (e.target === e.currentTarget) { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); } }}>
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
-              style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)', maxHeight: '92vh' }}>
+              style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)', maxHeight: '96vh' }}>
               <div className="px-6 py-5 relative" style={{
                 background: (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
               }}>
@@ -1171,7 +1171,7 @@ export default function ReminderSchedulePage() {
                 {detailReminder.description && <p className="text-white/80 text-sm mt-2">{detailReminder.description}</p>}
               </div>
 
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 160px)' }}>
+              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 140px)' }}>
                 <div>
                   <SectionHeaderSmall icon="📋" title="Detail Jadwal" />
                   <div className="mt-3 grid grid-cols-2 gap-4">
@@ -1259,8 +1259,8 @@ export default function ReminderSchedulePage() {
                   </div>
                   )}
 
-                  {/* Photo upload - wajib jika status Completed */}
-                  {(pendingStatus ?? detailReminder.status) === 'done' && (
+                  {/* Photo upload - wajib jika status Completed, sembunyikan jika sudah done */}
+                  {detailReminder.status !== 'done' && (pendingStatus ?? detailReminder.status) === 'done' && (
                     <div className="rounded-xl p-3 mb-3" style={{ background: 'rgba(16,185,129,0.07)', border: '1.5px solid rgba(16,185,129,0.3)' }}>
                       <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#059669' }}>
                         📸 Foto Bukti Selesai <span className="text-red-500">*Wajib</span>
