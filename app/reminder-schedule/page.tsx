@@ -695,8 +695,39 @@ export default function ReminderSchedulePage() {
       ? await supabase.from('reminders').update(payload).eq('id', editingReminder.id)
       : await supabase.from('reminders').insert([payload]);
 
-    if (error) notify('error', 'Gagal menyimpan: ' + error.message);
-    else notify('success', editingReminder ? 'Reminder diperbarui!' : 'Reminder ditambahkan!');
+    if (error) {
+      notify('error', 'Gagal menyimpan: ' + error.message);
+      setSaving(false);
+      return;
+    }
+
+    notify('success', editingReminder ? 'Reminder diperbarui!' : 'Reminder ditambahkan!');
+
+    // ── Kirim WA notifikasi ke assignee saat reminder BARU dibuat ────────────
+    if (!editingReminder && assignee?.phone_number) {
+      const assigneeName = assignee.full_name ?? formData.assigned_to;
+      const createdBy = currentUser?.username ?? 'system';
+      const msg =
+        `🆕 *JADWAL BARU — PTS IVP*\n\n` +
+        `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
+        `*${formData.title}*\n` +
+        `🏷️ Kategori: ${formData.category}\n` +
+        `📍 Lokasi: ${formData.project_location || '-'}\n` +
+        `👤 Sales: ${formData.sales_name || '-'}\n` +
+        `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
+        (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}\n`    : '') +
+        (formData.pic_phone ? `📱 No. PIC: ${formData.pic_phone}\n` : '') +
+        (formData.notes     ? `📝 Catatan: ${formData.notes}\n`    : '') +
+        `\nDibuat oleh: ${createdBy}\n` +
+        `_Pesan otomatis dari Reminder Schedule PTS IVP_`;
+
+      const waResult = await sendFonnteWA(assignee.phone_number, msg, { reminderType: 'new_schedule' });
+      if (!waResult.ok) console.warn('[WA new schedule] Gagal kirim:', waResult.reason);
+      else notify('success', `WA notifikasi terkirim ke ${assigneeName}!`);
+    } else if (!editingReminder && !assignee?.phone_number) {
+      console.warn('[WA new schedule] Nomor WA assignee tidak tersedia:', formData.assigned_to);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     setSaving(false);
     setView('list');
