@@ -1209,6 +1209,12 @@ export default function ReminderSchedulePage() {
                         </button>
                       );
                     })}
+                    {/* Re-Schedule inline setelah Cancelled - semua user */}
+                    <button onClick={() => { setRescheduleTarget(detailReminder); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02]"
+                      style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 2px 8px rgba(217,119,6,0.3)' }}>
+                      📅 Re-Schedule
+                    </button>
                   </div>
 
                   {/* Photo upload - wajib jika status Completed */}
@@ -1279,16 +1285,10 @@ export default function ReminderSchedulePage() {
                   )}
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex gap-3 pt-2 flex-wrap">
-                  {/* Re-Schedule - semua user bisa */}
-                  <button onClick={() => { setRescheduleTarget(detailReminder); }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                    style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
-                    📅 Re-Schedule
-                  </button>
-                  {/* Send WA - semua user kalau ada pic_phone */}
-                  {detailReminder.pic_phone && (
+                {/* Action buttons - admin only */}
+                {isAdmin && (
+                  <div className="flex gap-3 pt-2 flex-wrap">
+                    {/* Send WA - admin only */}
                     <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
                       style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
@@ -1297,23 +1297,18 @@ export default function ReminderSchedulePage() {
                         : '💬'}
                       Kirim WA
                     </button>
-                  )}
-                  {/* Edit & Hapus - admin only */}
-                  {isAdmin && (
-                    <>
-                      <button onClick={() => openEdit(detailReminder)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                        style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
-                        ✏️ Edit
-                      </button>
-                      <button onClick={() => handleDelete(detailReminder.id)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                        style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
-                        🗑️ Hapus
-                      </button>
-                    </>
-                  )}
-                </div>
+                    <button onClick={() => openEdit(detailReminder)}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
+                      ✏️ Edit
+                    </button>
+                    <button onClick={() => handleDelete(detailReminder.id)}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                      style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
+                      🗑️ Hapus
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
