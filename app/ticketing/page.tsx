@@ -8321,7 +8321,6 @@ export default function TicketingSystem() {
             animation: slide-down 0.3s ease-out;
           }
         `}</style>
-      </div>
     </div>
   );
 }
