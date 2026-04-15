@@ -1031,7 +1031,7 @@ export default function TicketingSystem() {
             <tr><th>Name & Phone User :</th><td>${ticket.customer_phone || "-"}</td></tr>
             <tr><th>Sales Project :</th><td>${ticket.sales_name || "-"}</td></tr>
             <tr><th>Status Team PTS :</th><td>${ticket.status}</td></tr>
-            ${ticket.services_status ? `<tr><th>Status Team Services :</th><td>${ticket.services_status}</td></tr>` : ""}
+            ${ticket.services_status ? `<tr><th>Status Team Services :</th><td>${ticket.services_status}</td>` : ""}
             <tr><th>Current Team :</th><td>${ticket.current_team}</td></tr>
             <tr><th>Date :</th><td>${ticket.date}</td></tr>
           </table>
@@ -1597,50 +1597,107 @@ export default function TicketingSystem() {
             </div>
           )}
 
-          {/* ── Search & Filter Bar (Redesigned) ── */}
-          <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-bold mb-2 text-gray-700">🔍 Search Project</label>
-                <input type="text" value={searchProject} onChange={(e) => setSearchProject(e.target.value)} placeholder="Search by project or issue..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-              </div>
-              <div>
-                <label className="block text-sm font-bold mb-2 text-gray-700">👤 Search Sales Name</label>
-                <input type="text" value={searchSalesName} onChange={(e) => setSearchSalesName(e.target.value)} placeholder="Search by sales name..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-              </div>
-              <div>
-                <label className="block text-sm font-bold mb-2 text-gray-700">📅 Filter Year</label>
-                <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                  <option value="all">All Years</option>
-                  {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold mb-2 text-gray-700">📋 Filter Status</label>
-                <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setHandlerFilter(null); }} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                  <option value="All">All Status</option>
-                  <option value="Waiting Approval">⏳ Waiting Approval</option>
-                  <option value="Pending">🟡 Pending</option>
-                  <option value="Call">📞 Call</option>
-                  <option value="Onsite">🚗 Onsite</option>
-                  <option value="In Progress">🔵 In Progress</option>
-                  <option value="Solved">✅ Solved</option>
-                  {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && (<><option value="Overdue">🚨 Overdue</option><option value="Solved Overdue">⚠️ Solved Overdue</option></>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Ticket List (Redesigned) ── */}
+          {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
           <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
-            <div className="flex justify-between items-center px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
+            {/* Header with title and actions */}
+            <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
                 <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? "..." : filteredTickets.length}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mt-2 sm:mt-0">
                 <button onClick={() => fetchData()} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: "white" }}>🔄 Refresh</button>
                 <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}>📊 Export Report</button>
+              </div>
+            </div>
+
+            {/* Integrated search filters row - like the image */}
+            <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                    <input 
+                      type="text" 
+                      value={searchProject} 
+                      onChange={(e) => setSearchProject(e.target.value)} 
+                      placeholder="Search project / lokasi..." 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
+                    <input 
+                      type="text" 
+                      value={searchSalesName} 
+                      onChange={(e) => setSearchSalesName(e.target.value)} 
+                      placeholder="Search sales name..." 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👥</span>
+                    <select 
+                      value={handlerFilter || ""} 
+                      onChange={(e) => setHandlerFilter(e.target.value || null)} 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
+                    >
+                      <option value="">All Handlers</option>
+                      {teamMembers.filter(m => m.team_type === `Team ${selectedHandlerTeam}`).map((m) => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
+                    <select 
+                      value={filterStatus} 
+                      onChange={(e) => setFilterStatus(e.target.value)} 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
+                    >
+                      <option value="All">All Status</option>
+                      <option value="Waiting Approval">⏳ Waiting Approval</option>
+                      <option value="Pending">🟡 Pending</option>
+                      <option value="Call">📞 Call</option>
+                      <option value="Onsite">🚗 Onsite</option>
+                      <option value="In Progress">🔵 In Progress</option>
+                      <option value="Solved">✅ Solved</option>
+                      {currentUser?.role === "admin" && (
+                        <>
+                          <option value="Overdue">🚨 Overdue</option>
+                          <option value="Solved Overdue">⚠️ Solved Overdue</option>
+                        </>
+                      )}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                    <select 
+                      value={filterYear} 
+                      onChange={(e) => setFilterYear(e.target.value)} 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
+                    >
+                      <option value="all">All Years</option>
+                      {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1691,7 +1748,7 @@ export default function TicketingSystem() {
                             <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                             {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
-                          </td>
+                           </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
@@ -1701,7 +1758,7 @@ export default function TicketingSystem() {
                               {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
                               {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
                             </div>
-                          </td>
+                           </td>
                           <td className="px-2 py-3 border-r border-gray-100 align-middle"><div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || "—"}</div>{ticket.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{ticket.sales_division}</div>}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>{ticket.created_by && <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>}{ticket.created_at && <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(",")[0]}</div>}</td>
                           <td className="px-1 py-2 border-r border-gray-100 text-center align-middle">
@@ -1710,7 +1767,7 @@ export default function TicketingSystem() {
                               <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-base">👁</span></button>
                               {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors mt-0.5" title="Re-open"><span className="text-base">🔓</span></button>}
                             </div>
-                          </td>
+                           </td>
                           <td className="px-1 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"><span className="text-base">📊</span></button>{canAccessAccountSettings && ticket.status === "Waiting Approval" && <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-1 animate-pulse" title="Approve"><span className="text-base">✅</span></button>}</td>
                           <td className="px-1 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => exportToPDF(ticket)} className="text-green-600 hover:text-green-800 transition-colors mx-auto block" title="Print PDF"><span className="text-base">🖨️</span></button></td>
                           {canAccessAccountSettings && (<td className="px-1 py-2 align-middle text-center"><button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors mx-auto block ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-base">⏰</span></button></td>)}
@@ -1724,6 +1781,9 @@ export default function TicketingSystem() {
             )}
           </div>
         </div>
+
+        {/* ── All modals remain the same as original (notifications, detail popup, etc.) ── */}
+        {/* ... (all other modals - notification popup, ticket detail, update form, approval modals, etc. remain unchanged) ... */}
 
         {/* ── NOTIFICATION POPUP (Redesigned) ── */}
         {showNotificationPopup && notifications.length > 0 && (
@@ -1869,7 +1929,7 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* ── UPDATE ACTIVITY FORM (Right panel) ── - Keep similar but adjust colors */}
+        {/* ── UPDATE ACTIVITY FORM (Right panel) - keep similar but adjust colors */}
         {showUpdateForm && canUpdateTicket && selectedTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) setShowUpdateForm(false); }}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(220,38,38,0.25)" }}>
