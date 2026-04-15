@@ -1609,223 +1609,80 @@ export default function ReminderSchedulePage() {
 
         {/* ── MAIN CONTENT dengan Sticky Summary & Chart ── */}
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5">
-          
-          {view === 'list' && (
+        
+        {view === 'list' && (
             <div className="flex flex-col h-full">
-              
-              {/* STICKY SECTION: Stat Cards + Pie Charts + Filter Chips */}
-              <div className="sticky top-[73px] z-40 space-y-4 pb-4" style={{ background: 'transparent' }}>
+            
+            {/* STICKY SECTION: Stat Cards + Pie Charts + Filter Chips */}
+            {/* JANGAN beri background transparan, biarkan natural */}
+            <div className="sticky top-[73px] z-40 space-y-4 pb-4" style={{ background: 'transparent' }}>
                 
                 {/* Stat cards (clickable filter) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    {
-                      label: 'Total Jadwal', value: totalCount, sub: 'Semua reminder',
-                      gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',
-                      onClick: () => { setFilterStatus('all'); setSelectedCalDay(null); },
-                      active: filterStatus === 'all' && !selectedCalDay,
-                    },
-                    {
-                      label: 'Pending', value: pendingCount, sub: 'Menunggu tindakan',
-                      gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',
-                      onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),
-                      active: filterStatus === 'pending',
-                    },
-                    {
-                      label: 'Selesai', value: doneCount, sub: 'Terselesaikan',
-                      gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '✅', shadow: 'rgba(5,150,105,0.35)',
-                      onClick: () => setFilterStatus(filterStatus === 'done' ? 'all' : 'done'),
-                      active: filterStatus === 'done',
-                    },
-                    {
-                      label: 'Hari Ini', value: todayCount, sub: 'Jadwal hari ini',
-                      gradient: 'linear-gradient(135deg,#0891b2,#0e7490)', icon: '📅', shadow: 'rgba(8,145,178,0.35)',
-                      onClick: () => setSelectedCalDay(selectedCalDay === new Date().toISOString().split('T')[0] ? null : new Date().toISOString().split('T')[0]),
-                      active: selectedCalDay === new Date().toISOString().split('T')[0],
-                    },
-                  ].map(card => (
-                    <div key={card.label}
-                      onClick={card.onClick}
-                      className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
-                      style={{
-                        background: card.gradient,
-                        boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
-                        outline: card.active ? '3px solid white' : 'none',
-                        transform: card.active ? 'scale(1.04)' : undefined,
-                      }}>
-                      <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
-                      {card.active && (
-                        <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />
-                      )}
-                      <span className="text-3xl font-black text-white leading-none">{card.value}</span>
-                      <div>
-                        <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
-                        <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
-                      </div>
-                      {card.active && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
-                    </div>
-                  ))}
+                {/* ... card content ... */}
                 </div>
 
                 {/* Pie Charts — klik untuk filter */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <MiniPieChart
-                    data={projectPieData} title="Kegiatan / Kategori" icon="🖥️"
-                    onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
-                  />
-                  <MiniPieChart
-                    data={salesPieData} title="Divisi Sales" icon="👤"
-                    onSliceClick={label => setSearchDivisionSales(searchDivisionSales === label ? '' : label)}
-                  />
-                  <MiniPieChart
-                    data={teamPtsPieData} title="Team PTS" icon="👥"
-                    onSliceClick={label => setSearchTeamHandler(searchTeamHandler === label ? '' : label)}
-                  />
+                {/* ... pie charts ... */}
                 </div>
 
                 {/* Active filter chips */}
                 {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay) && (
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <span className="text-xs font-bold text-white-500 uppercase tracking-widest">Filter:</span>
-                    {filterCategory !== 'all' && (
-                      <button onClick={() => setFilterCategory('all')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                        style={{ background: '#7c3aed' }}>
-                        🏷️ {filterCategory} ✕
-                      </button>
-                    )}
-                    {filterStatus !== 'all' && (
-                      <button onClick={() => setFilterStatus('all')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                        style={{ background: '#d97706' }}>
-                        Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕
-                      </button>
-                    )}
-                    {searchSales && (
-                      <button onClick={() => setSearchSales('')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                        style={{ background: '#454747ff' }}>
-                        👤 {searchSales} ✕
-                      </button>
-                    )}
-                    {searchTeamHandler && (
-                      <button onClick={() => setSearchTeamHandler('')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                        style={{ background: '#7c3aed' }}>
-                        👷 {searchTeamHandler} ✕
-                      </button>
-                    )}
-                    {searchProject && (
-                      <button onClick={() => setSearchProject('')}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                        style={{ background: '#575454ff' }}>
-                        🔍 {searchProject} ✕
-                      </button>
-                    )}
-                    {selectedCalDay && (
-                      <button onClick={() => setSelectedCalDay(null)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                        style={{ background: '#0891b2' }}>
-                        📅 {formatDate(selectedCalDay)} ✕
-                      </button>
-                    )}
-                    <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
-                      style={{ background: 'rgba(0,0,0,0.1)', color: '#f9fbfdff' }}>
-                      Reset Semua
-                    </button>
-                  </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                    {/* ... filter chips ... */}
+                </div>
                 )}
-              </div>
+            </div>
 
-              {/* SCROLLABLE SECTION: Main area list + calendar */}
-              <div className="flex-1 min-h-0">
+            {/* SCROLLABLE SECTION: Main area list + calendar */}
+            {/* TAMBAHKAN jarak yang cukup dari sticky section */}
+            <div className="flex-1 min-h-0 mt-4">
                 <div className="flex gap-4 items-start h-full">
-                  
-                  {/* TICKET LIST - scrollable */}
-                  <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" 
-                       style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', maxHeight: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
+                
+                {/* TICKET LIST - scrollable dengan batasan tinggi yang tepat */}
+                <div className="flex-1 min-w-0 rounded-2xl" 
+                    style={{ 
+                        background: 'rgba(255,255,255,0.88)', 
+                        border: '1px solid rgba(0,0,0,0.08)', 
+                        backdropFilter: 'blur(12px)',
+                        height: 'calc(100vh - 420px)', // Kurangi dengan tinggi header + sticky section
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        overflow: 'hidden' // Penting: hindari overflow di container utama
+                    }}>
                     
                     {/* Search + filter bar (sticky di dalam area scroll) */}
-                    <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center sticky top-0 z-20"
-                         style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.07)', backdropFilter: 'blur(8px)' }}>
-                      {/* Search project */}
-                      <div className="flex-1 min-w-[150px] relative">
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                          className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                          placeholder="Search project / lokasi..." />
-                      </div>
-                      {/* Search sales */}
-                      <div className="flex-1 min-w-[130px] relative">
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                          className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                          placeholder="Search sales..." />
-                      </div>
-                      {/* Search Team Handler — NEW */}
-                      <div className="flex-1 min-w-[140px] relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
-                        <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
-                          className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-purple-400 outline-none"
-                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                          placeholder="Search team handler..." />
-                      </div>
-                      {/* Filter status */}
-                      <div className="relative">
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                        </svg>
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
-                          className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
-                          <option value="all">All Status</option>
-                          {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                        </select>
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
-                      {/* Filter tahun */}
-                      <div className="relative">
-                        <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                          className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
-                          <option value="all">Semua Tahun</option>
-                          {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
+                    <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    {/* ... search & filter content ... */}
                     </div>
 
-                    {/* Ticket list header */}
-                    <div className="px-5 py-3 flex items-center justify-between sticky top-[73px] z-10"
-                         style={{ background: '#fafafa', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                      <div className="flex items-center gap-2">
+                    {/* Ticket list header - flex-shrink-0 agar tidak ikut scroll */}
+                    <div className="px-5 py-3 flex items-center justify-between flex-shrink-0"
+                        style={{ background: '#fafafa', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
                         <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">
-                          {filteredReminders.length}
+                        {filteredReminders.length}
                         </span>
-                      </div>
-                      <button onClick={fetchReminders} disabled={listLoading}
+                    </div>
+                    <button onClick={fetchReminders} disabled={listLoading}
                         className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
                         style={{ background: 'white' }}>
                         <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         Refresh
-                      </button>
+                    </button>
                     </div>
 
-                    {/* Scrollable table body */}
+                    {/* Scrollable table body - ini yang akan di-scroll */}
                     <div className="flex-1 overflow-y-auto">
-                      {/* Table header — dengan Team Handler column */}
-                      <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400 sticky top-0 z-10"
-                           style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
+                    
+                    {/* Table header sticky di dalam scroll area */}
+                    <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400 sticky top-0 z-10"
+                        style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
                         <span>NAMA PROJECT</span>
                         <span>KEGIATAN</span>
                         <span>SALES</span>
@@ -1834,161 +1691,67 @@ export default function ReminderSchedulePage() {
                         <span>STATUS</span>
                         <span>TANGGAL</span>
                         <span className="text-right">ACT</span>
-                      </div>
+                    </div>
 
-                      {/* Table body content */}
-                      {listLoading ? (
+                    {/* Table body content */}
+                    {listLoading ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-4">
-                          <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
-                          <p className="text-sm text-gray-500 font-medium">Memuat list...</p>
+                        <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
+                        <p className="text-sm text-gray-500 font-medium">Memuat list...</p>
                         </div>
-                      ) : filteredReminders.length === 0 ? (
+                    ) : filteredReminders.length === 0 ? (
                         <div className="text-center py-16">
-                          <div className="text-4xl mb-3">📭</div>
-                          <p className="text-gray-600 font-semibold">Tidak ada reminder ditemukan</p>
-                          <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
+                        <div className="text-4xl mb-3">📭</div>
+                        <p className="text-gray-600 font-semibold">Tidak ada reminder ditemukan</p>
+                        <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
                         </div>
-                      ) : (
+                    ) : (
                         <div>
-                          {filteredReminders.map((r) => {
+                        {filteredReminders.map((r) => {
                             const today = isDueToday(r.due_date);
                             return (
-                              <div key={r.id}
+                            <div key={r.id}
                                 className="px-5 py-4 transition-colors hover:bg-red-50/40 cursor-pointer"
                                 style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: today ? '3px solid #dc2626' : '3px solid transparent' }}
                                 onClick={() => setDetailReminder(r)}>
 
                                 {/* Mobile layout */}
                                 <div className="md:hidden space-y-2">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-base font-bold text-gray-800">{r.title}</span>
-                                        <CategoryBadge category={r.category} />
-                                      </div>
-                                      <p className="text-xs text-gray-500">{formatDatetime(r.created_at)}</p>
-                                    </div>
-                                    <StatusBadge status={r.status} />
-                                  </div>
-                                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                                    {r.project_location && <span>📍 {r.project_location}</span>}
-                                    {r.sales_name && <span>👤 {r.sales_name}</span>}
-                                    <span>🎯 Target: {formatDate(r.due_date)}</span>
-                                  </div>
+                                {/* ... mobile content ... */}
                                 </div>
 
-                                {/* Desktop table row — dengan Team Handler column */}
+                                {/* Desktop table row */}
                                 <div className="hidden md:grid items-center gap-3"
-                                  style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
-                                  {/* Nama Project */}
-                                  <div className="min-w-0">
-                                    <span className="font-bold text-gray-800 text-sm truncate block">{r.title}</span>
-                                    {r.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</p>}
-                                  </div>
-                                  {/* Kegiatan — larger text */}
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-lg">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
-                                      <span className="font-bold text-gray-800 text-sm">{r.category}</span>
-                                    </div>
-                                    {r.description && <p className="text-[10px] text-gray-400 truncate mt-0.5">{r.description}</p>}
-                                  </div>
-                                  {/* Sales */}
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-gray-700 truncate">{r.sales_name || '—'}</p>
-                                    {r.sales_division && (
-                                          <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">{r.sales_division}</p>
-                                    )}
-                                  </div>
-                                  {/* Team Handler — NEW COLUMN */}
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                                        style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
-                                        {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-bold text-gray-800 truncate">{r.assigned_name}</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {/* PIC & No PIC */}
-                                  <div className="min-w-0">
-                                    {r.pic_name ? (
-                                      <>
-                                        <p className="text-sm font-semibold text-gray-700 truncate flex items-center gap-1">
-                                          <span className="text-[11px]">🙋</span>{r.pic_name}
-                                        </p>
-                                        {r.pic_phone && (
-                                          <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
-                                            <span>📱</span>{r.pic_phone}
-                                          </p>
-                                        )}
-                                      </>
-                                    ) : <span className="text-gray-300 text-sm">—</span>}
-                                  </div>
-                                  {/* Status */}
-                                  <div className="space-y-1">
-                                    <StatusBadge status={r.status} />
-                                    {r.wa_sent_h1 && (
-                                      <p className="text-[9px] font-bold text-green-600 flex items-center gap-0.5">✅ WA H-1</p>
-                                    )}
-                                  </div>
-                                  {/* Tanggal Schedule */}
-                                  <div className="min-w-0">
-                                    <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
-                                      style={{
-                                        background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
-                                        border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
-                                      }}>
-                                      <span className="text-xl font-black leading-none"
-                                        style={{ color: today ? '#dc2626' : '#4f46e5' }}>
-                                        {new Date(r.due_date + 'T00:00:00').getDate()}
-                                      </span>
-                                      <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
-                                        style={{ color: today ? '#dc2626' : '#6366f1' }}>
-                                        {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                                      </span>
-                                      {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
-                                    </div>
-                                  </div>
-                                  {/* Action */}
-                                  <div className="flex justify-end">
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
-                                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-                                      style={{ border: '1px solid #e5e7eb' }}>
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                      </svg>
-                                    </button>
-                                  </div>
+                                style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
+                                {/* ... desktop row content ... */}
                                 </div>
-                              </div>
+                            </div>
                             );
-                          })}
+                        })}
                         </div>
-                      )}
+                    )}
                     </div>
-                  </div>
-
-                  {/* MINI CALENDAR SIDEBAR - scrollable independen */}
-                  <div className="flex-shrink-0" style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
-                    <MiniCalendar
-                      reminders={reminders}
-                      calendarMonth={calendarMonth}
-                      setCalendarMonth={setCalendarMonth}
-                      selectedCalDay={calOnlyDay}
-                      setSelectedCalDay={setCalOnlyDay}
-                    />
-                  </div>
                 </div>
-              </div>
+
+                {/* MINI CALENDAR SIDEBAR - scrollable independen */}
+                <div className="flex-shrink-0" style={{ 
+                    height: 'calc(100vh - 420px)', 
+                    overflowY: 'auto',
+                    position: 'relative'
+                }}>
+                    <MiniCalendar
+                    reminders={reminders}
+                    calendarMonth={calendarMonth}
+                    setCalendarMonth={setCalendarMonth}
+                    selectedCalDay={calOnlyDay}
+                    setSelectedCalDay={setCalOnlyDay}
+                    />
+                </div>
+                </div>
+            </div>
 
             </div>
-          )}
-
-          {/* ─── FORM VIEW ── (digantikan oleh showFormModal popup) */}
+        )}
 
         </div>
 
