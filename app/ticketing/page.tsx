@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+////import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // ── Supabase Client: Team PTS (existing) ──────────────────────────────────────
 // Required env vars (already ada):
@@ -121,7 +121,144 @@ const SALES_DIVISIONS = [
   'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
   'IOCBali', 'SGP', 'OSS'
 ] as const;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// ── Mini Donut untuk Status ──────────────────────────────────────────────────
+function StatusDonutCard({ data, total, onSliceClick, title, icon }: {
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  onSliceClick: (name: string) => void;
+  title: string; icon: string;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  if (total === 0) return (
+    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
+      <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
+    </div>
+  );
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
+  });
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+      <div className="flex items-center gap-3">
+        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+          {slices.map(s => (
+            <path key={s.i} d={s.path} fill={s.color}
+              opacity={hov === null || hov === s.i ? 1 : 0.45}
+              style={{ cursor: 'pointer', transition: 'opacity 0.15s', filter: hov === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}
+              onClick={() => onSliceClick(s.name)} />
+          ))}
+          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+        </svg>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          {slices.map(s => (
+            <div key={s.i}
+              className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{ background: hov === s.i ? `${s.color}15` : 'transparent' }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}
+              onClick={() => onSliceClick(s.name)}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="text-[10px] text-center text-gray-400 italic">Klik slice untuk filter status</p>
+    </div>
+  );
+}
+
+// ── Mini Donut untuk Handler ─────────────────────────────────────────────────
+function HandlerDonutCard({ data, total, teamToggle, onToggle, onSliceClick, activeHandler, title, icon }: {
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  teamToggle: 'PTS' | 'Services';
+  onToggle: (t: 'PTS' | 'Services') => void;
+  onSliceClick: (name: string) => void;
+  activeHandler: string | null;
+  title: string; icon: string;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
+  const slices = total > 0 ? data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
+  }) : [];
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          {(['PTS', 'Services'] as const).map(t => (
+            <button key={t} onClick={() => onToggle(t)}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${teamToggle === t ? 'bg-white shadow text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      {total === 0 ? (
+        <p className="text-gray-400 text-sm text-center py-4">Belum ada data handler</p>
+      ) : (
+        <div className="flex items-center gap-3">
+          <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+            {slices.map(s => (
+              <path key={s.i} d={s.path} fill={activeHandler === s.name ? s.color : s.color}
+                opacity={hov === null || hov === s.i ? 1 : 0.45}
+                style={{ cursor: 'pointer', transition: 'opacity 0.15s', filter: hov === s.i || activeHandler === s.name ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}
+                onClick={() => onSliceClick(s.name)} />
+            ))}
+            <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+            <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+          </svg>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            {slices.map(s => (
+              <div key={s.i}
+                className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+                style={{ background: hov === s.i || activeHandler === s.name ? `${s.color}20` : 'transparent', outline: activeHandler === s.name ? `1px solid ${s.color}` : 'none' }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}
+                onClick={() => onSliceClick(s.name)}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+                {activeHandler === s.name && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {activeHandler && <p className="text-[10px] text-center text-purple-600 font-bold">Filter aktif: {activeHandler}</p>}
+      {!activeHandler && <p className="text-[10px] text-center text-gray-400 italic">Klik slice untuk filter handler</p>}
+    </div>
+  );
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 export default function TicketingSystem() {
   const ticketListRef = useRef<HTMLDivElement>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -3022,198 +3159,133 @@ export default function TicketingSystem() {
             </div>
           </div>
         </div>
+/////////////////////////////////DASHBOARD ANALITYCS///////////////////////////////////////////////////////////////////////////
 
-        {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
-          <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-4 border-2 border-purple-500">
-            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
-            
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-              <div className="stat-card bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
-                <div className="flex justify-center mb-2">
-                  <span className="text-4xl">📊</span>
-                </div>
-                <p className="text-5xl font-bold text-center mb-2">{stats.total}</p>
-                <p className="text-sm font-bold text-center text-white">Total Tickets</p>
-                <p className="text-xs text-center text-white/60 mt-0.5">Seluruh tiket</p>
-              </div>
-              <div className="stat-card bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600">
-                <div className="flex justify-center mb-2">
-                  <span className="text-4xl">⏳</span>
-                </div>
-                <p className="text-5xl font-bold text-center mb-2">{stats.pending}</p>
-                <p className="text-sm font-bold text-center text-white">Pending</p>
-                <p className="text-xs text-center text-white/60 mt-0.5">Menunggu tindakan</p>
-              </div>
-              <div className="stat-card bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600">
-                <div className="flex justify-center mb-2">
-                  <span className="text-4xl">🔄</span>
-                </div>
-                <p className="text-5xl font-bold text-center mb-2">{stats.processing}</p>
-                <p className="text-sm font-bold text-center text-white">In Progress</p>
-                <p className="text-xs text-center text-white/60 mt-0.5">Sedang ditangani</p>
-              </div>
-              <div className="stat-card bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600">
-                <div className="flex justify-center mb-2">
-                  <span className="text-4xl">✅</span>
-                </div>
-                <p className="text-5xl font-bold text-center mb-2">{stats.solved}</p>
-                <p className="text-sm font-bold text-center text-white">Solved</p>
-                <p className="text-xs text-center text-white/60 mt-0.5">Terselesaikan</p>
-              </div>
-              <div
-                className="stat-card bg-gradient-to-br from-red-500 via-red-600 to-red-700 cursor-pointer"
-                onClick={() => { setFilterStatus('Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-              >
-                <div className="flex justify-center mb-2">
-                  <span className="text-4xl">🚨</span>
-                </div>
-                <p className="text-5xl font-bold text-center mb-2">{stats.overdue}</p>
-                <p className="text-sm font-bold text-center text-white">Overdue</p>
-                <p className="text-xs text-center text-white/60 mt-0.5">Berpotensi denda</p>
-              </div>
-              <div
-                className="stat-card bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 cursor-pointer"
-                onClick={() => { setFilterStatus('Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-                title="Ticket yang sudah Solved namun diselesaikan melewati batas waktu"
-              >
-                <div className="flex justify-center mb-2">
-                  <span className="text-4xl">⚠️</span>
-                </div>
-                <p className="text-5xl font-bold text-center mb-2">{stats.solvedOverdue}</p>
-                <p className="text-sm font-bold text-center text-white">Solved Overdue</p>
-                <p className="text-xs text-center text-white/60 mt-0.5">Butuh verifikasi</p>
-              </div>
-            </div>
+{(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
+  <div className="mb-4 space-y-4">
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="chart-container bg-gradient-to-br from-white to-gray-50">
-                <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2">
-                  <span className="text-xl">🥧</span>
-                  Status Distribution
-                </h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie 
-                      data={stats.statusData} 
-                      cx="50%" 
-                      cy="50%" 
-                      labelLine={false} 
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`} 
-                      outerRadius={90} 
-                      dataKey="value"
-                      onClick={(data) => {
-                        const statusMap: Record<string, string> = {
-                          'Pending': 'Pending',
-                          'In Progress': 'In Progress',
-                          'Solved': 'Solved',
-                          'Overdue': 'Overdue'
-                        };
-                        setFilterStatus(statusMap[data.name] || 'All');
-                        setHandlerFilter(null);
-                        ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {stats.statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip formatter={(value: number, name: string) => [`${value} tiket`, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <p className="text-xs text-center text-gray-500 mt-2 italic">Click on chart to filter status</p>
-              </div>
-
-              <div className="chart-container bg-gradient-to-br from-white to-gray-50 flex flex-col gap-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <span className="text-xl">📊</span>
-                    Team Handlers
-                  </h3>
-                  <div className="flex bg-gray-200 rounded-lg p-1">
-                    <button
-                      onClick={() => setSelectedHandlerTeam('PTS')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        selectedHandlerTeam === 'PTS'
-                          ? 'bg-white text-purple-600 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      PTS
-                    </button>
-                    <button
-                      onClick={() => setSelectedHandlerTeam('Services')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        selectedHandlerTeam === 'Services'
-                          ? 'bg-white text-pink-600 shadow-sm'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      Services
-                    </button>
-                  </div>
-                </div>
-
-                {selectedHandlerTeam === 'PTS' ? (
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={stats.handlerData.filter(h => h.team === 'Team PTS')}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(chartData) => {
-                          if (chartData?.activePayload?.[0]) {
-                            const name = chartData.activePayload[0].payload.name;
-                            setHandlerFilter(prev => prev === name ? null : name);
-                            setFilterStatus('All');
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
-                          {stats.handlerData.filter(h => h.team === 'Team PTS').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#6d28d9' : '#8b5cf6'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-center text-gray-500 mt-1 italic">Click bar to filter by handler{handlerFilter ? ` — Aktif: ${handlerFilter}` : ''}</p>
-                  </div>
-                ) : (
-                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={stats.handlerData.filter(h => h.team === 'Team Services')}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(chartData) => {
-                          if (chartData?.activePayload?.[0]) {
-                            const name = chartData.activePayload[0].payload.name;
-                            setHandlerFilter(prev => prev === name ? null : name);
-                            setFilterStatus('All');
-                            ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar dataKey="tickets" radius={[4, 4, 0, 0]}>
-                          {stats.handlerData.filter(h => h.team === 'Team Services').map((entry, i) => (
-                            <Cell key={i} fill={handlerFilter === entry.name ? '#be185d' : '#ec4899'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                    <p className="text-xs text-center text-gray-500 mt-1 italic">Click bar to filter by handler{handlerFilter ? ` — Aktif: ${handlerFilter}` : ''}</p>
-                  </div>
-                )}
-              </div>
-            </div>
+    {/* ── Stat Cards — */}
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      {[
+        {
+          label: 'Total Tickets', value: stats.total, sub: 'Seluruh tiket',
+          gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', shadow: 'rgba(79,70,229,0.35)',
+          onClick: () => { setFilterStatus('All'); setHandlerFilter(null); },
+          active: filterStatus === 'All' && !handlerFilter,
+        },
+        {
+          label: 'Pending', value: stats.pending, sub: 'Menunggu tindakan',
+          gradient: 'linear-gradient(135deg,#d97706,#b45309)', shadow: 'rgba(217,119,6,0.35)',
+          onClick: () => { setFilterStatus(filterStatus === 'Pending' ? 'All' : 'Pending'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); },
+          active: filterStatus === 'Pending',
+        },
+        {
+          label: 'In Progress', value: stats.processing, sub: 'Sedang ditangani',
+          gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', shadow: 'rgba(37,99,235,0.35)',
+          onClick: () => { setFilterStatus(filterStatus === 'In Progress' ? 'All' : 'In Progress'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); },
+          active: filterStatus === 'In Progress',
+        },
+        {
+          label: 'Solved', value: stats.solved, sub: 'Terselesaikan',
+          gradient: 'linear-gradient(135deg,#059669,#047857)', shadow: 'rgba(5,150,105,0.35)',
+          onClick: () => { setFilterStatus(filterStatus === 'Solved' ? 'All' : 'Solved'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); },
+          active: filterStatus === 'Solved',
+        },
+        {
+          label: 'Overdue', value: stats.overdue, sub: 'Berpotensi denda',
+          gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', shadow: 'rgba(220,38,38,0.35)',
+          onClick: () => { setFilterStatus(filterStatus === 'Overdue' ? 'All' : 'Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); },
+          active: filterStatus === 'Overdue',
+        },
+        {
+          label: 'Solved Overdue', value: stats.solvedOverdue, sub: 'Butuh verifikasi',
+          gradient: 'linear-gradient(135deg,#7c3aed,#6d28d9)', shadow: 'rgba(124,58,237,0.35)',
+          onClick: () => { setFilterStatus(filterStatus === 'Solved Overdue' ? 'All' : 'Solved Overdue'); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: 'smooth' }); },
+          active: filterStatus === 'Solved Overdue',
+        },
+      ].map((card, i) => (
+        <div key={i} onClick={card.onClick}
+          className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
+          style={{
+            background: card.gradient,
+            boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
+            outline: card.active ? '3px solid white' : 'none',
+            transform: card.active ? 'scale(1.04)' : undefined,
+          }}>
+          {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
+          {card.active && <span className="absolute top-1 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
+          <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
+          <div>
+            <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
+            <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
           </div>
-        )}
+        </div>
+      ))}
+    </div>
 
+    {/* ── Donut Charts —  */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <StatusDonutCard
+        data={stats.statusData}
+        total={stats.statusData.reduce((s: number, d: {value: number}) => s + d.value, 0)}
+        onSliceClick={(name: string) => {
+          const mapped = name === 'Solved (Overdue)' ? 'Solved Overdue' : name;
+          setFilterStatus(prev => prev === mapped ? 'All' : mapped);
+          setHandlerFilter(null);
+          ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        title="Status Distribution" icon="🥧"
+      />
+      <HandlerDonutCard
+        data={stats.handlerData
+          .filter((h: any) => h.team === `Team ${selectedHandlerTeam}`)
+          .map((h: any, i: number) => ({
+            name: h.name,
+            value: h.tickets,
+            color: ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'][i % 12]
+          }))}
+        total={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).reduce((s: number, h: any) => s + h.tickets, 0)}
+        teamToggle={selectedHandlerTeam}
+        onToggle={(t: 'PTS' | 'Services') => setSelectedHandlerTeam(t)}
+        onSliceClick={(name: string) => {
+          setHandlerFilter((prev: string | null) => prev === name ? null : name);
+          setFilterStatus('All');
+          ticketListRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        activeHandler={handlerFilter}
+        title="Team Handlers" icon="👥"
+      />
+    </div>
+
+    {/* ── Active filter chips ── */}
+    {(filterStatus !== 'All' || handlerFilter) && (
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
+        {filterStatus !== 'All' && (
+          <button onClick={() => setFilterStatus('All')}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+            style={{ background: '#d97706' }}>
+            Status: {filterStatus} ✕
+          </button>
+        )}
+        {handlerFilter && (
+          <button onClick={() => setHandlerFilter(null)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+            style={{ background: '#7c3aed' }}>
+            Handler: {handlerFilter} ✕
+          </button>
+        )}
+        <button onClick={() => { setFilterStatus('All'); setHandlerFilter(null); }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
+          style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>
+          Reset Semua
+        </button>
+      </div>
+    )}
+  </div>
+)}
+ 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         {showAccountSettings && canAccessAccountSettings && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-gray-400 animate-scale-in relative">
