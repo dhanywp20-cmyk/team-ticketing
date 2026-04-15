@@ -5536,35 +5536,6 @@ export default function TicketingSystem() {
                   New Ticket
                 </button>
               )}
-
-              {/* User info + Logout */}
-              <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                  style={{
-                    background:
-                      "linear-gradient(135deg,#dc2626,#991b1b)",
-                  }}
-                >
-                  {currentUser?.full_name
-                    ?.substring(0, 2)
-                    .toUpperCase() || "SA"}
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-xs font-bold text-gray-800 leading-tight">
-                    {currentUser?.full_name}
-                  </p>
-                  <p className="text-[10px] text-gray-500">
-                    {currentUser?.role}
-                  </p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border-2 border-red-200 hover:bg-red-50 transition-all"
-                >
-                  Logout
-                </button>
-              </div>
             </div>
           </div>
         </header>
