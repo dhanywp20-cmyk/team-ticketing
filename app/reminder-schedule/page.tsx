@@ -982,7 +982,7 @@ export default function ReminderSchedulePage() {
             </div>
           </div>
           <h1 className="text-3xl font-black text-center mb-1 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Login</h1>
-          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Reminder Schedule Platform<br/><span className="text-red-600 font-bold">PTS IVP — Team Work Planner</span></p>
+          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Reminder Schedule<br/><span className="text-red-600 font-bold">PTS IVP — Team Work Planner</span></p>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-bold mb-2 text-gray-700">Username</label>
@@ -1573,7 +1573,6 @@ export default function ReminderSchedulePage() {
               </div>
               <div>
                 <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Reminder Schedule</h1>
-                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#dc2626' }}>PTS IVP — Team Work Planner</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1611,22 +1610,6 @@ export default function ReminderSchedulePage() {
                 </button>
               )}
 
-              {currentUser && (
-                <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                    style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
-                    {currentUser.full_name?.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="hidden sm:block">
-                    <p className="text-xs font-bold text-gray-800 leading-tight">{currentUser.full_name}</p>
-                    <p className="text-[10px] text-gray-500">{currentUser.role}</p>
-                  </div>
-                  <button onClick={handleLogout}
-                    className="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border-2 border-red-200 hover:bg-red-50 transition-all">
-                    Logout
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </header>
