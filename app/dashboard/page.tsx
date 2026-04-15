@@ -1332,7 +1332,7 @@ export default function Dashboard() {
             {!sidebarCollapsed && <span className="tracking-wide">Main Menu</span>}
           </button>
 
-          {/*!sidebarCollapsed && <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(0,0,0,0.45)' }}>Navigation</p>*/}
+          {!sidebarCollapsed && <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(0,0,0,0.45)' }}>Navigation</p>}
 
           {menuLoading ? (
             <div className="flex items-center justify-center py-10">
@@ -1352,16 +1352,7 @@ export default function Dashboard() {
                           )}
                         </span>
                         <div className="flex flex-col gap-1 w-full">
-                          {menu.items.map((item, itemIndex) => {
-                            const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
-                            return (
-                              <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)} title={`${menu.title} — ${item.name}`}
-                                className="w-full h-7 rounded-lg flex items-center justify-center text-sm transition-all"
-                                style={isActive ? { background: 'rgba(200,134,29,0.18)', border: '1px solid rgba(200,134,29,0.45)', color: '#b8760d' } : { background: 'rgba(0,0,0,0.05)', border: '1px solid transparent', color: '#64748b' }}>
-                                {item.icon}
-                              </button>
-                            );
-                          })}
+
                         </div>
                       </div>
                       <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))' }}>
