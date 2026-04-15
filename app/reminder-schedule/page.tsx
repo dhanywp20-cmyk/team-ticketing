@@ -704,11 +704,11 @@ export default function ReminderSchedulePage() {
         `*Nama Project: ${formData.title}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.project_location || '-'}\n` +
-        `👤 Sales: ${formData.sales_name || '-'}\n` +
-        `    Divisi Sales: ${formData.sales_division || '-'}\n` +
+        `👤 Sales: ${formData.sales_name || '-'}${formData.sales_division || '-'}\n` +
         `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
         (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}${formData.pic_phone}\n\n`    : '') +
         (formData.notes     ? `📝 Catatan: ${formData.notes}\n\n`    : '') +
+        `-\n\n` +
        `Link Dashboard: https://team-ticketing.vercel.app/dashboard\n` +
         `jangan lupa peralatan & Semangat💪🏼`;
 
