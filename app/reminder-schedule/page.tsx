@@ -701,17 +701,16 @@ export default function ReminderSchedulePage() {
       const msg =
         `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
-        `*${formData.title}*\n` +
+        `*Nama Project: ${formData.title}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.project_location || '-'}\n` +
         `👤 Sales: ${formData.sales_name || '-'}\n` +
         `    Divisi Sales: ${formData.sales_division || '-'}\n` +
         `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
-        (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}\n`    : '') +
-        (formData.pic_phone ? `📱 No. PIC: ${formData.pic_phone}\n` : '') +
-        (formData.notes     ? `📝 Catatan: ${formData.notes}\n`    : '') +
-       
-        `_Pesan otomatis dari Reminder Schedule PTS IVP_ jangan lupa peralatan & Semangat💪🏼`;
+        (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}${formData.pic_phone}\n\n`    : '') +
+        (formData.notes     ? `📝 Catatan: ${formData.notes}\n\n`    : '') +
+       `Link Dashboard: https://team-ticketing.vercel.app/dashboard\n` +
+        `jangan lupa peralatan & Semangat💪🏼`;
 
       const waResult = await sendFonnteWA(assignee.phone_number, msg, { reminderType: 'new_schedule' });
       if (!waResult.ok) console.warn('[WA new schedule] Gagal kirim:', waResult.reason);
@@ -1058,9 +1057,9 @@ export default function ReminderSchedulePage() {
               <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
                 <SectionHeader icon="📋" title="Informasi Jadwal" />
 
-                <FormField label="Judul Reminder *">
+                <FormField label="Nama Project*">
                   <input value={formData.title} onChange={e => fd({ title: e.target.value })}
-                    className={inputCls} style={inputStyle} placeholder="Contoh: Demo Projector @ PT. Maju Bersama" />
+                    className={inputCls} style={inputStyle} placeholder="Contoh: PT. Maju Bersama" />
                 </FormField>
 
                 <FormField label="Deskripsi">
@@ -1187,12 +1186,12 @@ export default function ReminderSchedulePage() {
                   </FormField>
                 </div>
 
-                {formData.pic_phone && (
+                {formData.assigned_to && (
                   <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
                     <span className="text-green-500 text-lg">💬</span>
                     <div>
                       <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
-                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.pic_phone}</strong> sehari sebelum jadwal.</p>
+                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.assigned_to}</strong> sehari sebelum jadwal.</p>
                     </div>
                   </div>
                 )}
