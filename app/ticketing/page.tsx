@@ -188,7 +188,6 @@ function StatusDonutCard({
           ))}
         </div>
       </div>
-      <p className="text-[10px] text-center text-gray-400 italic">Klik slice untuk filter status</p>
     </div>
   );
 }
@@ -252,8 +251,6 @@ function SalesDivisionDonutCard({
           ))}
         </div>
       </div>
-      {activeDivision && <p className="text-[10px] text-center text-purple-600 font-bold">Filter aktif: {activeDivision}</p>}
-      {!activeDivision && <p className="text-[10px] text-center text-gray-400 italic">Klik slice untuk filter division</p>}
     </div>
   );
 }
@@ -330,8 +327,6 @@ function HandlerDonutCard({
           </div>
         </div>
       )}
-      {activeHandler && <p className="text-[10px] text-center text-purple-600 font-bold">Filter aktif: {activeHandler}</p>}
-      {!activeHandler && <p className="text-[10px] text-center text-gray-400 italic">Klik slice untuk filter handler</p>}
     </div>
   );
 }
@@ -1515,17 +1510,6 @@ export default function TicketingSystem() {
                 <button onClick={() => setShowServicesApprovalModal(true)} className="relative flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#db2777,#be185d)", boxShadow: "0 2px 8px rgba(219,39,119,0.35)" }}>
                   🔧 Ticket Masuk
                   <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{pendingServicesApprovalTickets.length}</span>
-                </button>
-              )}
-
-              {/* Account button - Redesigned */}
-              {canAccessAccountSettings && (
-                <button onClick={() => { setShowAccountSettings(!showAccountSettings); setShowGuestMapping(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#4b5563,#374151)", boxShadow: "0 2px 8px rgba(75,85,99,0.3)" }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="hidden sm:inline">Account</span>
                 </button>
               )}
 
