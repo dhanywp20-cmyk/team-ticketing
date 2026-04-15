@@ -3044,25 +3044,21 @@ export default function TicketingSystem() {
               );
             })()}
             </div>
-          </div>
+          </div>📋
         )}
 
         {/* ── HEADER ── */}
         <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
-
-            {/* Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
-                📋
+                <span className="text-lg">🗓️</span>
               </div>
               <div>
                 <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Ticket Troubleshooting</h1>
-                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#dc2626' }}>PTS IVP — TEAM WORK PLANNER</p>
               </div>
             </div>
-
             {/* Actions */}
             <div className="flex items-center gap-2 flex-wrap">
 
