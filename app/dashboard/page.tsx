@@ -1332,7 +1332,7 @@ export default function Dashboard() {
             {!sidebarCollapsed && <span className="tracking-wide">Main Menu</span>}
           </button>
 
-          {!sidebarCollapsed && <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(0,0,0,0.45)' }}>Navigation</p>}
+          {/*!sidebarCollapsed && <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(0,0,0,0.45)' }}>Navigation</p>*/}
 
           {menuLoading ? (
             <div className="flex items-center justify-center py-10">
