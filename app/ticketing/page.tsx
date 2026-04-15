@@ -3049,7 +3049,7 @@ export default function TicketingSystem() {
 
         {/* ── HEADER ── */}
         <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
-          <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
+          <div className="px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
@@ -3179,6 +3179,7 @@ export default function TicketingSystem() {
           </div>
         </header>
         
+        <div className="max-w-[1600px] mx-auto px-6 mt-6">
 {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
   <div className="mb-4 space-y-4">
 
@@ -4720,6 +4721,7 @@ export default function TicketingSystem() {
           animation: slide-down 0.3s ease-out;
         }
       `}</style>
+        </div>
     </div>
   );
 }
