@@ -141,6 +141,13 @@ const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
   { value: 'monthly', label: 'Setiap Bulan' },
 ];
 
+const SALES_DIVISIONS = [
+  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
+  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
+  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
+  'IOCBali', 'SGP', 'OSS'
+] as const;
+
 const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -555,6 +562,7 @@ export default function ReminderSchedulePage() {
   const [rescheduleTarget, setRescheduleTarget] = useState<Reminder | null>(null);
 
   const [view, setView]                     = useState<'list' | 'form'>('list');
+  const [showFormModal, setShowFormModal]   = useState(false);
   const [detailReminder, setDetailReminder] = useState<Reminder | null>(null);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
@@ -570,6 +578,8 @@ export default function ReminderSchedulePage() {
   const [calendarMonth, setCalendarMonth]   = useState(new Date());
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
+  // Kalender-only selection — tidak mempengaruhi filter list/chart/summary
+  const [calOnlyDay, setCalOnlyDay]         = useState<string | null>(null);
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
 
@@ -689,7 +699,7 @@ export default function ReminderSchedulePage() {
       const assigneeName = assignee.full_name ?? formData.assigned_to;
       const createdBy = currentUser?.username ?? 'system';
       const msg =
-        `🆕 *JADWAL BARU — PTS IVP*\n\n` +
+        `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
         `*${formData.title}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
@@ -700,8 +710,8 @@ export default function ReminderSchedulePage() {
         (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}\n`    : '') +
         (formData.pic_phone ? `📱 No. PIC: ${formData.pic_phone}\n` : '') +
         (formData.notes     ? `📝 Catatan: ${formData.notes}\n`    : '') +
-        `\nDibuat oleh: ${createdBy}\n` +
-        `_Pesan otomatis dari Reminder Schedule PTS IVP_`;
+       
+        `_Pesan otomatis dari Reminder Schedule PTS IVP_ jangan lupa peralatan & Semangat💪🏼`;
 
       const waResult = await sendFonnteWA(assignee.phone_number, msg, { reminderType: 'new_schedule' });
       if (!waResult.ok) console.warn('[WA new schedule] Gagal kirim:', waResult.reason);
@@ -712,6 +722,7 @@ export default function ReminderSchedulePage() {
     // ─────────────────────────────────────────────────────────────────────────
 
     setSaving(false);
+    setShowFormModal(false);
     setView('list');
     setEditingReminder(null);
     setFormData(emptyForm);
@@ -773,7 +784,7 @@ export default function ReminderSchedulePage() {
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', project_location: r.project_location ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '' });
     setDetailReminder(null);
-    setView('form');
+    setShowFormModal(true);
   };
 
   // ─── Re-Schedule ───────────────────────────────────────────────────────────
@@ -1022,6 +1033,193 @@ export default function ReminderSchedulePage() {
             onClose={() => setRescheduleTarget(null)}
             onSave={handleReschedule}
           />
+        )}
+
+        {/* ── FORM MODAL (Tambah / Edit Reminder) ── */}
+        {showFormModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
+            onClick={e => { if (e.target === e.currentTarget) { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); } }}>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4"
+              style={{ animation: 'scale-in 0.25s ease-out', border: '1.5px solid rgba(220,38,38,0.25)' }}>
+              {/* Header */}
+              <div className="px-8 py-6 rounded-t-2xl" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">{editingReminder ? '✏️ Edit Reminder' : '➕ Tambah Reminder'}</h2>
+                    <p className="text-red-200/80 text-xs mt-1">Isi detail jadwal & informasi project</p>
+                  </div>
+                  <button onClick={() => { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); }}
+                    className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+                <SectionHeader icon="📋" title="Informasi Jadwal" />
+
+                <FormField label="Judul Reminder *">
+                  <input value={formData.title} onChange={e => fd({ title: e.target.value })}
+                    className={inputCls} style={inputStyle} placeholder="Contoh: Demo Projector @ PT. Maju Bersama" />
+                </FormField>
+
+                <FormField label="Deskripsi">
+                  <textarea value={formData.description} onChange={e => fd({ description: e.target.value })}
+                    rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Detail pekerjaan..." />
+                </FormField>
+
+                {/* Category picker */}
+                <div>
+                  <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Kategori *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CATEGORIES.map(cat => {
+                      const c = CATEGORY_CONFIG[cat];
+                      const sel = formData.category === cat;
+                      return (
+                        <button key={cat} type="button" onClick={() => fd({ category: cat })}
+                          className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 text-left transition-all"
+                          style={sel
+                            ? { borderColor: c.accent, background: c.bg, color: c.color }
+                            : { borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)', color: '#64748b' }}>
+                          <span className="text-2xl">{c.icon}</span>
+                          <span className="text-base font-bold leading-tight flex-1">{cat}</span>
+                          {sel && <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Assign To *">
+                    <select value={formData.assigned_to} onChange={e => fd({ assigned_to: e.target.value })}
+                      className={inputCls} style={inputStyle}>
+                      <option value="">-- Pilih Team PTS --</option>
+                      {teamUsers.map(u => <option key={u.id} value={u.username}>{u.full_name}</option>)}
+                    </select>
+                  </FormField>
+                  <FormField label="Pengulangan">
+                    <select value={formData.repeat} onChange={e => fd({ repeat: e.target.value as RepeatType })}
+                      className={inputCls} style={inputStyle}>
+                      {REPEAT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
+                  </FormField>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField label="Tanggal *">
+                    <input type="date" value={formData.due_date} onChange={e => fd({ due_date: e.target.value })}
+                      className={inputCls} style={inputStyle} />
+                  </FormField>
+                  <FormField label="Waktu">
+                    <input type="time" value={formData.due_time} onChange={e => fd({ due_time: e.target.value })}
+                      className={inputCls} style={inputStyle} />
+                  </FormField>
+                  <FormField label="Prioritas">
+                    <select value={formData.priority} onChange={e => fd({ priority: e.target.value as Priority })}
+                      className={inputCls} style={inputStyle}>
+                      {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </FormField>
+                </div>
+
+                {editingReminder && (
+                  <FormField label="Status">
+                    <select value={formData.status} onChange={e => fd({ status: e.target.value as Status })}
+                      className={inputCls} style={inputStyle}>
+                      {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </FormField>
+                )}
+
+                <SectionHeader icon="🏢" title="Informasi Project" />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Nama Sales *">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
+                      <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
+                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
+                    </div>
+                  </FormField>
+                  <FormField label="Divisi *">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2"></span>
+                      <select
+                        value={formData.sales_division}
+                        onChange={e => fd({ sales_division: e.target.value })}
+                        className={`${inputCls} pl-9`} style={inputStyle}
+                      >
+                        <option value=""> Pilih Divisi..</option>
+                        {SALES_DIVISIONS.map(div => (
+                          <option key={div} value={div}>{div}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </FormField>
+                </div>
+
+                <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
+
+                <div className="grid grid-cols-1 gap-4">
+                  <FormField label="Lokasi Project *">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
+                      <input value={formData.project_location} onChange={e => fd({ project_location: e.target.value })}
+                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
+                    </div>
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Nama PIC">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🙋</span>
+                      <input value={formData.pic_name} onChange={e => fd({ pic_name: e.target.value })}
+                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi" />
+                    </div>
+                  </FormField>
+                  <FormField label="No. PIC">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
+                      <input type="tel" value={formData.pic_phone} onChange={e => fd({ pic_phone: e.target.value })}
+                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxx" />
+                    </div>
+                  </FormField>
+                </div>
+
+                {formData.pic_phone && (
+                  <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
+                    <span className="text-green-500 text-lg">💬</span>
+                    <div>
+                      <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
+                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.pic_phone}</strong> sehari sebelum jadwal.</p>
+                    </div>
+                  </div>
+                )}
+
+                <SectionHeader icon="📝" title="Catatan Tambahan" />
+
+                <FormField label="Catatan">
+                  <textarea value={formData.notes} onChange={e => fd({ notes: e.target.value })}
+                    rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Informasi tambahan untuk team..." />
+                </FormField>
+
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); }}
+                    className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
+                    style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
+                    Batal
+                  </button>
+                  <button onClick={handleSave} disabled={saving}
+                    className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.35)' }}>
+                    {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                    {editingReminder ? 'Simpan Perubahan' : '➕ Tambah Reminder'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ── NOTIFICATION POPUP ── */}
@@ -1405,7 +1603,7 @@ export default function ReminderSchedulePage() {
               )}
 
               {canAddReminder && view === 'list' && (
-                <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setView('form'); }}
+                <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setShowFormModal(true); }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
                   style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
@@ -1508,7 +1706,7 @@ export default function ReminderSchedulePage() {
               {/* Active filter chips */}
               {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay) && (
                 <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
+                  <span className="text-xs font-bold text-white-500 uppercase tracking-widest">Filter:</span>
                   {filterCategory !== 'all' && (
                     <button onClick={() => setFilterCategory('all')}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
@@ -1526,7 +1724,7 @@ export default function ReminderSchedulePage() {
                   {searchSales && (
                     <button onClick={() => setSearchSales('')}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#0ea5e9' }}>
+                      style={{ background: '#454747ff' }}>
                       👤 {searchSales} ✕
                     </button>
                   )}
@@ -1540,7 +1738,7 @@ export default function ReminderSchedulePage() {
                   {searchProject && (
                     <button onClick={() => setSearchProject('')}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#dc2626' }}>
+                      style={{ background: '#575454ff' }}>
                       🔍 {searchProject} ✕
                     </button>
                   )}
@@ -1553,7 +1751,7 @@ export default function ReminderSchedulePage() {
                   )}
                   <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
-                    style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>
+                    style={{ background: 'rgba(0,0,0,0.1)', color: '#f9fbfdff' }}>
                     Reset Semua
                   </button>
                 </div>
@@ -1645,9 +1843,9 @@ export default function ReminderSchedulePage() {
                     <span>KEGIATAN</span>
                     <span>SALES</span>
                     <span>TEAM HANDLER</span>
-                    <span>PIC &amp; NO PIC</span>
+                    <span>PIC lOKASI</span>
                     <span>STATUS</span>
-                    <span>TGL SCHEDULE</span>
+                    <span>TANGGAL</span>
                     <span className="text-right">ACT</span>
                   </div>
 
@@ -1724,7 +1922,6 @@ export default function ReminderSchedulePage() {
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-xs font-bold text-gray-800 truncate">{r.assigned_name}</p>
-                                    <p className="text-[10px] text-gray-400">@{r.assigned_to}</p>
                                   </div>
                                 </div>
                               </div>
@@ -1792,187 +1989,14 @@ export default function ReminderSchedulePage() {
                   reminders={reminders}
                   calendarMonth={calendarMonth}
                   setCalendarMonth={setCalendarMonth}
-                  selectedCalDay={selectedCalDay}
-                  setSelectedCalDay={setSelectedCalDay}
+                  selectedCalDay={calOnlyDay}
+                  setSelectedCalDay={setCalOnlyDay}
                 />
               </div>
             </>
           )}
 
-          {/* ─── FORM VIEW ── */}
-          {view === 'form' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}>
-                <div className="px-8 py-6" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-xl font-bold text-white">{editingReminder ? '✏️ Edit Reminder' : '➕ Tambah Reminder'}</h2>
-                      <p className="text-red-200/80 text-xs mt-1">Isi detail jadwal & informasi project</p>
-                    </div>
-                    <button onClick={() => { setView('list'); setEditingReminder(null); setFormData(emptyForm); }}
-                      className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-8 space-y-5">
-                  <SectionHeader icon="📋" title="Informasi Jadwal" />
-
-                  <FormField label="Judul Reminder *">
-                    <input value={formData.title} onChange={e => fd({ title: e.target.value })}
-                      className={inputCls} style={inputStyle} placeholder="Contoh: Demo Projector @ PT. Maju Bersama" />
-                  </FormField>
-
-                  <FormField label="Deskripsi">
-                    <textarea value={formData.description} onChange={e => fd({ description: e.target.value })}
-                      rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Detail pekerjaan..." />
-                  </FormField>
-
-                  {/* Category picker — larger text as requested */}
-                  <div>
-                    <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Kategori *</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {CATEGORIES.map(cat => {
-                        const c = CATEGORY_CONFIG[cat];
-                        const sel = formData.category === cat;
-                        return (
-                          <button key={cat} type="button" onClick={() => fd({ category: cat })}
-                            className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 text-left transition-all"
-                            style={sel
-                              ? { borderColor: c.accent, background: c.bg, color: c.color }
-                              : { borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)', color: '#64748b' }}>
-                            <span className="text-2xl">{c.icon}</span>
-                            {/* ← Enlarged category label text */}
-                            <span className="text-base font-bold leading-tight flex-1">{cat}</span>
-                            {sel && <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Assign To *">
-                      <select value={formData.assigned_to} onChange={e => fd({ assigned_to: e.target.value })}
-                        className={inputCls} style={inputStyle}>
-                        <option value="">-- Pilih Team PTS --</option>
-                        {teamUsers.map(u => <option key={u.id} value={u.username}>{u.full_name}</option>)}
-                      </select>
-                    </FormField>
-                    <FormField label="Pengulangan">
-                      <select value={formData.repeat} onChange={e => fd({ repeat: e.target.value as RepeatType })}
-                        className={inputCls} style={inputStyle}>
-                        {REPEAT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                      </select>
-                    </FormField>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField label="Tanggal *">
-                      <input type="date" value={formData.due_date} onChange={e => fd({ due_date: e.target.value })}
-                        className={inputCls} style={inputStyle} />
-                    </FormField>
-                    <FormField label="Waktu">
-                      <input type="time" value={formData.due_time} onChange={e => fd({ due_time: e.target.value })}
-                        className={inputCls} style={inputStyle} />
-                    </FormField>
-                    <FormField label="Prioritas">
-                      <select value={formData.priority} onChange={e => fd({ priority: e.target.value as Priority })}
-                        className={inputCls} style={inputStyle}>
-                        {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                      </select>
-                    </FormField>
-                  </div>
-
-                  {editingReminder && (
-                    <FormField label="Status">
-                      <select value={formData.status} onChange={e => fd({ status: e.target.value as Status })}
-                        className={inputCls} style={inputStyle}>
-                        {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                      </select>
-                    </FormField>
-                  )}
-
-                  <SectionHeader icon="🏢" title="Informasi Project" />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Nama Sales *">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                        <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
-                      </div>
-                    </FormField>
-                    <FormField label="Divisi *">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                        <input value={formData.sales_division} onChange={e => fd({ sales_division: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
-                      </div>
-                    </FormField>
-                  </div>
-
-                  <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField label="Lokasi Project *">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
-                        <input value={formData.project_location} onChange={e => fd({ project_location: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
-                      </div>
-                    </FormField>
-                    <FormField label="Nama PIC">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🙋</span>
-                        <input value={formData.pic_name} onChange={e => fd({ pic_name: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi" />
-                      </div>
-                    </FormField>
-                    <FormField label="No. PIC">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
-                        <input type="tel" value={formData.pic_phone} onChange={e => fd({ pic_phone: e.target.value })}
-                          className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxx" />
-                      </div>
-                    </FormField>
-                  </div>
-
-                  {formData.pic_phone && (
-                    <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
-                      <span className="text-green-500 text-lg">💬</span>
-                      <div>
-                        <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
-                        <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.pic_phone}</strong> sehari sebelum jadwal.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <SectionHeader icon="📝" title="Catatan Tambahan" />
-
-                  <FormField label="Catatan">
-                    <textarea value={formData.notes} onChange={e => fd({ notes: e.target.value })}
-                      rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Informasi tambahan untuk team..." />
-                  </FormField>
-
-                  <div className="flex gap-3 pt-2">
-                    <button onClick={() => { setView('list'); setEditingReminder(null); setFormData(emptyForm); }}
-                      className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
-                      style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
-                      Batal
-                    </button>
-                    <button onClick={handleSave} disabled={saving}
-                      className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.35)' }}>
-                      {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                      {editingReminder ? 'Simpan Perubahan' : '➕ Tambah Reminder'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* ─── FORM VIEW ── (digantikan oleh showFormModal popup) */}
 
         </div>
 
