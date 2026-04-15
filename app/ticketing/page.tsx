@@ -3159,7 +3159,7 @@ export default function TicketingSystem() {
             </div>
           </div>
         </div>
-/////////////////////////////////DASHBOARD ANALITYCS///////////////////////////////////////////////////////////////////////////
+// Dashboard analytcs
 
 {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
   <div className="mb-4 space-y-4">
@@ -3285,7 +3285,6 @@ export default function TicketingSystem() {
   </div>
 )}
  
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         {showAccountSettings && canAccessAccountSettings && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 border-2 border-gray-400 animate-scale-in relative">
