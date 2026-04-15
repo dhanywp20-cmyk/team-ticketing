@@ -471,6 +471,175 @@ function HandlerDonutCard({
   );
 }
 
+// ── Mini Donut untuk Sales Division ─────────────────────────────────────────────────
+function SalesDivisionDonutCard({
+  data,
+  total,
+  onSliceClick,
+  activeDivision,
+}: {
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  onSliceClick: (name: string) => void;
+  activeDivision: string | null;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  
+  if (total === 0)
+    return (
+      <div
+        className="rounded-2xl p-4 flex flex-col gap-2"
+        style={{
+          background: "rgba(255,255,255,0.85)",
+          border: "1px solid rgba(0,0,0,0.08)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+          📊 Sales Division
+        </p>
+        <p className="text-gray-400 text-sm text-center py-4">
+          Belum ada data
+        </p>
+      </div>
+    );
+    
+  let cumAngle = -Math.PI / 2;
+  const cx = 60,
+    cy = 60,
+    r = 50,
+    ir = 28;
+    
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumAngle),
+      y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle),
+      y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle),
+      yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle),
+      yi2 = cy + ir * Math.sin(cumAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
+  });
+  
+  return (
+    <div
+      className="rounded-2xl p-4 flex flex-col gap-3"
+      style={{
+        background: "rgba(255,255,255,0.85)",
+        border: "1px solid rgba(0,0,0,0.08)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">
+        📊 Sales Division
+      </p>
+      <div className="flex items-center gap-3">
+        <svg
+          width="120"
+          height="120"
+          viewBox="0 0 120 120"
+          className="flex-shrink-0"
+        >
+          {slices.map((s) => (
+            <path
+              key={s.i}
+              d={s.path}
+              fill={s.color}
+              opacity={hov === null || hov === s.i ? 1 : 0.45}
+              style={{
+                cursor: "pointer",
+                transition: "opacity 0.15s",
+                filter:
+                  hov === s.i || activeDivision === s.name
+                    ? `drop-shadow(0 0 4px ${s.color})`
+                    : "none",
+              }}
+              onMouseEnter={() => setHov(s.i)}
+              onMouseLeave={() => setHov(null)}
+              onClick={() => onSliceClick(s.name)}
+            />
+          ))}
+          <text
+            x="60"
+            y="57"
+            textAnchor="middle"
+            fontSize="16"
+            fontWeight="800"
+            fill="#1e293b"
+          >
+            {total}
+          </text>
+          <text
+            x="60"
+            y="70"
+            textAnchor="middle"
+            fontSize="7"
+            fill="#94a3b8"
+            fontWeight="600"
+          >
+            TOTAL
+          </text>
+        </svg>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
+          {slices.map((s) => (
+            <div
+              key={s.i}
+              className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{
+                background:
+                  hov === s.i || activeDivision === s.name
+                    ? `${s.color}20`
+                    : "transparent",
+                outline:
+                  activeDivision === s.name
+                    ? `1px solid ${s.color}`
+                    : "none",
+              }}
+              onMouseEnter={() => setHov(s.i)}
+              onMouseLeave={() => setHov(null)}
+              onClick={() => onSliceClick(s.name)}
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: s.color }}
+              />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">
+                {s.name}
+              </span>
+              <span
+                className="text-[10px] font-bold flex-shrink-0"
+                style={{ color: s.color }}
+              >
+                {s.value}
+              </span>
+              {activeDivision === s.name && (
+                <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">
+                  ✓
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {activeDivision && (
+        <p className="text-[10px] text-center text-purple-600 font-bold">
+          Filter aktif: {activeDivision}
+        </p>
+      )}
+      {!activeDivision && (
+        <p className="text-[10px] text-center text-gray-400 italic">
+          Klik slice untuk filter division
+        </p>
+      )}
+    </div>
+  );
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 export default function TicketingSystem() {
   const ticketListRef = useRef<HTMLDivElement>(null);
@@ -510,6 +679,9 @@ export default function TicketingSystem() {
     due_hours: "48",
   });
   const [handlerFilter, setHandlerFilter] = useState<
+    string | null
+  >(null);
+  const [salesDivisionFilter, setSalesDivisionFilter] = useState<
     string | null
   >(null);
   const [showReminderSchedule, setShowReminderSchedule] =
@@ -554,6 +726,8 @@ export default function TicketingSystem() {
   const [loadingMessage, setLoadingMessage] = useState("");
 
   const [searchProject, setSearchProject] = useState("");
+  const [searchSalesName, setSearchSalesName] = useState("");
+  const [filterYear, setFilterYear] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState("All");
   const [selectedHandlerTeam, setSelectedHandlerTeam] =
     useState<"PTS" | "Services">("PTS");
@@ -2775,10 +2949,15 @@ export default function TicketingSystem() {
           .includes(searchProject.toLowerCase()) ||
         issueCase
           .toLowerCase()
-          .includes(searchProject.toLowerCase()) ||
-        salesName
-          .toLowerCase()
           .includes(searchProject.toLowerCase());
+      
+      const salesNameMatch = salesName
+        .toLowerCase()
+        .includes(searchSalesName.toLowerCase());
+      
+      // Filter by year
+      const ticketYear = t.created_at ? new Date(t.created_at).getFullYear().toString() : "";
+      const yearMatch = filterYear === "all" || ticketYear === filterYear;
 
       let statusMatch = false;
       if (filterStatus === "All") statusMatch = true;
@@ -2800,6 +2979,10 @@ export default function TicketingSystem() {
       const handlerMatch =
         handlerFilter === null ||
         t.assigned_to === handlerFilter;
+      
+      const divisionMatch =
+        salesDivisionFilter === null ||
+        t.sales_division === salesDivisionFilter;
 
       // Team Visibility Logic
       let teamVisibility = true;
@@ -2824,16 +3007,19 @@ export default function TicketingSystem() {
       }
 
       return (
-        match && statusMatch && teamVisibility && handlerMatch
+        match && salesNameMatch && yearMatch && statusMatch && teamVisibility && handlerMatch && divisionMatch
       );
     });
   }, [
     tickets,
     searchProject,
+    searchSalesName,
+    filterYear,
     filterStatus,
     currentUserTeamType,
     overdueSettings,
     handlerFilter,
+    salesDivisionFilter,
   ]);
 
   const stats = useMemo(() => {
@@ -2910,6 +3096,48 @@ export default function TicketingSystem() {
       }),
     };
   }, [tickets, overdueSettings]);
+
+  // Sales Division stats untuk donut chart
+  const salesDivisionStats = useMemo(() => {
+    const divisionCounts: Record<string, number> = {};
+    tickets.forEach((t) => {
+      if (t.sales_division) {
+        divisionCounts[t.sales_division] = (divisionCounts[t.sales_division] || 0) + 1;
+      }
+    });
+    
+    const colors = [
+      "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+      "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6366F1",
+      "#14B8A6", "#F43F5E", "#A855F7", "#22D3EE", "#EAB308",
+    ];
+    
+    const divisionData = Object.entries(divisionCounts)
+      .map(([name, value], i) => ({
+        name,
+        value,
+        color: colors[i % colors.length],
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10); // Top 10 divisions
+    
+    return {
+      data: divisionData,
+      total: divisionData.reduce((sum, d) => sum + d.value, 0),
+    };
+  }, [tickets]);
+
+  // Get unique years from tickets
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    tickets.forEach((t) => {
+      if (t.created_at) {
+        const year = new Date(t.created_at).getFullYear().toString();
+        years.add(year);
+      }
+    });
+    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  }, [tickets]);
 
   const uniqueProjectNames = useMemo(() => {
     const names = tickets.map((t) => t.project_name);
@@ -5709,7 +5937,7 @@ export default function TicketingSystem() {
               </div>
 
               {/* ── Donut Charts —  */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <StatusDonutCard
                   data={stats.statusData}
                   total={stats.statusData.reduce(
@@ -5784,6 +6012,19 @@ export default function TicketingSystem() {
                   activeHandler={handlerFilter}
                   title="Team Handlers"
                   icon="👥"
+                />
+                <SalesDivisionDonutCard
+                  data={salesDivisionStats.data}
+                  total={salesDivisionStats.total}
+                  onSliceClick={(division: string) => {
+                    setSalesDivisionFilter((prev: string | null) =>
+                      prev === division ? null : division,
+                    );
+                    ticketListRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                    });
+                  }}
+                  activeDivision={salesDivisionFilter}
                 />
               </div>
 
@@ -6291,10 +6532,10 @@ export default function TicketingSystem() {
             })()}
 
           <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-blue-500">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
                 <label className="block text-sm font-bold mb-2">
-                  🔍 Search
+                  🔍 Search Project
                 </label>
                 <input
                   type="text"
@@ -6302,11 +6543,42 @@ export default function TicketingSystem() {
                   onChange={(e) =>
                     setSearchProject(e.target.value)
                   }
-                  placeholder="Search by project, issue, or sales..."
+                  placeholder="Search by project or issue..."
                   className="input-field"
                 />
               </div>
-              <div className="md:w-64">
+              <div>
+                <label className="block text-sm font-bold mb-2">
+                  👤 Search Sales Name
+                </label>
+                <input
+                  type="text"
+                  value={searchSalesName}
+                  onChange={(e) =>
+                    setSearchSalesName(e.target.value)
+                  }
+                  placeholder="Search by sales name..."
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-2">
+                  📅 Filter Year
+                </label>
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="input-field"
+                >
+                  <option value="all">All Years</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-bold mb-2">
                   📋 Filter Status
                 </label>
@@ -6343,8 +6615,42 @@ export default function TicketingSystem() {
                 </select>
               </div>
             </div>
-            {(filterStatus !== "All" || handlerFilter) && (
-              <div className="flex flex-wrap gap-2 mt-3">
+            {(searchProject || searchSalesName || filterYear !== "all" || filterStatus !== "All" || handlerFilter || salesDivisionFilter) && (
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-200">
+                <span className="text-xs font-semibold text-gray-500">Active Filters:</span>
+                {searchProject && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 bg-blue-100 text-blue-800 border-blue-400">
+                    Project: {searchProject}
+                    <button
+                      onClick={() => setSearchProject("")}
+                      className="ml-1 hover:opacity-70"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+                {searchSalesName && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 bg-green-100 text-green-800 border-green-400">
+                    Sales: {searchSalesName}
+                    <button
+                      onClick={() => setSearchSalesName("")}
+                      className="ml-1 hover:opacity-70"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+                {filterYear !== "all" && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 bg-indigo-100 text-indigo-800 border-indigo-400">
+                    Year: {filterYear}
+                    <button
+                      onClick={() => setFilterYear("all")}
+                      className="ml-1 hover:opacity-70"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
                 {filterStatus !== "All" && (
                   <span
                     className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 ${
@@ -6356,9 +6662,20 @@ export default function TicketingSystem() {
                             "bg-gray-100 text-gray-800 border-gray-300"
                     }`}
                   >
-                    Filter: {filterStatus}
+                    Status: {filterStatus}
                     <button
                       onClick={() => setFilterStatus("All")}
+                      className="ml-1 hover:opacity-70"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+                {salesDivisionFilter && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border-2 bg-pink-100 text-pink-800 border-pink-400">
+                    Division: {salesDivisionFilter}
+                    <button
+                      onClick={() => setSalesDivisionFilter(null)}
                       className="ml-1 hover:opacity-70"
                     >
                       ✕
