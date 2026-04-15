@@ -3156,7 +3156,6 @@ export default function TicketingSystem() {
               </button>
             </div>
           </div>
-        </div>
         </header>
         
 {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
