@@ -3048,18 +3048,18 @@ export default function TicketingSystem() {
         )}
 
         {/* ── HEADER ── */}
-        <header className="sticky top-0 z-50" style={{ background: 'white', borderBottom: '3px solid #dc2626' }}>
-          <div className="max-w-[1600px] mx-auto px-6 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
+          <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
 
             {/* Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xl flex-shrink-0"
-                style={{ background: '#dc2626' }}>
-                📋
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
+                <span className="text-lg">📋</span>
               </div>
               <div>
-                <h1 className="text-base font-black" style={{ color: '#dc2626', lineHeight: '1.2' }}>Ticket Troubleshooting</h1>
-                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#888' }}>PTS IVP — TEAM WORK PLANNER</p>
+                <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Ticket Troubleshooting</h1>
+                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#dc2626' }}>PTS IVP — TEAM WORK PLANNER</p>
               </div>
             </div>
 
@@ -3070,25 +3070,27 @@ export default function TicketingSystem() {
               {currentUser?.role !== 'guest' && (
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2 rounded-lg transition-all hover:bg-gray-100"
+                  className="relative p-2 rounded-xl transition-all hover:bg-red-50 border-2 border-transparent hover:border-red-200"
                   title="Notifications"
-                  style={{ color: '#555', fontSize: '18px', lineHeight: '1' }}
                 >
-                  🔔
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
                   {notifications.length > 0 && (
-                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse" />
+                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white animate-pulse"
+                      style={{ background: '#dc2626' }}>
+                      {notifications.length}
+                    </span>
                   )}
                 </button>
               )}
-
-              <div className="w-px h-6 bg-gray-200" />
 
               {/* Approval */}
               {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
                 <button
                   onClick={() => setShowApprovalModal(true)}
-                  className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90 animate-pulse"
-                  style={{ background: '#ea580c' }}
+                  className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90 animate-pulse"
+                  style={{ background: '#ea580c', boxShadow: '0 2px 8px rgba(234,88,12,0.4)' }}
                 >
                   ⏳ Approval
                   <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -3101,8 +3103,8 @@ export default function TicketingSystem() {
               {currentUserTeamType === 'Team Services' && pendingServicesApprovalTickets.length > 0 && (
                 <button
                   onClick={() => setShowServicesApprovalModal(true)}
-                  className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90 animate-pulse"
-                  style={{ background: '#db2777' }}
+                  className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90 animate-pulse"
+                  style={{ background: '#db2777', boxShadow: '0 2px 8px rgba(219,39,119,0.4)' }}
                 >
                   🔧 Ticket Masuk
                   <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -3115,8 +3117,8 @@ export default function TicketingSystem() {
               {canAccessAccountSettings && (
                 <button
                   onClick={() => { setShowAccountSettings(!showAccountSettings); setShowGuestMapping(false); setShowNewTicket(false); }}
-                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
-                  style={{ background: '#4b5563' }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90"
+                  style={{ background: '#4b5563', boxShadow: '0 2px 8px rgba(75,85,99,0.3)' }}
                 >
                   ⚙️ Account
                 </button>
@@ -3126,8 +3128,8 @@ export default function TicketingSystem() {
               {canAccessAccountSettings && (
                 <button
                   onClick={() => { setShowGuestMapping(!showGuestMapping); setShowAccountSettings(false); setShowNewTicket(false); }}
-                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
-                  style={{ background: '#0d9488' }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90"
+                  style={{ background: '#0d9488', boxShadow: '0 2px 8px rgba(13,148,136,0.3)' }}
                 >
                   👥 Guest Mapping
                 </button>
@@ -3137,8 +3139,8 @@ export default function TicketingSystem() {
               {canAccessAccountSettings && (
                 <button
                   onClick={() => { setShowReminderSchedule(true); setShowAccountSettings(false); setShowGuestMapping(false); setShowNewTicket(false); }}
-                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
-                  style={{ background: '#7c3aed' }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90"
+                  style={{ background: '#7c3aed', boxShadow: '0 2px 8px rgba(124,58,237,0.3)' }}
                   title={`Reminder: ${getCronDisplay()}`}
                 >
                   ⏰ Reminder
@@ -3149,34 +3151,32 @@ export default function TicketingSystem() {
               {canCreateTicket && (
                 <button
                   onClick={() => { setShowNewTicket(!showNewTicket); setShowAccountSettings(false); setShowGuestMapping(false); }}
-                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
-                  style={{ background: '#dc2626' }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}
                 >
                   + New Ticket
                 </button>
               )}
 
-              <div className="w-px h-6 bg-gray-200" />
-
-              {/* User info */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200" style={{ background: '#fafafa' }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                  style={{ background: '#dc2626' }}>
-                  {currentUser?.full_name?.substring(0, 2).toUpperCase() || 'SA'}
+              {/* User info + Logout (grouped like ReminderSchedule) */}
+              {currentUser && (
+                <div className="flex items-center gap-2 pl-2 border-l-2 border-gray-200">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+                    {currentUser.full_name?.substring(0, 2).toUpperCase() || 'SA'}
+                  </div>
+                  <div className="hidden sm:block">
+                    <p className="text-xs font-bold text-gray-800 leading-tight">{currentUser.full_name}</p>
+                    <p className="text-[10px] text-gray-500">{currentUser.role}</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border-2 border-red-200 hover:bg-red-50 transition-all"
+                  >
+                    Logout
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-800 leading-tight">{currentUser?.full_name}</p>
-                  <p className="text-[11px] text-gray-400">{currentUser?.role}</p>
-                </div>
-              </div>
-
-              {/* Logout */}
-              <button
-                onClick={handleLogout}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 hover:bg-gray-100 transition-all"
-              >
-                Logout
-              </button>
+              )}
             </div>
           </div>
         </header>
