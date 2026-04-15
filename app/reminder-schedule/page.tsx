@@ -644,10 +644,11 @@ export default function ReminderSchedulePage() {
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
+  // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
     const activeUser = user ?? currentUser;
     let query = supabase.from('reminders').select('*')
-      .order('due_date', { ascending: true }).order('due_time', { ascending: true });
+      .order('created_at', { ascending: false }); // ← Terbaru di atas
     // role 'team' hanya lihat reminder yang diassign ke dia (sama seperti ticketing)
     if (activeUser?.role === 'team') {
       query = query.eq('assigned_to', activeUser.username);
@@ -656,10 +657,11 @@ export default function ReminderSchedulePage() {
     if (!error && data) setReminders(data as Reminder[]);
   };
 
+  // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchReminders = async () => {
     setListLoading(true);
     let query = supabase.from('reminders').select('*')
-      .order('due_date', { ascending: true }).order('due_time', { ascending: true });
+      .order('created_at', { ascending: false }); // ← Terbaru di atas
     if (currentUser?.role === 'team') {
       query = query.eq('assigned_to', currentUser.username);
     }
