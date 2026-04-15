@@ -1104,6 +1104,15 @@ export default function ReminderSchedulePage() {
                     </select>
                   </FormField>
                 </div>
+                {formData.assigned_to && (
+                  <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
+                    <span className="text-green-500 text-lg">💬</span>
+                    <div>
+                      <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
+                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.assigned_to}</strong> sehari sebelum jadwal.</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-4">
                   <FormField label="Tanggal *">
@@ -1185,16 +1194,6 @@ export default function ReminderSchedulePage() {
                     </div>
                   </FormField>
                 </div>
-
-                {formData.assigned_to && (
-                  <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
-                    <span className="text-green-500 text-lg">💬</span>
-                    <div>
-                      <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
-                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.assigned_to}</strong> sehari sebelum jadwal.</p>
-                    </div>
-                  </div>
-                )}
 
                 <SectionHeader icon="📝" title="Catatan Tambahan" />
 
