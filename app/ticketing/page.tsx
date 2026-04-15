@@ -3047,19 +3047,17 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-1">
-                📋 Reminder Troubleshooting
-              </h1>
-              <p className="text-gray-800 font-bold text-lg">IVP Product</p>
-              <p className="text-sm text-gray-600">
-                Welcome: <span className="font-bold text-red-600">{currentUser?.full_name}</span>
-                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-bold">
-                  {currentUser?.role === 'admin' ? 'Administrator' : currentUser?.role === 'team' ? `Team - ${currentUserTeamType}` : 'Guest'}
-                </span>
-              </p>
+        {/* ── HEADER ── */}
+        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
+          <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
+                <span className="text-lg">📋</span>
+              </div>
+              <div>
+                <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Ticket Troubleshooting</h1>
+              </div>
             </div>
             <div className="flex gap-3 flex-wrap items-center">
               {currentUser?.role !== 'guest' && (
@@ -3159,8 +3157,8 @@ export default function TicketingSystem() {
             </div>
           </div>
         </div>
-// Dashboard analytcs
-
+        </header>
+        
 {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
   <div className="mb-4 space-y-4">
 
