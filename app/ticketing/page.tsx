@@ -3044,7 +3044,7 @@ export default function TicketingSystem() {
               );
             })()}
             </div>
-          </div>📋
+          </div>
         )}
 
         {/* ── HEADER ── */}
