@@ -662,6 +662,47 @@ export default function TicketingSystem() {
     }
   };
 
+  // ── DELETE TICKET FUNCTION (ADMIN ONLY) ──
+  const deleteTicket = async (ticket: Ticket) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus ticket "${ticket.project_name} - ${ticket.issue_case}"?\n\nData ticket beserta seluruh activity log akan dihapus secara permanen!`)) return;
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Menghapus ticket...");
+      
+      // Hapus activity logs terlebih dahulu
+      await supabase.from("activity_logs").delete().eq("ticket_id", ticket.id);
+      
+      // Hapus ticket
+      const { error } = await supabase.from("tickets").delete().eq("id", ticket.id);
+      if (error) throw error;
+      
+      // Coba hapus juga dari Services DB jika ada
+      try {
+        await supabaseServices.from("tickets").delete().eq("id", ticket.id);
+        await supabaseServices.from("activity_logs").delete().eq("ticket_id", ticket.id);
+      } catch (e) {
+        console.warn("Could not delete from Services DB:", e);
+      }
+      
+      await fetchData();
+      setLoadingMessage("✅ Ticket berhasil dihapus!");
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+        // Tutup detail popup jika ticket yang dihapus sedang dibuka
+        if (selectedTicket?.id === ticket.id) {
+          setShowTicketDetailPopup(false);
+          setSelectedTicket(null);
+        }
+      }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert("Error: " + err.message);
+    }
+  };
+
   const createTicket = async () => {
     if (!newTicket.project_name || !newTicket.issue_case) { alert("Project name and Issue case must be filled!"); return; }
     const isAdmin = currentUser?.role === "admin";
@@ -1726,8 +1767,8 @@ export default function TicketingSystem() {
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
-                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 4 : 3}>Action</th>
-                    </tr>
+                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 5 : 4}>Action</th>
+                    </table>
                   </thead>
                   <tbody>
                     {filteredTickets.map((ticket, index) => {
@@ -1748,7 +1789,7 @@ export default function TicketingSystem() {
                             <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                             {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
-                           </td>
+                          </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
@@ -1767,10 +1808,26 @@ export default function TicketingSystem() {
                               <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-base">👁</span></button>
                               {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors mt-0.5" title="Re-open"><span className="text-base">🔓</span></button>}
                             </div>
-                           </td>
+                          </td>
                           <td className="px-1 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"><span className="text-base">📊</span></button>{canAccessAccountSettings && ticket.status === "Waiting Approval" && <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-1 animate-pulse" title="Approve"><span className="text-base">✅</span></button>}</td>
                           <td className="px-1 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => exportToPDF(ticket)} className="text-green-600 hover:text-green-800 transition-colors mx-auto block" title="Print PDF"><span className="text-base">🖨️</span></button></td>
-                          {canAccessAccountSettings && (<td className="px-1 py-2 align-middle text-center"><button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors mx-auto block ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-base">⏰</span></button></td>)}
+                          {/* Tombol Delete - Khusus Admin */}
+                          {canAccessAccountSettings && (
+                            <td className="px-1 py-2 align-middle text-center">
+                              <button 
+                                onClick={() => deleteTicket(ticket)} 
+                                className="text-red-600 hover:text-red-800 transition-colors mx-auto block" 
+                                title="Hapus Ticket"
+                              >
+                                <span className="text-base">🗑️</span>
+                              </button>
+                             </td>
+                          )}
+                          {canAccessAccountSettings && (
+                            <td className="px-1 py-2 align-middle text-center">
+                              <button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors mx-auto block ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-base">⏰</span></button>
+                             </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -1783,7 +1840,6 @@ export default function TicketingSystem() {
         </div>
 
         {/* ── All modals remain the same as original (notifications, detail popup, etc.) ── */}
-        {/* ... (all other modals - notification popup, ticket detail, update form, approval modals, etc. remain unchanged) ... */}
 
         {/* ── NOTIFICATION POPUP (Redesigned) ── */}
         {showNotificationPopup && notifications.length > 0 && (
