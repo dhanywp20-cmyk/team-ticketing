@@ -1355,7 +1355,7 @@ export default function Dashboard() {
                           {menu.items.map((item, itemIndex) => {
                             const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
                             return (
-                              <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
+                              <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)} title={`${menu.title} — ${item.name}`}
                                 className="w-full h-7 rounded-lg flex items-center justify-center text-sm transition-all"
                                 style={isActive ? { background: 'rgba(200,134,29,0.18)', border: '1px solid rgba(200,134,29,0.45)', color: '#b8760d' } : { background: 'rgba(0,0,0,0.05)', border: '1px solid transparent', color: '#64748b' }}>
                                 {item.icon}
@@ -1416,30 +1416,28 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col overflow-y-auto">
-        <>
-          <div className="flex-shrink-0 px-5 py-3 flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(8px)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            <span className="text-base font-bold text-slate-700 tracking-tight">{iframeTitle}</span>
-          </div>
+		{/* MAIN CONTENT */}
+		<div className="flex-1 flex flex-col overflow-y-auto">
+		  <>
+			{/* Header breadcrumb dihapus */}
 
-          <div className="flex-1 overflow-hidden bg-white">
-            {showTicketing ? (
-              <div className="w-full h-full overflow-auto">
-                <iframe src={internalUrl} className="w-full h-full border-0" title={iframeTitle} />
-              </div>
-            ) : iframeUrl ? (
-              <iframe src={iframeUrl} className="w-full h-full border-0" title={iframeTitle} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-            ) : null}
-          </div>
+			<div className="flex-1 overflow-hidden bg-white">
+			  {showTicketing ? (
+				<div className="w-full h-full overflow-auto">
+				  <iframe src={internalUrl} className="w-full h-full border-0" title={iframeTitle} />
+				</div>
+			  ) : iframeUrl ? (
+				<iframe src={iframeUrl} className="w-full h-full border-0" title={iframeTitle} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+			  ) : null}
+			</div>
 
-          <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-            <div className="px-6 py-5">
-              <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
-            </div>
-          </div>
-        </>
-      </div>
+			<div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
+			  <div className="px-6 py-5">
+				<p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
+			  </div>
+			</div>
+		  </>
+		</div>
 
       <style jsx>{`
         @keyframes dropIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
