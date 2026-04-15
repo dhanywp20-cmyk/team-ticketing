@@ -3048,92 +3048,138 @@ export default function TicketingSystem() {
         )}
 
         {/* ── HEADER ── */}
-		<header className="sticky top-0 z-50" style={{ background: 'white', borderBottom: '3px solid #dc2626' }}>
-		  {/* Main header bar */}
-		  <div className="px-6 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-		    {/* Brand */}
-		    <div className="flex items-center gap-3">
-		      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg"
-		        style={{ background: '#dc2626' }}>
-		        📋
-		      </div>
-		      <div>
-		        <h1 className="text-base font-black" style={{ color: '#dc2626' }}>Ticket Troubleshooting</h1>
-		        <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#888' }}>PTS IVP — TEAM WORK PLANNER</p>
-		      </div>
-		    </div>
-		
-		    {/* Actions */}
-		    <div className="flex items-center gap-2.5 flex-wrap">
-		      {/* Bell */}
-		      <button onClick={() => setShowNotifications(!showNotifications)}
-		        className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors" title="Notifications">
-		        🔔
-		        {notifications.length > 0 && (
-		          <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full" />
-		        )}
-		      </button>
-		
-		      <div className="w-px h-6 bg-gray-200" />
-		
-		      {/* Approval badge */}
-		      {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
-		        <button onClick={() => setShowApprovalModal(true)}
-		          className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
-		          style={{ background: '#ea580c' }}>
-		          ⏳ Approval
-		          <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-		            {pendingApprovalTickets.length}
-		          </span>
-		        </button>
-		      )}
-		
-		      {/* Account */}
-		      {canAccessAccountSettings && (
-		        <button onClick={() => { setShowAccountSettings(!showAccountSettings); setShowGuestMapping(false); setShowNewTicket(false); }}
-		          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
-		          style={{ background: '#4b5563' }}>
-		          ⚙️ Account
-		        </button>
-		      )}
-		
-		      {/* Export Excel */}
-		      <button className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
-		        style={{ background: '#16a34a' }}>
-		        ↓ Export Excel
-		      </button>
-		
-		      {/* New Ticket */}
-		      {canCreateTicket && (
-		        <button onClick={() => { setShowNewTicket(!showNewTicket); setShowAccountSettings(false); setShowGuestMapping(false); }}
-		          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
-		          style={{ background: '#dc2626' }}>
-		          + New Ticket
-		        </button>
-		      )}
-		
-		      <div className="w-px h-6 bg-gray-200" />
-		
-		      {/* User info */}
-		      <div className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg bg-gray-50">
-		        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black"
-		          style={{ background: '#dc2626' }}>
-		          {currentUser?.full_name?.substring(0, 2).toUpperCase() || 'SA'}
-		        </div>
-		        <div>
-		          <p className="text-sm font-bold text-gray-800 leading-tight">{currentUser?.full_name}</p>
-		          <p className="text-[11px] text-gray-400">{currentUser?.role}</p>
-		        </div>
-		      </div>
-		
-		      {/* Logout */}
-		      <button onClick={handleLogout}
-		        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-all">
-		        Logout
-		      </button>
-		    </div>
-		  </div>
-		</header>
+        <header className="sticky top-0 z-50" style={{ background: 'white', borderBottom: '3px solid #dc2626' }}>
+          <div className="max-w-[1600px] mx-auto px-6 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+
+            {/* Brand */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xl flex-shrink-0"
+                style={{ background: '#dc2626' }}>
+                📋
+              </div>
+              <div>
+                <h1 className="text-base font-black" style={{ color: '#dc2626', lineHeight: '1.2' }}>Ticket Troubleshooting</h1>
+                <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#888' }}>PTS IVP — TEAM WORK PLANNER</p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+
+              {/* Bell notif */}
+              {currentUser?.role !== 'guest' && (
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 rounded-lg transition-all hover:bg-gray-100"
+                  title="Notifications"
+                  style={{ color: '#555', fontSize: '18px', lineHeight: '1' }}
+                >
+                  🔔
+                  {notifications.length > 0 && (
+                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse" />
+                  )}
+                </button>
+              )}
+
+              <div className="w-px h-6 bg-gray-200" />
+
+              {/* Approval */}
+              {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
+                <button
+                  onClick={() => setShowApprovalModal(true)}
+                  className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90 animate-pulse"
+                  style={{ background: '#ea580c' }}
+                >
+                  ⏳ Approval
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {pendingApprovalTickets.length}
+                  </span>
+                </button>
+              )}
+
+              {/* Services Approval */}
+              {currentUserTeamType === 'Team Services' && pendingServicesApprovalTickets.length > 0 && (
+                <button
+                  onClick={() => setShowServicesApprovalModal(true)}
+                  className="relative flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90 animate-pulse"
+                  style={{ background: '#db2777' }}
+                >
+                  🔧 Ticket Masuk
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {pendingServicesApprovalTickets.length}
+                  </span>
+                </button>
+              )}
+
+              {/* Account */}
+              {canAccessAccountSettings && (
+                <button
+                  onClick={() => { setShowAccountSettings(!showAccountSettings); setShowGuestMapping(false); setShowNewTicket(false); }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
+                  style={{ background: '#4b5563' }}
+                >
+                  ⚙️ Account
+                </button>
+              )}
+
+              {/* Guest Mapping */}
+              {canAccessAccountSettings && (
+                <button
+                  onClick={() => { setShowGuestMapping(!showGuestMapping); setShowAccountSettings(false); setShowNewTicket(false); }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
+                  style={{ background: '#0d9488' }}
+                >
+                  👥 Guest Mapping
+                </button>
+              )}
+
+              {/* Reminder */}
+              {canAccessAccountSettings && (
+                <button
+                  onClick={() => { setShowReminderSchedule(true); setShowAccountSettings(false); setShowGuestMapping(false); setShowNewTicket(false); }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
+                  style={{ background: '#7c3aed' }}
+                  title={`Reminder: ${getCronDisplay()}`}
+                >
+                  ⏰ Reminder
+                </button>
+              )}
+
+              {/* New Ticket */}
+              {canCreateTicket && (
+                <button
+                  onClick={() => { setShowNewTicket(!showNewTicket); setShowAccountSettings(false); setShowGuestMapping(false); }}
+                  className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all hover:opacity-90"
+                  style={{ background: '#dc2626' }}
+                >
+                  + New Ticket
+                </button>
+              )}
+
+              <div className="w-px h-6 bg-gray-200" />
+
+              {/* User info */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200" style={{ background: '#fafafa' }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                  style={{ background: '#dc2626' }}>
+                  {currentUser?.full_name?.substring(0, 2).toUpperCase() || 'SA'}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800 leading-tight">{currentUser?.full_name}</p>
+                  <p className="text-[11px] text-gray-400">{currentUser?.role}</p>
+                </div>
+              </div>
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 hover:bg-gray-100 transition-all"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </header>
         
 {(currentUser?.role === 'admin' || (currentUser?.role === 'team' && currentUserTeamType === 'Team PTS')) && (
   <div className="mb-4 space-y-4">
