@@ -136,7 +136,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [editFormModal, setEditFormModal] = useState(false);
   const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_mixer:'',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',tabletop_input:'No',tabletop_jumlah:'',wireless_presentation:'No',wireless_mode:[] as string[],wireless_dongle:'No',controller_automation:'No',controller_type:[] as string[],ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
   // NEW: Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [selectedHandler, setSelectedHandler] = useState('');
   const [teamHandlers, setTeamHandlers] = useState<TeamHandler[]>([]);
@@ -851,8 +850,6 @@ const handlerChartData = () => {
   ) : null;
 
   // ── VIEW: LIST ──
-  {isModalOpen && <RequestFormModal />}
-  <AssignHandlerModal />
   if (view === 'list') return (
     <div className="min-h-full p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
@@ -1106,7 +1103,7 @@ const handlerChartData = () => {
                 {(searchQuery || searchSales) ? 'Tidak ada hasil yang cocok dengan pencarian Anda.' : filterStatus !== 'all' ? `Tidak ada request dengan status "${filterStatus}".` : 'Belum ada form yang masuk.'}
               </p>
               {filterStatus === 'all' && !searchQuery && !searchSales && !isPTS && (
-                <button onClick={() => setIsModalOpen(true)}
+                <button onClick={() => setView('new-form')}
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all text-sm">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Buat Request Baru
@@ -1118,9 +1115,7 @@ const handlerChartData = () => {
               const sc = statusConfig[req.status] || statusConfig.pending;
               const unread = unreadMsgMap[req.id] || 0;
               const dueStatus = getDueStatus(req.due_date, req.status);
-              <div className="hidden md:block pr-3">
-                <p className="text-sm font-medium text-teal-700 truncate">{handler?.full_name || req.pts_assigned || '-'}</p>
-              </div>
+              const handler = teamHandlers.find(h => h.id === req.assigned_handler);
               return (
                 <div key={req.id}
                   className={`grid md:grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3.5 hover:bg-teal-50/30 transition-colors cursor-pointer group items-center ${dueStatus?.type === 'overdue' ? 'bg-red-50/20' : ''}`}
@@ -1170,6 +1165,11 @@ const handlerChartData = () => {
                   <div className="hidden md:block pr-3">
                     <p className="text-sm text-gray-700 font-medium truncate">{req.requester_name}</p>
                     <p className="text-[11px] text-gray-400 truncate">{req.due_date ? `Target: ${formatDueDate(req.due_date)}` : ''}</p>
+                  </div>
+
+                  {/* Handler */}
+                  <div className="hidden md:block pr-3">
+                    <p className="text-sm font-medium text-teal-700 truncate">{handler?.full_name || req.pts_assigned || '-'}</p>
                   </div>
 
                   {/* Action */}
