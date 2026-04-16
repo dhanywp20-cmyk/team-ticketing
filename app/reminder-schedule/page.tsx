@@ -704,6 +704,7 @@ export default function ReminderSchedulePage() {
         `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
         `*Nama Project: ${formData.title}*\n` +
+        `*Deskripsi: ${formData.description}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.project_location || '-'}\n` +
         `👤 Sales: ${formData.sales_name}${formData.sales_division ? ' - ' + formData.sales_division : ''}\n` +
