@@ -124,14 +124,16 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; 
   cancelled:   { label: 'Cancelled', color: '#374151', bg: '#f3f4f6', border: '#6b7280', icon: '❌' },
 };
 
-const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Troubleshooting', 'Training'];
+const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Konfigurasi & Training', 'Troubleshooting', 'Training', 'Internal'];
 
 const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string; accent: string }> = {
   'Demo Product':     { icon: '🖥️', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.4)', accent: '#7c3aed' },
   'Meeting & Survey': { icon: '🤝', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)',   border: 'rgba(56,189,248,0.4)',   accent: '#0ea5e9' },
   'Konfigurasi':      { icon: '⚙️', color: '#34d399', bg: 'rgba(52,211,153,0.15)',   border: 'rgba(52,211,153,0.4)',   accent: '#10b981' },
+  'Konfigurasi & Training':      { icon: '📌', color: '#34d399', bg: 'rgba(52,211,153,0.15)',   border: 'rgba(52,211,153,0.4)',   accent: '#10b981' },
   'Troubleshooting':  { icon: '🔧', color: '#fb7185', bg: 'rgba(251,113,133,0.15)',   border: 'rgba(251,113,133,0.4)',  accent: '#e11d48' },
   'Training':         { icon: '🎓', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)',    border: 'rgba(251,191,36,0.4)',   accent: '#d97706' },
+  'Internal':         { icon: '🕵🏻', color: '#11eb2eff', bg: 'rgba(251,191,36,0.15)',    border: 'rgba(251,191,36,0.4)',   accent: '#19d628ff' },
 };
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
@@ -833,7 +835,8 @@ export default function ReminderSchedulePage() {
     const msg =
       `📋 *REMINDER JADWAL PTS IVP*\n\n` +
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
-      `*${r.title}*\n` +
+      `*Nama Project: ${formData.title}*\n` +
+      `*Deskripsi: ${formData.description}*\n` +
       `🏷️ Kategori: ${r.category}\n` +
       `📍 Lokasi: ${r.project_location || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
