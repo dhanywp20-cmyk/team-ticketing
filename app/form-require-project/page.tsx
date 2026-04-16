@@ -99,6 +99,55 @@ interface ProjectAttachment {
   revision_version?: number;
 }
 
+// ─── Pure SVG Pie Chart (no external library) ───────────────────────────────
+
+function SvgPieChart({ data, colors }: { data: { name: string; value: number }[]; colors: string[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return (
+    <div className="flex items-center justify-center h-[200px] text-gray-400 text-sm">No data</div>
+  );
+  const cx = 100, cy = 85, r = 65;
+  let startAngle = -Math.PI / 2;
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const endAngle = startAngle + angle;
+    const x1 = cx + r * Math.cos(startAngle);
+    const y1 = cy + r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(endAngle);
+    const y2 = cy + r * Math.sin(endAngle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    const midAngle = startAngle + angle / 2;
+    const labelR = r * 0.65;
+    const lx = cx + labelR * Math.cos(midAngle);
+    const ly = cy + labelR * Math.sin(midAngle);
+    const pct = Math.round((d.value / total) * 100);
+    startAngle = endAngle;
+    return { path, color: colors[i % colors.length], lx, ly, pct, name: d.name, value: d.value };
+  });
+  return (
+    <div>
+      <svg viewBox="0 0 200 170" className="w-full" style={{ height: 170 }}>
+        {slices.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth={1.5} />
+        ))}
+        {slices.map((s, i) => s.pct >= 8 && (
+          <text key={i} x={s.lx} y={s.ly} textAnchor="middle" dominantBaseline="middle"
+            fontSize={9} fontWeight="bold" fill="#fff">{s.pct}%</text>
+        ))}
+      </svg>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 justify-center">
+        {slices.map((s, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+            <span className="text-[10px] text-gray-600 font-medium">{s.name} ({s.value})</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Form Require Project Module — Ticketing Theme ──────────────────────────
 
 
@@ -946,36 +995,15 @@ const handlerChartData = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">📊 Sales Division</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={salesDivisionData()} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
-                {salesDivisionData().map((_, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-              </Pie>
-              <Tooltip /><Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <SvgPieChart data={salesDivisionData()} colors={CHART_COLORS} />
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">📈 Status Distribution</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={statusChartData()} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
-                {statusChartData().map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-              </Pie>
-              <Tooltip /><Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <SvgPieChart data={statusChartData()} colors={statusChartData().map(d => d.color)} />
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">👥 Team PTS Handlers</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={handlerChartData()} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
-                {handlerChartData().map((_, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-              </Pie>
-              <Tooltip /><Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <SvgPieChart data={handlerChartData()} colors={CHART_COLORS} />
         </div>
       </div>
 
