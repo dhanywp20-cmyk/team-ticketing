@@ -182,7 +182,7 @@ function AssignPTSModal({
       .from('users')
       .select('*')
       .in('role', ['team_pts', 'team'])
-      .then(({ data }) => { if (data) setTeamMembers(data as User[]); });
+      .then(({ data }: { data: User[] | null }) => { if (data) setTeamMembers(data as User[]); });
   }, []);
 
   const handleSave = async () => {
