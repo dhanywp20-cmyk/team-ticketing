@@ -87,9 +87,12 @@ interface ProjectAttachment {
   file_size: number;
   uploaded_by: string;
   uploaded_at: string;
-  attachment_category?: 'general' | 'sld' | 'boq' | 'design3d';
+  attachment_category?: 'general' | 'sld' | 'boq' | 'design3d'; // category for revision tracking
   revision_version?: number;
 }
+
+// ─── Form Require Project Module — Ticketing Theme ──────────────────────────
+
 
 // ─── Form Require Project Module — Ticketing Theme ──────────────────────────
 
@@ -117,7 +120,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const sldFileRef = useRef<HTMLInputElement>(null);
   const boqFileRef = useRef<HTMLInputElement>(null);
   const design3dFileRef = useRef<HTMLInputElement>(null);
-  const activeRequestIdRef = useRef<string | null>(null);
+  const activeRequestIdRef = useRef<string | null>(null); // untuk menghindari stale closure di interval/subscription
   const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | 'design3d' | null>(null);
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
@@ -165,6 +168,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
+      // Fetch last message counts for unread badge
       const ids = (data as ProjectRequest[]).map(r => r.id);
       if (ids.length > 0) {
         const { data: msgData } = await supabase
@@ -199,6 +203,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const fetchAttachments = useCallback(async (requestId: string) => {
     const { data, error } = await supabase.from('project_attachments').select('*').eq('request_id', requestId).order('uploaded_at', { ascending: false });
     if (!error && data) {
+      // Normalize: if attachment_category is missing from DB schema, it will be undefined — treat as 'general'
       const normalized = (data as ProjectAttachment[]).map(a => ({
         ...a,
         attachment_category: (a.attachment_category as string) === 'design3d' ? 'design3d' : a.attachment_category || 'general',
@@ -209,6 +214,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
+  // Global subscription: increment unread badge when new message arrives on any request (not in detail view)
   useEffect(() => {
     const channel = supabase.channel('global_messages_notif')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_messages' },
@@ -217,6 +223,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           if (msg.sender_role === 'system') return;
           setUnreadMsgMap(prev => {
             const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+            // Only increment if this request is not currently open
             if (!selectedRequest || selectedRequest.id !== msg.request_id) {
               return { ...prev, [msg.request_id]: (prev[msg.request_id] || 0) + 1 };
             }
@@ -233,6 +240,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setUnreadCount(pendingCount);
   }, [requests, isPTS]);
 
+  // ── Auto-update chat & attachments saat detail view terbuka ──
+  // Menggunakan 2 mekanisme: (1) Supabase Realtime subscription, (2) polling fallback tiap 3 detik
+  // Ini memastikan pesan baru muncul otomatis tanpa refresh, bahkan jika Realtime tidak aktif di project Supabase.
   useEffect(() => {
     if (!selectedRequest) {
       activeRequestIdRef.current = null;
@@ -241,6 +251,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const reqId = selectedRequest.id;
     activeRequestIdRef.current = reqId;
 
+    // ── 1. Realtime subscription ──
     const channelName = `detail_chat:${reqId}_${Date.now()}`;
     const channel = supabase.channel(channelName)
       .on('postgres_changes', {
@@ -270,6 +281,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       })
       .subscribe();
 
+    // ── 2. Polling fallback tiap 3 detik ──
+    // Mengambil pesan terbaru dan merge dengan state yang ada (tanpa replace keseluruhan)
     const pollInterval = setInterval(async () => {
       if (activeRequestIdRef.current !== reqId) return;
       const { data } = await supabase
@@ -279,6 +292,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         .order('created_at', { ascending: true });
       if (data && activeRequestIdRef.current === reqId) {
         setMessages(prev => {
+          // Hanya update jika ada pesan baru (bandingkan jumlah atau ID terakhir)
           if (data.length === prev.length) return prev;
           return data as ProjectMessage[];
         });
@@ -290,7 +304,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [selectedRequest?.id, fetchAttachments]);
+  }, [selectedRequest?.id, fetchAttachments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -327,6 +341,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           request_id: data.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
           message: `📋 Request baru dari ${currentUser.full_name} telah masuk dan menunggu approval dari Superadmin.`,
         }]);
+        // Upload survey photos if any
         if (surveyPhotos.length > 0) {
           for (const photo of surveyPhotos) {
             const filePath = `project-files/${data.id}/survey-${Date.now()}-${photo.name}`;
@@ -434,6 +449,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const boqList = attachments.filter(a => a.attachment_category === 'boq').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
     const design3dList = attachments.filter(a => a.attachment_category === 'design3d').sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
 
+    // Build filename prefix: ProjectName_DDMMYYYY
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -443,6 +459,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
     notify('info', '⏳ Menyiapkan file untuk didownload...');
 
+    // Load JSZip dynamically
     let JSZip: any;
     try {
       await new Promise<void>((resolve, reject) => {
@@ -461,6 +478,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const zip = new JSZip();
     const folder = zip.folder(folderName);
 
+    // Helper: fetch file as ArrayBuffer via proxy to avoid CORS
     const fetchFile = async (url: string): Promise<ArrayBuffer | null> => {
       try {
         const res = await fetch(url);
@@ -469,18 +487,19 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       } catch { return null; }
     };
 
-    const row = (label: string, value: string) => value ? '<tr><td style="padding:6px 10px;font-weight:700;color:#374151;width:40%;border-bottom:1px solid #e5e7eb">' + label + '</td><td style="padding:6px 10px;color:#1f2937;border-bottom:1px solid #e5e7eb">' + value + '</td></tr>' : '';
-    const sec = (title: string, rows: string) => '<div style="margin-bottom:20px"><div style="background:#dc2626;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px;letter-spacing:.03em">' + title + '</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none">' + rows + '</table></div>';
+    // ── 1. Generate Detail Kebutuhan HTML → include as .html (prints to PDF easily)
+    const row = (label: string, value: string) => value ? '<tr><td style="padding:6px 10px;font-weight:700;color:#374151;width:40%;border-bottom:1px solid #e5e7eb">' + label + '</td><td style="padding:6px 10px;color:#1f2937;border-bottom:1px solid #e5e7eb">' + value + 'NonNull</td></td>' : '';
+    const sec = (title: string, rows: string) => '<div style="margin-bottom:20px"><div style="background:#0d9488;color:white;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:700;font-size:13px;letter-spacing:.03em">' + title + '</div><table style="width:100%;border-collapse:collapse;background:white;border:1px solid #e5e7eb;border-top:none">' + rows + '</table></div>';
     const detailHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Detail Kebutuhan — ' + selectedRequest.project_name + '</title>'
       + '<style>@media print{body{margin:0}@page{margin:15mm;size:A4}.no-print{display:none!important}}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:28px;max-width:820px;margin:auto}</style>'
       + '</head><body>'
       + '<div class="no-print" style="position:fixed;top:16px;right:16px;z-index:999;display:flex;gap:8px">'
-      + '<button onclick="window.print()" style="background:#dc2626;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ Print / Save PDF</button>'
+      + '<button onclick="window.print()" style="background:#0d9488;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ Print / Save PDF</button>'
       + '<button onclick="window.close()" style="background:#6b7280;color:white;border:none;padding:10px 14px;border-radius:8px;font-size:14px;cursor:pointer">✕</button>'
       + '</div>'
-      + '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #dc2626;padding-bottom:14px">'
+      + '<div style="text-align:center;margin-bottom:24px;border-bottom:3px solid #0d9488;padding-bottom:14px">'
       + '<p style="font-size:11px;color:#6b7280;margin:0;text-transform:uppercase;letter-spacing:.08em">IVP Product — Portal Terpadu Support (PTS)</p>'
-      + '<h1 style="font-size:22px;font-weight:900;color:#dc2626;margin:6px 0">Form Require Project</h1>'
+      + '<h1 style="font-size:22px;font-weight:900;color:#0d9488;margin:6px 0">Form Require Project</h1>'
       + '<h2 style="font-size:17px;font-weight:700;margin:0 0 4px">' + selectedRequest.project_name + '</h2>'
       + '<p style="font-size:11px;color:#6b7280;margin:0">Tanggal: ' + now.toLocaleString('id-ID') + ' &nbsp;|&nbsp; Status: <strong>' + selectedRequest.status.toUpperCase() + '</strong></p>'
       + '</div>'
@@ -529,6 +548,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
     folder!.file('01_Detail_Kebutuhan.html', detailHtml);
 
+    // ── 2. Fetch & add SLD PDF
     if (sldList.length > 0) {
       const latest = sldList[0];
       const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
@@ -543,6 +563,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       folder!.file('02_SLD_KOSONG.txt', 'Belum ada file SLD diupload.');
     }
 
+    // ── 3. Fetch & add BOQ Excel
     if (boqList.length > 0) {
       const latest = boqList[0];
       const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
@@ -557,6 +578,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       folder!.file('03_BOQ_KOSONG.txt', 'Belum ada file BOQ diupload.');
     }
 
+    // ── 4. Fetch & add Design/Simulasi 3D PDF
     if (design3dList.length > 0) {
       const latest = design3dList[0];
       const revLabel = latest.revision_version ? '_Rev' + latest.revision_version : '';
@@ -571,6 +593,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       folder!.file('04_Design3D_KOSONG.txt', 'Belum ada file Design/Simulasi 3D diupload.');
     }
 
+    // ── 5. Generate ZIP and trigger download
     try {
       const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
       const url = URL.createObjectURL(blob);
@@ -592,6 +615,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setSelectedRequest(req);
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
+    // Mark messages as read
     const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
     stored[req.id] = Date.now();
     localStorage.setItem('pts_last_seen', JSON.stringify(stored));
@@ -607,6 +631,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setSendingMsg(false);
     if (error) { notify('error', 'Gagal kirim pesan.'); return; }
     setMsgText('');
+    // Pesan baru akan muncul otomatis via Realtime subscription — tidak perlu fetchMessages manual
   };
 
   const handleFileUpload = async (file: File) => {
@@ -626,9 +651,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     fetchMessages(selectedRequest.id);
   };
 
+  // Upload SLD, BOQ, or Design 3D with revision versioning
   const handleCategoryUpload = async (file: File, category: 'sld' | 'boq' | 'design3d') => {
     if (!selectedRequest) return;
     setUploadingCategory(category);
+    // Count existing revisions for this category
     const existing = attachments.filter(a => a.attachment_category === category);
     const revisionNum = existing.length + 1;
     const ext = file.name.split('.').pop();
@@ -655,12 +682,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       sender_name: currentUser.full_name, sender_role: currentUser.role,
       message: `${category === 'design3d' ? '🎨' : category === 'sld' ? '📐' : '📊'} Upload ${label} Revision ${revisionNum}: ${file.name} (Excel)`,
     }]);
+    // Pesan baru akan muncul via Realtime
   };
 
   const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
     pending:     { label: 'Pending',     color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-300' },
     approved:    { label: 'Approved',    color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-300' },
-    in_progress: { label: 'In Progress', color: 'text-blue-700',    bg: 'bg-blue-50',    border: 'border-blue-300' },
+    in_progress: { label: 'In Progress', color: 'text-teal-700',    bg: 'bg-teal-50',    border: 'border-teal-300' },
     completed:   { label: 'Completed',   color: 'text-purple-700',  bg: 'bg-purple-50',  border: 'border-purple-300' },
     rejected:    { label: 'Rejected',    color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-300' },
   };
@@ -685,6 +713,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     return matchStatus && matchProject && matchSales;
   });
 
+  // Stats
   const stats = {
     total:       requests.length,
     pending:     requests.filter(r => r.status === 'pending').length,
@@ -693,6 +722,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     rejected:    requests.filter(r => r.status === 'rejected').length,
   };
 
+  // ── CHECKBOX GROUP ──
   const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
     <div className="mb-4">
       <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2">{label}</label>
@@ -701,8 +731,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           const checked = value.includes(opt);
           return (
             <button key={opt} type="button" onClick={() => onChange(toggleArr(value, opt))}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all ${checked ? 'border-red-500 bg-red-50 text-red-700 shadow-md' : 'border-gray-300 bg-white text-gray-600 hover:border-red-300 hover:bg-red-50/50'}`}>
-              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-red-500 bg-red-500' : 'border-gray-400'}`}>
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all ${checked ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-md' : 'border-gray-300 bg-white text-gray-600 hover:border-teal-300 hover:bg-teal-50/50'}`}>
+              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-teal-500 bg-teal-500' : 'border-gray-400'}`}>
                 {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
               </div>
               {opt}
@@ -719,9 +749,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       <div className="flex flex-wrap gap-2">
         {options.map(opt => (
           <button key={opt} type="button" onClick={() => onChange(opt)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all ${value === opt ? 'border-red-500 bg-red-50 text-red-700 shadow-md' : 'border-gray-300 bg-white text-gray-600 hover:border-red-300'}`}>
-            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${value === opt ? 'border-red-500' : 'border-gray-400'}`}>
-              {value === opt && <div className="w-2 h-2 rounded-full bg-red-500" />}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all ${value === opt ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-md' : 'border-gray-300 bg-white text-gray-600 hover:border-teal-300'}`}>
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${value === opt ? 'border-teal-500' : 'border-gray-400'}`}>
+              {value === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}
             </div>
             {opt}
           </button>
@@ -730,6 +760,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     </div>
   );
 
+  // ─── Notification Toast ───────────────────────────────────────────────────
   const NotifToast = () => notification ? (
     <div className={`fixed top-4 right-4 z-[9999] px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold flex items-center gap-3 border-2 max-w-sm animate-scale-in ${
       notification.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-400' :
@@ -748,19 +779,21 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     <div className="min-h-full p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
-      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-600 pointer-events-none">
+      {/* ── Rainbow progress bar (same as Ticketing) ── */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
         <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
       </div>
 
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
+      {/* ── Main Header Card ── */}
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-teal-600">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 mb-1">
+            <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 mb-1">
               🏗️ Form Require Project
             </h1>
             <p className="text-gray-800 font-bold text-lg">IVP Product — AV Solution Request</p>
             <p className="text-sm text-gray-600 mt-1">
-              Logged in as: <span className="font-bold text-red-600">{currentUser.full_name}</span>
+              Logged in as: <span className="font-bold text-teal-600">{currentUser.full_name}</span>
               <span className={
                 `ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${
                   currentUser.role === 'superadmin' ? 'bg-red-100 text-red-800' :
@@ -783,7 +816,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           {!isPTS && (
             <div className="flex gap-3 flex-wrap items-center">
               <button onClick={() => setView('new-form')}
-                className="bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all flex items-center gap-2">
+                className="bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl hover:from-teal-700 hover:to-teal-900 font-bold shadow-xl transition-all flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 + Buat Request Baru
               </button>
@@ -792,33 +825,39 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       </div>
 
+      {/* ── Stat Cards (same style as Ticketing) ── */}
       <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-2 border-purple-500">
         <h2 className="text-xl font-bold mb-5 bg-gradient-to-r from-purple-600 to-purple-800 text-transparent bg-clip-text">📊 Dashboard Analytics</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {/* Total */}
           <div className="rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700">
             <div className="flex justify-center mb-2"><span className="text-4xl">📊</span></div>
             <p className="text-5xl font-bold text-center mb-2">{stats.total}</p>
             <p className="text-sm font-bold text-center">Total Request</p>
             <p className="text-xs text-center text-white/60 mt-0.5">Seluruh request</p>
           </div>
+          {/* Pending */}
           <div className="rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 cursor-pointer" onClick={() => setFilterStatus('pending')}>
             <div className="flex justify-center mb-2"><span className="text-4xl">⏳</span></div>
             <p className="text-5xl font-bold text-center mb-2">{stats.pending}</p>
             <p className="text-sm font-bold text-center">Pending</p>
             <p className="text-xs text-center text-white/60 mt-0.5">Menunggu approval</p>
           </div>
-          <div className="rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 cursor-pointer" onClick={() => setFilterStatus('in_progress')}>
+          {/* In Progress */}
+          <div className="rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform bg-gradient-to-br from-teal-400 via-teal-500 to-teal-600 cursor-pointer" onClick={() => setFilterStatus('in_progress')}>
             <div className="flex justify-center mb-2"><span className="text-4xl">🔄</span></div>
             <p className="text-5xl font-bold text-center mb-2">{stats.in_progress}</p>
             <p className="text-sm font-bold text-center">In Progress</p>
             <p className="text-xs text-center text-white/60 mt-0.5">Approved & On-going</p>
           </div>
+          {/* Completed */}
           <div className="rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 cursor-pointer" onClick={() => setFilterStatus('completed')}>
             <div className="flex justify-center mb-2"><span className="text-4xl">✅</span></div>
             <p className="text-5xl font-bold text-center mb-2">{stats.completed}</p>
             <p className="text-sm font-bold text-center">Completed</p>
             <p className="text-xs text-center text-white/60 mt-0.5">Selesai ditangani</p>
           </div>
+          {/* Rejected */}
           <div className="rounded-2xl p-5 text-white shadow-xl transform hover:scale-105 transition-transform bg-gradient-to-br from-red-500 via-red-600 to-red-700 cursor-pointer" onClick={() => setFilterStatus('rejected')}>
             <div className="flex justify-center mb-2"><span className="text-4xl">🚫</span></div>
             <p className="text-5xl font-bold text-center mb-2">{stats.rejected}</p>
@@ -828,8 +867,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       </div>
 
+      {/* ── Search Bar (like reference image) ── */}
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 px-6 py-4 mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-        <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100 transition-all">
+        {/* Search Project */}
+        <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
           <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" /></svg>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Search Project</p>
@@ -847,7 +888,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
 
-        <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100 transition-all">
+        {/* Search Sales */}
+        <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
           <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Search Sales</p>
@@ -865,7 +907,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
 
-        <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-red-400 transition-all min-w-[200px]">
+        {/* Filter Status */}
+        <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 transition-all min-w-[200px]">
           <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Filter Status</p>
@@ -884,11 +927,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       </div>
 
+      {/* ── Request List Card — Compact Table Style ── */}
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        {/* Table Header */}
         <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-700">TICKET LIST</span>
-            <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">{filteredRequests.length}</span>
+            <span className="bg-teal-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">{filteredRequests.length}</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchRequests}
@@ -899,6 +944,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           </div>
         </div>
 
+        {/* Column Headers */}
         <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Ruangan</span>
@@ -908,10 +954,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</span>
         </div>
 
+        {/* List */}
         <div className="divide-y divide-gray-100">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="w-12 h-12 border-4 border-gray-200 border-t-red-600 rounded-full animate-spin" />
+              <div className="w-12 h-12 border-4 border-gray-200 border-t-teal-600 rounded-full animate-spin" />
               <p className="text-gray-500 font-semibold">Memuat data...</p>
             </div>
           ) : filteredRequests.length === 0 ? (
@@ -933,7 +980,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </p>
               {filterStatus === 'all' && !searchQuery && !searchSales && !isPTS && (
                 <button onClick={() => setView('new-form')}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all text-sm">
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all text-sm">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Buat Request Baru
                 </button>
@@ -946,12 +993,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               const dueStatus = getDueStatus(req.due_date, req.status);
               return (
                 <div key={req.id}
-                  className={`grid md:grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3.5 hover:bg-red-50/30 transition-colors cursor-pointer group items-center ${dueStatus?.type === 'overdue' ? 'bg-red-50/20' : ''}`}
+                  className={`grid md:grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3.5 hover:bg-teal-50/30 transition-colors cursor-pointer group items-center ${dueStatus?.type === 'overdue' ? 'bg-red-50/20' : ''}`}
                   onClick={() => handleOpenDetail(req)}>
 
+                  {/* Nama Project */}
                   <div className="min-w-0 pr-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-gray-800 text-sm group-hover:text-red-700 transition-colors truncate">{req.project_name}</p>
+                      <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
                       {unread > 0 && (
                         <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
                           {unread > 9 ? '9+' : unread}💬
@@ -966,6 +1014,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
+                  {/* Nama Ruangan */}
                   <div className="hidden md:block pr-3">
                     <p className="text-sm text-gray-700 font-medium truncate">{req.room_name || <span className="text-gray-300">—</span>}</p>
                     {req.solution_product?.length > 0 && (
@@ -973,10 +1022,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     )}
                   </div>
 
+                  {/* Sales */}
                   <div className="hidden md:block pr-3">
                     <p className="text-sm text-gray-700 font-medium truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
                   </div>
 
+                  {/* Status Handle */}
                   <div className="hidden md:block pr-3">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                     {req.status === 'pending' && isPTS && !isTeamPTS && (
@@ -985,11 +1036,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     {req.pts_assigned && <p className="text-[11px] text-gray-400 mt-0.5">🔧 {req.pts_assigned}</p>}
                   </div>
 
+                  {/* Created By */}
                   <div className="hidden md:block pr-3">
                     <p className="text-sm text-gray-700 font-medium truncate">{req.requester_name}</p>
                     <p className="text-[11px] text-gray-400 truncate">{req.due_date ? `Target: ${formatDueDate(req.due_date)}` : ''}</p>
                   </div>
 
+                  {/* Action */}
                   <div className="hidden md:flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                     {isPTS && !isTeamPTS && req.status === 'pending' && (
                       <>
@@ -1004,8 +1057,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </>
                     )}
                     <button onClick={() => handleOpenDetail(req)}
-                      className="w-8 h-8 bg-gray-100 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all group/btn">
-                      <svg className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      className="w-8 h-8 bg-gray-100 hover:bg-teal-50 border border-gray-200 hover:border-teal-200 rounded-lg flex items-center justify-center transition-all group/btn">
+                      <svg className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
@@ -1029,22 +1082,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     <div className="min-h-full p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
-      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-600 pointer-events-none">
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
         <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
       </div>
 
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-red-600">
+      {/* Header */}
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-teal-600">
         <div className="flex items-center gap-4">
           <button onClick={() => setView('list')} className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2.5 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-lg transition-all" title="Kembali">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">
+            <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800">
               📋 Form Equipment Request — IVP
             </h1>
             <p className="text-gray-600 text-sm mt-0.5">
               Isi form kebutuhan solution AV project Anda •
-              Requester: <span className="font-bold text-red-600">{currentUser.full_name}</span>
+              Requester: <span className="font-bold text-teal-600">{currentUser.full_name}</span>
             </p>
           </div>
           <div className="hidden md:flex flex-col items-end">
@@ -1056,9 +1110,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
       <div className="max-w-3xl mx-auto space-y-5">
 
+        {/* Project Info */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📁</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📁</span>
             Informasi Project
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1066,26 +1121,27 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Nama Project *</label>
               <input value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })}
                 placeholder="Contoh: Meeting Room Lantai 5 - PT ABC"
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white outline-none" />
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-teal-600 focus:ring-4 focus:ring-teal-200 transition-all font-medium bg-white outline-none" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Nama Ruangan</label>
               <input value={form.room_name} onChange={e => setForm({ ...form, room_name: e.target.value })}
                 placeholder="Nama ruangan / area"
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white outline-none" />
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-teal-600 focus:ring-4 focus:ring-teal-200 transition-all font-medium bg-white outline-none" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Sales / Account</label>
               <input value={form.sales_name} onChange={e => setForm({ ...form, sales_name: e.target.value })}
                 placeholder="Nama Sales / Account Manager"
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white outline-none" />
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-teal-600 focus:ring-4 focus:ring-teal-200 transition-all font-medium bg-white outline-none" />
             </div>
           </div>
         </div>
 
+        {/* Kebutuhan & Solution */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🎯</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🎯</span>
             Kategori Kebutuhan & Solution
           </h3>
           <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
@@ -1093,20 +1149,21 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           <div className="mb-4">
             <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Other Kebutuhan</label>
             <input value={form.kebutuhan_other} onChange={e => setForm({ ...form, kebutuhan_other: e.target.value })}
-              placeholder="Tuliskan jika ada..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+              placeholder="Tuliskan jika ada..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
           </div>
           <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
             value={form.solution_product} onChange={v => setForm({ ...form, solution_product: v })} />
           <div>
             <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Other Solution</label>
             <input value={form.solution_other} onChange={e => setForm({ ...form, solution_other: e.target.value })}
-              placeholder="Tuliskan jika ada..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+              placeholder="Tuliskan jika ada..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
           </div>
         </div>
 
+        {/* Signage & Network */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📺</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📺</span>
             Layout Konten & Jaringan CMS
           </h3>
           <CheckGroup label="Layout Content Signage" options={['Fullscreen only (Image/Video slideshow)', 'Split 2,3 atau multi zone content', 'Running text dan lain-lain']}
@@ -1115,21 +1172,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             value={form.jaringan_cms} onChange={v => setForm({ ...form, jaringan_cms: v })} />
         </div>
 
+        {/* Source & I/O */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🔌</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🔌</span>
             Sumber & Input / Output
           </h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Jumlah Input</label>
               <input value={form.jumlah_input} onChange={e => setForm({ ...form, jumlah_input: e.target.value })}
-                placeholder="e.g. 4" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                placeholder="e.g. 4" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Jumlah Output</label>
               <input value={form.jumlah_output} onChange={e => setForm({ ...form, jumlah_output: e.target.value })}
-                placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
           </div>
           <CheckGroup label="Source" options={['PC', 'URL', 'NVR', 'Laptop']}
@@ -1137,22 +1195,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           <div>
             <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Other Source</label>
             <input value={form.source_other} onChange={e => setForm({ ...form, source_other: e.target.value })}
-              placeholder="Tuliskan jika ada..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+              placeholder="Tuliskan jika ada..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
           </div>
         </div>
 
+        {/* Camera & Audio */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📷</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📷</span>
             Camera Conference & Audio
           </h3>
           <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={form.camera_conference} onChange={v => setForm({ ...form, camera_conference: v })} />
           {form.camera_conference === 'Yes' && (
-            <div className="ml-0 pl-4 border-l-4 border-red-300 mb-4">
+            <div className="ml-0 pl-4 border-l-4 border-teal-300 mb-4">
               <div className="mb-3">
                 <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Jumlah Kamera</label>
                 <input value={form.camera_jumlah} onChange={e => setForm({ ...form, camera_jumlah: e.target.value })}
-                  placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                  placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
               </div>
               <CheckGroup label="Tracking" options={['No Tracking', 'Voice', 'Human Detection', 'Track Mic Delegate']}
                 value={form.camera_tracking} onChange={v => setForm({ ...form, camera_tracking: v })} />
@@ -1160,7 +1219,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
           <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system} onChange={v => setForm({ ...form, audio_system: v })} />
           {form.audio_system === 'Yes' && (
-            <div className="ml-0 pl-4 border-l-4 border-red-300 mb-4 space-y-3">
+            <div className="ml-0 pl-4 border-l-4 border-teal-300 mb-4 space-y-3">
               <RadioGroup label="Mixer" options={['Analog', 'DSP Mixer']} value={form.audio_mixer} onChange={v => setForm({ ...form, audio_mixer: v })} />
               <CheckGroup label="Keperluan Audio" options={['Mic', 'PC Audio', 'Speaker']}
                 value={form.audio_detail} onChange={v => setForm({ ...form, audio_detail: v })} />
@@ -1168,33 +1227,37 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
 
+        {/* Wallplate, Tabletop & Wireless */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📡</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📡</span>
             Wallplate, Tabletop & Wireless
           </h3>
 
+          {/* Wallplate Input */}
           <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input} onChange={v => setForm({ ...form, wallplate_input: v })} />
           {form.wallplate_input === 'Yes' && (
-            <div className="mb-4 pl-4 border-l-4 border-red-300">
+            <div className="mb-4 pl-4 border-l-4 border-teal-300">
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Jumlah Wallplate</label>
               <input value={form.wallplate_jumlah} onChange={e => setForm({ ...form, wallplate_jumlah: e.target.value })}
-                placeholder="e.g. 3" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                placeholder="e.g. 3" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
           )}
 
+          {/* Tabletop Input */}
           <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input} onChange={v => setForm({ ...form, tabletop_input: v })} />
           {form.tabletop_input === 'Yes' && (
-            <div className="mb-4 pl-4 border-l-4 border-red-300">
+            <div className="mb-4 pl-4 border-l-4 border-teal-300">
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Jumlah Tabletop</label>
               <input value={form.tabletop_jumlah} onChange={e => setForm({ ...form, tabletop_jumlah: e.target.value })}
-                placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                placeholder="e.g. 2" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
           )}
 
+          {/* Wireless Presentation */}
           <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation} onChange={v => setForm({ ...form, wireless_presentation: v })} />
           {form.wireless_presentation === 'Yes' && (
-            <div className="mb-4 pl-4 border-l-4 border-red-300 space-y-3">
+            <div className="mb-4 pl-4 border-l-4 border-teal-300 space-y-3">
               <CheckGroup label="Wireless Mode" options={['BYOM', 'BYOD']}
                 value={form.wireless_mode} onChange={v => setForm({ ...form, wireless_mode: v })} />
               <RadioGroup label="Wireless Dongle" options={['Yes', 'No']} value={form.wireless_dongle} onChange={v => setForm({ ...form, wireless_dongle: v })} />
@@ -1202,48 +1265,51 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
 
+        {/* Controller Automation */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🎛️</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">🎛️</span>
             Controller Automation
           </h3>
           <RadioGroup label="Controller Automation" options={['Yes', 'No']} value={form.controller_automation} onChange={v => setForm({ ...form, controller_automation: v })} />
           {form.controller_automation === 'Yes' && (
-            <div className="pl-4 border-l-4 border-red-300">
+            <div className="pl-4 border-l-4 border-teal-300">
               <CheckGroup label="Tipe Controller" options={['Tablet or iPad', 'Touchscreen 10"']}
                 value={form.controller_type} onChange={v => setForm({ ...form, controller_type: v })} />
             </div>
           )}
         </div>
 
+        {/* Ukuran & Keterangan */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📐</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📐</span>
             Ukuran & Keterangan
           </h3>
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Ukuran Ruangan (P × L × T)</label>
               <input value={form.ukuran_ruangan} onChange={e => setForm({ ...form, ukuran_ruangan: e.target.value })}
-                placeholder="e.g. 8m × 6m × 3m" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                placeholder="e.g. 8m × 6m × 3m" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Suggest Tampilan (W × H)</label>
               <input value={form.suggest_tampilan} onChange={e => setForm({ ...form, suggest_tampilan: e.target.value })}
-                placeholder="e.g. 1920 × 1080 px atau 4K" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none" />
+                placeholder="e.g. 1920 × 1080 px atau 4K" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-1">Keterangan Lain</label>
               <textarea value={form.keterangan_lain} onChange={e => setForm({ ...form, keterangan_lain: e.target.value })}
                 rows={4} placeholder="Tuliskan informasi tambahan / catatan penting lainnya..."
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all bg-white outline-none resize-none" />
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all bg-white outline-none resize-none" />
             </div>
           </div>
         </div>
 
+        {/* Foto Survey (Opsional) */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📸</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📸</span>
             Foto Survey
             <span className="ml-1 text-xs font-normal text-gray-400 normal-case tracking-normal">(opsional)</span>
           </h3>
@@ -1267,14 +1333,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             <button
               type="button"
               onClick={() => surveyPhotoRef.current?.click()}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-red-400 rounded-xl py-10 flex flex-col items-center gap-3 transition-all group bg-white hover:bg-red-50">
-              <div className="w-14 h-14 rounded-full bg-gray-100 group-hover:bg-red-100 flex items-center justify-center transition-all">
-                <svg className="w-7 h-7 text-gray-400 group-hover:text-red-500 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              className="w-full border-2 border-dashed border-gray-300 hover:border-teal-400 rounded-xl py-10 flex flex-col items-center gap-3 transition-all group bg-white hover:bg-teal-50">
+              <div className="w-14 h-14 rounded-full bg-gray-100 group-hover:bg-teal-100 flex items-center justify-center transition-all">
+                <svg className="w-7 h-7 text-gray-400 group-hover:text-teal-500 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-600 group-hover:text-red-600 transition-all">Klik untuk upload foto survey</p>
+                <p className="text-sm font-semibold text-gray-600 group-hover:text-teal-600 transition-all">Klik untuk upload foto survey</p>
                 <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP • Maks. 10 foto</p>
               </div>
             </button>
@@ -1304,9 +1370,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <button
                     type="button"
                     onClick={() => surveyPhotoRef.current?.click()}
-                    className="aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-red-400 flex flex-col items-center justify-center gap-1 transition-all bg-white hover:bg-red-50 group">
-                    <svg className="w-6 h-6 text-gray-400 group-hover:text-red-500 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    <span className="text-xs text-gray-400 group-hover:text-red-500 transition-all">Tambah</span>
+                    className="aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-teal-400 flex flex-col items-center justify-center gap-1 transition-all bg-white hover:bg-teal-50 group">
+                    <svg className="w-6 h-6 text-gray-400 group-hover:text-teal-500 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    <span className="text-xs text-gray-400 group-hover:text-teal-500 transition-all">Tambah</span>
                   </button>
                 )}
               </div>
@@ -1315,9 +1381,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
 
+        {/* Konfirmasi & Submit */}
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-gray-300 shadow-xl">
           <h3 className="text-base font-bold text-gray-800 mb-4 pb-3 border-b-2 border-gray-200 flex items-center gap-2">
-            <span className="w-8 h-8 bg-red-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📨</span>
+            <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center text-sm shadow">📨</span>
             Konfirmasi & Kirim
           </h3>
           <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-5 text-sm text-red-800">
@@ -1328,6 +1395,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <li>Solution Product sudah dipilih</li>
             </ul>
           </div>
+          {/* Due Date */}
           <div className="mb-5 bg-white rounded-xl border-2 border-gray-200 p-4">
             <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2 flex items-center gap-2">
               🗓️ Target Penyelesaian Diagram
@@ -1338,7 +1406,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               value={dueDateForm}
               min={new Date().toISOString().split('T')[0]}
               onChange={e => setDueDateForm(e.target.value)}
-              className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white outline-none text-gray-700"
+              className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-teal-600 focus:ring-4 focus:ring-teal-200 transition-all font-medium bg-white outline-none text-gray-700"
             />
             {dueDateForm && (
               <p className="mt-2 text-xs text-emerald-700 font-semibold flex items-center gap-1">
@@ -1352,7 +1420,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               ← Batal
             </button>
             <button onClick={handleSubmitForm} disabled={submitting}
-              className="flex-[2] bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white py-4 px-8 rounded-xl font-bold shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base">
+              className="flex-[2] bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white py-4 px-8 rounded-xl font-bold shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base">
               {submitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1391,18 +1459,19 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
         <NotifToast />
 
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-600 pointer-events-none">
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
           <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
         </div>
 
-        <div className="bg-white/95 backdrop-blur-md border-b-4 border-red-600 px-6 py-4 flex-shrink-0 shadow-xl">
+        {/* Detail Header */}
+        <div className="bg-white/95 backdrop-blur-md border-b-4 border-teal-600 px-6 py-4 flex-shrink-0 shadow-xl">
           <div className="flex items-center gap-4">
             <button onClick={() => { activeRequestIdRef.current = null; setView('list'); }} className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-md transition-all">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 truncate">{selectedRequest.project_name}</h2>
+                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 truncate">{selectedRequest.project_name}</h2>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
               </div>
               <p className="text-gray-600 text-sm mt-0.5 flex items-center gap-2 flex-wrap">
@@ -1432,7 +1501,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 )}
                 {selectedRequest.status === 'approved' && (
                   <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
-                    className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🔄 In Progress</button>
+                    className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🔄 In Progress</button>
                 )}
                 {selectedRequest.status === 'in_progress' && (
                   <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
@@ -1452,10 +1521,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
 
         <div className="flex-1 flex overflow-hidden">
+          {/* LEFT: Detail Summary + Attachments */}
           <div className="w-[400px] flex-shrink-0 border-r-2 border-gray-200 flex flex-col overflow-hidden bg-white/90 backdrop-blur-sm">
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 space-y-2.5 text-sm border-2 border-gray-200 shadow-md">
-                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200"><p className="text-xs font-bold text-red-600 tracking-widest uppercase">Detail Kebutuhan</p>{!isPTS && selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-lg font-bold transition-all">Edit</button>}</div>
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200"><p className="text-xs font-bold text-teal-600 tracking-widest uppercase">Detail Kebutuhan</p>{!isPTS && selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-lg font-bold transition-all">Edit</button>}</div>
                 {selectedRequest.kebutuhan?.length > 0 && <div><span className="font-bold text-gray-700">Kebutuhan:</span> <span className="text-gray-600">{selectedRequest.kebutuhan.join(', ')}</span></div>}
                 {selectedRequest.kebutuhan_other && <div><span className="font-bold text-gray-700">Other:</span> <span className="text-gray-600">{selectedRequest.kebutuhan_other}</span></div>}
                 {selectedRequest.solution_product?.length > 0 && <div><span className="font-bold text-gray-700">Solution:</span> <span className="text-gray-600">{selectedRequest.solution_product.join(', ')}</span></div>}
@@ -1487,6 +1557,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     )}
                   </div>
                 )}
+                {/* PTS can update due date from detail — but not team_pts */}
                 {isPTS && !isTeamPTS && (
                   <div className="pt-2 border-t border-gray-200">
                     <p className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-1.5">
@@ -1498,7 +1569,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         defaultValue={selectedRequest.due_date ? selectedRequest.due_date.split('T')[0] : ''}
                         min={new Date().toISOString().split('T')[0]}
                         id="detail-due-date-input"
-                        className="flex-1 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium bg-white outline-none focus:border-red-400 transition-all"
+                        className="flex-1 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium bg-white outline-none focus:border-teal-400 transition-all"
                       />
                       <button
                         onClick={async () => {
@@ -1511,7 +1582,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             fetchRequests();
                           } else notify('error', 'Gagal menyimpan target.');
                         }}
-                        className="bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow flex-shrink-0">
+                        className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow flex-shrink-0">
                         Simpan
                       </button>
                     </div>
@@ -1519,7 +1590,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 )}
               </div>
 
+              {/* Attachments — Tabbed: All / SLD / BOQ */}
               <div>
+                {/* Hidden file inputs */}
                 <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
                 <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
@@ -1529,20 +1602,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
 
+                {/* Tab header + upload buttons */}
                 <div className="mb-3 space-y-2">
+                  {/* Tabs */}
                   <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
                     {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => {
                       const counts = { all: attachments.length, sld: attachments.filter(a => a.attachment_category === 'sld').length, boq: attachments.filter(a => a.attachment_category === 'boq').length, design3d: attachments.filter(a => a.attachment_category === 'design3d').length };
                       const labels = { all: `📎 Semua (${counts.all})`, sld: `📐 SLD (${counts.sld})`, boq: `📊 BOQ (${counts.boq})`, design3d: `🎨 3D (${counts.design3d})` };
                       return (
                         <button key={tab} onClick={() => setActiveAttachTab(tab)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeAttachTab === tab ? 'bg-white shadow text-red-700 border border-red-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeAttachTab === tab ? 'bg-white shadow text-teal-700 border border-teal-200' : 'text-gray-500 hover:text-gray-700'}`}>
                           {labels[tab]}
                         </button>
                       );
                     })}
                   </div>
 
+                  {/* Upload buttons — available for all users when request is not rejected */}
                   {selectedRequest.status !== 'rejected' && (
                     <div className="flex gap-2">
                       <button onClick={() => fileInputRef.current?.click()}
@@ -1569,6 +1645,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   )}
                 </div>
 
+                {/* Attachment list */}
                 <div className="space-y-2">
                   {(() => {
                     const filtered = activeAttachTab === 'all' ? attachments
@@ -1599,7 +1676,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       const isSLD = att.attachment_category === 'sld';
                       const isBOQ = att.attachment_category === 'boq';
                       const is3D = att.attachment_category === 'design3d';
-                      const borderColor = isSLD ? 'border-blue-200 hover:border-blue-400' : isBOQ ? 'border-emerald-200 hover:border-emerald-400' : is3D ? 'border-purple-200 hover:border-purple-400' : 'border-gray-200 hover:border-red-300';
+                      const borderColor = isSLD ? 'border-blue-200 hover:border-blue-400' : isBOQ ? 'border-emerald-200 hover:border-emerald-400' : is3D ? 'border-purple-200 hover:border-purple-400' : 'border-gray-200 hover:border-teal-300';
                       const iconBg = isSLD ? 'bg-blue-50 border-blue-200' : isBOQ ? 'bg-emerald-50 border-emerald-200' : is3D ? 'bg-purple-50 border-purple-200' : 'bg-white border-gray-200';
                       const icon = isSLD ? '📐' : isBOQ ? '📊' : is3D ? '🎨' : isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📎';
                       const revBadgeColor = isSLD ? 'bg-blue-100 text-blue-700' : isBOQ ? 'bg-emerald-100 text-emerald-700' : is3D ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600';
@@ -1611,7 +1688,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-sm font-bold text-gray-700 group-hover:text-red-700 truncate">{att.file_name}</p>
+                              <p className="text-sm font-bold text-gray-700 group-hover:text-teal-700 truncate">{att.file_name}</p>
                               {att.revision_version && (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${revBadgeColor}`}>
                                   Rev.{att.revision_version}
@@ -1627,6 +1704,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   })()}
                 </div>
 
+                {/* Revision summary for SLD & BOQ */}
                 {(attachments.filter(a => a.attachment_category === 'sld').length > 0 || attachments.filter(a => a.attachment_category === 'boq').length > 0 || attachments.filter(a => a.attachment_category === 'design3d').length > 0) && (
                   <div className="mt-3 flex gap-2">
                     {attachments.filter(a => a.attachment_category === 'sld').length > 0 && (
@@ -1653,13 +1731,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </div>
           </div>
 
+          {/* RIGHT: Chat */}
           <div className="flex-1 flex flex-col overflow-hidden bg-white/80 backdrop-blur-sm">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-4 flex-shrink-0 border-b-2 border-blue-500 shadow">
+            <div className="bg-gradient-to-r from-teal-600 to-teal-700 px-5 py-4 flex-shrink-0 border-b-2 border-teal-500 shadow">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-sm">💬</div>
                 <div>
                   <p className="font-bold text-white text-sm">Activity & Q&A</p>
-                  <p className="text-blue-100 text-xs">Komunikasi antara Sales/Guest dan Tim PTS</p>
+                  <p className="text-teal-100 text-xs">Komunikasi antara Sales/Guest dan Tim PTS</p>
                 </div>
               </div>
             </div>
@@ -1681,19 +1760,19 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 const isPTSSender = ['admin', 'superadmin', 'team_pts', 'team'].includes(msg.sender_role);
                 return (
                   <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow ${isPTSSender ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-gray-500 to-gray-700'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow ${isPTSSender ? 'bg-gradient-to-br from-teal-600 to-teal-800' : 'bg-gradient-to-br from-gray-500 to-gray-700'}`}>
                       {msg.sender_name.charAt(0).toUpperCase()}
                     </div>
                     <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                       <div className={`flex items-center gap-2 mb-1 ${isMe ? 'flex-row-reverse' : ''}`}>
                         <span className="text-xs font-bold text-gray-600">{msg.sender_name}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isPTSSender ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isPTSSender ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-600'}`}>
                           {isPTSSender ? 'PTS' : 'Guest'}
                         </span>
                         <span className="text-[10px] text-gray-400">{formatDate(msg.created_at)}</span>
                       </div>
                       <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${isMe
-                        ? 'bg-gradient-to-r from-red-600 to-red-700 text-white rounded-tr-sm'
+                        ? 'bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-tr-sm'
                         : 'bg-white text-gray-800 border-2 border-gray-200 rounded-tl-sm'}`}>
                         {msg.message}
                       </div>
@@ -1715,22 +1794,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
               ) : (
                 <div className="flex gap-3">
-                  <div className="flex-1 flex items-end gap-2 bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-2 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-100 transition-all">
+                  <div className="flex-1 flex items-end gap-2 bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-2 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
                     <textarea value={msgText} onChange={e => setMsgText(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                       placeholder="Ketik pesan, pertanyaan, atau update activity... (Enter untuk kirim)"
                       rows={1} className="flex-1 bg-transparent text-sm text-gray-800 outline-none resize-none max-h-32 placeholder-gray-400 font-medium" />
                     <button onClick={() => chatFileRef.current?.click()}
-                      className="text-gray-400 hover:text-red-600 transition-colors p-1 flex-shrink-0" title="Lampirkan file">
+                      className="text-gray-400 hover:text-teal-600 transition-colors p-1 flex-shrink-0" title="Lampirkan file">
                       {uploadingFile
-                        ? <div className="w-5 h-5 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
+                        ? <div className="w-5 h-5 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" />
                         : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>}
                     </button>
                     <input ref={chatFileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                       onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
                   </div>
                   <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
-                    className="bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white p-3 rounded-2xl transition-all disabled:opacity-50 flex-shrink-0 shadow-xl">
+                    className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white p-3 rounded-2xl transition-all disabled:opacity-50 flex-shrink-0 shadow-xl">
                     {sendingMsg
                       ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
@@ -1740,6 +1819,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </div>            </div>
           </div>
 
+
+        {/* REJECT MODAL */}
 
         {rejectModal.open && rejectModal.req && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
@@ -1761,6 +1842,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           </div>
         )}
 
+        {/* EDIT FORM MODAL */}
         {editFormModal && selectedRequest && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border-2 border-amber-400 animate-scale-in">
@@ -1812,6 +1894,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Ukuran Ruangan</label><input value={editFormData.ukuran_ruangan} onChange={e => setEditFormData({...editFormData, ukuran_ruangan: e.target.value})} placeholder="e.g. 8m x 6m x 3m" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
                   <div><label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Suggest Tampilan</label><input value={editFormData.suggest_tampilan} onChange={e => setEditFormData({...editFormData, suggest_tampilan: e.target.value})} placeholder="e.g. 4K" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" /></div>
                 </div>
+                {/* Camera Conference */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Camera Conference</label>
                   <div className="flex gap-2 mb-2">
@@ -1832,6 +1915,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   )}
                 </div>
+                {/* Audio System */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Audio System</label>
                   <div className="flex gap-2 mb-2">
@@ -1860,6 +1944,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   )}
                 </div>
+                {/* Wallplate Input */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Wallplate Input</label>
                   <div className="flex gap-2 mb-2">
@@ -1869,6 +1954,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <input value={editFormData.wallplate_jumlah} onChange={e => setEditFormData({...editFormData, wallplate_jumlah: e.target.value})} placeholder="Jumlah wallplate..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all mt-1" />
                   )}
                 </div>
+                {/* Tabletop Input */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Tabletop Input</label>
                   <div className="flex gap-2 mb-2">
@@ -1878,6 +1964,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <input value={editFormData.tabletop_jumlah} onChange={e => setEditFormData({...editFormData, tabletop_jumlah: e.target.value})} placeholder="Jumlah tabletop..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all mt-1" />
                   )}
                 </div>
+                {/* Wireless Presentation */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Wireless Presentation</label>
                   <div className="flex gap-2 mb-2">
@@ -1906,6 +1993,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   )}
                 </div>
+                {/* Controller Automation */}
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Controller Automation</label>
                   <div className="flex gap-2 mb-2">
@@ -1947,6 +2035,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   return null;
 }
 
+
+// ─── Page Entry Point ─────────────────────────────────────────────────────────
+
 export default function FormRequireProjectPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1957,7 +2048,9 @@ export default function FormRequireProjectPage() {
       if (!saved) { setLoading(false); return; }
       try {
         const parsed: User = JSON.parse(saved);
+        // Set dari localStorage dulu agar tidak blank
         setCurrentUser(parsed);
+        // Re-fetch dari DB agar role selalu up-to-date
         const { data, error } = await supabase.from('users').select('*').eq('id', parsed.id).single();
         if (!error && data) {
           const fresh = data as User;
@@ -1973,7 +2066,7 @@ export default function FormRequireProjectPage() {
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="bg-white/80 backdrop-blur-sm p-10 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-gray-200 border-t-red-600 rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-gray-200 border-t-teal-600 rounded-full animate-spin" />
         <p className="text-gray-600 font-semibold">Memuat...</p>
       </div>
     </div>
@@ -1981,11 +2074,11 @@ export default function FormRequireProjectPage() {
 
   if (!currentUser) return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      <div className="bg-white/90 backdrop-blur-sm p-10 rounded-2xl shadow-2xl text-center max-w-sm border-4 border-red-600">
+      <div className="bg-white/90 backdrop-blur-sm p-10 rounded-2xl shadow-2xl text-center max-w-sm border-4 border-teal-600">
         <div className="text-5xl mb-4">🔒</div>
         <h2 className="text-xl font-bold text-gray-800 mb-2">Akses Ditolak</h2>
         <p className="text-gray-500 text-sm mb-6">Silakan login terlebih dahulu melalui dashboard.</p>
-        <a href="/dashboard" className="inline-block bg-gradient-to-r from-red-600 to-red-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:from-red-700 hover:to-red-900 transition-all">
+        <a href="/dashboard" className="inline-block bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:from-teal-700 hover:to-teal-900 transition-all">
           ← Kembali ke Dashboard
         </a>
       </div>
