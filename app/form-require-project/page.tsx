@@ -63,6 +63,7 @@ interface ProjectRequest {
   pts_assigned?: string;
   approved_by?: string;
   approved_at?: string;
+  assigned_handler?: string;
   due_date?: string;
 }
 
@@ -75,6 +76,13 @@ interface ProjectMessage {
   message: string;
   created_at: string;
   attachments?: ProjectAttachment[];
+}
+
+interface TeamHandler {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
 }
 
 interface ProjectAttachment {
@@ -127,6 +135,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [rejectNote, setRejectNote] = useState('');
   const [editFormModal, setEditFormModal] = useState(false);
   const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_mixer:'',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',tabletop_input:'No',tabletop_jumlah:'',wireless_presentation:'No',wireless_mode:[] as string[],wireless_dongle:'No',controller_automation:'No',controller_type:[] as string[],ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
+  // NEW: Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [selectedHandler, setSelectedHandler] = useState('');
+  const [teamHandlers, setTeamHandlers] = useState<TeamHandler[]>([]);
+  const [searchHandler, setSearchHandler] = useState<string>('all');
 
   const role = currentUser.role?.toLowerCase().trim() ?? '';
   const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
@@ -211,6 +225,16 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       setAttachments(normalized);
     }
   }, []);
+
+  const fetchTeamHandlers = useCallback(async () => {
+  const { data } = await supabase
+    .from('users')
+    .select('id, username, full_name, role')
+    .in('role', ['team_pts', 'team', 'admin']);
+  if (data) setTeamHandlers(data as TeamHandler[]);
+  }, []);
+
+  useEffect(() => { fetchTeamHandlers(); }, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
@@ -368,13 +392,31 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   };
 
   const handleApprove = async (req: ProjectRequest) => {
-    const { error } = await supabase.from('project_requests').update({ status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString(), pts_assigned: currentUser.full_name }).eq('id', req.id);
-    if (error) { notify('error', 'Gagal approve: ' + error.message); return; }
-    notify('success', 'Request diapprove!');
-    fetchRequests();
-    if (selectedRequest?.id === req.id) setSelectedRequest({ ...req, status: 'approved', approved_by: currentUser.full_name, pts_assigned: currentUser.full_name });
-    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `✅ Request telah diapprove oleh ${currentUser.full_name}. Tim PTS akan segera memproses.` }]);
-    if (selectedRequest?.id === req.id) fetchMessages(req.id);
+  const { error } = await supabase.from('project_requests').update({ status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString() }).eq('id', req.id);
+  if (error) { notify('error', 'Gagal approve: ' + error.message); return; }
+  notify('success', 'Request diapprove! Silakan assign ke team handler.');
+  fetchRequests();
+  if (selectedRequest?.id === req.id) setSelectedRequest({ ...req, status: 'approved', approved_by: currentUser.full_name });
+  await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `✅ Request telah diapprove oleh ${currentUser.full_name}. Menunggu assign handler.` }]);
+  if (selectedRequest?.id === req.id) fetchMessages(req.id);
+  setAssignModal({ open: true, req });
+  };
+  
+  const handleAssignHandler = async () => {
+  const req = assignModal.req;
+  if (!req || !selectedHandler) return;
+  const handler = teamHandlers.find(h => h.id === selectedHandler);
+  const { error } = await supabase.from('project_requests').update({ assigned_handler: selectedHandler, pts_assigned: handler?.full_name }).eq('id', req.id);
+  if (error) { notify('error', 'Gagal assign handler: ' + error.message); return; }
+  notify('success', `Request assigned to ${handler?.full_name}`);
+  setAssignModal({ open: false, req: null });
+  setSelectedHandler('');
+  fetchRequests();
+  if (selectedRequest?.id === req.id) {
+    setSelectedRequest({ ...selectedRequest, assigned_handler: selectedHandler, pts_assigned: handler?.full_name });
+  }
+  await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `👤 Request assigned to ${handler?.full_name} (Team PTS)` }]);
+  if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
   const handleReject = (req: ProjectRequest) => {
@@ -692,6 +734,39 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     completed:   { label: 'Completed',   color: 'text-purple-700',  bg: 'bg-purple-50',  border: 'border-purple-300' },
     rejected:    { label: 'Rejected',    color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-300' },
   };
+  const CHART_COLORS = ['#0d9488', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+
+const salesDivisionData = () => {
+  const salesMap: Record<string, number> = {};
+  requests.forEach(r => { const sales = r.sales_name || 'Unknown'; salesMap[sales] = (salesMap[sales] || 0) + 1; });
+  return Object.entries(salesMap).map(([name, value]) => ({ name, value })).slice(0, 8);
+};
+
+const statusChartData = () => {
+  const completed = requests.filter(r => r.status === 'completed').length;
+  const inProgress = requests.filter(r => r.status === 'in_progress' || r.status === 'approved').length;
+  const pending = requests.filter(r => r.status === 'pending').length;
+  const rejected = requests.filter(r => r.status === 'rejected').length;
+  return [
+    { name: 'Completed', value: completed, color: '#10b981' },
+    { name: 'In Progress', value: inProgress, color: '#0d9488' },
+    { name: 'Pending', value: pending, color: '#f59e0b' },
+    { name: 'Rejected', value: rejected, color: '#ef4444' },
+  ].filter(d => d.value > 0);
+};
+
+const handlerChartData = () => {
+  const handlerMap: Record<string, number> = {};
+  requests.forEach(r => {
+    if (r.assigned_handler) {
+      const handler = teamHandlers.find(h => h.id === r.assigned_handler);
+      const name = handler?.full_name || r.pts_assigned || 'Unknown';
+      handlerMap[name] = (handlerMap[name] || 0) + 1;
+    }
+  });
+  return Object.entries(handlerMap).map(([name, value]) => ({ name, value }));
+  };
+
 
   const formatFileSize = (bytes: number) => bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
   const formatDate = (dt: string) => new Date(dt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -707,11 +782,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     return { type: 'ok', label: `${diffDays} hari lagi`, days: diffDays };
   };
   const filteredRequests = requests.filter(r => {
-    const matchStatus = filterStatus === 'all' || r.status === filterStatus;
-    const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchSales = !searchSales || (r.sales_name || '').toLowerCase().includes(searchSales.toLowerCase()) || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase());
-    return matchStatus && matchProject && matchSales;
-  });
+  const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+  const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase());
+  const matchSales = !searchSales || (r.sales_name || '').toLowerCase().includes(searchSales.toLowerCase()) || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase());
+  const matchHandler = searchHandler === 'all' || r.assigned_handler === searchHandler || r.pts_assigned?.toLowerCase().includes(searchHandler.toLowerCase());
+  return matchStatus && matchProject && matchSales && matchHandler;
+});
 
   // Stats
   const stats = {
@@ -775,6 +851,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   ) : null;
 
   // ── VIEW: LIST ──
+  {isModalOpen && <RequestFormModal />}
+  <AssignHandlerModal />
   if (view === 'list') return (
     <div className="min-h-full p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
@@ -866,8 +944,56 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           </div>
         </div>
       </div>
+      
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">📊 Sales Division</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={salesDivisionData()} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+                {salesDivisionData().map((_, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+              </Pie>
+              <Tooltip /><Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">📈 Status Distribution</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={statusChartData()} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+                {statusChartData().map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+              </Pie>
+              <Tooltip /><Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">👥 Team PTS Handlers</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={handlerChartData()} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+                {handlerChartData().map((_, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+              </Pie>
+              <Tooltip /><Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
 
       {/* ── Search Bar (like reference image) ── */}
+      <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 transition-all min-w-[200px]">
+        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Team Handler</p>
+          <select value={searchHandler} onChange={e => setSearchHandler(e.target.value)} className="w-full bg-transparent text-sm font-medium text-gray-700 outline-none cursor-pointer">
+            <option value="all">All Handlers</option>
+            {teamHandlers.map(handler => (<option key={handler.id} value={handler.id}>{handler.full_name}</option>))}
+          </select>
+        </div>
+      </div>
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 px-6 py-4 mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
         {/* Search Project */}
         <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
@@ -930,6 +1056,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       {/* ── Request List Card — Compact Table Style ── */}
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
         {/* Table Header */}
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Team Handler</span>
         <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-700">TICKET LIST</span>
@@ -979,7 +1106,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 {(searchQuery || searchSales) ? 'Tidak ada hasil yang cocok dengan pencarian Anda.' : filterStatus !== 'all' ? `Tidak ada request dengan status "${filterStatus}".` : 'Belum ada form yang masuk.'}
               </p>
               {filterStatus === 'all' && !searchQuery && !searchSales && !isPTS && (
-                <button onClick={() => setView('new-form')}
+                <button onClick={() => setIsModalOpen(true)}
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all text-sm">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Buat Request Baru
@@ -991,6 +1118,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               const sc = statusConfig[req.status] || statusConfig.pending;
               const unread = unreadMsgMap[req.id] || 0;
               const dueStatus = getDueStatus(req.due_date, req.status);
+              <div className="hidden md:block pr-3">
+                <p className="text-sm font-medium text-teal-700 truncate">{handler?.full_name || req.pts_assigned || '-'}</p>
+              </div>
               return (
                 <div key={req.id}
                   className={`grid md:grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3.5 hover:bg-teal-50/30 transition-colors cursor-pointer group items-center ${dueStatus?.type === 'overdue' ? 'bg-red-50/20' : ''}`}
@@ -1043,6 +1173,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
 
                   {/* Action */}
+                  {isPTS && !isTeamPTS && req.status === 'approved' && !req.assigned_handler && (
+                    <button onClick={() => setAssignModal({ open: true, req })} className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold">👤 Assign</button>
+                  )}
                   <div className="hidden md:flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                     {isPTS && !isTeamPTS && req.status === 'pending' && (
                       <>
