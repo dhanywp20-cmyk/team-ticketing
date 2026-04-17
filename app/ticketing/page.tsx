@@ -1668,7 +1668,7 @@ export default function TicketingSystem() {
             </div>
           )}
 
-          {(currentUser?.role === "admin" || (currentUser?.role === "team" && currentUserTeamType === "Team PTS" && currentUserTeamType === "Guest")) && (
+          {(currentUser?.role === "admin" || (currentUser?.role === "team" && currentUserTeamType === "Team PTS" || currentUserTeamType === "Guest")) && (
             <div className="mb-4 space-y-4">
               {/* ── Stat Cards (Redesigned like ReminderSchedule) ── */}
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
