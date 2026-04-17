@@ -1425,7 +1425,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <div className="flex items-center">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                   </div>
-				  <div className="flex items-center"><span className="text-sm text-gray-600 truncate">{req.pts_assigned || '—'}</span></div>
                   <div className="flex items-center">
                     <div>
                       {dueStatus && <p className={`text-xs font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-gray-400'}`}>🎯 {dueStatus.label}</p>}
