@@ -1376,7 +1376,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </button>
           </div>
 
-          <div className="hidden md:grid grid-cols-[2fr_1.1fr.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
+          <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Team Handler</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales</span>
@@ -1428,7 +1428,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 				  <div className="flex items-center"><span className="text-sm text-gray-600 truncate">{req.pts_assigned || '—'}</span></div>
                   <div className="flex items-center">
                     <div>
-                      <p className="text-sm text-gray-600 truncate">{req.due_date || '—'}</p>
                       {dueStatus && <p className={`text-xs font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-gray-400'}`}>🎯 {dueStatus.label}</p>}
                     </div>
                   </div>
