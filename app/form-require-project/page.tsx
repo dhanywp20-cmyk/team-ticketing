@@ -1615,6 +1615,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
                         {req.pts_assigned ? (
                           <div className="flex items-center gap-1.5">
+                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                              {req.pts_assigned.charAt(0).toUpperCase()}
+                            </div>
                             <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
@@ -1627,25 +1630,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
 
                       {/* Due Date */}
-                      {/* Due Date */}
-                      <div className="min-w-0">
-                        <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
-                          style={{
-                            background: isToday ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
-                            border: isToday ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
-                          }}>
-                          <span className="text-xl font-black leading-none"
-                            style={{ color: isToday ? '#dc2626' : '#4f46e5' }}>
-                            {new Date(req.due_date + 'T00:00:00').getDate()}
-                          </span>
-                          <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
-                            style={{ color: isToday ? '#dc2626' : '#6366f1' }}>
-                            {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                          </span>
-                          {/* FIX: Change r.due_time to req.due_time */}
-                          {req.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{req.due_time}</span>}
-                        </div>
-                      </div>
+                        {detailDueStatus && (
+                          <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
+                            🎯 {detailDueStatus.label}
+                          </div>
+                        )}
 
                       {/* Created By */}
                       <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
@@ -1766,12 +1755,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
-                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">{selectedRequest.pts_assigned}</span>}
+                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
                 </div>
                 <p className="text-teal-100 text-xs mt-0.5 truncate">
                   {selectedRequest.room_name && `${selectedRequest.room_name} · `}
                   {selectedRequest.project_location && `📍 ${selectedRequest.project_location} · `}
-                  {selectedRequest.requester_name} ·{selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
+                  {selectedRequest.requester_name} · {selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
                 </p>
               </div>
               {/* Actions in header */}
