@@ -1306,7 +1306,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
         {/* FIX #4: Stat cards — gaya reminder-schedule, clickable filter */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { label: 'Total',       value: stats.total,       sub: 'Semua request',       gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',   onClick: () => setFilterStatus('all'),                                           active: filterStatus === 'all' },
             { label: 'Pending',     value: stats.pending,     sub: 'Menunggu approval',   gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',   onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),   active: filterStatus === 'pending' },
@@ -1376,7 +1376,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </button>
           </div>
 
-          <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
+          <div className="hidden md:grid grid-cols-[2fr_1.1fr.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Team Handler</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales</span>
