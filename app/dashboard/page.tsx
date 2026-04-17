@@ -826,7 +826,7 @@ export default function Dashboard() {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
       gradient: 'from-violet-700 via-violet-600 to-violet-500',
       description: 'Solution request form untuk project Sales & Account',
-      items: [{ name: 'Submit Require', url: '/form-require-project', icon: '📋', internal: true, embed: true }]
+      items: [{ name: 'Submit Require', url: '/form-require-project2', icon: '📋', internal: true, embed: true }]
     },
     {
       title: 'Form BAST & Demo', icon: '📋', key: 'form-bast',
