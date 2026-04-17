@@ -751,6 +751,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [deleting, setDeleting] = useState(false);
   const [editFormModal, setEditFormModal] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',project_location:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_mixer:'',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',tabletop_input:'No',tabletop_jumlah:'',wireless_presentation:'No',wireless_mode:[] as string[],wireless_dongle:'No',controller_automation:'No',controller_type:[] as string[],ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
@@ -1132,6 +1134,29 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
+  const handleDeleteConfirm = async () => {
+    const req = deleteModal.req; if (!req) return;
+    setDeleting(true);
+    // Delete attachments from storage
+    const { data: attachData } = await supabase.from('project_attachments').select('file_url').eq('request_id', req.id);
+    if (attachData && attachData.length > 0) {
+      const filePaths = (attachData as { file_url: string }[]).map(a => {
+        const match = a.file_url.match(/project-files\/.+/);
+        return match ? match[0] : null;
+      }).filter(Boolean) as string[];
+      if (filePaths.length > 0) await supabase.storage.from('project-files').remove(filePaths);
+    }
+    await supabase.from('project_attachments').delete().eq('request_id', req.id);
+    await supabase.from('project_messages').delete().eq('request_id', req.id);
+    const { error } = await supabase.from('project_requests').delete().eq('id', req.id);
+    setDeleting(false);
+    if (error) { notify('error', 'Gagal menghapus: ' + error.message); return; }
+    notify('success', `Request "${req.project_name}" berhasil dihapus.`);
+    setDeleteModal({ open: false, req: null });
+    if (selectedRequest?.id === req.id) { setShowDetailModal(false); setSelectedRequest(null); }
+    fetchRequests();
+  };
+
   const handleStatusUpdate = async (req: ProjectRequest, newStatus: string) => {
     const { error } = await supabase.from('project_requests').update({ status: newStatus }).eq('id', req.id);
     if (error) { notify('error', 'Gagal update status.'); return; }
@@ -1480,16 +1505,39 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
           {/* No column header needed for card grid */}
 
-          {/* Card Grid Body */}
+          {/* Table header — 8 columns with dividers */}
+          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
+            style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
+            <span className="pr-3 border-r border-gray-200">NAMA PROJECT</span>
+            <span className="px-3 border-r border-gray-200">LOKASI</span>
+            <span className="px-3 border-r border-gray-200">SALES</span>
+            <span className="px-3 border-r border-gray-200">HANDLER</span>
+            <span className="px-3 border-r border-gray-200">STATUS</span>
+            <span className="px-3 border-r border-gray-200">DUE DATE</span>
+            <span className="px-3 border-r border-gray-200">CREATED BY</span>
+            <span className="pl-3 text-right">ACTION</span>
+          </div>
+
+          {/* Table body — row listing */}
           {loading ? (
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="animate-pulse rounded-2xl p-4 border border-gray-200 bg-white/60 space-y-3">
-                  <div className="flex justify-between"><div className="h-4 bg-gray-200 rounded w-2/3" /><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
-                  <div className="h-3 bg-gray-100 rounded w-1/2" />
-                  <div className="grid grid-cols-3 gap-2"><div className="h-3 bg-gray-100 rounded" /><div className="h-3 bg-gray-100 rounded" /><div className="h-3 bg-gray-100 rounded" /></div>
+            <div className="space-y-0">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="animate-pulse hidden md:grid px-5 py-3.5 border-b border-gray-100"
+                  style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto' }}>
+                  <div className="pr-3 border-r border-gray-100"><div className="h-4 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>
+                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
+                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/2 mt-1" /></div>
+                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
+                  <div className="px-3 border-r border-gray-100"><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
+                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-16" /></div>
+                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /></div>
+                  <div className="pl-3"><div className="h-7 bg-gray-100 rounded-lg w-16" /></div>
                 </div>
               ))}
+              <div className="flex items-center justify-center gap-3 py-6 text-gray-400">
+                <div className="w-5 h-5 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" />
+                <span className="text-sm font-medium">Memuat data...</span>
+              </div>
             </div>
           ) : filteredRequests.length === 0 ? (
             <div className="text-center py-16">
@@ -1499,82 +1547,131 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               {filteredRequests.map((req) => {
                 const sc = statusConfig[req.status] || statusConfig.pending;
                 const unread = unreadMsgMap[req.id] || 0;
                 const dueStatus = getDueStatus(req.due_date, req.status);
                 const isToday = req.due_date === new Date().toISOString().split('T')[0];
                 return (
-                  <div key={req.id}
-                    className="group rounded-2xl p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 border"
-                    style={{
-                      background: 'white',
-                      borderColor: isToday ? '#0d9488' : 'rgba(0,0,0,0.08)',
-                      borderWidth: isToday ? '2px' : '1px',
-                      boxShadow: isToday ? '0 0 0 1px rgba(13,148,136,0.2)' : '0 2px 8px rgba(0,0,0,0.06)',
-                    }}
-                    onClick={() => handleOpenDetail(req)}>
-
-                    {/* Card Header */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                          <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors leading-tight">{req.project_name}</p>
-                          {unread > 0 && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread} baru</span>}
-                        </div>
-                        {req.room_name && <p className="text-[11px] text-teal-600 font-semibold mt-0.5 truncate">🔧 {req.room_name}</p>}
-                        {req.project_location && <p className="text-[11px] text-gray-400 mt-0.5 truncate">📍 {req.project_location}</p>}
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                    </div>
-
-                    {/* Card grid info */}
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] mb-3">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-gray-400 flex-shrink-0">👤</span>
-                        <span className="text-gray-600 truncate">{req.sales_name || '—'}</span>
-                        {req.sales_division && <span className="text-indigo-400 font-bold flex-shrink-0">· {req.sales_division}</span>}
-                      </div>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-gray-400 flex-shrink-0">👷</span>
-                        {req.pts_assigned ? (
-                          <div className="flex items-center gap-1 min-w-0">
-                            <div className="w-4 h-4 rounded-full bg-teal-600 text-white text-[8px] font-bold flex items-center justify-center flex-shrink-0">{req.pts_assigned.charAt(0).toUpperCase()}</div>
-                            <span className="text-gray-700 font-semibold truncate">{req.pts_assigned}</span>
+                  <div key={req.id}>
+                    {/* Mobile row */}
+                    <div className="md:hidden px-4 py-3 cursor-pointer hover:bg-teal-50/40 transition-colors border-b border-gray-100"
+                      style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}
+                      onClick={() => handleOpenDetail(req)}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
+                            <p className="font-bold text-gray-800 text-sm truncate">{req.project_name}</p>
                           </div>
-                        ) : <span className="text-gray-300">Belum di-assign</span>}
+                          {req.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {req.project_location}</p>}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-gray-400 flex-shrink-0">🙋</span>
-                        <span className="text-gray-600 truncate">{req.requester_name}</span>
+                      <div className="flex items-center justify-between text-[11px] text-gray-400">
+                        <span>{req.sales_name}{req.sales_division ? ` · ${req.sales_division}` : ''}</span>
+                        <span>{dueStatus ? `🎯 ${dueStatus.label}` : new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-gray-400 flex-shrink-0">📅</span>
-                        {req.due_date ? (
-                          <span className={`font-bold ${dueStatus?.type === 'overdue' ? 'text-red-500' : dueStatus?.type === 'urgent' ? 'text-amber-500' : 'text-gray-600'}`}>
-                            {formatDueDate(req.due_date)}{dueStatus ? ` (${dueStatus.label})` : ''}
-                          </span>
-                        ) : <span className="text-gray-300">—</span>}
-                      </div>
+                      {(isPTS && !isTeamPTS && req.status === 'pending') && (
+                        <div className="flex gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
+                          <button onClick={() => handleApprove(req)} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-xs font-bold">✅ Approve</button>
+                          <button onClick={() => handleReject(req)} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-1.5 rounded-lg text-xs font-bold">❌ Tolak</button>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Card footer */}
-                    <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                      <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                    {/* Desktop row — 8 columns with dividers */}
+                    <div className="hidden md:grid px-5 py-3.5 cursor-pointer hover:bg-teal-50/40 transition-colors group"
+                      style={{
+                        gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto',
+                        borderBottom: '1px solid rgba(0,0,0,0.05)',
+                        borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
+                      }}
+                      onClick={() => handleOpenDetail(req)}>
+
+                      {/* Nama Project + Ruangan */}
+                      <div className="pr-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
+                          <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
+                          {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread}</span>}
+                        </div>
+                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🔧 {req.room_name}</p>}
+                      </div>
+
+                      {/* Lokasi */}
+                      <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
+                        <p className="text-xs text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
+                      </div>
+
+                      {/* Sales + Divisi */}
+                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                        <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
+                        {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
+                      </div>
+
+                      {/* Handler */}
+                      <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
+                        {req.pts_assigned ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                              {req.pts_assigned.charAt(0).toUpperCase()}
+                            </div>
+                            <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
+                          </div>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+
+                      {/* Status */}
+                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                        {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 mt-1 animate-pulse">🔔 Perlu Approval</p>}
+                      </div>
+
+                      {/* Due Date */}
+                      <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
+                        {req.due_date ? (
+                          <div className="inline-flex flex-col items-center px-2 py-1 rounded-xl text-center"
+                            style={{ background: isToday ? 'rgba(13,148,136,0.12)' : 'rgba(99,102,241,0.08)', border: isToday ? '1px solid rgba(13,148,136,0.35)' : '1px solid rgba(99,102,241,0.2)' }}>
+                            <span className="text-lg font-black leading-none" style={{ color: isToday ? '#0d9488' : '#4f46e5' }}>
+                              {new Date(req.due_date + 'T00:00:00').getDate()}
+                            </span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: isToday ? '#0d9488' : '#6366f1' }}>
+                              {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
+                            </span>
+                            {dueStatus && dueStatus.type !== 'ok' && (
+                              <span className={`text-[8px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{dueStatus.label}</span>
+                            )}
+                          </div>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+
+                      {/* Created By */}
+                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                        <p className="text-xs font-semibold text-gray-700 truncate">{req.requester_name}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      </div>
+
+                      {/* Action */}
+                      <div className="pl-3 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                         {isPTS && !isTeamPTS && req.status === 'pending' && (
                           <>
-                            <button onClick={() => handleApprove(req)}
-                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold transition-all">✅ Approve</button>
-                            <button onClick={() => handleReject(req)}
-                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-[10px] font-bold transition-all">❌ Tolak</button>
+                            <button onClick={() => handleApprove(req)} title="Approve"
+                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">✅</button>
+                            <button onClick={() => handleReject(req)} title="Tolak"
+                              className="w-7 h-7 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">❌</button>
                           </>
                         )}
-                        <button onClick={() => handleOpenDetail(req)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-all bg-gray-50 hover:bg-teal-50 text-gray-400 hover:text-teal-600 border border-gray-200">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        {(isSuperAdmin || isAdmin) && (
+                          <button onClick={() => setDeleteModal({ open: true, req })} title="Hapus"
+                            className="w-7 h-7 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
+                        <button onClick={() => handleOpenDetail(req)} title="Detail"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-teal-50 text-gray-400 hover:text-teal-600 border border-gray-200">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
                       </div>
                     </div>
@@ -1601,6 +1698,40 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <div className="flex gap-3">
                 <button onClick={() => setRejectModal({ open: false, req: null })} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
                 <button onClick={handleRejectConfirm} className="flex-[2] bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white py-3 rounded-xl font-bold shadow-lg transition-all">❌ Ya, Tolak</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal — Admin only */}
+      {deleteModal.open && deleteModal.req && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-600 animate-scale-in overflow-hidden">
+            <div className="bg-gradient-to-r from-red-700 to-red-900 px-6 py-4">
+              <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Hapus Request
+              </h3>
+              <p className="text-red-100 text-xs mt-0.5 truncate">{deleteModal.req.project_name}</p>
+            </div>
+            <div className="p-6">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                <p className="text-sm font-bold text-red-700 mb-1">⚠️ Aksi ini tidak bisa dibatalkan!</p>
+                <p className="text-xs text-red-600">Semua data request termasuk pesan chat dan file attachment akan dihapus permanen dari database dan storage.</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-200">
+                <p className="text-xs text-gray-500 font-medium">Request yang akan dihapus:</p>
+                <p className="text-sm font-bold text-gray-800 mt-0.5">{deleteModal.req.project_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{deleteModal.req.requester_name} · {statusConfig[deleteModal.req.status]?.label}</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteModal({ open: false, req: null })} disabled={deleting}
+                  className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all disabled:opacity-50">Batal</button>
+                <button onClick={handleDeleteConfirm} disabled={deleting}
+                  className="flex-[2] bg-gradient-to-r from-red-700 to-red-900 hover:from-red-800 hover:to-red-950 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                  {deleting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menghapus...</> : <>🗑️ Ya, Hapus Permanen</>}
+                </button>
               </div>
             </div>
           </div>
