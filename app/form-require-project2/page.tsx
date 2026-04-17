@@ -2382,7 +2382,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       )}
                     </div>
                   </div>
-
+				</div>
+              </div>
                   {/* Attachments Panel — prominent */}
                   <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
@@ -2496,8 +2497,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
+               
 
               {/* RIGHT: Chat */}
               <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 1000 }}>
