@@ -25,6 +25,7 @@ interface ProjectRequest {
   created_at: string;
   project_name: string;
   room_name: string;
+  project_location?: string;
   sales_name: string;
   sales_division?: string;
   requester_id: string;
@@ -91,7 +92,6 @@ interface ProjectAttachment {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-// FIX #5: Full SALES_DIVISIONS list as dropdown
 const SALES_DIVISIONS = [
   'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
   'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
@@ -99,11 +99,7 @@ const SALES_DIVISIONS = [
   'IOCBali', 'SGP', 'OSS'
 ] as const;
 
-const PIE_COLORS = {
-  status:   ['#f59e0b','#10b981','#14b8a6','#8b5cf6','#ef4444'],
-  division: ['#6366f1','#14b8a6','#f59e0b','#ef4444','#8b5cf6','#f97316','#06b6d4','#ec4899'],
-  assigned: ['#6366f1','#14b8a6','#10b981','#f59e0b','#ef4444','#8b5cf6','#f97316'],
-};
+const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
   pending:     { label: '⏳ Pending',     color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-400' },
@@ -113,59 +109,60 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
   rejected:    { label: '❌ Rejected',    color: 'text-red-700',    bg: 'bg-red-50',     border: 'border-red-400' },
 };
 
-// ─── SVG Pie Chart Component ─────────────────────────────────────────────────
+// ─── MiniPieChart ─────────────────────────────────────────────────────────────
 
-interface PieChartItem { label: string; value: number; color: string; }
-
-function SvgPieChart({ items, title, icon }: { items: PieChartItem[]; title: string; icon: string }) {
-  const total = items.reduce((s, i) => s + i.value, 0);
+function MiniPieChart({
+  data, title, icon, onSliceClick,
+}: {
+  data: { label: string; value: number; color: string }[];
+  title: string; icon: string;
+  onSliceClick?: (label: string) => void;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 shadow-md flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm">{icon}</span>
-        <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{title}</span>
-      </div>
-      <div className="flex items-center justify-center flex-1 py-4"><p className="text-xs text-gray-400 font-medium">No data yet</p></div>
+    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
+      <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
     </div>
   );
-  const cx = 50; const cy = 50; const r = 38;
-  let startAngle = -90;
-  const slices: { d: string; color: string }[] = [];
-  for (const item of items) {
-    if (item.value === 0) continue;
-    const angle = (item.value / total) * 360;
-    const endAngle = startAngle + angle;
-    const x1 = cx + r * Math.cos((startAngle * Math.PI) / 180);
-    const y1 = cy + r * Math.sin((startAngle * Math.PI) / 180);
-    const x2 = cx + r * Math.cos((endAngle * Math.PI) / 180);
-    const y2 = cy + r * Math.sin((endAngle * Math.PI) / 180);
-    const large = angle > 180 ? 1 : 0;
-    slices.push({ d: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`, color: item.color });
-    startAngle = endAngle;
-  }
+  let cumulativeAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, innerR = 28;
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumulativeAngle), y1 = cy + r * Math.sin(cumulativeAngle);
+    const x2 = cx + r * Math.cos(cumulativeAngle + angle), y2 = cy + r * Math.sin(cumulativeAngle + angle);
+    const xi1 = cx + innerR * Math.cos(cumulativeAngle), yi1 = cy + innerR * Math.sin(cumulativeAngle);
+    const xi2 = cx + innerR * Math.cos(cumulativeAngle + angle), yi2 = cy + innerR * Math.sin(cumulativeAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumulativeAngle += angle;
+    return { ...d, path, i };
+  });
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 shadow-md">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm">{icon}</span>
-        <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{title}</span>
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="relative flex-shrink-0">
-          <svg viewBox="0 0 100 100" className="w-24 h-24">
-            {slices.map((s, i) => <path key={i} d={s.d} fill={s.color} />)}
-            <circle cx={cx} cy={cy} r={22} fill="white" />
-            <text x={cx} y={cy - 4} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#374151">{total}</text>
-            <text x={cx} y={cy + 8} textAnchor="middle" fontSize="7" fill="#9ca3af">TOTAL</text>
-          </svg>
-        </div>
-        <div className="flex-1 space-y-1.5 min-w-0">
-          {items.filter(i => i.value > 0).map((item) => (
-            <div key={item.label} className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                <span className="text-xs text-gray-600 truncate font-medium">{item.label}</span>
-              </div>
-              <span className="text-xs font-bold flex-shrink-0" style={{ color: item.color }}>{item.value}</span>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+      <div className="flex items-center gap-3">
+        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+          {slices.map((s) => (
+            <path key={s.i} d={s.path} fill={s.color}
+              opacity={hovered === null || hovered === s.i ? 1 : 0.45}
+              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+              onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
+              onClick={() => onSliceClick?.(s.label)} />
+          ))}
+          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+        </svg>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          {slices.map((s) => (
+            <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
+              onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
+              onClick={() => onSliceClick?.(s.label)}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
             </div>
           ))}
         </div>
@@ -174,7 +171,28 @@ function SvgPieChart({ items, title, icon }: { items: PieChartItem[]; title: str
   );
 }
 
-// ─── Assign PTS Modal ────────────────────────────────────────────────────────
+// ─── Loading Screen ───────────────────────────────────────────────────────────
+
+function LoadingScreen() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-[9999]"
+      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="flex flex-col items-center gap-4 px-10 py-8 rounded-2xl"
+        style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <svg className="w-14 h-14 animate-spin" viewBox="0 0 50 50" fill="none">
+          <circle cx="25" cy="25" r="20" stroke="#e2e8f0" strokeWidth="5" />
+          <path d="M25 5 A20 20 0 0 1 45 25" stroke="#0d9488" strokeWidth="5" strokeLinecap="round" />
+        </svg>
+        <div className="text-center">
+          <p className="text-gray-800 font-bold text-base">🏗️ Form Require Project</p>
+          <p className="text-gray-500 text-sm mt-1">Memuat data...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Assign PTS Modal ─────────────────────────────────────────────────────────
 
 function AssignPTSModal({
   req, onClose, onAssigned, currentUser,
@@ -201,8 +219,6 @@ function AssignPTSModal({
         request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
         message: `✅ Request diapprove oleh ${currentUser.full_name} dan di-assign ke ${selected}. Tim PTS akan segera memproses.`,
       }]);
-
-      // FIX #3: Kirim WA ke handler yang di-assign via notify-handler
       const selectedMember = teamMembers.find(m => m.full_name === selected);
       if (selectedMember?.phone_number) {
         await supabase.functions.invoke('notify-handler', {
@@ -221,7 +237,6 @@ function AssignPTSModal({
           },
         });
       }
-
       onAssigned();
     }
     setSaving(false);
@@ -271,11 +286,10 @@ function AssignPTSModal({
   );
 }
 
-// ─── NewFormModal — EXTRACTED as top-level to prevent cursor-jump re-mount bug ──
-// FIX #1: Dipindah ke luar FormRequireProject agar tidak di-remount setiap keystroke
+// ─── NewFormModal ─────────────────────────────────────────────────────────────
 
 type InitialFormType = {
-  project_name: string; room_name: string; sales_name: string; sales_division: string;
+  project_name: string; room_name: string; project_location: string; sales_name: string; sales_division: string;
   kebutuhan: string[]; kebutuhan_other: string;
   solution_product: string[]; solution_other: string;
   layout_signage: string[]; jaringan_cms: string[];
@@ -360,7 +374,6 @@ function NewFormModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
-        {/* Modal Header */}
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">📋 Form Equipment Request — IVP</h2>
@@ -370,7 +383,6 @@ function NewFormModal({
             className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold transition-all text-lg">✕</button>
         </div>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
           {/* Project Info */}
@@ -393,12 +405,17 @@ function NewFormModal({
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
               <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
+                <input value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
+                  placeholder="Contoh: Gedung Wisma 46 Lt.12, Jakarta"
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
                 <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
                   placeholder="Nama Sales / Account Manager"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              {/* FIX #5: Dropdown instead of button grid */}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Divisi Sales</label>
                 <select
@@ -480,7 +497,6 @@ function NewFormModal({
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
             </div>
 
-            {/* Camera */}
             <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={form.camera_conference}
               onChange={v => setForm(prev => ({ ...prev, camera_conference: v }))} />
             {form.camera_conference === 'Yes' && (
@@ -495,7 +511,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Audio */}
             <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system}
               onChange={v => setForm(prev => ({ ...prev, audio_system: v }))} />
             {form.audio_system === 'Yes' && (
@@ -510,7 +525,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Wallplate */}
             <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input}
               onChange={v => setForm(prev => ({ ...prev, wallplate_input: v }))} />
             {form.wallplate_input === 'Yes' && (
@@ -521,7 +535,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Tabletop */}
             <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input}
               onChange={v => setForm(prev => ({ ...prev, tabletop_input: v }))} />
             {form.tabletop_input === 'Yes' && (
@@ -532,7 +545,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Wireless */}
             <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation}
               onChange={v => setForm(prev => ({ ...prev, wireless_presentation: v }))} />
             {form.wireless_presentation === 'Yes' && (
@@ -544,7 +556,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Controller */}
             <RadioGroup label="Controller / Automation" options={['Yes', 'No']} value={form.controller_automation}
               onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
             {form.controller_automation === 'Yes' && (
@@ -581,15 +592,13 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Foto Survey + BOQ Upload — side by side */}
+          {/* Foto Survey + BOQ Upload */}
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
               Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-              {/* Foto Survey */}
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
                 <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
@@ -633,7 +642,6 @@ function NewFormModal({
                 )}
               </div>
 
-              {/* BOQ Upload */}
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel</p>
                 <input ref={boqFormRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
@@ -673,7 +681,6 @@ function NewFormModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
           <button type="button" onClick={onClose}
             className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">
@@ -691,10 +698,11 @@ function NewFormModal({
   );
 }
 
-// ─── Form Require Project Module ─────────────────────────────────────────────
+// ─── Form Require Project Module ──────────────────────────────────────────────
 
 function FormRequireProject({ currentUser }: { currentUser: User }) {
-  const [view, setView] = useState<'list' | 'detail'>('list');
+  const [appReady, setAppReady] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showNewFormModal, setShowNewFormModal] = useState(false);
   const [requests, setRequests] = useState<ProjectRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ProjectRequest | null>(null);
@@ -708,8 +716,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [filterHandler, setFilterHandler] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSales, setSearchSales] = useState('');
+  const [ptsMembersList, setPtsMembersList] = useState<string[]>([]);
   const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -723,9 +735,25 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [deleting, setDeleting] = useState(false);
   const [editFormModal, setEditFormModal] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
-  const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_mixer:'',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',tabletop_input:'No',tabletop_jumlah:'',wireless_presentation:'No',wireless_mode:[] as string[],wireless_dongle:'No',controller_automation:'No',controller_type:[] as string[],ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
+  const [editFormData, setEditFormData] = useState({
+    project_name: '', room_name: '', project_location: '', sales_name: '',
+    kebutuhan: [] as string[], kebutuhan_other: '',
+    solution_product: [] as string[], solution_other: '',
+    layout_signage: [] as string[], jaringan_cms: [] as string[],
+    jumlah_input: '', jumlah_output: '',
+    source: [] as string[], source_other: '',
+    camera_conference: 'No', camera_jumlah: '', camera_tracking: [] as string[],
+    audio_system: 'No', audio_mixer: '', audio_detail: [] as string[],
+    wallplate_input: 'No', wallplate_jumlah: '',
+    tabletop_input: 'No', tabletop_jumlah: '',
+    wireless_presentation: 'No', wireless_mode: [] as string[], wireless_dongle: 'No',
+    controller_automation: 'No', controller_type: [] as string[],
+    ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
+  });
 
   const role = currentUser.role?.toLowerCase().trim() ?? '';
   const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
@@ -734,7 +762,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const isAdmin = role === 'admin';
 
   const initialForm: InitialFormType = {
-    project_name: '', room_name: '', sales_name: '', sales_division: '',
+    project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
     kebutuhan: [], kebutuhan_other: '',
     solution_product: [], solution_other: '',
     layout_signage: [], jaringan_cms: [],
@@ -764,17 +792,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
     if (!isPTS) {
-      // Guest/sales: hanya milik sendiri
       query = query.eq('requester_id', currentUser.id);
-    } else if (isTeamPTS) {
-      // Team handler: hanya yang sudah approved/in_progress dan di-assign ke mereka
-      // TIDAK melihat pending — pending hanya untuk admin
-      query = query.in('status', ['approved', 'in_progress', 'completed']).eq('pts_assigned', currentUser.full_name);
     }
-    // admin/superadmin: lihat semua (no filter)
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
+      const assigned = [...new Set((data as ProjectRequest[]).map(r => r.pts_assigned).filter(Boolean) as string[])].sort();
+      setPtsMembersList(assigned);
       const ids = (data as ProjectRequest[]).map(r => r.id);
       if (ids.length > 0) {
         const { data: msgData } = await supabase
@@ -794,6 +818,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       }
     }
     setLoading(false);
+    setAppReady(true);
   }, [currentUser.id, isPTS]);
 
   const fetchMessages = useCallback(async (requestId: string) => {
@@ -879,7 +904,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const toggleArr = (arr: string[], val: string): string[] =>
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
 
-  // ── Helpers ──
   const formatFileSize = (bytes: number) =>
     bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
   const formatDate = (dt: string) => new Date(dt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -895,39 +919,47 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     return { type: 'ok', label: `${diffDays} hari lagi`, days: diffDays };
   };
 
+  const availableYears = [...new Set(requests.map(r => new Date(r.created_at).getFullYear().toString()))].sort((a, b) => b.localeCompare(a));
+
   const filteredRequests = requests.filter(r => {
     const matchStatus = filterStatus === 'all' || r.status === filterStatus;
-    const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchSales = !searchSales || (r.sales_name || '').toLowerCase().includes(searchSales.toLowerCase()) || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase());
-    return matchStatus && matchProject && matchSales;
+    const matchYear = filterYear === 'all' || new Date(r.created_at).getFullYear().toString() === filterYear;
+    const matchMonth = filterMonth === 'all' || (new Date(r.created_at).getMonth() + 1).toString().padStart(2, '0') === filterMonth;
+    const matchHandler = filterHandler === 'all' || (r.pts_assigned || '') === filterHandler;
+    const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase())
+      || (r.project_location || '').toLowerCase().includes(searchQuery.toLowerCase())
+      || (r.room_name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSales = !searchSales || (r.sales_name || '').toLowerCase().includes(searchSales.toLowerCase())
+      || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase());
+    return matchStatus && matchYear && matchMonth && matchHandler && matchProject && matchSales;
   });
 
-  // FIX #4: stats now includes 'approved' as separate count
   const stats = {
-    total:       requests.length,
-    pending:     requests.filter(r => r.status === 'pending').length,
-    approved:    requests.filter(r => r.status === 'approved').length,
+    total: requests.length,
+    pending: requests.filter(r => r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'approved').length,
     in_progress: requests.filter(r => r.status === 'in_progress').length,
-    completed:   requests.filter(r => r.status === 'completed').length,
-    rejected:    requests.filter(r => r.status === 'rejected').length,
+    completed: requests.filter(r => r.status === 'completed').length,
+    rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
-  // Pie chart data
-  const statusPieData: PieChartItem[] = [
-    { label: 'Pending',     value: stats.pending,     color: PIE_COLORS.status[0] },
-    { label: 'Approved',    value: stats.approved,    color: PIE_COLORS.status[1] },
-    { label: 'In Progress', value: stats.in_progress, color: PIE_COLORS.status[2] },
-    { label: 'Completed',   value: stats.completed,   color: PIE_COLORS.status[3] },
-    { label: 'Rejected',    value: stats.rejected,    color: PIE_COLORS.status[4] },
-  ];
+  const statusPieData = [
+    { label: 'Pending', value: stats.pending, color: '#f59e0b' },
+    { label: 'Approved', value: stats.approved, color: '#10b981' },
+    { label: 'In Progress', value: stats.in_progress, color: '#3b82f6' },
+    { label: 'Completed', value: stats.completed, color: '#8b5cf6' },
+    { label: 'Rejected', value: stats.rejected, color: '#ef4444' },
+  ].filter(d => d.value > 0);
+
   const divisionCounts: Record<string, number> = {};
   for (const r of requests) { const d = r.sales_division || 'Lainnya'; divisionCounts[d] = (divisionCounts[d] || 0) + 1; }
-  const divisionPieData: PieChartItem[] = Object.entries(divisionCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS.division[i % PIE_COLORS.division.length] }));
+  const divisionPieData = Object.entries(divisionCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+
   const assignedCounts: Record<string, number> = {};
   for (const r of requests) { const a = r.pts_assigned || 'Unassigned'; assignedCounts[a] = (assignedCounts[a] || 0) + 1; }
-  const assignedPieData: PieChartItem[] = Object.entries(assignedCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS.assigned[i % PIE_COLORS.assigned.length] }));
+  const assignedPieData = Object.entries(assignedCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
-  // ── CHECKBOX / RADIO GROUP (for edit modal) ──
+  // CheckGroup & RadioGroup for edit modal
   const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
     <div className="mb-4">
       <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2">{label}</label>
@@ -965,12 +997,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     </div>
   );
 
-  // ─── Notification Toast ───────────────────────────────────────────────────
   const NotifToast = () => notification ? (
     <div className={`fixed top-4 right-4 z-[9999] px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold flex items-center gap-3 border-2 max-w-sm animate-scale-in ${
       notification.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-400' :
-      notification.type === 'error'   ? 'bg-red-50 text-red-800 border-red-400' :
-                                        'bg-blue-50 text-blue-800 border-blue-400'}`}>
+      notification.type === 'error' ? 'bg-red-50 text-red-800 border-red-400' :
+        'bg-blue-50 text-blue-800 border-blue-400'}`}>
       <span className="text-xl">{notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️'}</span>
       <div>
         <p className="font-bold">{notification.type === 'success' ? 'Berhasil!' : notification.type === 'error' ? 'Gagal!' : 'Info'}</p>
@@ -989,6 +1020,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     try {
       const payload = {
         project_name: form.project_name.trim(), room_name: form.room_name.trim(),
+        project_location: form.project_location.trim(),
         sales_name: form.sales_name.trim(), sales_division: form.sales_division?.trim() || '',
         kebutuhan: form.kebutuhan, kebutuhan_other: form.kebutuhan_other.trim(),
         solution_product: form.solution_product, solution_other: form.solution_other.trim(),
@@ -1026,8 +1058,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }
           }
         }
-
-        // Upload BOQ form file jika ada
         if (boqFormFile && data?.id) {
           const filePath = `project-files/${data.id}/boq-initial-${Date.now()}-${boqFormFile.name}`;
           const { error: boqErr } = await supabase.storage.from('project-files').upload(filePath, boqFormFile, { cacheControl: '3600', upsert: false });
@@ -1040,10 +1070,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }]);
           }
         }
-
-        // WA ke semua admin saat guest/sales submit — via notify-handler
-        // Semua role (bukan hanya guest/sales) — admin juga tetap butuh notif jika
-        // yang submit adalah user dengan role lain
         await supabase.functions.invoke('notify-handler', {
           body: {
             type: 'form_require_approval',
@@ -1093,6 +1119,28 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (selectedRequest?.id === req.id) fetchMessages(req.id);
   };
 
+  const handleDeleteConfirm = async () => {
+    const req = deleteModal.req; if (!req) return;
+    setDeleting(true);
+    const { data: attachData } = await supabase.from('project_attachments').select('file_url').eq('request_id', req.id);
+    if (attachData && attachData.length > 0) {
+      const filePaths = (attachData as { file_url: string }[]).map(a => {
+        const match = a.file_url.match(/project-files\/.+/);
+        return match ? match[0] : null;
+      }).filter(Boolean) as string[];
+      if (filePaths.length > 0) await supabase.storage.from('project-files').remove(filePaths);
+    }
+    await supabase.from('project_attachments').delete().eq('request_id', req.id);
+    await supabase.from('project_messages').delete().eq('request_id', req.id);
+    const { error } = await supabase.from('project_requests').delete().eq('id', req.id);
+    setDeleting(false);
+    if (error) { notify('error', 'Gagal menghapus: ' + error.message); return; }
+    notify('success', `Request "${req.project_name}" berhasil dihapus.`);
+    setDeleteModal({ open: false, req: null });
+    if (selectedRequest?.id === req.id) { setShowDetailModal(false); setSelectedRequest(null); }
+    fetchRequests();
+  };
+
   const handleStatusUpdate = async (req: ProjectRequest, newStatus: string) => {
     const { error } = await supabase.from('project_requests').update({ status: newStatus }).eq('id', req.id);
     if (error) { notify('error', 'Gagal update status.'); return; }
@@ -1107,6 +1155,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (!selectedRequest) return;
     setEditFormData({
       project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
+      project_location: selectedRequest.project_location || '',
       sales_name: selectedRequest.sales_name || '', kebutuhan: selectedRequest.kebutuhan || [],
       kebutuhan_other: selectedRequest.kebutuhan_other || '', solution_product: selectedRequest.solution_product || [],
       solution_other: selectedRequest.solution_other || '', layout_signage: selectedRequest.layout_signage || [],
@@ -1181,13 +1230,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handleOpenDetail = async (req: ProjectRequest) => {
     activeRequestIdRef.current = req.id;
     setSelectedRequest(req);
+    setMessages([]);
+    setAttachments([]);
+    setShowDetailModal(true);
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
     const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
     stored[req.id] = Date.now();
     localStorage.setItem('pts_last_seen', JSON.stringify(stored));
     setUnreadMsgMap(prev => { const n = { ...prev }; delete n[req.id]; return n; });
-    setView('detail');
+  };
+
+  const handleCloseDetail = () => {
+    activeRequestIdRef.current = null;
+    setShowDetailModal(false);
+    setSelectedRequest(null);
+    setMessages([]);
+    setAttachments([]);
   };
 
   const handlePrint = () => {
@@ -1226,13 +1285,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (w) { w.document.write(printContent); w.document.close(); w.print(); }
   };
 
-  // ── VIEW: LIST ──
-  if (view === 'list') return (
-    // FIX #2: Sticky header like reminder-schedule, wrapper is flex col full screen
+  if (!appReady) return <LoadingScreen />;
+
+  const detailSc = selectedRequest ? (statusConfig[selectedRequest.status] || statusConfig.pending) : null;
+  const detailIsPending = selectedRequest?.status === 'pending';
+  const detailDueStatus = selectedRequest ? getDueStatus(selectedRequest.due_date, selectedRequest.status) : null;
+  const isFileType = (type: string) => type.startsWith('image/');
+
+  return (
     <div className="flex flex-col min-h-screen bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
-      {/* FIX #1: NewFormModal is now a top-level component, passes all state as props */}
       {showNewFormModal && (
         <NewFormModal
           currentUser={currentUser}
@@ -1270,7 +1333,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         />
       )}
 
-      {/* FIX #2: Sticky header matching reminder-schedule style */}
+      {/* STICKY HEADER */}
       <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '3px solid #0d9488', backdropFilter: 'blur(16px)' }}>
         <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -1290,7 +1353,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 🔔 {unreadCount} pending
               </span>
             )}
-
             {!isPTS && (
               <button onClick={() => setShowNewFormModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
@@ -1305,23 +1367,18 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
       <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
-        {/* FIX #4: Stat cards — gaya reminder-schedule, clickable filter */}
+        {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Total',       value: stats.total,       sub: 'Semua request',       gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',   onClick: () => setFilterStatus('all'),                                           active: filterStatus === 'all' },
-            { label: 'Pending',     value: stats.pending,     sub: 'Menunggu approval',   gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',   onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),   active: filterStatus === 'pending' },
-            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan',   gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)',   onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
-            { label: 'Completed',   value: stats.completed,   sub: 'Selesai ditangani',   gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)',   onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
-            { label: 'Rejected',    value: stats.rejected,    sub: 'Ditolak',             gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)',   onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'),  active: filterStatus === 'rejected' },
+            { label: 'Total', value: stats.total, sub: 'Semua request', gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)', onClick: () => setFilterStatus('all'), active: filterStatus === 'all' },
+            { label: 'Pending', value: stats.pending, sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)', onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'), active: filterStatus === 'pending' },
+            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)', onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
+            { label: 'Completed', value: stats.completed, sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)', onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
+            { label: 'Rejected', value: stats.rejected, sub: 'Ditolak', gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)', onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'), active: filterStatus === 'rejected' },
           ].map(card => (
             <div key={card.label} onClick={card.onClick}
               className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
-              style={{
-                background: card.gradient,
-                boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
-                outline: card.active ? '3px solid white' : 'none',
-                transform: card.active ? 'scale(1.04)' : undefined,
-              }}>
+              style={{ background: card.gradient, boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`, outline: card.active ? '3px solid white' : 'none', transform: card.active ? 'scale(1.04)' : undefined }}>
               <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
               {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
               <span className="text-3xl font-black text-white leading-none">{card.value}</span>
@@ -1336,155 +1393,277 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
         {/* Pie Charts */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SvgPieChart items={statusPieData} title="Status Request" icon="📊" />
-          <SvgPieChart items={divisionPieData.length > 0 ? divisionPieData : [{ label: 'Belum ada', value: 0, color: '#9ca3af' }]} title="Divisi Sales" icon="👤" />
-          <SvgPieChart items={assignedPieData.length > 0 ? assignedPieData : [{ label: 'Unassigned', value: 0, color: '#9ca3af' }]} title="Team PTS" icon="👥" />
+          <MiniPieChart data={statusPieData} title="Status Request" icon="📊"
+            onSliceClick={label => {
+              const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
+              setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
+            }} />
+          <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="👤"
+            onSliceClick={label => {
+              setSearchSales(prev => prev === label ? '' : label);
+            }} />
+          <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
+            onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 px-6 py-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-          <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
-            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" /></svg>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Search Project</p>
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by project name..."
-                className="w-full bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none" />
-            </div>
-            {searchQuery && <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-gray-600"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+        {/* Active filter chips */}
+        {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || searchQuery || searchSales) && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
+            {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>🏷️ {filterStatus} ✕</button>}
+            {filterYear !== 'all' && <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>📅 {filterYear} ✕</button>}
+            {filterMonth !== 'all' && <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>🗓️ Bln {filterMonth} ✕</button>}
+            {filterHandler !== 'all' && <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>👷 {filterHandler} ✕</button>}
+            {searchQuery && <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>🔍 {searchQuery} ✕</button>}
+            {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
+            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setSearchQuery(''); setSearchSales(''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
           </div>
-          <div className="flex items-center gap-3 flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 focus-within:border-teal-400 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
-            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Search Sales / Requester</p>
-              <input value={searchSales} onChange={e => setSearchSales(e.target.value)} placeholder="Search by sales or requester name..."
-                className="w-full bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none" />
-            </div>
-            {searchSales && <button onClick={() => setSearchSales('')} className="text-gray-400 hover:text-gray-600"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
-          </div>
-        </div>
+        )}
 
-        {/* Request List */}
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-b border-gray-200">
+        {/* TICKET LIST */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+
+          {/* Search + filter bar */}
+          <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+            <div className="flex-1 min-w-[150px] relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search project / lokasi / ruangan..." />
+            </div>
+            <div className="flex-1 min-w-[130px] relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search sales / requester..." />
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
+              <select value={filterHandler} onChange={e => setFilterHandler(e.target.value)}
+                className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 160 }}>
+                <option value="all">Semua Handler</option>
+                {ptsMembersList.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+            </div>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 140 }}>
+                <option value="all">All Status</option>
+                <option value="pending">⏳ Pending</option>
+                <option value="approved">✅ Approved</option>
+                <option value="in_progress">🔄 In Progress</option>
+                <option value="completed">🏆 Completed</option>
+                <option value="rejected">❌ Rejected</option>
+              </select>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+            </div>
+            <div className="relative">
+              <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
+                <option value="all">Semua Tahun</option>
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+            </div>
+            <div className="relative">
+              <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
+                <option value="all">Semua Bulan</option>
+                <option value="01">Januari</option>
+                <option value="02">Februari</option>
+                <option value="03">Maret</option>
+                <option value="04">April</option>
+                <option value="05">Mei</option>
+                <option value="06">Juni</option>
+                <option value="07">Juli</option>
+                <option value="08">Agustus</option>
+                <option value="09">September</option>
+                <option value="10">Oktober</option>
+                <option value="11">November</option>
+                <option value="12">Desember</option>
+              </select>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+            </div>
+          </div>
+
+          {/* Sub-header */}
+          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-700">TICKET LIST</span>
-              <span className="bg-teal-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">{filteredRequests.length}</span>
+              <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
+              <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-bold flex items-center justify-center">{loading ? '…' : filteredRequests.length}</span>
             </div>
-            <button onClick={fetchRequests} className="flex items-center gap-1.5 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            <button onClick={fetchRequests} disabled={loading}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
+              style={{ background: 'white' }}>
+              <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               Refresh
             </button>
           </div>
 
-          <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Team Handler</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status Handle</span>
-			<span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Due Date</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Created By</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</span>
+          {/* Table header */}
+          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-500"
+            style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px', borderBottom: '2px solid #e5e7eb', background: '#f1f5f9', borderTop: '1px solid #e5e7eb' }}>
+            <span className="pr-3 border-r-2 border-gray-300 py-1">NAMA PROJECT</span>
+            <span className="px-3 border-r-2 border-gray-300 py-1">LOKASI</span>
+            <span className="px-3 border-r-2 border-gray-300 py-1">SALES</span>
+            <span className="px-3 border-r-2 border-gray-300 py-1">HANDLER</span>
+            <span className="px-3 border-r-2 border-gray-300 py-1">STATUS</span>
+            <span className="px-3 border-r-2 border-gray-300 py-1">DUE DATE</span>
+            <span className="px-3 border-r-2 border-gray-300 py-1">CREATED BY</span>
+            <span className="pl-3 py-1 text-center">ACTION</span>
           </div>
 
-          <div className="divide-y divide-gray-100">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="w-12 h-12 border-4 border-gray-200 border-t-teal-600 rounded-full animate-spin" />
-                <p className="text-gray-500 font-semibold">Memuat data...</p>
+          {/* Table body */}
+          {loading ? (
+            <div className="space-y-0">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="animate-pulse hidden md:grid px-5 py-3.5 border-b border-gray-200"
+                  style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px' }}>
+                  <div className="pr-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>
+                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
+                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/2 mt-1" /></div>
+                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
+                  <div className="px-3 border-r-2 border-gray-100"><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
+                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-16" /></div>
+                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /></div>
+                  <div className="pl-3"><div className="h-7 bg-gray-100 rounded-lg w-16" /></div>
+                </div>
+              ))}
+              <div className="flex items-center justify-center gap-3 py-6 text-gray-400">
+                <div className="w-5 h-5 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" />
+                <span className="text-sm font-medium">Memuat data...</span>
               </div>
-            ) : filteredRequests.length === 0 ? (
-              <div className="text-center py-16">
-                <p className="text-gray-700 font-bold text-lg mb-1">Tidak ada data</p>
-                <p className="text-gray-400 text-sm mb-5">{(searchQuery || searchSales) ? 'Tidak ada hasil yang cocok.' : filterStatus !== 'all' ? `Tidak ada request dengan status "${filterStatus}".` : 'Belum ada form yang masuk.'}</p>
-                {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
-              </div>
-            ) : filteredRequests.map((req) => {
-              const sc = statusConfig[req.status] || statusConfig.pending;
-              const unread = unreadMsgMap[req.id] || 0;
-              const dueStatus = getDueStatus(req.due_date, req.status);
-              return (
-                <div key={req.id} onClick={() => handleOpenDetail(req)}
-                  className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3.5 hover:bg-teal-50/30 cursor-pointer transition-all group">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-gray-800 truncate group-hover:text-teal-700 transition-colors">{req.project_name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {req.room_name && <span className="text-xs text-teal-600 font-medium">🔧 {req.room_name}</span>}
-                        {unread > 0 && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-4xl mb-3">📭</div>
+              <p className="text-gray-600 font-semibold">Tidak ada request ditemukan</p>
+              <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau buat request baru</p>
+              {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
+            </div>
+          ) : (
+            <div>
+              {filteredRequests.map((req) => {
+                const sc = statusConfig[req.status] || statusConfig.pending;
+                const unread = unreadMsgMap[req.id] || 0;
+                const dueStatus = getDueStatus(req.due_date, req.status);
+                const isToday = req.due_date === new Date().toISOString().split('T')[0];
+                return (
+                  <div key={req.id}>
+                    {/* Mobile row */}
+                    <div className="md:hidden px-4 py-3 transition-colors border-b border-gray-100"
+                      style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
+                            <p className="font-bold text-gray-800 text-sm truncate">{req.project_name}</p>
+                          </div>
+                          {req.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {req.project_location}</p>}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
+                        <span>{req.sales_name}{req.sales_division ? ` · ${req.sales_division}` : ''}</span>
+                        <span>{dueStatus ? `🎯 ${dueStatus.label}` : new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        {(isPTS && !isTeamPTS && req.status === 'pending') && (
+                          <>
+                            <button onClick={() => handleApprove(req)} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-xs font-bold">✅ Approve</button>
+                            <button onClick={() => handleReject(req)} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-1.5 rounded-lg text-xs font-bold">❌ Tolak</button>
+                          </>
+                        )}
+                        <button onClick={() => handleOpenDetail(req)} className="flex-1 bg-teal-600 text-white py-1.5 rounded-lg text-xs font-bold">Detail →</button>
+                      </div>
+                    </div>
+
+                    {/* Desktop row */}
+                    <div className="hidden md:grid px-5 py-3.5 transition-colors group hover:bg-teal-50/30"
+                      style={{
+                        gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px',
+                        borderBottom: '1px solid #e5e7eb',
+                        borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
+                      }}>
+                      <div className="pr-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
+                          <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
+                          {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread}</span>}
+                        </div>
+                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🛋️ {req.room_name}</p>}
+                      </div>
+                      <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
+                        <p className="text-xs text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
+                      </div>
+                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
+                        <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
+                        {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
+                      </div>
+                      <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
+                        {req.pts_assigned ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                              {req.pts_assigned.charAt(0).toUpperCase()}
+                            </div>
+                            <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
+                          </div>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                        {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 mt-1 animate-pulse">🔔 Perlu Approval</p>}
+                      </div>
+                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
+                        {req.due_date ? (
+                          <>
+                            <p className="text-xs font-semibold text-gray-700">{formatDueDate(req.due_date)}</p>
+                            {dueStatus && (
+                              <span className={`text-[10px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>
+                                🎯 {dueStatus.label}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </div>
+                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
+                        <p className="text-xs font-semibold text-gray-700 truncate">{req.requester_name}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      </div>
+                      <div className="pl-3 flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                        {isPTS && !isTeamPTS && req.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleApprove(req)} title="Approve"
+                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">✅</button>
+                            <button onClick={() => handleReject(req)} title="Tolak"
+                              className="w-7 h-7 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">❌</button>
+                          </>
+                        )}
+                        {(isSuperAdmin || isAdmin) && (
+                          <button onClick={() => setDeleteModal({ open: true, req })} title="Hapus"
+                            className="w-7 h-7 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
+                        <button onClick={() => handleOpenDetail(req)} title="Detail"
+                          className="px-3 h-8 rounded-lg flex items-center justify-center transition-all bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold border border-teal-600">
+                          Detail
+                        </button>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center"><span className="text-sm text-gray-600 truncate">{req.pts_assigned || '—'}</span></div>
-                  <div className="flex items-center">
-                    <div>
-                      <p className="text-sm text-gray-600 truncate">{req.sales_name || '—'}</p>
-                      {req.sales_division && <p className="text-xs text-gray-400">{req.sales_division}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div>
-                      {dueStatus && <p className={`text-xs font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-gray-400'}`}>🎯 {dueStatus.label}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div>
-                      <p className="text-sm text-gray-600">{req.requester_name}</p>
-                      <p className="text-xs text-gray-400">{formatDate(req.created_at)}</p>         
-                    </div>
-                  </div>
-                  <div className="hidden md:flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                    {isPTS && !isTeamPTS && req.status === 'pending' && (
-                      <>
-                        <button onClick={() => handleApprove(req)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm">✅ Approve</button>
-                        <button onClick={() => handleReject(req)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all">❌ Tolak</button>
-                      </>
-                    )}
-                    <button onClick={() => handleOpenDetail(req)} className="w-8 h-8 bg-gray-100 hover:bg-teal-50 border border-gray-200 hover:border-teal-200 rounded-lg flex items-center justify-center transition-all group/btn">
-                      <svg className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Mobile list */}
-        <div className="md:hidden space-y-3">
-          {filteredRequests.map(req => {
-            const sc = statusConfig[req.status] || statusConfig.pending;
-            const unread = unreadMsgMap[req.id] || 0;
-            const dueStatus = getDueStatus(req.due_date, req.status);
-            return (
-              <div key={req.id} onClick={() => handleOpenDetail(req)}
-                className="bg-white/95 rounded-2xl shadow-md border border-gray-200 p-4 cursor-pointer hover:border-teal-300 transition-all active:scale-[0.98]">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
-                      <p className="text-sm font-bold text-gray-800 truncate">{req.project_name}</p>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{req.room_name} · {req.requester_name}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>{req.sales_name}{req.sales_division ? ` · ${req.sales_division}` : ''}</span>
-                  <span>{dueStatus ? `🎯 ${dueStatus.label}` : formatDate(req.created_at)}</span>
-                </div>
-                {isPTS && !isTeamPTS && req.status === 'pending' && (
-                  <div className="flex gap-2 mt-3" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => handleApprove(req)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold transition-all">✅ Approve</button>
-                    <button onClick={() => handleReject(req)} className="flex-1 bg-red-50 text-red-600 border border-red-300 py-2 rounded-xl text-xs font-bold transition-all">❌ Tolak</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1509,350 +1688,668 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       )}
 
-      <style jsx>{`
-        @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
-        .animate-scale-in { animation: scale-in 0.2s ease-out; }
-      `}</style>
-    </div>
-  );
-
-  // ── VIEW: DETAIL ──
-  if (view === 'detail' && selectedRequest) {
-    const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
-    const isPending = selectedRequest.status === 'pending';
-    const isFileType = (type: string) => type.startsWith('image/');
-    const detailDueStatus = getDueStatus(selectedRequest.due_date, selectedRequest.status);
-
-    return (
-      <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <NotifToast />
-
-        {assignModal.open && assignModal.req && (
-          <AssignPTSModal
-            req={assignModal.req}
-            onClose={() => setAssignModal({ open: false, req: null })}
-            onAssigned={() => {
-              setAssignModal({ open: false, req: null });
-              notify('success', `Request diapprove & di-assign ke Tim PTS!`);
-              fetchRequests();
-              if (selectedRequest) {
-                setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
-                fetchMessages(selectedRequest.id);
-              }
-            }}
-            currentUser={currentUser}
-          />
-        )}
-
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
-          <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
-        </div>
-
-        {/* Detail Header */}
-        <div className="bg-white/95 backdrop-blur-md border-b-4 border-teal-600 px-6 py-4 flex-shrink-0 shadow-xl">
-          <div className="flex items-center gap-4">
-            <button onClick={() => { activeRequestIdRef.current = null; setView('list'); }}
-              className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-md transition-all">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 truncate">{selectedRequest.project_name}</h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-              </div>
-              <p className="text-gray-600 text-sm mt-0.5">{selectedRequest.room_name} · {selectedRequest.requester_name} · {selectedRequest.sales_division} · {formatDate(selectedRequest.created_at)}</p>
+      {/* Delete Confirmation Modal */}
+      {deleteModal.open && deleteModal.req && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-600 animate-scale-in overflow-hidden">
+            <div className="bg-gradient-to-r from-red-700 to-red-900 px-6 py-4">
+              <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Hapus Request
+              </h3>
+              <p className="text-red-100 text-xs mt-0.5 truncate">{deleteModal.req.project_name}</p>
             </div>
-            {isPTS && !isTeamPTS && (
-              <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                {isPending && (
-                  <>
-                    <button onClick={() => handleApprove(selectedRequest)} className="bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">✅ Approve & Assign</button>
-                    <button onClick={() => handleReject(selectedRequest)} className="bg-red-50 hover:bg-red-100 text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">❌ Tolak</button>
-                  </>
-                )}
-                {selectedRequest.status === 'approved' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')} className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🔄 In Progress</button>
-                )}
-                {selectedRequest.status === 'in_progress' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')} className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🏆 Selesai</button>
-                )}
-                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">🖨️ Print</button>
+            <div className="p-6">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                <p className="text-sm font-bold text-red-700 mb-1">⚠️ Aksi ini tidak bisa dibatalkan!</p>
+                <p className="text-xs text-red-600">Semua data request termasuk pesan chat dan file attachment akan dihapus permanen dari database dan storage.</p>
               </div>
-            )}
-            {isTeamPTS && <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex-shrink-0">🖨️ Print</button>}
-            {!isPTS && (
-              <div className="flex gap-2 flex-shrink-0">
-                {selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-2 border-amber-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">✏️ Edit</button>}
-                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">🖨️ Print</button>
+              <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-200">
+                <p className="text-xs text-gray-500 font-medium">Request yang akan dihapus:</p>
+                <p className="text-sm font-bold text-gray-800 mt-0.5">{deleteModal.req.project_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{deleteModal.req.requester_name} · {statusConfig[deleteModal.req.status]?.label}</p>
               </div>
-            )}
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteModal({ open: false, req: null })} disabled={deleting}
+                  className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all disabled:opacity-50">Batal</button>
+                <button onClick={handleDeleteConfirm} disabled={deleting}
+                  className="flex-[2] bg-gradient-to-r from-red-700 to-red-900 hover:from-red-800 hover:to-red-950 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                  {deleting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menghapus...</> : <>🗑️ Ya, Hapus Permanen</>}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* LEFT: Details + Attachments */}
-          <div className="w-[400px] flex-shrink-0 border-r-2 border-gray-200 flex flex-col overflow-hidden bg-white/90 backdrop-blur-sm">
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 space-y-2.5 text-sm border-2 border-gray-200 shadow-md">
-                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
-                  <p className="text-xs font-bold text-teal-600 tracking-widest uppercase">Detail Kebutuhan</p>
-                  {!isPTS && selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-1 rounded-lg font-bold transition-all">✏️ Edit</button>}
+      <style jsx>{`
+        @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+        @keyframes slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        .animate-scale-in { animation: scale-in 0.2s ease-out; }
+        .animate-slide-up { animation: slide-up 0.25s ease-out; }
+        select option { background: #ffffff; color: #1e293b; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(13,148,136,0.25); border-radius: 4px; }
+      `}</style>
+
+      {/* DETAIL MODAL */}
+      {showDetailModal && selectedRequest && detailSc && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-2 md:p-3"
+          onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[1400px] animate-slide-up flex flex-col overflow-hidden"
+            style={{ maxHeight: '96vh', border: '2px solid rgba(13,148,136,0.3)' }}>
+
+            {/* Detail Modal Header */}
+            <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-5 py-4 flex items-center gap-4 flex-shrink-0">
+              <button onClick={handleCloseDetail}
+                className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl transition-all flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
+                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
                 </div>
-                {[
-                  ['Ruangan', selectedRequest.room_name],
-                  ['Sales', selectedRequest.sales_name],
-                  ['Divisi', selectedRequest.sales_division],
-                  ['Kebutuhan', [...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).join(', ')],
-                  ['Solution', [...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).join(', ')],
-                  ['Layout', selectedRequest.layout_signage?.join(', ')],
-                  ['Jaringan', selectedRequest.jaringan_cms?.join(', ')],
-                  ['I/O', `${selectedRequest.jumlah_input || '-'} in / ${selectedRequest.jumlah_output || '-'} out`],
-                  ['Source', [...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).join(', ')],
-                  ['Camera', selectedRequest.camera_conference === 'Yes' ? `Yes — ${selectedRequest.camera_jumlah}` : 'No'],
-                  ['Audio', selectedRequest.audio_system === 'Yes' ? `Yes — ${selectedRequest.audio_mixer}` : 'No'],
-                  ['Wallplate', selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah}` : 'No'],
-                  ['Tabletop', selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah}` : 'No'],
-                  ['Wireless', selectedRequest.wireless_presentation === 'Yes' ? `Yes — ${selectedRequest.wireless_mode?.join(', ')}` : 'No'],
-                  ['Controller', selectedRequest.controller_automation === 'Yes' ? `Yes — ${selectedRequest.controller_type?.join(', ')}` : 'No'],
-                  ['Ukuran Ruangan', selectedRequest.ukuran_ruangan],
-                  ['Suggest Tampilan', selectedRequest.suggest_tampilan],
-                  ['Keterangan', selectedRequest.keterangan_lain],
-                ].filter(([, v]) => v).map(([k, v]) => (
-                  <div key={k} className="flex gap-2">
-                    <span className="text-gray-400 font-semibold flex-shrink-0 w-24">{k}</span>
-                    <span className="text-gray-700 font-medium">{v}</span>
-                  </div>
-                ))}
+                <p className="text-teal-100 text-xs mt-0.5 truncate">
+                  {selectedRequest.room_name && `${selectedRequest.room_name} · `}
+                  {selectedRequest.project_location && `📍 ${selectedRequest.project_location} · `}
+                  {selectedRequest.requester_name} · {selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                {isPTS && !isTeamPTS && detailIsPending && (
+                  <>
+                    <button onClick={() => { setAssignModal({ open: true, req: selectedRequest }); }}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✅ Approve</button>
+                    <button onClick={() => handleReject(selectedRequest)}
+                      className="bg-white/20 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">❌ Tolak</button>
+                  </>
+                )}
+                {isPTS && !isTeamPTS && selectedRequest.status === 'approved' && (
+                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
+                    className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🔄 In Progress</button>
+                )}
+                {isPTS && !isTeamPTS && selectedRequest.status === 'in_progress' && (
+                  <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
+                    className="bg-purple-500 hover:bg-purple-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🏆 Selesai</button>
+                )}
+                {!isPTS && selectedRequest.status !== 'rejected' && (
+                  <button onClick={handleOpenEditForm}
+                    className="bg-amber-400 hover:bg-amber-300 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✏️ Edit</button>
+                )}
+                <button onClick={handlePrint}
+                  className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">🖨️ Print</button>
+              </div>
+            </div>
 
-                {/* Due date */}
-                {isPTS && !isTeamPTS && (
-                  <div className="pt-2 border-t border-gray-200">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Target Selesai</p>
-                    {detailDueStatus && (
-                      <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
-                        🎯 {detailDueStatus.label}
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <input type="date" defaultValue={selectedRequest.due_date || ''} id="due_date_input"
-                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:border-teal-400 outline-none bg-white" />
-                      <button onClick={async () => {
-                        const val = (document.getElementById('due_date_input') as HTMLInputElement)?.value;
-                        const { error } = await supabase.from('project_requests').update({ due_date: val || null }).eq('id', selectedRequest.id);
-                        if (!error) { notify('success', val ? `Target diset: ${formatDueDate(val)}` : 'Target dihapus.'); fetchRequests(); }
-                        else notify('error', 'Gagal menyimpan target.');
-                      }} className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow flex-shrink-0">
-                        Simpan
-                      </button>
+            {/* Detail Modal Body — 3 columns */}
+            <div className="flex-1 flex overflow-hidden min-h-0">
+
+              {/* LEFT: Detail Info */}
+              <div className="flex-[2] min-w-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
+                <div className="p-5 space-y-4">
+                  <p className="text-[11px] font-bold text-teal-600 tracking-widest uppercase">📋 Detail Kebutuhan</p>
+
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-teal-50 to-teal-100 px-4 py-2 border-b border-teal-200">
+                      <p className="text-xs font-bold text-teal-700 flex items-center gap-1.5">📁 Informasi Project</p>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                      {[
+                        ['Nama Project', selectedRequest.project_name],
+                        ['Nama Ruangan', selectedRequest.room_name],
+                        ['Lokasi', selectedRequest.project_location],
+                        ['Sales / Account', selectedRequest.sales_name],
+                        ['Divisi Sales', selectedRequest.sales_division],
+                        ['Requester', selectedRequest.requester_name],
+                      ].filter(([, v]) => v).map(([k, v]) => (
+                        <div key={k as string}>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{k as string}</p>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{v as string}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
 
-                {/* Re-assign PTS button */}
-                {isPTS && !isTeamPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
-                  <div className="pt-2 border-t border-gray-200">
-                    <button onClick={() => setAssignModal({ open: true, req: selectedRequest })}
-                      className="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 border-2 border-teal-200 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
-                      👥 Re-assign Tim PTS
-                    </button>
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-violet-50 to-violet-100 px-4 py-2 border-b border-violet-200">
+                      <p className="text-xs font-bold text-violet-700 flex items-center gap-1.5">🎯 Kategori & Solution</p>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Kebutuhan</p>
+                        <div className="flex flex-wrap gap-1">
+                          {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
+                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Solution Product</p>
+                        <div className="flex flex-wrap gap-1">
+                          {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
+                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Layout Signage</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(selectedRequest.layout_signage || []).map(item => (
+                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jaringan / CMS</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(selectedRequest.jaringan_cms || []).map(item => (
+                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-amber-50 to-amber-100 px-4 py-2 border-b border-amber-200">
+                      <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">🔌 Source & I/O</p>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div className="col-span-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</p>
+                        <div className="flex flex-wrap gap-1">
+                          {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
+                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Input</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_input || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Output</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_output || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2 border-b border-emerald-200">
+                      <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">📹 Peripheral</p>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Camera Conference</p>
+                        {selectedRequest.camera_conference === 'Yes' ? (
+                          <div className="mt-0.5">
+                            <p className="text-sm font-semibold text-gray-800">Yes — {selectedRequest.camera_jumlah || '-'} unit</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(selectedRequest.camera_tracking || []).map(item => (
+                                <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Audio System</p>
+                        {selectedRequest.audio_system === 'Yes' ? (
+                          <div className="mt-0.5">
+                            <p className="text-sm font-semibold text-gray-800">Yes — {selectedRequest.audio_mixer || '-'}</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(selectedRequest.audio_detail || []).map(item => (
+                                <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Wallplate Input</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah || '-'} unit` : 'No'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tabletop Input</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah || '-'} unit` : 'No'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Wireless Presentation</p>
+                        {selectedRequest.wireless_presentation === 'Yes' ? (
+                          <div className="mt-0.5">
+                            <div className="flex flex-wrap gap-1">
+                              {(selectedRequest.wireless_mode || []).map(item => (
+                                <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">{item}</span>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-0.5">Dongle: {selectedRequest.wireless_dongle}</p>
+                          </div>
+                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Controller / Automation</p>
+                        {selectedRequest.controller_automation === 'Yes' ? (
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {(selectedRequest.controller_type || []).map(item => (
+                              <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">{item}</span>
+                            ))}
+                          </div>
+                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-2 border-b border-slate-200">
+                      <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">📐 Ruangan & Keterangan</p>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ukuran Ruangan</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.ukuran_ruangan || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Suggest Tampilan</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.suggest_tampilan || '-'}</p>
+                      </div>
+                      {selectedRequest.keterangan_lain && (
+                        <div className="col-span-2">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Keterangan Lain</p>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5 whitespace-pre-wrap">{selectedRequest.keterangan_lain}</p>
+                        </div>
+                      )}
+                      {selectedRequest.pts_assigned && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">PTS Handler</p>
+                          <p className="text-sm font-semibold text-teal-700 mt-0.5">🔧 {selectedRequest.pts_assigned}</p>
+                        </div>
+                      )}
+                      {selectedRequest.due_date && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Target Selesai</p>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5">📅 {formatDueDate(selectedRequest.due_date)}</p>
+                          {detailDueStatus && (
+                            <span className={`text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'text-red-500' : detailDueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>🎯 {detailDueStatus.label}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Admin controls */}
+                  {isPTS && !isTeamPTS && (
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-rose-50 to-rose-100 px-4 py-2 border-b border-rose-200">
+                        <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">⚙️ Admin Controls</p>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Target Selesai</p>
+                          {detailDueStatus && (
+                            <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
+                              🎯 {detailDueStatus.label}
+                            </div>
+                          )}
+                          <div className="flex gap-1.5">
+                            <input type="date" defaultValue={selectedRequest.due_date || ''} id="detail_due_date"
+                              className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:border-teal-400 outline-none bg-white" />
+                            <button onClick={async () => {
+                              const val = (document.getElementById('detail_due_date') as HTMLInputElement)?.value;
+                              const { error } = await supabase.from('project_requests').update({ due_date: val || null }).eq('id', selectedRequest.id);
+                              if (!error) { notify('success', val ? `Target: ${formatDueDate(val)}` : 'Dihapus.'); setSelectedRequest(prev => prev ? { ...prev, due_date: val || undefined } : null); fetchRequests(); }
+                              else notify('error', 'Gagal.');
+                            }} className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold transition-all">OK</button>
+                          </div>
+                        </div>
+                        {selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                          <button onClick={() => setAssignModal({ open: true, req: selectedRequest })}
+                            className="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 py-2 rounded-xl text-sm font-bold transition-all">
+                            👥 Re-assign Tim PTS
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Attachments */}
-              <div>
-                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              {/* MIDDLE: Attachments */}
+              <div className="w-48 flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden bg-white">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">📎 Files</p>
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                    className="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg font-bold transition-all">
+                    {uploadingFile ? '...' : '+ Upload'}
+                  </button>
+                </div>
+                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
                 <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
-                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls"
+                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls,.csv"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
-                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf"
+                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf,.dwg,.skp"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
 
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-500 tracking-widest uppercase">📎 Attachments</p>
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
-                    className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
-                    {uploadingFile ? <div className="w-3 h-3 border border-teal-400 border-t-teal-600 rounded-full animate-spin" /> : '+'}
-                    Upload File
-                  </button>
-                </div>
-
-                {/* Category upload buttons */}
-                {isPTS && (
-                  <div className="grid grid-cols-3 gap-2 mb-3">
+                {isPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                  <div className="flex gap-1 p-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
                     {[
-                      { key: 'sld' as const, label: 'SLD', ref: sldFileRef, color: 'blue' },
-                      { key: 'boq' as const, label: 'BOQ', ref: boqFileRef, color: 'emerald' },
-                      { key: 'design3d' as const, label: '3D', ref: design3dFileRef, color: 'purple' },
-                    ].map(({ key, label, ref, color }) => (
-                      <button key={key} onClick={() => ref.current?.click()} disabled={uploadingCategory === key}
-                        className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${
-                          color === 'blue' ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' :
-                          color === 'emerald' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' :
-                          'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
-                        {uploadingCategory === key ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mx-auto" /> : `📁 Upload ${label}`}
+                      { cat: 'sld' as const, ref: sldFileRef, label: '📐 SLD', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                      { cat: 'boq' as const, ref: boqFileRef, label: '📊 BOQ', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                      { cat: 'design3d' as const, ref: design3dFileRef, label: '🎨 3D', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+                    ].map(({ cat, ref, label, cls }) => (
+                      <button key={cat} onClick={() => ref.current?.click()} disabled={uploadingCategory === cat}
+                        className={`flex-1 py-1 rounded-lg border text-[9px] font-bold transition-all ${cls}`}>
+                        {uploadingCategory === cat ? '...' : label}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* Attachment tabs */}
-                <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-xl">
+                <div className="flex border-b border-gray-100 flex-shrink-0">
                   {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => (
                     <button key={tab} onClick={() => setActiveAttachTab(tab)}
-                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all ${activeAttachTab === tab ? 'bg-white shadow text-teal-700' : 'text-gray-500 hover:text-gray-700'}`}>
-                      {tab === 'all' ? 'All' : tab.toUpperCase()}
+                      className={`flex-1 py-1.5 text-[9px] font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-teal-700 border-b-2 border-teal-500 bg-teal-50' : 'text-gray-400'}`}>
+                      {tab === 'all' ? 'All' : tab === 'design3d' ? '3D' : tab.toUpperCase()}
                     </button>
                   ))}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {attachments.filter(a => activeAttachTab === 'all' || a.attachment_category === activeAttachTab).length === 0 ? (
-                    <p className="text-center text-gray-400 text-xs py-4">Belum ada file</p>
-                  ) : attachments.filter(a => activeAttachTab === 'all' || a.attachment_category === activeAttachTab).map(att => (
-                    <div key={att.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-teal-200 transition-all group">
-                      <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0 text-sm">
-                        {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : att.file_type.includes('sheet') || att.file_type.includes('excel') ? '📊' : '📎'}
+                <div className="flex-1 overflow-y-auto divide-y divide-gray-50 p-1">
+                  {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).length === 0 ? (
+                    <p className="text-[10px] text-gray-400 text-center py-6">Belum ada file</p>
+                  ) : (activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
+                    <div key={att.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-xl transition-all">
+                      <div className="w-7 h-7 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0 text-sm">
+                        {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-700 truncate">{att.file_name}</p>
-                        <p className="text-[10px] text-gray-400">{formatFileSize(att.file_size)} · {att.uploaded_by}
-                          {att.attachment_category !== 'general' && att.revision_version && <span className="ml-1 bg-blue-100 text-blue-600 px-1 rounded text-[9px] font-bold">Rev {att.revision_version}</span>}
-                        </p>
+                        <p className="text-[10px] font-semibold text-gray-700 truncate">{att.file_name}</p>
+                        <p className="text-[9px] text-gray-400">{formatFileSize(att.file_size)}{att.revision_version ? ` · R${att.revision_version}` : ''}</p>
                       </div>
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-teal-100 hover:bg-teal-200 rounded-lg text-teal-600">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-teal-500 hover:text-teal-700 flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                       </a>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* RIGHT: Chat */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-white">
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-gray-400">
-                    <div className="text-4xl mb-3">💬</div>
-                    <p className="font-medium text-sm">Belum ada pesan</p>
-                    <p className="text-xs mt-1">Mulai diskusi tentang request ini</p>
-                  </div>
+              {/* RIGHT: Chat */}
+              <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
                 </div>
-              ) : messages.map(msg => {
-                const isSystem = msg.sender_role === 'system';
-                const isMe = msg.sender_id === currentUser.id;
-                return (
-                  <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isMe ? 'justify-end' : 'justify-start'}`}>
-                    {isSystem ? (
-                      <div className="bg-teal-50 border border-teal-200 text-teal-700 text-xs px-4 py-2 rounded-full font-medium max-w-md text-center shadow-sm">{msg.message}</div>
-                    ) : (
-                      <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                        {!isMe && <p className="text-xs font-bold text-gray-500 px-1">{msg.sender_name}</p>}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-gradient-to-br from-teal-500 to-teal-700 text-white rounded-tr-md' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-md'}`}>
-                          {msg.message}
-                        </div>
-                        <p className="text-[10px] text-gray-400 px-1">{formatDate(msg.created_at)}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
 
-            {/* Chat input */}
-            {selectedRequest.status !== 'rejected' && (
-              <div className="border-t-2 border-gray-200 p-4 bg-white flex-shrink-0">
-                <div className="flex gap-2">
-                  <input
-                    value={msgText}
-                    onChange={e => setMsgText(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                    placeholder="Ketik pesan... (Enter to send)"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-teal-400 focus:ring-2 focus:ring-teal-100 outline-none transition-all"
-                  />
-                  <input ref={chatFileRef} type="file" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-                  <button onClick={() => chatFileRef.current?.click()} className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all border border-gray-200">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                  </button>
-                  <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
-                    className="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-md flex items-center gap-2">
-                    {sendingMsg ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
-                  </button>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+                      <div className="text-4xl">💬</div>
+                      <p className="font-medium text-sm">Belum ada pesan</p>
+                    </div>
+                  ) : messages.map(msg => {
+                    const isSystem = msg.sender_role === 'system';
+                    const isMe = msg.sender_id === currentUser.id;
+                    if (isSystem) return (
+                      <div key={msg.id} className="flex justify-center">
+                        <div className="bg-gray-100 text-gray-500 text-xs px-4 py-2 rounded-full font-medium max-w-sm text-center">{msg.message}</div>
+                      </div>
+                    );
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                          <p className="text-[10px] text-gray-400 font-medium px-1">{isMe ? 'Saya' : msg.sender_name} · {new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${isMe ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}>
+                            {msg.message}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-gray-50">
+                  {selectedRequest.status === 'rejected' ? (
+                    <div className="text-center text-xs font-bold text-red-500 bg-red-50 border border-red-200 rounded-xl py-3">Request ini ditolak. Chat tidak tersedia.</div>
+                  ) : selectedRequest.status === 'pending' ? (
+                    <div className="text-center text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl py-3">🔒 Chat tersedia setelah di-approve.</div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex-1 flex items-end gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-teal-500 transition-all">
+                        <textarea value={msgText} onChange={e => setMsgText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                          placeholder="Ketik pesan... (Enter kirim)" rows={1}
+                          className="flex-1 bg-transparent text-sm text-gray-800 outline-none resize-none max-h-24 placeholder-gray-400" />
+                        <button onClick={() => chatFileRef.current?.click()} className="text-gray-400 hover:text-teal-600 transition-colors flex-shrink-0">
+                          {uploadingFile ? <div className="w-4 h-4 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>}
+                        </button>
+                        <input ref={chatFileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                      </div>
+                      <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
+                        className="bg-gradient-to-r from-teal-600 to-teal-800 text-white px-4 py-2 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md flex-shrink-0">
+                        {sendingMsg ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Edit Form Modal */}
-        {editFormModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
-              <div className="bg-gradient-to-r from-amber-500 to-amber-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+      {/* Edit Form Modal */}
+      {editFormModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9995] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500 to-amber-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+              <div>
                 <h2 className="text-lg font-bold text-white">✏️ Edit Kebutuhan Project</h2>
-                <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg">✕</button>
+                <p className="text-amber-100 text-xs mt-0.5">{selectedRequest.project_name}</p>
               </div>
-              <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
+              <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
+
+              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
+                  Informasi Project
+                </h3>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Project *</label>
+                    <input value={editFormData.project_name} onChange={e => setEditFormData(p => ({ ...p, project_name: e.target.value }))}
+                      placeholder="Nama project..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none bg-white" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                      <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
+                        placeholder="Nama ruangan / area" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
+                      <input value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
+                        placeholder="Gedung / Alamat..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
+                    <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
+                      placeholder="Nama Sales / Account Manager" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
+                  Kategori Kebutuhan & Solution
+                </h3>
                 <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
                   value={editFormData.kebutuhan} onChange={v => setEditFormData(p => ({ ...p, kebutuhan: v }))} />
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Kebutuhan</label>
+                  <input value={editFormData.kebutuhan_other} onChange={e => setEditFormData(p => ({ ...p, kebutuhan_other: e.target.value }))}
+                    placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                </div>
                 <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Videotron', 'Kiosk', 'IFP']}
                   value={editFormData.solution_product} onChange={v => setEditFormData(p => ({ ...p, solution_product: v }))} />
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
+                  <input value={editFormData.solution_other} onChange={e => setEditFormData(p => ({ ...p, solution_other: e.target.value }))}
+                    placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
+                  Layout Konten & Jaringan
+                </h3>
                 <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
                   value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
                 <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
                   value={editFormData.jaringan_cms} onChange={v => setEditFormData(p => ({ ...p, jaringan_cms: v }))} />
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
-                  <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData(p => ({ ...p, keterangan_lain: e.target.value }))}
-                    rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none resize-none" />
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
+                    <input value={editFormData.jumlah_input} onChange={e => setEditFormData(p => ({ ...p, jumlah_input: e.target.value }))}
+                      placeholder="e.g. 4 input" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label>
+                    <input value={editFormData.jumlah_output} onChange={e => setEditFormData(p => ({ ...p, jumlah_output: e.target.value }))}
+                      placeholder="e.g. 2 output" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
                 </div>
               </div>
-              <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
-                <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
-                <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg">💾 Simpan Perubahan</button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Reject Modal (in detail view) */}
-        {rejectModal.open && rejectModal.req && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
-              <div className="bg-gradient-to-r from-red-500 to-red-700 px-6 py-4">
-                <h3 className="font-bold text-white text-lg">❌ Tolak Request</h3>
-                <p className="text-red-100 text-xs mt-0.5">{rejectModal.req.project_name}</p>
+              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
+                  Source & Peripheral
+                </h3>
+                <CheckGroup label="Source" options={['PC / Mini PC', 'Laptop', 'URL Dashboard', 'NVR CCTV', 'Media Player', 'IPTV', 'Set Top Box']}
+                  value={editFormData.source} onChange={v => setEditFormData(p => ({ ...p, source: v }))} />
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Source</label>
+                  <input value={editFormData.source_other} onChange={e => setEditFormData(p => ({ ...p, source_other: e.target.value }))}
+                    placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                </div>
+
+                <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={editFormData.camera_conference}
+                  onChange={v => setEditFormData(p => ({ ...p, camera_conference: v }))} />
+                {editFormData.camera_conference === 'Yes' && (
+                  <div className="ml-4 mb-4 space-y-3 border-l-2 border-amber-200 pl-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Camera</label>
+                      <input value={editFormData.camera_jumlah} onChange={e => setEditFormData(p => ({ ...p, camera_jumlah: e.target.value }))}
+                        placeholder="e.g. 2 unit" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                    </div>
+                    <CheckGroup label="Camera Tracking" options={['Auto Tracking', 'Manual PTZ', 'Fixed']}
+                      value={editFormData.camera_tracking} onChange={v => setEditFormData(p => ({ ...p, camera_tracking: v }))} />
+                  </div>
+                )}
+
+                <RadioGroup label="Audio System" options={['Yes', 'No']} value={editFormData.audio_system}
+                  onChange={v => setEditFormData(p => ({ ...p, audio_system: v }))} />
+                {editFormData.audio_system === 'Yes' && (
+                  <div className="ml-4 mb-4 space-y-3 border-l-2 border-amber-200 pl-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mixer / DSP</label>
+                      <input value={editFormData.audio_mixer} onChange={e => setEditFormData(p => ({ ...p, audio_mixer: e.target.value }))}
+                        placeholder="e.g. Yamaha QL1, QSC, etc." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                    </div>
+                    <CheckGroup label="Audio Detail" options={['Speaker Ceiling', 'Speaker Line Array', 'Subwoofer', 'Microphone', 'Amplifier']}
+                      value={editFormData.audio_detail} onChange={v => setEditFormData(p => ({ ...p, audio_detail: v }))} />
+                  </div>
+                )}
+
+                <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={editFormData.wallplate_input}
+                  onChange={v => setEditFormData(p => ({ ...p, wallplate_input: v }))} />
+                {editFormData.wallplate_input === 'Yes' && (
+                  <div className="ml-4 mb-4 border-l-2 border-amber-200 pl-4">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Wallplate</label>
+                    <input value={editFormData.wallplate_jumlah} onChange={e => setEditFormData(p => ({ ...p, wallplate_jumlah: e.target.value }))}
+                      placeholder="e.g. 3 unit" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                )}
+
+                <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={editFormData.tabletop_input}
+                  onChange={v => setEditFormData(p => ({ ...p, tabletop_input: v }))} />
+                {editFormData.tabletop_input === 'Yes' && (
+                  <div className="ml-4 mb-4 border-l-2 border-amber-200 pl-4">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Tabletop</label>
+                    <input value={editFormData.tabletop_jumlah} onChange={e => setEditFormData(p => ({ ...p, tabletop_jumlah: e.target.value }))}
+                      placeholder="e.g. 2 unit" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                )}
+
+                <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={editFormData.wireless_presentation}
+                  onChange={v => setEditFormData(p => ({ ...p, wireless_presentation: v }))} />
+                {editFormData.wireless_presentation === 'Yes' && (
+                  <div className="ml-4 mb-4 space-y-3 border-l-2 border-amber-200 pl-4">
+                    <CheckGroup label="Wireless Mode" options={['Aplikasi', 'AirPlay', 'Miracast', 'Chromecast', 'BYOM']}
+                      value={editFormData.wireless_mode} onChange={v => setEditFormData(p => ({ ...p, wireless_mode: v }))} />
+                    <RadioGroup label="Dongle" options={['Yes', 'No']} value={editFormData.wireless_dongle}
+                      onChange={v => setEditFormData(p => ({ ...p, wireless_dongle: v }))} />
+                  </div>
+                )}
+
+                <RadioGroup label="Controller / Automation" options={['Yes', 'No']} value={editFormData.controller_automation}
+                  onChange={v => setEditFormData(p => ({ ...p, controller_automation: v }))} />
+                {editFormData.controller_automation === 'Yes' && (
+                  <div className="ml-4 mb-4 border-l-2 border-amber-200 pl-4">
+                    <CheckGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
+                      value={editFormData.controller_type} onChange={v => setEditFormData(p => ({ ...p, controller_type: v }))} />
+                  </div>
+                )}
               </div>
-              <div className="p-6">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Alasan penolakan (opsional):</label>
-                <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} rows={3} placeholder="Tuliskan alasan..."
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-red-400 outline-none resize-none mb-4" />
-                <div className="flex gap-3">
-                  <button onClick={() => setRejectModal({ open: false, req: null })} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
-                  <button onClick={handleRejectConfirm} className="flex-[2] bg-gradient-to-r from-red-500 to-red-700 text-white py-3 rounded-xl font-bold shadow-lg">❌ Ya, Tolak</button>
+
+              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
+                  Ruangan & Informasi Lainnya
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
+                    <input value={editFormData.ukuran_ruangan} onChange={e => setEditFormData(p => ({ ...p, ukuran_ruangan: e.target.value }))}
+                      placeholder="e.g. 8m × 6m × 3m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan (W × H)</label>
+                    <input value={editFormData.suggest_tampilan} onChange={e => setEditFormData(p => ({ ...p, suggest_tampilan: e.target.value }))}
+                      placeholder="e.g. 1920 × 1080 px atau 4K" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
+                    <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData(p => ({ ...p, keterangan_lain: e.target.value }))}
+                      rows={3} placeholder="Tuliskan informasi tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none resize-none bg-white" />
+                  </div>
                 </div>
               </div>
             </div>
+            <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
+              <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
+              <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Simpan Perubahan
+              </button>
+            </div>
           </div>
-        )}
-
-        <style jsx>{`
-          @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
-          .animate-scale-in { animation: scale-in 0.2s ease-out; }
-        `}</style>
-      </div>
-    );
-  }
-
-  return null;
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Page Entry ───────────────────────────────────────────────────────────────
@@ -1877,22 +2374,20 @@ export default function Page() {
     setLoading(false);
   }, []);
 
-  if (loading) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-gray-200 border-t-teal-600 rounded-full animate-spin" />
-        <p className="text-gray-500 font-semibold">Memuat...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
 
   if (!currentUser) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="text-6xl mb-4">🔐</div>
+    <div className="fixed inset-0 flex items-center justify-center"
+      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
+      <div className="relative z-10 bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center"
+        style={{ border: '2px solid rgba(13,148,136,0.3)' }}>
+        <div className="text-5xl mb-4">🔐</div>
         <h2 className="text-xl font-bold text-gray-800 mb-2">Sesi Habis</h2>
         <p className="text-gray-500 text-sm mb-6">Silakan login kembali melalui dashboard.</p>
-        <a href="/dashboard" className="bg-teal-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">Kembali ke Dashboard</a>
+        <a href="/dashboard" className="bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-md inline-block">
+          Kembali ke Dashboard
+        </a>
       </div>
     </div>
   );
