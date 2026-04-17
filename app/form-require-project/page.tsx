@@ -1,33 +1,14 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-// ── Supabase Client: Team PTS (existing) ──────────────────────────────────────
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ── Supabase Client: Team Services ─────────────────────────────────────────
-const supabaseServices = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICES_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY!,
-);
-
-// ── Status list khusus Team Services ─────────────────────────────────────────
-const SERVICES_STATUSES = [
-  "Waiting Approval",
-  "Pending",
-  "Warranty",
-  "Out Of Warranty",
-  "Waiting PO from Sales",
-  "Submit RMA",
-  "Waiting sparepart",
-  "Process Repair",
-  "Solved",
-] as const;
-type ServicesStatus = (typeof SERVICES_STATUSES)[number];
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface User {
   id: string;
@@ -35,155 +16,137 @@ interface User {
   password: string;
   full_name: string;
   role: string;
-  team_type?: string;
+  allowed_menus?: string[];
 }
 
-interface TeamMember {
+interface ProjectRequest {
   id: string;
-  name: string;
-  username: string;
-  photo_url: string;
-  role: string;
-  team_type: string;
-}
-
-interface ActivityLog {
-  id: string;
-  ticket_id?: string;
-  handler_name: string;
-  handler_username: string;
-  action_taken: string;
-  notes: string;
-  file_url: string;
-  file_name: string;
-  photo_url?: string;
-  photo_name?: string;
-  new_status: string;
-  team_type: string;
-  assigned_to_services?: boolean;
   created_at: string;
-}
-
-interface Ticket {
-  id: string;
   project_name: string;
-  address?: string;
-  customer_phone: string;
+  room_name: string;
   sales_name: string;
-  issue_case: string;
-  description: string;
-  sn_unit?: string;
-  assigned_to: string;
-  status: string;
-  date: string;
-  created_at: string;
-  created_by?: string;
-  current_team: string;
-  services_status?: string;
   sales_division?: string;
-  photo_url?: string;
-  photo_name?: string;
-  activity_logs?: ActivityLog[];
+  requester_id: string;
+  requester_name: string;
+  status: 'pending' | 'approved' | 'in_progress' | 'completed' | 'rejected';
+  kebutuhan: string[];
+  kebutuhan_other: string;
+  solution_product: string[];
+  solution_other: string;
+  layout_signage: string[];
+  jaringan_cms: string[];
+  jumlah_input: string;
+  jumlah_output: string;
+  source: string[];
+  source_other: string;
+  camera_conference: string;
+  camera_jumlah: string;
+  camera_tracking: string[];
+  audio_system: string;
+  audio_mixer: string;
+  audio_detail: string[];
+  wallplate_input: string;
+  wallplate_jumlah: string;
+  tabletop_input: string;
+  tabletop_jumlah: string;
+  wireless_presentation: string;
+  wireless_mode: string[];
+  wireless_dongle: string;
+  controller_automation: string;
+  controller_type: string[];
+  ukuran_ruangan: string;
+  suggest_tampilan: string;
+  keterangan_lain: string;
+  pts_assigned?: string;
+  approved_by?: string;
+  approved_at?: string;
+  due_date?: string;
 }
 
-interface GuestMapping {
+interface ProjectMessage {
   id: string;
-  guest_username: string;
-  project_name: string;
+  request_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: string;
+  message: string;
   created_at: string;
+  attachments?: ProjectAttachment[];
 }
 
-interface OverdueSetting {
+interface ProjectAttachment {
   id: string;
-  ticket_id: string;
-  due_date: string | null;
-  due_hours: number | null;
-  set_by: string;
-  created_at: string;
+  message_id?: string;
+  request_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string;
+  file_size: number;
+  uploaded_by: string;
+  uploaded_at: string;
+  attachment_category?: 'general' | 'sld' | 'boq' | 'design3d';
+  revision_version?: number;
 }
 
-const SALES_DIVISIONS = [
-  "IVP", "MLDS", "HAVS", "Enterprise", "DEC", "ICS", "POJ", "VOJ", "LOCOS",
-  "VISIONMEDIA", "UMP", "BISOL", "KIMS", "IDC", "IOCMEDAN", "IOCPekanbaru",
-  "IOCBandung", "IOCJATENG", "MVISEMARANG", "POSSurabaya", "IOCSurabaya",
-  "IOCBali", "SGP", "OSS",
-] as const;
+// ─── SVG Pie Chart Component ─────────────────────────────────────────────────
 
-// ── Helper Functions ─────────────────────────────────────────────────────────
-function formatDateTime(dateString: string) {
-  if (!dateString) return "-";
-  let normalized = dateString;
-  if (!dateString.endsWith("Z") && !dateString.includes("+") && !(dateString.indexOf("-", 10) > -1)) {
-    normalized = dateString + "Z";
-  }
-  const utcDate = new Date(normalized);
-  if (isNaN(utcDate.getTime())) return dateString;
-  const jakartaTime = new Date(utcDate.getTime() + 7 * 60 * 60 * 1000);
-  const day = String(jakartaTime.getUTCDate()).padStart(2, "0");
-  const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, "0");
-  const year = jakartaTime.getUTCFullYear();
-  const hours = String(jakartaTime.getUTCHours()).padStart(2, "0");
-  const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, "0");
-  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+interface PieChartItem {
+  label: string;
+  value: number;
+  color: string;
 }
 
-// ── Status Donut Card (same style as ReminderSchedule) ──────────────────────────────────
-function StatusDonutCard({
-  data,
-  total,
-  onSliceClick,
-  title,
-  icon,
-}: {
-  data: { name: string; value: number; color: string }[];
-  total: number;
-  onSliceClick: (name: string) => void;
-  title: string;
-  icon: string;
-}) {
-  const [hov, setHov] = useState<number | null>(null);
-  if (total === 0)
+function SvgPieChart({ items, title, icon }: { items: PieChartItem[]; title: string; icon: string }) {
+  const total = items.reduce((s, i) => s + i.value, 0);
+  if (total === 0) {
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
-        <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 shadow-md flex flex-col">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm">{icon}</span>
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{title}</span>
+        </div>
+        <div className="flex items-center justify-center flex-1 py-4">
+          <p className="text-xs text-gray-400 font-medium">No data yet</p>
+        </div>
       </div>
     );
-  let cumAngle = -Math.PI / 2;
-  const cx = 60, cy = 60, r = 50, ir = 28;
-  const slices = data.map((d, i) => {
-    const angle = (d.value / total) * 2 * Math.PI;
-    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
-    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
-    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
-    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
-    const large = angle > Math.PI ? 1 : 0;
-    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
-    cumAngle += angle;
-    return { ...d, path, i };
-  });
+  }
+
+  const cx = 50; const cy = 50; const r = 38;
+  let startAngle = -90;
+  const slices: { d: string; color: string }[] = [];
+
+  for (const item of items) {
+    if (item.value === 0) continue;
+    const angle = (item.value / total) * 360;
+    const endAngle = startAngle + angle;
+    const x1 = cx + r * Math.cos((startAngle * Math.PI) / 180);
+    const y1 = cy + r * Math.sin((startAngle * Math.PI) / 180);
+    const x2 = cx + r * Math.cos((endAngle * Math.PI) / 180);
+    const y2 = cy + r * Math.sin((endAngle * Math.PI) / 180);
+    const large = angle > 180 ? 1 : 0;
+    slices.push({ d: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`, color: item.color });
+    startAngle = endAngle;
+  }
+
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
-      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
-      <div className="flex items-center gap-3">
-        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-          {slices.map((s) => (
-            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-          ))}
-          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
-          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 shadow-md flex flex-col">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm">{icon}</span>
+        <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{title}</span>
+      </div>
+      <div className="flex items-center gap-4 flex-1">
+        <svg viewBox="0 0 100 100" className="w-20 h-20 flex-shrink-0">
+          {slices.map((s, i) => <path key={i} d={s.d} fill={s.color} />)}
+          <circle cx={cx} cy={cy} r={18} fill="white" />
+          <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="bold" fill="#374151">{total}</text>
         </svg>
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {slices.map((s) => (
-            <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-              style={{ background: hov === s.i ? `${s.color}15` : "transparent" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
-              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+          {items.filter(i => i.value > 0).map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+              <span className="text-xs text-gray-600 font-medium truncate">{item.label}</span>
+              <span className="text-xs font-bold text-gray-800 ml-auto flex-shrink-0">{item.value}</span>
             </div>
           ))}
         </div>
@@ -192,2261 +155,1780 @@ function StatusDonutCard({
   );
 }
 
-// ── Sales Division Donut Card ─────────────────────────────────────────────────
-function SalesDivisionDonutCard({
-  data,
-  total,
-  onSliceClick,
-  activeDivision,
-}: {
-  data: { name: string; value: number; color: string }[];
-  total: number;
-  onSliceClick: (name: string) => void;
-  activeDivision: string | null;
-}) {
-  const [hov, setHov] = useState<number | null>(null);
-  if (total === 0)
-    return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📊 Sales Division</p>
-        <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
-      </div>
-    );
-  let cumAngle = -Math.PI / 2;
-  const cx = 60, cy = 60, r = 50, ir = 28;
-  const slices = data.map((d, i) => {
-    const angle = (d.value / total) * 2 * Math.PI;
-    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
-    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
-    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
-    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
-    const large = angle > Math.PI ? 1 : 0;
-    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
-    cumAngle += angle;
-    return { ...d, path, i };
-  });
-  return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
-      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📊 Sales Division</p>
-      <div className="flex items-center gap-3">
-        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-          {slices.map((s) => (
-            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeDivision === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-          ))}
-          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
-          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
-        </svg>
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
-          {slices.map((s) => (
-            <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-              style={{ background: hov === s.i || activeDivision === s.name ? `${s.color}20` : "transparent", outline: activeDivision === s.name ? `1px solid ${s.color}` : "none" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
-              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
-              {activeDivision === s.name && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+// ─── Assign PTS Modal ─────────────────────────────────────────────────────────
+
+interface AssignPTSModalProps {
+  req: ProjectRequest;
+  onClose: () => void;
+  onAssigned: () => void;
+  currentUser: User;
 }
 
-// ── Handler Donut Card ─────────────────────────────────────────────────
-function HandlerDonutCard({
-  data,
-  total,
-  teamToggle,
-  onToggle,
-  onSliceClick,
-  activeHandler,
-  title,
-  icon,
-}: {
-  data: { name: string; value: number; color: string }[];
-  total: number;
-  teamToggle: "PTS" | "Services";
-  onToggle: (t: "PTS" | "Services") => void;
-  onSliceClick: (name: string) => void;
-  activeHandler: string | null;
-  title: string;
-  icon: string;
-}) {
-  const [hov, setHov] = useState<number | null>(null);
-  let cumAngle = -Math.PI / 2;
-  const cx = 60, cy = 60, r = 50, ir = 28;
-  const slices = total > 0 ? data.map((d, i) => {
-    const angle = (d.value / total) * 2 * Math.PI;
-    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
-    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
-    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
-    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
-    const large = angle > Math.PI ? 1 : 0;
-    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
-    cumAngle += angle;
-    return { ...d, path, i };
-  }) : [];
+function AssignPTSModal({ req, onClose, onAssigned, currentUser }: AssignPTSModalProps) {
+  const [teamMembers, setTeamMembers] = useState<{ id: string; full_name: string; role: string }[]>([]);
+  const [selected, setSelected] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from('users').select('id, full_name, role').in('role', ['admin', 'superadmin', 'team_pts', 'team']).then((res: { data: { id: string; full_name: string; role: string }[] | null }) => {
+      if (res.data) setTeamMembers(res.data);
+    });
+  }, []);
+
+  const handleAssign = async () => {
+    if (!selected) return;
+    setSaving(true);
+    const { error } = await supabase.from('project_requests').update({
+      status: 'approved',
+      approved_by: currentUser.full_name,
+      approved_at: new Date().toISOString(),
+      pts_assigned: selected,
+    }).eq('id', req.id);
+    if (!error) {
+      await supabase.from('project_messages').insert([{
+        request_id: req.id,
+        sender_id: currentUser.id,
+        sender_name: 'System',
+        sender_role: 'system',
+        message: `✅ Request diapprove oleh ${currentUser.full_name} dan di-assign ke: ${selected}`,
+      }]);
+      onAssigned();
+    }
+    setSaving(false);
+  };
+
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
-          {(["PTS", "Services"] as const).map((t) => (
-            <button key={t} onClick={() => onToggle(t)} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${teamToggle === t ? "bg-white shadow text-purple-600" : "text-gray-500 hover:text-gray-700"}`}>{t}</button>
-          ))}
-        </div>
-      </div>
-      {total === 0 ? (
-        <p className="text-gray-400 text-sm text-center py-4">Belum ada data handler</p>
-      ) : (
-        <div className="flex items-center gap-3">
-          <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-            {slices.map((s) => (
-              <path key={s.i} d={s.path} fill={activeHandler === s.name ? s.color : s.color}
-                opacity={hov === null || hov === s.i ? 1 : 0.45}
-                style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeHandler === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-            ))}
-            <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
-            <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
-          </svg>
-          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-            {slices.map((s) => (
-              <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-                style={{ background: hov === s.i || activeHandler === s.name ? `${s.color}20` : "transparent", outline: activeHandler === s.name ? `1px solid ${s.color}` : "none" }}
-                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
-                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
-                {activeHandler === s.name && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
-              </div>
-            ))}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-teal-500 animate-scale-in">
+        <div className="bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-lg">Approve & Assign Tim PTS</h3>
+            <p className="text-teal-100 text-xs mt-0.5">{req.project_name}</p>
           </div>
+          <button onClick={onClose} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-all">✕</button>
         </div>
-      )}
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Pilih Anggota Tim PTS</label>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {teamMembers.map(m => (
+                <button key={m.id} type="button" onClick={() => setSelected(m.full_name)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${selected === m.full_name ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 hover:border-teal-300 text-gray-700'}`}>
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selected === m.full_name ? 'border-teal-500' : 'border-gray-300'}`}>
+                    {selected === m.full_name && <div className="w-2 h-2 rounded-full bg-teal-500" />}
+                  </div>
+                  <span>{m.full_name}</span>
+                  <span className="ml-auto text-xs text-gray-400 font-normal">{m.role}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={handleAssign} disabled={!selected || saving}
+            className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
+            Approve & Assign
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function TicketingSystem() {
-  const ticketListRef = useRef<HTMLDivElement>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
-  const [loginTime, setLoginTime] = useState<number | null>(null);
+// ─── Form Require Project Module ─────────────────────────────────────────────
 
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
-  const [overdueSettings, setOverdueSettings] = useState<OverdueSetting[]>([]);
-  const [showOverdueSetting, setShowOverdueSetting] = useState(false);
-  const [showReopenModal, setShowReopenModal] = useState(false);
-  const [reopenTargetTicket, setReopenTargetTicket] = useState<Ticket | null>(null);
-  const [reopenAssignee, setReopenAssignee] = useState("");
-  const [reopenNotes, setReopenNotes] = useState("");
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTargetTicket, setDeleteTargetTicket] = useState<Ticket | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [overdueTargetTicket, setOverdueTargetTicket] = useState<Ticket | null>(null);
-  const [overdueForm, setOverdueForm] = useState({ due_hours: "48" });
-  const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
-  const [salesDivisionFilter, setSalesDivisionFilter] = useState<string | null>(null);
-  const [showReminderSchedule, setShowReminderSchedule] = useState(false);
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [approvalTicket, setApprovalTicket] = useState<Ticket | null>(null);
-  const [approvalAssignee, setApprovalAssignee] = useState("");
-  const [showServicesApprovalModal, setShowServicesApprovalModal] = useState(false);
-  const [servicesApprovalTicket, setServicesApprovalTicket] = useState<Ticket | null>(null);
-  const [reminderSchedule, setReminderSchedule] = useState({
-    hour_wib: "8",
-    minute: "0",
-    frequency: "daily" as "daily" | "weekdays" | "custom",
-    custom_days: [] as number[],
-    active: true,
+function FormRequireProject({ currentUser }: { currentUser: User }) {
+  const [view, setView] = useState<'list' | 'detail'>('list');
+  const [showNewFormModal, setShowNewFormModal] = useState(false);
+  const [requests, setRequests] = useState<ProjectRequest[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<ProjectRequest | null>(null);
+  const [messages, setMessages] = useState<ProjectMessage[]>([]);
+  const [attachments, setAttachments] = useState<ProjectAttachment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [msgText, setMsgText] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSales, setSearchSales] = useState('');
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filterHandler, setFilterHandler] = useState<string>('');
+  const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
+  const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatFileRef = useRef<HTMLInputElement>(null);
+  const sldFileRef = useRef<HTMLInputElement>(null);
+  const boqFileRef = useRef<HTMLInputElement>(null);
+  const design3dFileRef = useRef<HTMLInputElement>(null);
+  const activeRequestIdRef = useRef<string | null>(null);
+  const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | 'design3d' | null>(null);
+  const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
+  const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [rejectNote, setRejectNote] = useState('');
+  const [editFormModal, setEditFormModal] = useState(false);
+  const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [editFormData, setEditFormData] = useState({
+    project_name: '', room_name: '', sales_name: '', sales_division: '',
+    kebutuhan: [] as string[], kebutuhan_other: '',
+    solution_product: [] as string[], solution_other: '',
+    layout_signage: [] as string[], jaringan_cms: [] as string[],
+    jumlah_input: '', jumlah_output: '',
+    source: [] as string[], source_other: '',
+    camera_conference: 'No', camera_jumlah: '', camera_tracking: [] as string[],
+    audio_system: 'No', audio_mixer: '', audio_detail: [] as string[],
+    wallplate_input: 'No', wallplate_jumlah: '',
+    tabletop_input: 'No', tabletop_jumlah: '',
+    wireless_presentation: 'No', wireless_mode: [] as string[], wireless_dongle: 'No',
+    controller_automation: 'No', controller_type: [] as string[],
+    ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
   });
-  const [reminderSaving, setReminderSaving] = useState(false);
-  const [showNewTicket, setShowNewTicket] = useState(false);
-  const [showAccountSettings, setShowAccountSettings] = useState(false);
-  const [showGuestMapping, setShowGuestMapping] = useState(false);
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [showTicketDetailPopup, setShowTicketDetailPopup] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [ticketsLoading, setTicketsLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [showLoadingPopup, setShowLoadingPopup] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("");
-  const [searchProject, setSearchProject] = useState("");
-  const [searchSalesName, setSearchSalesName] = useState("");
-  const [filterYear, setFilterYear] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState("All");
-  const [selectedHandlerTeam, setSelectedHandlerTeam] = useState<"PTS" | "Services">("PTS");
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Ticket[]>([]);
-  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
-  const [showUpdateForm, setShowUpdateForm] = useState(false);
-  const [showActivitySummary, setShowActivitySummary] = useState(false);
-  const [summaryTicket, setSummaryTicket] = useState<Ticket | null>(null);
-  const [selectedUserForPassword, setSelectedUserForPassword] = useState("");
-  const [newMapping, setNewMapping] = useState({ guestUsername: "", projectName: "" });
 
-  const getJakartaDateString = () => {
-    const now = new Date();
-    const jakartaDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-    const y = jakartaDate.getFullYear();
-    const m = String(jakartaDate.getMonth() + 1).padStart(2, "0");
-    const d = String(jakartaDate.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+  const role = currentUser.role?.toLowerCase().trim() ?? '';
+  const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
+  const isTeamPTS = role === 'team_pts' || role === 'team';
+  const isSuperAdmin = role === 'superadmin';
+  const isAdmin = role === 'admin';
+
+  const SALES_DIVISIONS = ['OSS', 'IVP', 'IDC', 'Enterprise', 'Lainnya'];
+
+  const initialForm = {
+    project_name: '', room_name: '', sales_name: '', sales_division: '',
+    kebutuhan: [] as string[], kebutuhan_other: '',
+    solution_product: [] as string[], solution_other: '',
+    layout_signage: [] as string[], jaringan_cms: [] as string[],
+    jumlah_input: '', jumlah_output: '',
+    source: [] as string[], source_other: '',
+    camera_conference: 'No', camera_jumlah: '', camera_tracking: [] as string[],
+    audio_system: 'No', audio_mixer: '', audio_detail: [] as string[],
+    wallplate_input: 'No', wallplate_jumlah: '',
+    tabletop_input: 'No', tabletop_jumlah: '',
+    wireless_presentation: 'No', wireless_mode: [] as string[], wireless_dongle: 'No',
+    controller_automation: 'No', controller_type: [] as string[],
+    ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
   };
 
-  const [newTicket, setNewTicket] = useState({
-    project_name: "",
-    address: "",
-    customer_phone: "",
-    sales_name: "",
-    sales_division: "",
-    sn_unit: "",
-    issue_case: "",
-    description: "",
-    assigned_to: "",
-    date: getJakartaDateString(),
-    status: "Pending",
-    current_team: "Team PTS",
-    photo: null as File | null,
-  });
+  const [form, setForm] = useState(initialForm);
+  const [dueDateForm, setDueDateForm] = useState('');
+  const [surveyPhotos, setSurveyPhotos] = useState<File[]>([]);
+  const [surveyPhotosPreviews, setSurveyPhotosPreviews] = useState<string[]>([]);
+  const surveyPhotoRef = useRef<HTMLInputElement>(null);
 
-  const [newActivity, setNewActivity] = useState({
-    handler_name: "",
-    action_taken: "",
-    notes: "",
-    new_status: "Pending",
-    sn_unit: "",
-    file: null as File | null,
-    photo: null as File | null,
-    assign_to_services: false,
-    services_assignee: "",
-    onsite_use_schedule: false,
-    onsite_schedule_date: "",
-    onsite_schedule_hour: "08",
-    onsite_schedule_minute: "00",
-  });
+  const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
+    setNotification({ type, msg });
+    setTimeout(() => setNotification(null), 4000);
+  }, []);
 
-  const [newUser, setNewUser] = useState({
-    username: "",
-    password: "",
-    full_name: "",
-    team_member: "",
-    role: "team",
-    team_type: "Team PTS",
-  });
-
-  const [changePassword, setChangePassword] = useState({
-    current: "",
-    new: "",
-    confirm: "",
-  });
-
-  const statusColors: Record<string, string> = {
-    "Waiting Approval": "bg-orange-50 text-orange-600 border-orange-200",
-    Pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    Call: "bg-sky-50 text-sky-600 border-sky-200",
-    Onsite: "bg-purple-50 text-purple-600 border-purple-200",
-    "In Progress": "bg-blue-50 text-blue-600 border-blue-200",
-    Solved: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    Overdue: "bg-red-50 text-red-600 border-red-200",
-    Warranty: "bg-green-50 text-green-700 border-green-300",
-    "Out Of Warranty": "bg-red-50 text-red-700 border-red-300",
-    "Waiting PO from Sales": "bg-amber-50 text-amber-700 border-amber-300",
-    "Submit RMA": "bg-orange-50 text-orange-700 border-orange-300",
-    "Waiting sparepart": "bg-rose-50 text-rose-700 border-rose-300",
-    "Process Repair": "bg-blue-50 text-blue-700 border-blue-300",
-  };
-
-  const checkSessionTimeout = () => {
-    if (loginTime) {
-      const now = Date.now();
-      const sixHours = 6 * 60 * 60 * 1000;
-      if (now - loginTime > sixHours) {
-        handleLogout();
-        alert("Your session has expired. Please login again.");
+  const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
+    if (!isPTS) {
+      // Guest/Sales: only their own requests
+      query = query.eq('requester_id', currentUser.id);
+    } else if (isTeamPTS) {
+      // Team PTS: only tickets assigned to them
+      query = query.eq('pts_assigned', currentUser.full_name);
+    }
+    // admin/superadmin: see all
+    const { data, error } = await query;
+    if (!error && data) {
+      setRequests(data as ProjectRequest[]);
+      const ids = (data as ProjectRequest[]).map(r => r.id);
+      if (ids.length > 0) {
+        const { data: msgData } = await supabase
+          .from('project_messages')
+          .select('request_id, created_at')
+          .in('request_id', ids)
+          .neq('sender_role', 'system')
+          .order('created_at', { ascending: false });
+        if (msgData) {
+          const counts: Record<string, number> = {};
+          const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+          setLastSeenMap(stored);
+          for (const row of msgData as { request_id: string; created_at: string }[]) {
+            const lastSeen = stored[row.request_id] || 0;
+            const msgTime = new Date(row.created_at).getTime();
+            if (msgTime > lastSeen) {
+              counts[row.request_id] = (counts[row.request_id] || 0) + 1;
+            }
+          }
+          setUnreadMsgMap(counts);
+        }
       }
     }
+    setLoading(false);
+  }, [currentUser.id, isPTS]);
+
+  const fetchMessages = useCallback(async (requestId: string) => {
+    const { data, error } = await supabase.from('project_messages').select('*').eq('request_id', requestId).order('created_at', { ascending: true });
+    if (!error && data) setMessages(data as ProjectMessage[]);
+  }, []);
+
+  const fetchAttachments = useCallback(async (requestId: string) => {
+    const { data, error } = await supabase.from('project_attachments').select('*').eq('request_id', requestId).order('uploaded_at', { ascending: false });
+    if (!error && data) {
+      const normalized = (data as ProjectAttachment[]).map(a => ({
+        ...a,
+        attachment_category: (a.attachment_category as string) === 'design3d' ? 'design3d' as const :
+          (a.attachment_category as string) === 'sld' ? 'sld' as const :
+          (a.attachment_category as string) === 'boq' ? 'boq' as const : 'general' as const,
+      }));
+      setAttachments(normalized);
+    }
+  }, []);
+
+  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  const handleOpenDetail = (req: ProjectRequest) => {
+    setSelectedRequest(req);
+    setView('detail');
+    activeRequestIdRef.current = req.id;
+    fetchMessages(req.id);
+    fetchAttachments(req.id);
+    const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+    stored[req.id] = Date.now();
+    localStorage.setItem('pts_last_seen', JSON.stringify(stored));
+    setUnreadMsgMap(prev => ({ ...prev, [req.id]: 0 }));
   };
 
-  const DEFAULT_OVERDUE_HOURS = 48;
-  const getDeadline = (ticket: Ticket): Date | null => {
-    const setting = overdueSettings.find((o) => o.ticket_id === ticket.id);
-    if (setting) {
-      if (setting.due_date) return new Date(setting.due_date);
-      if (setting.due_hours && ticket.created_at)
-        return new Date(new Date(ticket.created_at).getTime() + setting.due_hours * 3600000);
+  useEffect(() => {
+    if (!selectedRequest) return;
+    const reqId = selectedRequest.id;
+
+    const channel = supabase.channel(`project-${reqId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'project_messages', filter: `request_id=eq.${reqId}` },
+        (payload) => { if (activeRequestIdRef.current !== reqId) return; setMessages(prev => [...prev, payload.new as ProjectMessage]); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_attachments', filter: `request_id=eq.${reqId}` },
+        () => { if (activeRequestIdRef.current !== reqId) return; fetchAttachments(reqId); })
+      .subscribe();
+
+    const pollInterval = setInterval(async () => {
+      if (activeRequestIdRef.current !== reqId) return;
+      const { data } = await supabase.from('project_messages').select('*').eq('request_id', reqId).order('created_at', { ascending: true });
+      if (data && activeRequestIdRef.current === reqId) {
+        setMessages(prev => { if (data.length === prev.length) return prev; return data as ProjectMessage[]; });
+      }
+    }, 3000);
+
+    return () => {
+      activeRequestIdRef.current = null;
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [selectedRequest?.id, fetchAttachments]);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const toggleArr = (arr: string[], val: string): string[] =>
+    arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+
+  const handleSubmitForm = async () => {
+    if (!form.project_name.trim()) { notify('error', 'Nama Project wajib diisi!'); return; }
+    if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
+    if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    setSubmitting(true);
+    try {
+      const payload = {
+        project_name: form.project_name.trim(), room_name: form.room_name.trim(),
+        sales_name: form.sales_name.trim(), sales_division: (form as any).sales_division?.trim() || '',
+        kebutuhan: form.kebutuhan, kebutuhan_other: form.kebutuhan_other.trim(),
+        solution_product: form.solution_product, solution_other: form.solution_other.trim(),
+        layout_signage: form.layout_signage, jaringan_cms: form.jaringan_cms,
+        jumlah_input: form.jumlah_input.trim(), jumlah_output: form.jumlah_output.trim(),
+        source: form.source, source_other: form.source_other.trim(),
+        camera_conference: form.camera_conference, camera_jumlah: form.camera_jumlah.trim(), camera_tracking: form.camera_tracking,
+        audio_system: form.audio_system, audio_mixer: form.audio_mixer, audio_detail: form.audio_detail,
+        wallplate_input: form.wallplate_input, wallplate_jumlah: form.wallplate_jumlah.trim(),
+        tabletop_input: form.tabletop_input, tabletop_jumlah: form.tabletop_jumlah.trim(),
+        wireless_presentation: form.wireless_presentation, wireless_mode: form.wireless_mode, wireless_dongle: form.wireless_dongle,
+        controller_automation: form.controller_automation, controller_type: form.controller_type,
+        ukuran_ruangan: form.ukuran_ruangan.trim(), suggest_tampilan: form.suggest_tampilan.trim(), keterangan_lain: form.keterangan_lain.trim(),
+        requester_id: currentUser.id, requester_name: currentUser.full_name, status: 'pending' as const,
+        due_date: dueDateForm || null,
+      };
+      const { data, error } = await supabase.from('project_requests').insert([payload]).select().single();
+      if (error) { notify('error', 'Gagal submit form: ' + error.message); setSubmitting(false); return; }
+      if (data?.id) {
+        await supabase.from('project_messages').insert([{
+          request_id: data.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
+          message: `📋 Request baru dari ${currentUser.full_name} telah masuk dan menunggu approval dari Superadmin.`,
+        }]);
+        if (surveyPhotos.length > 0) {
+          for (const photo of surveyPhotos) {
+            const filePath = `project-files/${data.id}/survey-${Date.now()}-${photo.name}`;
+            const { error: storageErr } = await supabase.storage.from('project-files').upload(filePath, photo, { cacheControl: '3600', upsert: false });
+            if (!storageErr) {
+              const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+              await supabase.from('project_attachments').insert([{
+                request_id: data.id, message_id: null, file_name: photo.name,
+                file_url: urlData.publicUrl, file_type: photo.type, file_size: photo.size,
+                uploaded_by: currentUser.full_name,
+              }]);
+            }
+          }
+        }
+      }
+      notify('success', '✅ Form berhasil dikirim! Menunggu approval dari Superadmin.');
+      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]);
+      setShowNewFormModal(false);
+      fetchRequests();
+    } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleApprove = async (req: ProjectRequest) => {
+    if (isSuperAdmin || isAdmin) {
+      setAssignModal({ open: true, req });
+    } else {
+      const { error } = await supabase.from('project_requests').update({ status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString(), pts_assigned: currentUser.full_name }).eq('id', req.id);
+      if (error) { notify('error', 'Gagal approve: ' + error.message); return; }
+      notify('success', 'Request diapprove!');
+      fetchRequests();
     }
-    if (ticket.created_at)
-      return new Date(new Date(ticket.created_at).getTime() + DEFAULT_OVERDUE_HOURS * 3600000);
+  };
+
+  const handleReject = (req: ProjectRequest) => setRejectModal({ open: true, req });
+
+  const handleRejectConfirm = async () => {
+    if (!rejectModal.req) return;
+    const req = rejectModal.req;
+    const { error } = await supabase.from('project_requests').update({ status: 'rejected' }).eq('id', req.id);
+    if (error) { notify('error', 'Gagal tolak: ' + error.message); return; }
+    notify('info', 'Request ditolak.');
+    setRejectModal({ open: false, req: null }); setRejectNote('');
+    fetchRequests();
+    if (selectedRequest?.id === req.id) setSelectedRequest(prev => prev ? { ...prev, status: 'rejected' } : null);
+    const noteMsg = rejectNote.trim() ? ` Alasan: ${rejectNote.trim()}` : '';
+    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `❌ Request telah ditolak oleh ${currentUser.full_name}.${noteMsg}` }]);
+    if (selectedRequest?.id === req.id) fetchMessages(req.id);
+  };
+
+  const handleStatusUpdate = async (req: ProjectRequest, newStatus: string) => {
+    const { error } = await supabase.from('project_requests').update({ status: newStatus }).eq('id', req.id);
+    if (error) { notify('error', 'Gagal update status.'); return; }
+    notify('success', `Status → ${newStatus}`);
+    fetchRequests();
+    if (selectedRequest) setSelectedRequest({ ...selectedRequest, status: newStatus as ProjectRequest['status'] });
+    await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: `🔄 Status diupdate menjadi: ${newStatus.replace('_', ' ').toUpperCase()}` }]);
+    if (selectedRequest?.id === req.id) fetchMessages(req.id);
+  };
+
+  const handleOpenEditForm = () => {
+    if (!selectedRequest) return;
+    setEditFormData({
+      project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
+      sales_name: selectedRequest.sales_name || '', sales_division: selectedRequest.sales_division || '',
+      kebutuhan: selectedRequest.kebutuhan || [], kebutuhan_other: selectedRequest.kebutuhan_other || '',
+      solution_product: selectedRequest.solution_product || [], solution_other: selectedRequest.solution_other || '',
+      layout_signage: selectedRequest.layout_signage || [], jaringan_cms: selectedRequest.jaringan_cms || [],
+      jumlah_input: selectedRequest.jumlah_input || '', jumlah_output: selectedRequest.jumlah_output || '',
+      source: selectedRequest.source || [], source_other: selectedRequest.source_other || '',
+      camera_conference: selectedRequest.camera_conference || 'No', camera_jumlah: selectedRequest.camera_jumlah || '',
+      camera_tracking: selectedRequest.camera_tracking || [], audio_system: selectedRequest.audio_system || 'No',
+      audio_mixer: selectedRequest.audio_mixer || '', audio_detail: selectedRequest.audio_detail || [],
+      wallplate_input: selectedRequest.wallplate_input || 'No', wallplate_jumlah: selectedRequest.wallplate_jumlah || '',
+      tabletop_input: selectedRequest.tabletop_input || 'No', tabletop_jumlah: selectedRequest.tabletop_jumlah || '',
+      wireless_presentation: selectedRequest.wireless_presentation || 'No',
+      wireless_mode: selectedRequest.wireless_mode || [], wireless_dongle: selectedRequest.wireless_dongle || 'No',
+      controller_automation: selectedRequest.controller_automation || 'No',
+      controller_type: selectedRequest.controller_type || [],
+      ukuran_ruangan: selectedRequest.ukuran_ruangan || '',
+      suggest_tampilan: selectedRequest.suggest_tampilan || '', keterangan_lain: selectedRequest.keterangan_lain || '',
+    });
+    setEditFormModal(true);
+  };
+
+  const handleEditFormSubmit = async () => {
+    if (!selectedRequest) return;
+    const { error } = await supabase.from('project_requests').update({ ...editFormData }).eq('id', selectedRequest.id);
+    if (error) { notify('error', 'Gagal menyimpan perubahan.'); return; }
+    notify('success', 'Detail kebutuhan berhasil diperbarui!');
+    setEditFormModal(false);
+    const updated = { ...selectedRequest, ...editFormData };
+    setSelectedRequest(updated as ProjectRequest);
+    fetchRequests();
+    await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: `✏️ Detail kebutuhan telah diperbarui oleh ${currentUser.full_name}.` }]);
+    fetchMessages(selectedRequest.id);
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedRequest || !msgText.trim()) { notify('error', 'Tidak bisa mengirim pesan.'); return; }
+    setSendingMsg(true);
+    const { error } = await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: msgText.trim() }]);
+    setSendingMsg(false);
+    if (error) { notify('error', 'Gagal kirim pesan.'); return; }
+    setMsgText('');
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!selectedRequest) return;
+    setUploadingFile(true);
+    const filePath = `project-files/${selectedRequest.id}/${Date.now()}-${file.name}`;
+    const { error: storageError } = await supabase.storage.from('project-files').upload(filePath, file, { cacheControl: '3600', upsert: false });
+    if (storageError) { notify('error', 'Upload gagal: ' + storageError.message); setUploadingFile(false); return; }
+    const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+    await supabase.from('project_attachments').insert([{ request_id: selectedRequest.id, message_id: null, file_name: file.name, file_url: urlData.publicUrl, file_type: file.type, file_size: file.size, uploaded_by: currentUser.full_name, attachment_category: 'general' }]);
+    setUploadingFile(false);
+    notify('success', `File "${file.name}" berhasil diupload!`);
+    fetchAttachments(selectedRequest.id);
+    await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: `📎 Melampirkan file: ${file.name}` }]);
+  };
+
+  const handleCategoryUpload = async (file: File, category: 'sld' | 'boq' | 'design3d') => {
+    if (!selectedRequest) return;
+    setUploadingCategory(category);
+    const existing = attachments.filter(a => a.attachment_category === category);
+    const revisionNum = existing.length + 1;
+    const label = category === 'sld' ? 'SLD' : category === 'boq' ? 'BOQ' : 'Design 3D';
+    const filePath = `project-files/${selectedRequest.id}/${category}-rev${revisionNum}-${Date.now()}-${file.name}`;
+    const { error: storageError } = await supabase.storage.from('project-files').upload(filePath, file, { cacheControl: '3600', upsert: false });
+    if (storageError) { notify('error', `Upload ${label} gagal: ${storageError.message}`); setUploadingCategory(null); return; }
+    const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+    await supabase.from('project_attachments').insert([{ request_id: selectedRequest.id, message_id: null, file_name: file.name, file_url: urlData.publicUrl, file_type: file.type, file_size: file.size, uploaded_by: currentUser.full_name, attachment_category: category, revision_version: revisionNum }]);
+    setUploadingCategory(null);
+    notify('success', `${label} Rev.${revisionNum} "${file.name}" berhasil diupload!`);
+    fetchAttachments(selectedRequest.id);
+    await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: `${category === 'design3d' ? '🎨' : category === 'sld' ? '📐' : '📊'} Upload ${label} Revision ${revisionNum}: ${file.name}` }]);
+  };
+
+  const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    pending:     { label: '⏳ Pending',     color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-300' },
+    approved:    { label: '✅ Approved',    color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-300' },
+    in_progress: { label: '🔄 In Progress', color: 'text-teal-700',    bg: 'bg-teal-50',    border: 'border-teal-300' },
+    completed:   { label: '🏁 Completed',   color: 'text-purple-700',  bg: 'bg-purple-50',  border: 'border-purple-300' },
+    rejected:    { label: '❌ Rejected',    color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-300' },
+  };
+
+  const formatFileSize = (bytes: number) => bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
+
+  const formatDueDate = (d: string | null | undefined) => {
+    if (!d) return '';
+    return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const getDueStatus = (dueDate: string | null | undefined, status: string) => {
+    if (!dueDate || status === 'completed' || status === 'rejected') return null;
+    const now = new Date(); const due = new Date(dueDate);
+    const diff = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return { type: 'overdue', label: `Overdue ${Math.abs(diff)}h` };
+    if (diff <= 3) return { type: 'urgent', label: `${diff}h lagi` };
     return null;
   };
 
-  const isTicketOverdue = (ticket: Ticket): boolean => {
-    const deadline = getDeadline(ticket);
-    if (!deadline) return false;
-    if (ticket.status === "Solved") {
-      const solvedLog = ticket.activity_logs?.filter((l) => l.new_status === "Solved").sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-      if (solvedLog) return new Date(solvedLog.created_at) > deadline;
-      return false;
-    }
-    return new Date() > deadline;
+  const handlePrint = () => {
+    if (!selectedRequest) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(`<html><head><title>Form Require Project - ${selectedRequest.project_name}</title>
+    <style>body{font-family:sans-serif;padding:24px;color:#222;} h1{color:#0f766e;} table{width:100%;border-collapse:collapse;} td,th{border:1px solid #ccc;padding:8px;font-size:13px;} th{background:#f0fdfa;font-weight:700;text-align:left;} .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;} @media print{@page{margin:15mm;}}</style>
+    </head><body>
+    <h1>🏗️ Form Require Project — IVP</h1>
+    <table>
+      <tr><th>Project</th><td>${selectedRequest.project_name}</td><th>Ruangan</th><td>${selectedRequest.room_name || '—'}</td></tr>
+      <tr><th>Sales</th><td>${selectedRequest.sales_name || '—'}</td><th>Divisi</th><td>${selectedRequest.sales_division || '—'}</td></tr>
+      <tr><th>Requester</th><td>${selectedRequest.requester_name}</td><th>Status</th><td>${selectedRequest.status}</td></tr>
+      <tr><th>PTS Assigned</th><td>${selectedRequest.pts_assigned || '—'}</td><th>Target</th><td>${formatDueDate(selectedRequest.due_date) || '—'}</td></tr>
+      <tr><th>Kebutuhan</th><td colspan="3">${[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).join(', ') || '—'}</td></tr>
+      <tr><th>Solution</th><td colspan="3">${[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).join(', ') || '—'}</td></tr>
+      <tr><th>Camera</th><td>${selectedRequest.camera_conference}${selectedRequest.camera_jumlah ? ` (${selectedRequest.camera_jumlah})` : ''}</td><th>Audio</th><td>${selectedRequest.audio_system}${selectedRequest.audio_mixer ? ` — ${selectedRequest.audio_mixer}` : ''}</td></tr>
+      <tr><th>Wallplate</th><td>${selectedRequest.wallplate_input}${selectedRequest.wallplate_jumlah ? ` (${selectedRequest.wallplate_jumlah})` : ''}</td><th>Tabletop</th><td>${selectedRequest.tabletop_input}${selectedRequest.tabletop_jumlah ? ` (${selectedRequest.tabletop_jumlah})` : ''}</td></tr>
+      <tr><th>Wireless</th><td>${selectedRequest.wireless_presentation}${selectedRequest.wireless_mode?.length ? ` — ${selectedRequest.wireless_mode.join(', ')}` : ''}</td><th>Controller</th><td>${selectedRequest.controller_automation}${selectedRequest.controller_type?.length ? ` — ${selectedRequest.controller_type.join(', ')}` : ''}</td></tr>
+      <tr><th>Ukuran Ruangan</th><td>${selectedRequest.ukuran_ruangan || '—'}</td><th>I/O</th><td>In: ${selectedRequest.jumlah_input || '—'} / Out: ${selectedRequest.jumlah_output || '—'}</td></tr>
+      <tr><th>Suggest Tampilan</th><td colspan="3">${selectedRequest.suggest_tampilan || '—'}</td></tr>
+      <tr><th>Keterangan Lain</th><td colspan="3">${selectedRequest.keterangan_lain || '—'}</td></tr>
+    </table>
+    <p style="margin-top:16px;font-size:12px;color:#888;">Dicetak: ${new Date().toLocaleString('id-ID')}</p>
+    </body></html>`);
+    w.document.close();
+    w.print();
   };
 
-  const getOverdueSetting = (ticketId: string) => overdueSettings.find((o) => o.ticket_id === ticketId);
+  // ─── Available years for filter ───────────────────────────────────────────
+  const availableYears = [...new Set(requests.map(r => new Date(r.created_at).getFullYear().toString()))].sort((a, b) => b.localeCompare(a));
 
-  const loadReminderSchedule = async () => {
-    try {
-      const { data } = await supabase.from("app_settings").select("value").eq("key", "reminder_schedule").single();
-      if (data?.value) setReminderSchedule(data.value);
-    } catch (e) {}
+  // ─── Filtered list ────────────────────────────────────────────────────────
+  const filteredRequests = requests.filter(r => {
+    const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || r.project_name?.toLowerCase().includes(q) || r.room_name?.toLowerCase().includes(q);
+    const qs = searchSales.toLowerCase();
+    const matchSales = !qs || r.sales_name?.toLowerCase().includes(qs) || (r.sales_division || '').toLowerCase().includes(qs);
+    const matchYear = filterYear === 'all' || new Date(r.created_at).getFullYear().toString() === filterYear;
+    const matchHandler = !filterHandler || (r.pts_assigned || '').toLowerCase().includes(filterHandler.toLowerCase());
+    return matchStatus && matchSearch && matchSales && matchYear && matchHandler;
+  });
+
+  // ─── Stats ────────────────────────────────────────────────────────────────
+  const statCounts = {
+    all: requests.length,
+    pending: requests.filter(r => r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'approved').length,
+    in_progress: requests.filter(r => r.status === 'in_progress').length,
+    completed: requests.filter(r => r.status === 'completed').length,
+    rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
-  const getCronDisplay = () => {
-    const h = reminderSchedule.hour_wib.padStart(2, "0");
-    const m = reminderSchedule.minute.padStart(2, "0");
-    const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-    let freq = "Setiap hari";
-    if (reminderSchedule.frequency === "weekdays") freq = "Senin–Jumat";
-    else if (reminderSchedule.frequency === "custom" && reminderSchedule.custom_days.length > 0) {
-      freq = reminderSchedule.custom_days.map((d) => days[d]).join(", ");
-    }
-    return `${freq}, jam ${h}:${m} WIB`;
-  };
-
-  const saveCronSchedule = async () => {
-    setReminderSaving(true);
-    try {
-      const hour = parseInt(reminderSchedule.hour_wib);
-      const minute = parseInt(reminderSchedule.minute) || 0;
-      let dayOfWeek = "*";
-      if (reminderSchedule.frequency === "weekdays") dayOfWeek = "1-5";
-      else if (reminderSchedule.frequency === "custom" && reminderSchedule.custom_days.length > 0) dayOfWeek = reminderSchedule.custom_days.join(",");
-      const { error } = await supabase.rpc("update_reminder_cron", { p_hour_wib: hour, p_minute: minute, p_day_of_week: dayOfWeek, p_active: reminderSchedule.active });
-      await supabase.from("app_settings").upsert({ key: "reminder_schedule", value: reminderSchedule }, { onConflict: "key" });
-      if (error) {
-        const utcHour = (hour - 7 + 24) % 24;
-        const cronExpr = `${minute} ${utcHour} * * ${dayOfWeek}`;
-        alert(`Setting disimpan! ✅\n\nJalankan SQL ini di SQL Editor untuk mengaktifkan:\n\nSELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\nSELECT cron.schedule('daily-reminder', '${cronExpr}', $$\n  SELECT net.http_post(\n    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n    body := '{}'::jsonb\n  );\n$$);`);
-      } else alert(`✅ Jadwal reminder berhasil diubah!\n${getCronDisplay()}`);
-      setShowReminderSchedule(false);
-    } catch (e: any) { alert("Error: " + e.message); } finally { setReminderSaving(false); }
-  };
-
-  const fetchOverdueSettings = async () => {
-    try { const { data } = await supabase.from("overdue_settings").select("*"); if (data) setOverdueSettings(data); } catch (e) { console.error(e); }
-  };
-
-  const saveOverdueSetting = async () => {
-    if (!overdueTargetTicket) return;
-    if (!overdueForm.due_hours || parseInt(overdueForm.due_hours) < 1) { alert("Isi jumlah jam overdue (minimal 1 jam)!"); return; }
-    try {
-      const existing = getOverdueSetting(overdueTargetTicket.id);
-      const payload: any = { ticket_id: overdueTargetTicket.id, set_by: currentUser?.username || "", due_date: null, due_hours: parseInt(overdueForm.due_hours) };
-      if (existing) await supabase.from("overdue_settings").update(payload).eq("id", existing.id);
-      else await supabase.from("overdue_settings").insert([payload]);
-      await fetchOverdueSettings();
-      setShowOverdueSetting(false);
-      setOverdueForm({ due_hours: "48" });
-      setOverdueTargetTicket(null);
-    } catch (e: any) { alert("Error: " + e.message); }
-  };
-
-  const deleteOverdueSetting = async (ticketId: string) => {
-    const existing = getOverdueSetting(ticketId);
-    if (!existing) return;
-    await supabase.from("overdue_settings").delete().eq("id", existing.id);
-    await fetchOverdueSettings();
-  };
-
-  const deleteTicket = async () => {
-    if (!deleteTargetTicket) return;
-    try {
-      setUploading(true);
-      setShowLoadingPopup(true);
-      setLoadingMessage("Menghapus activity logs...");
-      // Delete activity logs dari kedua DB
-      await supabase.from("activity_logs").delete().eq("ticket_id", deleteTargetTicket.id);
-      try { await supabaseServices.from("activity_logs").delete().eq("ticket_id", deleteTargetTicket.id); } catch (e) { console.warn("Services DB activity logs delete failed:", e); }
-      // Delete overdue setting jika ada
-      const existingOverdue = getOverdueSetting(deleteTargetTicket.id);
-      if (existingOverdue) await supabase.from("overdue_settings").delete().eq("id", existingOverdue.id);
-      setLoadingMessage("Menghapus ticket...");
-      await supabase.from("tickets").delete().eq("id", deleteTargetTicket.id);
-      await fetchData();
-      await fetchOverdueSettings();
-      setLoadingMessage("✅ Ticket berhasil dihapus!");
-      setTimeout(() => {
-        setShowLoadingPopup(false);
-        setUploading(false);
-        setShowDeleteModal(false);
-        setDeleteTargetTicket(null);
-        setDeleteConfirmText("");
-      }, 1500);
-    } catch (err: any) {
-      setShowLoadingPopup(false);
-      setUploading(false);
-      alert("Error saat menghapus ticket: " + err.message);
-    }
-  };
-
-  const getNotifications = () => {
-    if (!currentUser) return [];
-    const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
-    const assignedName = member ? member.name : currentUser.full_name;
-    return tickets.filter((t) => {
-      if (t.assigned_to !== assignedName) return false;
-      const overdue = isTicketOverdue(t) && t.status !== "Solved";
-      const isPending = t.status === "Pending" || t.status === "In Progress";
-      const isServicesAndPending = t.services_status && (t.services_status === "Pending" || t.services_status === "In Progress");
-      if (member?.team_type === "Team Services") return isServicesAndPending || overdue;
-      else return isPending || overdue;
-    });
-  };
-
-  const handleLogin = async () => {
-    try {
-      const { data, error } = await supabase.from("users").select("*").eq("username", loginForm.username).eq("password", loginForm.password).single();
-      if (error || !data) { alert("Incorrect username or password!"); return; }
-      const now = Date.now();
-      setCurrentUser(data);
-      setIsLoggedIn(true);
-      setLoginTime(now);
-      localStorage.setItem("currentUser", JSON.stringify(data));
-      localStorage.setItem("loginTime", now.toString());
-    } catch (err) { alert("Login failed!"); }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setLoginTime(null);
-    setSelectedTicket(null);
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem("loginTime");
-  };
-
-  const fetchGuestMappings = async () => {
-    try {
-      const { data, error } = await supabase.from("guest_mappings").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      setGuestMappings(data || []);
-    } catch (err: any) { console.error("Error fetching guest mappings:", err); }
-  };
-
-  const fetchData = async (userOverride?: User | null) => {
-    try {
-      setTickets([]);
-      setTicketsLoading(true);
-      const [membersData, usersData] = await Promise.all([
-        supabase.from("team_members").select("*").order("name"),
-        supabase.from("users").select("id, username, full_name, role, team_type"),
-      ]);
-      const activeUser = userOverride !== undefined ? userOverride : currentUser;
-      if (activeUser?.role === "guest") {
-        const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
-        const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
-        let guestTickets: Ticket[] = [];
-        if (allowedProjectNames.length > 0) {
-          const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjectNames).order("created_at", { ascending: false });
-          if (projectTickets) guestTickets = [...projectTickets];
-        }
-        const { data: ownWaiting } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).eq("status", "Waiting Approval").order("created_at", { ascending: false });
-        if (ownWaiting) {
-          for (const t of ownWaiting) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
-        }
-        setTickets(guestTickets);
-        if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
-      } else {
-        const { data: ticketsData } = await supabase.from("tickets").select("*, activity_logs(*)").order("created_at", { ascending: false });
-        let mergedTickets: Ticket[] = ticketsData || [];
-        try {
-          const { data: svcLogs } = await supabaseServices.from("activity_logs").select("*").order("created_at", { ascending: false });
-          if (svcLogs && svcLogs.length > 0) {
-            mergedTickets = mergedTickets.map((ticket: Ticket) => {
-              const svcTicketLogs = svcLogs.filter((l: ActivityLog) => l.ticket_id === ticket.id);
-              if (svcTicketLogs.length === 0) return ticket;
-              const existingLogs = ticket.activity_logs || [];
-              const allLogs = [...existingLogs, ...svcTicketLogs].reduce((acc: ActivityLog[], log: ActivityLog) => {
-                if (!acc.find((l) => l.id === log.id)) acc.push(log);
-                return acc;
-              }, []);
-              allLogs.sort((a: ActivityLog, b: ActivityLog) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-              return { ...ticket, activity_logs: allLogs };
-            });
-          }
-        } catch (svcErr) { console.warn("Could not fetch Services DB activity logs:", svcErr); }
-        setTickets(mergedTickets);
-      }
-      if (membersData.data) setTeamMembers(membersData.data);
-      if (usersData.data) setUsers(usersData.data);
-      setLoading(false);
-      setTicketsLoading(false);
-    } catch (err: any) {
-      console.error("Error:", err);
-      setLoading(false);
-      setTicketsLoading(false);
-    }
-  };
-
-  const createTicket = async () => {
-    if (!newTicket.project_name || !newTicket.issue_case) { alert("Project name and Issue case must be filled!"); return; }
-    const isAdmin = currentUser?.role === "admin";
-    if (isAdmin && !newTicket.assigned_to) { alert("Please assign to a Team PTS member!"); return; }
-    try {
-      setUploading(true);
-      setShowLoadingPopup(true);
-      setLoadingMessage("Saving new ticket...");
-      let photoUrl = "", photoName = "";
-      if (newTicket.photo) {
-        setLoadingMessage("Uploading photo...");
-        try {
-          const fileName = `${Date.now()}_${newTicket.photo.name}`;
-          const { error } = await supabase.storage.from("ticket-photos").upload(`photos/${fileName}`, newTicket.photo);
-          if (error) throw error;
-          const { data } = supabase.storage.from("ticket-photos").getPublicUrl(`photos/${fileName}`);
-          photoUrl = data.publicUrl;
-          photoName = newTicket.photo.name;
-        } catch (uploadErr: any) { throw new Error(`Failed to upload photo: ${uploadErr.message}`); }
-      }
-      setLoadingMessage("Saving new ticket...");
-      const ticketStatus = isAdmin ? newTicket.status : "Waiting Approval";
-      const ticketAssignedTo = isAdmin ? newTicket.assigned_to : "";
-      const ticketData = {
-        project_name: newTicket.project_name,
-        address: newTicket.address || null,
-        customer_phone: newTicket.customer_phone || null,
-        sales_name: newTicket.sales_name || null,
-        sales_division: newTicket.sales_division || null,
-        sn_unit: newTicket.sn_unit || null,
-        issue_case: newTicket.issue_case,
-        description: newTicket.description || null,
-        assigned_to: ticketAssignedTo,
-        date: newTicket.date,
-        status: ticketStatus,
-        current_team: "Team PTS",
-        services_status: null,
-        created_by: currentUser?.username || null,
-        photo_url: photoUrl || null,
-        photo_name: photoName || null,
-      };
-      const { data: insertedTicket, error } = await supabase.from("tickets").insert([ticketData]).select("id").single();
-      if (error) throw error;
-      if (!isAdmin) {
-        supabase.functions.invoke("notify-handler", {
-          body: { type: "approval_request", ticketId: insertedTicket?.id || "", projectName: newTicket.project_name, issueCase: newTicket.issue_case, requesterName: currentUser?.full_name || "", requesterUsername: currentUser?.username || "", date: newTicket.date, description: newTicket.description || "-", snUnit: newTicket.sn_unit || "-", customerPhone: newTicket.customer_phone || "-", salesName: newTicket.sales_name || "-" }
-        }).then(({ error: waErr }) => { if (waErr) console.error("notify-handler approval error:", waErr); });
-      }
-      setNewTicket({
-        project_name: "", address: "", customer_phone: "", sales_name: "", sales_division: "", sn_unit: "", issue_case: "", description: "", assigned_to: "", date: getJakartaDateString(), status: "Pending", current_team: "Team PTS", photo: null
-      });
-      setShowNewTicket(false);
-      await fetchData();
-      const successMsg = isAdmin ? "✅ Ticket saved successfully!" : "✅ Ticket submitted! Waiting for Superadmin approval.";
-      setLoadingMessage(successMsg);
-      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); }, 1500);
-    } catch (err: any) {
-      setShowLoadingPopup(false);
-      setUploading(false);
-      alert("Error: " + err.message);
-    }
-  };
-
-  const approveTicket = async () => {
-    if (!approvalTicket || !approvalAssignee) { alert("Please select a Team PTS member to assign!"); return; }
-    try {
-      setUploading(true);
-      const { error } = await supabase.from("tickets").update({ status: "Pending", assigned_to: approvalAssignee }).eq("id", approvalTicket.id);
-      if (error) throw error;
-      if (approvalTicket.created_by) {
-        const creatorUser = users.find((u) => u.username === approvalTicket.created_by);
-        if (creatorUser && creatorUser.role === "guest") {
-          const { data: existingMapping } = await supabase.from("guest_mappings").select("id").eq("guest_username", approvalTicket.created_by).eq("project_name", approvalTicket.project_name).maybeSingle();
-          if (!existingMapping) await supabase.from("guest_mappings").insert([{ guest_username: approvalTicket.created_by, project_name: approvalTicket.project_name }]);
-        }
-      }
-      setShowApprovalModal(false);
-      setApprovalTicket(null);
-      setApprovalAssignee("");
-      await fetchData();
-      alert(`✅ Ticket approved & assigned to ${approvalAssignee}`);
-    } catch (err: any) { alert("Error: " + err.message); } finally { setUploading(false); }
-  };
-
-  const rejectTicket = async (ticket: Ticket) => {
-    if (!confirm(`Reject ticket "${ticket.project_name} - ${ticket.issue_case}"? Ticket will be deleted.`)) return;
-    try {
-      setUploading(true);
-      await supabase.from("activity_logs").delete().eq("ticket_id", ticket.id);
-      const { error } = await supabase.from("tickets").delete().eq("id", ticket.id);
-      if (error) throw error;
-      await fetchData();
-      alert("Ticket rejected and removed.");
-    } catch (err: any) { alert("Error: " + err.message); } finally { setUploading(false); }
-  };
-
-  const reopenTicket = async () => {
-    if (!reopenTargetTicket || !reopenAssignee) return;
-    try {
-      setUploading(true);
-      setShowLoadingPopup(true);
-      setLoadingMessage("Re-opening ticket...");
-      const { error: ue } = await supabase.from("tickets").update({ status: "Pending", assigned_to: reopenAssignee, current_team: "Team PTS", services_status: null }).eq("id", reopenTargetTicket.id);
-      if (ue) throw ue;
-      await supabase.from("activity_logs").insert([{
-        ticket_id: reopenTargetTicket.id,
-        handler_name: currentUser?.full_name || "",
-        handler_username: currentUser?.username || "",
-        action_taken: "Re-open Ticket",
-        notes: reopenNotes ? `Dibuka kembali: ${reopenNotes}` : `Ticket dibuka kembali oleh ${currentUser?.full_name}`,
-        new_status: "Pending",
-        team_type: "Team PTS",
-        assigned_to_services: false,
-        file_url: "", file_name: "", photo_url: "", photo_name: ""
-      }]);
-      await fetchData();
-      setLoadingMessage("✅ Ticket berhasil dibuka kembali!");
-      setTimeout(() => {
-        setShowLoadingPopup(false);
-        setUploading(false);
-        setShowReopenModal(false);
-        setReopenTargetTicket(null);
-        setReopenAssignee("");
-        setReopenNotes("");
-        setShowTicketDetailPopup(false);
-        setSelectedTicket(null);
-      }, 1500);
-    } catch (err: any) {
-      setShowLoadingPopup(false);
-      setUploading(false);
-      alert("Error: " + err.message);
-    }
-  };
-
-  const addActivity = async () => {
-    const SERVICES_SIMPLE = ["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"];
-    const isSimpleStatus = newActivity.new_status === "Call" || newActivity.new_status === "Onsite";
-    const isSvcSimple = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase())?.team_type === "Team Services" && SERVICES_SIMPLE.includes(newActivity.new_status);
-    if (!isSimpleStatus && !isSvcSimple && !newActivity.notes) { alert("Notes must be filled!"); return; }
-    if (!selectedTicket) { alert("No ticket selected!"); return; }
-    const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase());
-    const teamType = member?.team_type || "Team PTS";
-    const isServicesTeam = teamType === "Team Services";
-    const validStatusesPTS = ["Waiting Approval", "Pending", "Call", "Onsite", "In Progress", "Solved"];
-    if (isServicesTeam) {
-      if (!(SERVICES_STATUSES as readonly string[]).includes(newActivity.new_status)) { alert("Status tidak valid untuk Team Services!"); return; }
-    } else {
-      if (!validStatusesPTS.includes(newActivity.new_status)) { alert("Invalid status! Use: Pending, In Progress, or Solved"); return; }
-    }
-    if (newActivity.assign_to_services && !newActivity.services_assignee) { alert("Select assignee from Team Services!"); return; }
-    try {
-      setUploading(true);
-      setShowLoadingPopup(true);
-      setLoadingMessage("Updating ticket status...");
-      let fileUrl = "", fileName = "", photoUrl = "", photoName = "";
-      const uploadFileToBucket = async (file: File, folder: string, useServicesDb: boolean = false) => {
-        const client = useServicesDb ? supabaseServices : supabase;
-        const filePath = `${folder}/${Date.now()}_${file.name}`;
-        const { error } = await client.storage.from("ticket-photos").upload(filePath, file);
-        if (error) throw error;
-        const { data } = client.storage.from("ticket-photos").getPublicUrl(filePath);
-        return { url: data.publicUrl, name: file.name };
-      };
-      if (newActivity.file) {
-        setLoadingMessage("Uploading PDF file...");
-        try { const result = await uploadFileToBucket(newActivity.file, "reports", isServicesTeam); fileUrl = result.url; fileName = result.name; } catch (uploadErr: any) { throw new Error(`Failed to upload PDF: ${uploadErr.message}`); }
-      }
-      if (newActivity.photo) {
-        setLoadingMessage("Uploading photo...");
-        try { const result = await uploadFileToBucket(newActivity.photo, "photos", isServicesTeam); photoUrl = result.url; photoName = result.name; } catch (uploadErr: any) { throw new Error(`Failed to upload photo: ${uploadErr.message}`); }
-      }
-      setLoadingMessage("Saving activity log...");
-      const SVCSS = ["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"];
-      const isSimpleStatusCalc = newActivity.new_status === "Call" || newActivity.new_status === "Onsite";
-      const isSvcSimpleCalc = isServicesTeam && SVCSS.includes(newActivity.new_status);
-      const onsiteHasSchedule = newActivity.new_status === "Onsite" && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date;
-      const svcSimpleNotes: Record<string, string> = {
-        Warranty: "Unit masih dalam masa garansi.",
-        "Out Of Warranty": "Unit sudah di luar masa garansi.",
-        "Waiting PO from Sales": "Menunggu Purchase Order dari Sales.",
-        "Submit RMA": "RMA telah disubmit ke vendor.",
-        "Waiting sparepart": "Menunggu kedatangan sparepart.",
-      };
-      let autoNotes = "";
-      if (newActivity.new_status === "Call") autoNotes = "Sedang melakukan Call ke customer.";
-      else if (newActivity.new_status === "Onsite") {
-        if (onsiteHasSchedule) autoNotes = `Dijadwalkan Onsite pada ${newActivity.onsite_schedule_date} pukul ${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute} WIB.`;
-        else autoNotes = "Tim sedang Onsite ke lokasi customer.";
-      } else if (isSvcSimpleCalc) autoNotes = svcSimpleNotes[newActivity.new_status] || newActivity.new_status;
-      const effectiveStatus = onsiteHasSchedule ? "Pending" : newActivity.new_status;
-      const useAutoNotes = isSimpleStatusCalc || isSvcSimpleCalc;
-      const activityData: any = {
-        ticket_id: selectedTicket.id,
-        handler_name: newActivity.handler_name,
-        handler_username: currentUser?.username || "",
-        action_taken: useAutoNotes ? "" : newActivity.action_taken || "",
-        notes: useAutoNotes ? autoNotes : newActivity.notes,
-        new_status: effectiveStatus,
-        team_type: teamType,
-        assigned_to_services: newActivity.assign_to_services || false,
-        file_url: fileUrl || "",
-        file_name: fileName || "",
-        photo_url: photoUrl || "",
-        photo_name: photoName || "",
-      };
-      const activeClient = isServicesTeam ? supabaseServices : supabase;
-      const { error: activityError } = await activeClient.from("activity_logs").insert([activityData]).select();
-      if (activityError) throw new Error(`Database error: ${activityError.message}`);
-      setLoadingMessage("Updating ticket status...");
-      const updateData: any = {};
-      if (newActivity.sn_unit) updateData.sn_unit = newActivity.sn_unit;
-      if (isServicesTeam) {
-        updateData.services_status = effectiveStatus;
-        const { error: svcErr } = await supabaseServices.from("tickets").update(updateData).eq("id", selectedTicket.id);
-        if (svcErr) console.warn("Services DB ticket update failed:", svcErr.message);
-        await supabase.from("tickets").update({ services_status: effectiveStatus }).eq("id", selectedTicket.id);
-      } else {
-        updateData.status = effectiveStatus;
-        if (newActivity.assign_to_services) {
-          updateData.current_team = "Team Services";
-          updateData.services_status = "Waiting Approval";
-          updateData.assigned_to = newActivity.services_assignee;
-          supabase.functions.invoke("send-email", {
-            body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: newActivity.services_assignee, snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
-          }).then(({ error }) => { if (error) console.error("Email error:", error); });
-          try {
-            const { data: existSvc } = await supabaseServices.from("tickets").select("id").eq("id", selectedTicket.id).maybeSingle();
-            if (!existSvc) {
-              await supabaseServices.from("tickets").insert([{
-                id: selectedTicket.id,
-                project_name: selectedTicket.project_name,
-                address: selectedTicket.address || null,
-                customer_phone: selectedTicket.customer_phone || null,
-                sales_name: selectedTicket.sales_name || null,
-                sn_unit: selectedTicket.sn_unit || null,
-                issue_case: selectedTicket.issue_case,
-                description: selectedTicket.description || null,
-                assigned_to: newActivity.services_assignee,
-                date: selectedTicket.date,
-                status: "Waiting Approval",
-                services_status: "Waiting Approval",
-                current_team: "Team Services",
-                created_by: selectedTicket.created_by || null,
-              }]);
-            }
-          } catch (svcInsertErr) { console.warn("Could not mirror ticket to Services DB:", svcInsertErr); }
-        }
-        const { error: updateError } = await supabase.from("tickets").update(updateData).eq("id", selectedTicket.id);
-        if (updateError) throw new Error(`Failed to update ticket: ${updateError.message}`);
-      }
-      setNewActivity({
-        handler_name: newActivity.handler_name,
-        action_taken: "",
-        notes: "",
-        new_status: isServicesTeam ? "Pending" : "Pending",
-        sn_unit: "",
-        file: null,
-        photo: null,
-        assign_to_services: false,
-        services_assignee: "",
-        onsite_use_schedule: false,
-        onsite_schedule_date: "",
-        onsite_schedule_hour: "08",
-        onsite_schedule_minute: "00",
-      });
-      await fetchData();
-      setLoadingMessage("✅ Status updated successfully!");
-      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); setShowUpdateForm(false); }, 1500);
-    } catch (err: any) {
-      setShowLoadingPopup(false);
-      setUploading(false);
-      alert("Error: " + err.message);
-    }
-  };
-
-  const createUser = async () => {
-    if (!newUser.username || !newUser.password || !newUser.full_name) { alert("All fields must be filled!"); return; }
-    const lowerUsername = newUser.username.toLowerCase();
-    let finalTeamType = newUser.team_type;
-    if (newUser.role === "guest") finalTeamType = "Guest";
-    else if (newUser.role === "admin") finalTeamType = "Team PTS";
-    try {
-      const { error: userError } = await supabase.from("users").insert([{ username: lowerUsername, password: newUser.password, full_name: newUser.full_name, role: newUser.role, team_type: finalTeamType }]);
-      if (userError) throw userError;
-      if (newUser.role === "team") {
-        const { error: memberError } = await supabase.from("team_members").insert([{ name: newUser.full_name, username: lowerUsername, role: "Support Engineer", team_type: finalTeamType, photo_url: `https://ui-avatars.com/api/?name=${newUser.full_name}&background=random&color=fff&size=128` }]);
-        if (memberError) console.error("Error creating team member:", memberError);
-      }
-      setNewUser({ username: "", password: "", full_name: "", team_member: "", role: "team", team_type: "Team PTS" });
-      await fetchData();
-      alert("User created successfully!");
-    } catch (err: any) { alert("Error: " + err.message); }
-  };
-
-  const addGuestMapping = async () => {
-    if (!newMapping.guestUsername || !newMapping.projectName) { alert("All fields must be filled!"); return; }
-    const guestUser = users.find((u) => u.username === newMapping.guestUsername && u.role === "guest");
-    if (!guestUser) { alert("Guest username not found or not a guest role!"); return; }
-    const projectExists = tickets.some((t) => t.project_name === newMapping.projectName);
-    if (!projectExists) { alert("Project name not found!"); return; }
-    try {
-      setUploading(true);
-      const { error } = await supabase.from("guest_mappings").insert([{ guest_username: newMapping.guestUsername, project_name: newMapping.projectName }]);
-      if (error) throw error;
-      setNewMapping({ guestUsername: "", projectName: "" });
-      await fetchGuestMappings();
-      setUploading(false);
-      alert("Guest mapping added successfully!");
-    } catch (err: any) { alert("Error: " + err.message); setUploading(false); }
-  };
-
-  const deleteGuestMapping = async (mappingId: string) => {
-    try {
-      setUploading(true);
-      const { error } = await supabase.from("guest_mappings").delete().eq("id", mappingId);
-      if (error) throw error;
-      await fetchGuestMappings();
-      setUploading(false);
-      alert("Guest mapping deleted successfully!");
-    } catch (err: any) { alert("Error: " + err.message); setUploading(false); }
-  };
-
-  const updatePassword = async () => {
-    if (!selectedUserForPassword) { alert("Select user first!"); return; }
-    if (!changePassword.current || !changePassword.new || !changePassword.confirm) { alert("All fields must be filled!"); return; }
-    if (changePassword.new !== changePassword.confirm) { alert("New password does not match!"); return; }
-    try {
-      const selectedUser = users.find((u) => u.id === selectedUserForPassword);
-      if (!selectedUser) { alert("User not found!"); return; }
-      const { data: userData } = await supabase.from("users").select("password").eq("id", selectedUserForPassword).single();
-      if (!userData || userData.password !== changePassword.current) { alert("Old password is incorrect!"); return; }
-      await supabase.from("users").update({ password: changePassword.new }).eq("id", selectedUserForPassword);
-      if (currentUser?.id === selectedUserForPassword) {
-        const updatedUser = { ...currentUser, password: changePassword.new };
-        setCurrentUser(updatedUser);
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-      }
-      alert("Password changed successfully!");
-      setChangePassword({ current: "", new: "", confirm: "" });
-      setSelectedUserForPassword("");
-    } catch (err: any) { alert("Error: " + err.message); }
-  };
-
-  const exportToPDF = async (ticket: Ticket) => {
-    const printContent = `
-      <html>
-        <head>
-          <title>Ticket Report - ${ticket.project_name}</title>
-          <style>
-            body { font-family: Arial; padding: 20px; }
-            h1 { color: #EF4444; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background: #f3f4f6; }
-            .activity { border: 1px solid #ddd; padding: 10px; margin: 10px 0; }
-            .team-badge { display: inline-block; padding: 4px 8px; background: #e5e7eb; border-radius: 4px; font-size: 12px; font-weight: bold; }
-            .photo-thumbnail { max-width: 200px; margin: 10px 0; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <h1>Report Troubleshooting</h1>
-          <h2><th>Project Name :</th>${ticket.project_name}</h2>
-          <table>
-            <tr><th>Address :</th><td>${ticket.address}</td></tr>
-            <tr><th>Issue :</th><td>${ticket.issue_case}</td></tr>
-            <tr><th>SN Unit :</th><td>${ticket.sn_unit || "-"}</td></tr>
-            <tr><th>Name & Phone User :</th><td>${ticket.customer_phone || "-"}</td></tr>
-            <tr><th>Sales Project :</th><td>${ticket.sales_name || "-"}</td></tr>
-            <tr><th>Status Team PTS :</th><td>${ticket.status}</td></tr>
-            ${ticket.services_status ? `<tr><th>Status Team Services :</th><td>${ticket.services_status}</td>` : ""}
-            <tr><th>Current Team :</th><td>${ticket.current_team}</td></tr>
-            <tr><th>Date :</th><td>${ticket.date}</td></tr>
-          </table>
-          <h3>Activity Log :</h3>
-          ${ticket.activity_logs?.map((log) => `
-            <div class="activity">
-              <strong>${log.handler_name}</strong> <span class="team-badge">${log.team_type}</span> - ${formatDateTime(log.created_at)}<br/>
-              Status: ${log.new_status}<br/>
-              ${log.action_taken ? `Action: ${log.action_taken}<br/>` : ""}
-              Notes: ${log.notes}
-              ${log.assigned_to_services ? '<br/><strong style="color: #EF4444;">→ Assigned to Team Services</strong>' : ""}
-              ${log.photo_url ? `<br/><img src="${log.photo_url}" class="photo-thumbnail" alt="Activity photo"/>` : ""}
-            </div>
-          `).join("") || "No activities"}
-        </body>
-      </html>
-    `;
-    const win = window.open("", "", "height=700,width=700");
-    win?.document.write(printContent);
-    win?.document.close();
-    win?.print();
-  };
-
-  const exportToExcel = () => {
-    const runExport = (XLSX: any) => {
-      const exportTickets = currentUserTeamType === "Team Services" ? filteredTickets : tickets;
-      const isServicesExport = currentUserTeamType === "Team Services";
-      const border = { top: { style: "thin", color: { rgb: "D1D5DB" } }, bottom: { style: "thin", color: { rgb: "D1D5DB" } }, left: { style: "thin", color: { rgb: "D1D5DB" } }, right: { style: "thin", color: { rgb: "D1D5DB" } } };
-      const boldBorder = { top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } }, left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } } };
-      const hdrStyle = { font: { name: "Arial", bold: true, sz: 11, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E3A5F" }, patternType: "solid" }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: boldBorder };
-      const secHdrStyle = { font: { name: "Arial", bold: true, sz: 10, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "2563EB" }, patternType: "solid" }, alignment: { horizontal: "center", vertical: "center" }, border: boldBorder };
-      const cellStyle = { font: { name: "Arial", sz: 10 }, alignment: { vertical: "center", wrapText: true }, border };
-      const altStyle = { ...cellStyle, fill: { fgColor: { rgb: "EFF6FF" }, patternType: "solid" } };
-      const titleStyle = { font: { name: "Arial", bold: true, sz: 15, color: { rgb: "1E3A5F" } }, alignment: { horizontal: "left", vertical: "center" } };
-      const statusStyles: Record<string, object> = {
-        Solved: { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "166534" } }, fill: { fgColor: { rgb: "DCFCE7" }, patternType: "solid" } },
-        "In Progress": { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" }, patternType: "solid" } },
-        Pending: { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" }, patternType: "solid" } },
-        Overdue: { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "991B1B" } }, fill: { fgColor: { rgb: "FEE2E2" }, patternType: "solid" } },
-        "Waiting Approval": { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "9A3412" } }, fill: { fgColor: { rgb: "FFEDD5" }, patternType: "solid" } },
-      };
-      const c = (v: any, s: object) => ({ v, s, t: typeof v === "number" ? "n" : "s" });
-      const empty = () => ({ v: "", s: cellStyle, t: "s" });
-      const row = (cells: number) => Array(cells).fill(empty());
-      const wb = XLSX.utils.book_new();
-      const exportDate = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
-      // Dashboard sheet
-      {
-        const COLS = 5;
-        const dashTitle = isServicesExport ? "📊 TICKET REPORT — TEAM SERVICES" : "📊 TICKET REPORT — DASHBOARD ANALYTICS";
-        const data: any[][] = [
-          [c(dashTitle, titleStyle), ...row(COLS - 1)],
-          [c(`Tanggal Export: ${exportDate}`, { font: { name: "Arial", sz: 10, color: { rgb: "6B7280" } } }), ...row(COLS - 1)],
-          row(COLS),
-          [c("RINGKASAN STATISTIK", secHdrStyle), ...row(COLS - 1)],
-          [c("Kategori", hdrStyle), c("Jumlah", hdrStyle), c("Persentase", hdrStyle), c("", hdrStyle), c("", hdrStyle)],
-        ];
-        const totalExport = exportTickets.length;
-        const statItems = isServicesExport ? [
-          { label: "Total Tickets (Services)", value: totalExport, color: "1E3A5F" },
-          { label: "Pending Check", value: exportTickets.filter((t: Ticket) => t.services_status === "Pending").length, color: "92400E" },
-          { label: "Process Repair", value: exportTickets.filter((t: Ticket) => t.services_status === "Process Repair").length, color: "1E40AF" },
-          { label: "Solved", value: exportTickets.filter((t: Ticket) => t.services_status === "Solved").length, color: "166534" },
-        ] : [
-          { label: "Total Tickets", value: stats.total, color: "1E3A5F" },
-          { label: "Pending", value: stats.pending, color: "92400E" },
-          { label: "In Progress", value: stats.processing, color: "1E40AF" },
-          { label: "Solved", value: stats.solved, color: "166534" },
-        ];
-        statItems.forEach((item, i) => {
-          const total = isServicesExport ? totalExport : stats.total;
-          const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) + "%" : "0%";
-          const rs = { ...cellStyle, ...(i % 2 ? { fill: { fgColor: { rgb: "EFF6FF" }, patternType: "solid" } } : {}) };
-          data.push([
-            c(item.label, { ...rs, font: { name: "Arial", sz: 10, bold: true, color: { rgb: item.color } } }),
-            c(item.value, { ...rs, alignment: { horizontal: "center", vertical: "center" } }),
-            c(pct, { ...rs, alignment: { horizontal: "center", vertical: "center" } }),
-            empty(), empty(),
-          ]);
-        });
-        data.push(row(COLS));
-        const handlerMap: Record<string, number> = {};
-        exportTickets.forEach((t: Ticket) => { if (t.assigned_to) handlerMap[t.assigned_to] = (handlerMap[t.assigned_to] || 0) + 1; });
-        data.push([c("HANDLER", hdrStyle), c("JUMLAH TICKET", hdrStyle), c("PERSENTASE", hdrStyle), c("", hdrStyle), c("", hdrStyle)]);
-        Object.entries(handlerMap).forEach(([handler, count], i) => {
-          const total = exportTickets.length;
-          const pct = total > 0 ? ((count / total) * 100).toFixed(1) + "%" : "0%";
-          const rs = i % 2 === 0 ? cellStyle : altStyle;
-          data.push([c(handler, rs), c(count, { ...rs, alignment: { horizontal: "center", vertical: "center" } }), c(pct, { ...rs, alignment: { horizontal: "center", vertical: "center" } }), empty(), empty()]);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } }, { s: { r: 3, c: 0 }, e: { r: 3, c: COLS - 1 } }];
-        ws["!cols"] = [{ wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
-        ws["!rows"] = [{ hpt: 30 }, { hpt: 18 }, { hpt: 8 }];
-        XLSX.utils.book_append_sheet(wb, ws, "📊 Dashboard");
-      }
-      // Tickets sheet
-      {
-        const headers = ["No.", "Project Name", "Alamat", "Nama & Telepon Customer", "Sales", "Issue / Masalah", "Deskripsi", "SN Unit", "Handler (Assigned To)", "Status PTS", "Status Services", "Current Team", "Tgl Ticket", "Dibuat Oleh", "Dibuat Pada", "Jumlah Activity Log"];
-        const COLS = headers.length;
-        const data: any[][] = [[c(isServicesExport ? "📋 DATA TICKET — TEAM SERVICES" : "📋 DATA SEMUA TICKET", { ...titleStyle, font: { name: "Arial", bold: true, sz: 14, color: { rgb: "1E3A5F" } } }), ...row(COLS - 1)], row(COLS), headers.map((h) => c(h, hdrStyle))];
-        exportTickets.forEach((t: Ticket, idx: number) => {
-          const rs = idx % 2 === 0 ? cellStyle : altStyle;
-          const overdue = isTicketOverdue(t);
-          const effectiveStatus = overdue && t.status !== "Solved" ? "Overdue" : t.status;
-          const statusDisplay = overdue && t.status !== "Solved" ? `${t.status} (OVERDUE)` : t.status;
-          const ctr = { ...rs, alignment: { horizontal: "center", vertical: "center" } };
-          data.push([
-            c(idx + 1, ctr), c(t.project_name || "-", rs), c(t.address || "-", rs), c(t.customer_phone || "-", rs),
-            c(t.sales_name || "-", rs), c(t.issue_case || "-", rs), c(t.description || "-", rs), c(t.sn_unit || "-", ctr),
-            c(t.assigned_to || "-", rs), c(statusDisplay, statusStyles[effectiveStatus] || rs), c(t.services_status || "-", t.services_status ? statusStyles[t.services_status] || rs : rs),
-            c(t.current_team || "-", rs), c(t.date || "-", ctr), c(t.created_by || "-", rs),
-            c(t.created_at ? formatDateTime(t.created_at) : "-", ctr), c(t.activity_logs?.length || 0, ctr),
-          ]);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }];
-        ws["!cols"] = [{ wch: 5 }, { wch: 28 }, { wch: 30 }, { wch: 28 }, { wch: 22 }, { wch: 28 }, { wch: 38 }, { wch: 18 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
-        ws["!rows"] = [{ hpt: 28 }, { hpt: 6 }, { hpt: 32 }];
-        XLSX.utils.book_append_sheet(wb, ws, "📋 Semua Ticket");
-      }
-      // Activity Logs sheet
-      {
-        const headers = ["No.", "Project Name", "Issue", "Status Ticket", "Handler", "Team", "Action Taken", "Notes", "Status Baru", "Ke Services?", "File Lampiran", "Waktu Activity"];
-        const COLS = headers.length;
-        const data: any[][] = [[c(isServicesExport ? "📝 ACTIVITY LOG — TEAM SERVICES" : "📝 DETAIL ACTIVITY LOG", { ...titleStyle, font: { name: "Arial", bold: true, sz: 14, color: { rgb: "1E3A5F" } } }), ...row(COLS - 1)], row(COLS), headers.map((h) => c(h, hdrStyle))];
-        let rowIdx = 0;
-        exportTickets.forEach((ticket: Ticket) => {
-          if (!ticket.activity_logs || ticket.activity_logs.length === 0) {
-            const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
-            data.push([
-              c(rowIdx + 1, { ...rs, alignment: { horizontal: "center", vertical: "center" } }),
-              c(ticket.project_name || "-", rs), c(ticket.issue_case || "-", rs), c(ticket.status || "-", statusStyles[ticket.status] || rs),
-              c("-", rs), c("-", rs), c("-", rs), c("(Belum ada activity log)", { ...rs, font: { name: "Arial", sz: 10, color: { rgb: "9CA3AF" } } }),
-              c("-", rs), c("-", rs), c("-", rs), c("-", rs),
-            ]);
-            rowIdx++;
-            return;
-          }
-          [...ticket.activity_logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).forEach((log) => {
-            const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
-            const ctr = { ...rs, alignment: { horizontal: "center", vertical: "center" } };
-            data.push([
-              c(rowIdx + 1, ctr), c(ticket.project_name || "-", rs), c(ticket.issue_case || "-", rs), c(ticket.status || "-", statusStyles[ticket.status] || rs),
-              c(log.handler_name || "-", rs), c(log.team_type || "-", rs), c(log.action_taken || "-", rs),
-              c(log.notes || "-", { ...rs, alignment: { horizontal: "left", vertical: "center", wrapText: true } }),
-              c(log.new_status || "-", statusStyles[log.new_status] || rs),
-              c(log.assigned_to_services ? "✅ Ya" : "Tidak", { ...ctr, font: { name: "Arial", sz: 10, bold: !!log.assigned_to_services, color: { rgb: log.assigned_to_services ? "166534" : "374151" } } }),
-              c(log.file_name || "-", rs), c(log.created_at ? formatDateTime(log.created_at) : "-", ctr),
-            ]);
-            rowIdx++;
-          });
-        });
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }];
-        ws["!cols"] = [{ wch: 5 }, { wch: 26 }, { wch: 24 }, { wch: 18 }, { wch: 22 }, { wch: 16 }, { wch: 28 }, { wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 24 }, { wch: 22 }];
-        ws["!rows"] = [{ hpt: 28 }, { hpt: 6 }, { hpt: 32 }];
-        XLSX.utils.book_append_sheet(wb, ws, "📝 Activity Logs");
-      }
-      const teamLabel = isServicesExport ? "Services" : "PTS";
-      const fileName = `Ticket_Report_${teamLabel}_${new Date().toISOString().split("T")[0]}.xlsx`;
-      XLSX.writeFile(wb, fileName, { bookType: "xlsx", type: "binary", cellStyles: true });
-    };
-    if ((window as any).XLSX) runExport((window as any).XLSX);
-    else {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-      script.onload = () => runExport((window as any).XLSX);
-      script.onerror = () => alert("Gagal memuat library Excel. Coba lagi atau periksa koneksi internet.");
-      document.head.appendChild(script);
-    }
-  };
-
-  const currentUserTeamType = useMemo(() => {
-    if (!currentUser) return "Team PTS";
-    const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
-    return member?.team_type || "Team PTS";
-  }, [currentUser, teamMembers]);
-
-  const filteredTickets = useMemo(() => {
-    return tickets.filter((t) => {
-      const projectName = t.project_name || "";
-      const issueCase = t.issue_case || "";
-      const salesName = t.sales_name || "";
-      const match = projectName.toLowerCase().includes(searchProject.toLowerCase()) || issueCase.toLowerCase().includes(searchProject.toLowerCase());
-      const salesNameMatch = salesName.toLowerCase().includes(searchSalesName.toLowerCase());
-      const ticketYear = t.created_at ? new Date(t.created_at).getFullYear().toString() : "";
-      const yearMatch = filterYear === "all" || ticketYear === filterYear;
-      let statusMatch = false;
-      if (filterStatus === "All") statusMatch = true;
-      else if (filterStatus === "Overdue") statusMatch = isTicketOverdue(t) && t.status !== "Solved";
-      else if (filterStatus === "Solved Overdue") statusMatch = isTicketOverdue(t) && t.status === "Solved";
-      else if (currentUserTeamType === "Team Services") statusMatch = t.services_status === filterStatus || t.status === filterStatus;
-      else statusMatch = t.status === filterStatus;
-      const handlerMatch = handlerFilter === null || t.assigned_to === handlerFilter;
-      const divisionMatch = salesDivisionFilter === null || t.sales_division === salesDivisionFilter;
-      let teamVisibility = true;
-      if (currentUserTeamType === "Team Services") teamVisibility = t.current_team === "Team Services" || !!t.services_status;
-      if (t.status === "Waiting Approval" && currentUser?.role !== "admin" && currentUserTeamType !== "Team Services") {
-        teamVisibility = teamVisibility && t.created_by === currentUser?.username;
-      }
-      return match && salesNameMatch && yearMatch && statusMatch && teamVisibility && handlerMatch && divisionMatch;
-    });
-  }, [tickets, searchProject, searchSalesName, filterYear, filterStatus, currentUserTeamType, overdueSettings, handlerFilter, salesDivisionFilter]);
-
-  const stats = useMemo(() => {
-    const total = tickets.length;
-    const processing = tickets.filter((t) => t.status === "In Progress").length;
-    const pending = tickets.filter((t) => t.status === "Pending").length;
-    const solved = tickets.filter((t) => t.status === "Solved").length;
-    const overdue = tickets.filter((t) => isTicketOverdue(t) && t.status !== "Solved").length;
-    const solvedOverdue = tickets.filter((t) => isTicketOverdue(t) && t.status === "Solved").length;
-    return {
-      total, pending, processing, solved, overdue, solvedOverdue,
-      statusData: [
-        { name: "Pending", value: pending, color: "#FCD34D" },
-        { name: "In Progress", value: processing, color: "#60A5FA" },
-        { name: "Solved", value: solved, color: "#34D399" },
-        ...(overdue > 0 ? [{ name: "Overdue", value: overdue, color: "#EF4444" }] : []),
-        ...(solvedOverdue > 0 ? [{ name: "Solved (Overdue)", value: solvedOverdue, color: "#9333ea" }] : []),
-      ].filter((d) => d.value > 0),
-      handlerData: Object.entries(tickets.reduce((acc, t) => { acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([name, tickets]) => {
-        const member = teamMembers.find((m) => m.name.trim().toLowerCase() === name.trim().toLowerCase());
-        return { name, tickets, team: member?.team_type || "Team PTS" };
-      }),
-    };
-  }, [tickets, overdueSettings]);
-
-  const salesDivisionStats = useMemo(() => {
-    const divisionCounts: Record<string, number> = {};
-    tickets.forEach((t) => { if (t.sales_division) divisionCounts[t.sales_division] = (divisionCounts[t.sales_division] || 0) + 1; });
-    const colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6366F1", "#14B8A6", "#F43F5E", "#A855F7", "#22D3EE", "#EAB308"];
-    const divisionData = Object.entries(divisionCounts).map(([name, value], i) => ({ name, value, color: colors[i % colors.length] })).sort((a, b) => b.value - a.value).slice(0, 10);
-    return { data: divisionData, total: divisionData.reduce((sum, d) => sum + d.value, 0) };
-  }, [tickets]);
-
-  const availableYears = useMemo(() => {
-    const years = new Set<string>();
-    tickets.forEach((t) => { if (t.created_at) years.add(new Date(t.created_at).getFullYear().toString()); });
-    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
-  }, [tickets]);
-
-  const uniqueProjectNames = useMemo(() => {
-    const names = tickets.map((t) => t.project_name);
-    return Array.from(new Set(names)).sort();
-  }, [tickets]);
-
-  const teamPTSMembers = useMemo(() => teamMembers.filter((m) => m.team_type === "Team PTS"), [teamMembers]);
-  const teamServicesMembers = useMemo(() => teamMembers.filter((m) => m.team_type === "Team Services"), [teamMembers]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("currentUser");
-    const savedTime = localStorage.getItem("loginTime");
-    if (saved && savedTime) {
-      const user = JSON.parse(saved);
-      const time = parseInt(savedTime);
-      const now = Date.now();
-      const sixHours = 6 * 60 * 60 * 1000;
-      if (now - time > sixHours) { handleLogout(); alert("Your session has expired. Please login again."); }
-      else { setCurrentUser(user); setIsLoggedIn(true); setLoginTime(time); fetchData(user); return; }
-    }
-    fetchData(null);
-  }, []);
-
-  useEffect(() => {
-    if (currentUser && teamMembers.length > 0) {
-      const member = teamMembers.find((m) => m.username === currentUser.username);
-      const isServices = member?.team_type === "Team Services";
-      if (member) setNewActivity((prev) => ({ ...prev, handler_name: member.name, new_status: isServices ? "Pending" : prev.new_status }));
-      else setNewActivity((prev) => ({ ...prev, handler_name: currentUser.full_name }));
-    }
-  }, [currentUser, teamMembers]);
-
-  useEffect(() => {
-    if (isLoggedIn && tickets.length > 0 && currentUser?.role !== "guest") {
-      const notifs = getNotifications();
-      setNotifications(notifs);
-      if (notifs.length > 0 && !showNotificationPopup) setShowNotificationPopup(true);
-    }
-  }, [tickets, isLoggedIn, currentUser]);
-
-  useEffect(() => {
-    const interval = setInterval(() => checkSessionTimeout(), 60000);
-    return () => clearInterval(interval);
-  }, [loginTime]);
-
-  useEffect(() => {
-    if (currentUser?.role === "admin") { fetchGuestMappings(); loadReminderSchedule(); }
-    if (currentUser) fetchOverdueSettings();
-  }, [currentUser]);
-
-  useEffect(() => { if (currentUser) fetchData(); }, [currentUser]);
-
-  const canCreateTicket = true;
-  const canUpdateTicket = currentUser?.role !== "guest";
-  const canAccessAccountSettings = currentUser?.role === "admin";
-
-  const pendingApprovalTickets = useMemo(() => {
-    if (currentUser?.role !== "admin") return [];
-    return tickets.filter((t) => t.status === "Waiting Approval");
-  }, [tickets, currentUser]);
-
-  const pendingServicesApprovalTickets = useMemo(() => {
-    if (currentUserTeamType !== "Team Services") return [];
-    return tickets.filter((t) => t.services_status === "Waiting Approval" && t.current_team === "Team Services");
-  }, [tickets, currentUserTeamType]);
-
-  const approveServicesTicket = async (ticket: Ticket) => {
-    try {
-      setUploading(true);
-      setShowLoadingPopup(true);
-      setLoadingMessage("Approving ticket untuk Team Services...");
-      await supabase.from("tickets").update({ services_status: "Pending" }).eq("id", ticket.id);
-      try { await supabaseServices.from("tickets").update({ services_status: "Pending", status: "Pending" }).eq("id", ticket.id); } catch (e) { console.warn("Services DB update failed:", e); }
-      await supabaseServices.from("activity_logs").insert([{
-        ticket_id: ticket.id,
-        handler_name: currentUser?.full_name || "",
-        handler_username: currentUser?.username || "",
-        action_taken: "Ticket Diterima oleh Team Services",
-        notes: `Ticket diterima dan akan segera diproses oleh Team Services.`,
-        new_status: "Pending",
-        team_type: "Team Services",
-        assigned_to_services: false,
-        file_url: "", file_name: "", photo_url: "", photo_name: ""
-      }]);
-      await fetchData();
-      setLoadingMessage("✅ Ticket diterima oleh Team Services!");
-      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); setShowServicesApprovalModal(false); setServicesApprovalTicket(null); }, 1500);
-    } catch (err: any) { setShowLoadingPopup(false); setUploading(false); alert("Error: " + err.message); }
-  };
-
-  const rejectServicesTicket = async (ticket: Ticket) => {
-    if (!confirm(`Tolak ticket "${ticket.project_name} - ${ticket.issue_case}"?\nTicket akan dikembalikan ke Team PTS.`)) return;
-    try {
-      setUploading(true);
-      setShowLoadingPopup(true);
-      setLoadingMessage("Mengembalikan ticket ke Team PTS...");
-      await supabase.from("tickets").update({ current_team: "Team PTS", services_status: null, status: "In Progress" }).eq("id", ticket.id);
-      await supabase.from("activity_logs").insert([{
-        ticket_id: ticket.id,
-        handler_name: currentUser?.full_name || "",
-        handler_username: currentUser?.username || "",
-        action_taken: "Ticket Dikembalikan ke Team PTS",
-        notes: `Ticket dikembalikan ke Team PTS oleh Team Services karena tidak dapat ditangani.`,
-        new_status: "In Progress",
-        team_type: "Team Services",
-        assigned_to_services: false,
-        file_url: "", file_name: "", photo_url: "", photo_name: ""
-      }]);
-      try {
-        await supabaseServices.from("tickets").update({ services_status: "Returned to PTS", current_team: "Team PTS" }).eq("id", ticket.id);
-        await supabaseServices.from("activity_logs").insert([{
-          ticket_id: ticket.id,
-          handler_name: currentUser?.full_name || "",
-          handler_username: currentUser?.username || "",
-          action_taken: "Ticket Dikembalikan ke Team PTS",
-          notes: `Ticket dikembalikan ke Team PTS. History Services tetap tersimpan.`,
-          new_status: "Returned to PTS",
-          team_type: "Team Services",
-          assigned_to_services: false,
-          file_url: "", file_name: "", photo_url: "", photo_name: ""
-        }]);
-      } catch (e) { console.warn("Services DB update failed:", e); }
-      await fetchData();
-      setLoadingMessage("✅ Ticket dikembalikan ke Team PTS.");
-      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); setShowServicesApprovalModal(false); }, 1500);
-    } catch (err: any) { setShowLoadingPopup(false); setUploading(false); alert("Error: " + err.message); }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: "url(/IVP_Background.png)" }}>
-        <div className="bg-white/75 p-8 rounded-2xl shadow-2xl">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
-          <p className="mt-4 font-bold">Loading...</p>
-        </div>
+  // ─── Sub-components ───────────────────────────────────────────────────────
+  const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
+    <div className="mb-3">
+      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{label}</label>
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => (
+          <button key={opt} type="button" onClick={() => onChange(toggleArr(value, opt))}
+            className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${value.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-md' : 'border-gray-300 bg-white text-gray-600 hover:border-teal-300'}`}>
+            {opt}
+          </button>
+        ))}
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center relative" style={{ backgroundImage: "url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center" }}>
-        <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)" }} />
-        <div className="relative z-10 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md" style={{ border: "2px solid rgba(220,38,38,0.3)" }}>
-          <div className="flex justify-center mb-5">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)", boxShadow: "0 6px 24px rgba(220,38,38,0.4)" }}>
-              <span className="text-3xl">🗓️</span>
+  const RadioGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) => (
+    <div className="mb-3">
+      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{label}</label>
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => (
+          <button key={opt} type="button" onClick={() => onChange(opt)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${value === opt ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-md' : 'border-gray-300 bg-white text-gray-600 hover:border-teal-300'}`}>
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${value === opt ? 'border-teal-500' : 'border-gray-400'}`}>
+              {value === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}
             </div>
-          </div>
-          <h1 className="text-3xl font-black text-center mb-1 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Login</h1>
-          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Ticket Troubleshooting<br/><span className="text-red-600 font-bold">IVP Product — Team Support</span></p>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold mb-2 text-gray-700">Username</label>
-              <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white" placeholder="Masukkan username" onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
-            </div>
-            <div>
-              <label className="block text-sm font-bold mb-2 text-gray-700">Password</label>
-              <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white" placeholder="Masukkan password" onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
-            </div>
-            <button onClick={handleLogin} className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all">🔐 Login</button>
-          </div>
-        </div>
+            {opt}
+          </button>
+        ))}
       </div>
-    );
-  }
+    </div>
+  );
 
-  return (
-    <div className="min-h-screen flex flex-col relative" style={{ backgroundImage: "url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "rgba(255,255,255,0.08)" }} />
-      <div className="relative z-10 flex flex-col min-h-screen">
+  // ─── Notification Toast ───────────────────────────────────────────────────
+  const NotifToast = () => notification ? (
+    <div className={`fixed top-4 right-4 z-[9999] px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold flex items-center gap-3 border-2 max-w-sm animate-scale-in ${
+      notification.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-400' :
+      notification.type === 'error'   ? 'bg-red-50 text-red-800 border-red-400' :
+                                        'bg-blue-50 text-blue-800 border-blue-400'}`}>
+      <span className="text-xl">{notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️'}</span>
+      <div>
+        <p className="font-bold">{notification.type === 'success' ? 'Berhasil!' : notification.type === 'error' ? 'Gagal!' : 'Info'}</p>
+        <p className="text-xs font-medium mt-0.5 opacity-80">{notification.msg}</p>
+      </div>
+    </div>
+  ) : null;
 
-        {/* ── LOADING POPUP (Redesigned) ── */}
-        {showLoadingPopup && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000]">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(220,38,38,0.3)" }}>
-              <div className="flex flex-col items-center">
-                {loadingMessage.includes("✅") ? (
-                  <div className="text-6xl mb-4 animate-bounce">✅</div>
-                ) : (
-                  <div className="relative w-16 h-16 mb-4">
-                    <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-                    <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin"></div>
-                  </div>
-                )}
-                <p className="text-xl font-bold text-gray-800 text-center">{loadingMessage}</p>
+  // ── NEW FORM MODAL ──────────────────────────────────────────────────────────
+  const NewFormModal = () => (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
+        <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">📋 Form Equipment Request — IVP</h2>
+            <p className="text-teal-100 text-xs mt-0.5">Requester: <span className="font-bold">{currentUser.full_name}</span></p>
+          </div>
+          <button onClick={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); }}
+            className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold transition-all text-lg">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Project Info */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🏗️</span>
+              Informasi Project
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Project *</label>
+                <input value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })}
+                  placeholder="e.g. PT. Indovisual Presentatama" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── UPLOAD PROGRESS BAR ── */}
-        {uploading && !showLoadingPopup && (
-          <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-200">
-            <div className="h-full bg-gradient-to-r from-red-500 to-red-700 animate-pulse" style={{ width: "100%", transition: "width 0.3s" }}></div>
-          </div>
-        )}
-
-        {/* ── HEADER ── (Redesigned like ReminderSchedule) */}
-        <header className="sticky top-0 z-50" style={{ background: "rgba(255,255,255,0.9)", borderBottom: "3px solid #dc2626", backdropFilter: "blur(16px)" }}>
-          <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)", boxShadow: "0 3px 12px rgba(220,38,38,0.4)" }}>
-                <span className="text-lg">🎫</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                  <input value={form.room_name} onChange={e => setForm({ ...form, room_name: e.target.value })}
+                    placeholder="e.g. Meeting Room A" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Sales</label>
+                  <input value={form.sales_name} onChange={e => setForm({ ...form, sales_name: e.target.value })}
+                    placeholder="e.g. John Doe" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+                </div>
               </div>
               <div>
-                <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Ticket Troubleshooting</h1>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Divisi Sales</label>
+                <div className="flex flex-wrap gap-2">
+                  {SALES_DIVISIONS.map(div => (
+                    <button key={div} type="button" onClick={() => setForm({ ...form, ...({ sales_division: div } as any) })}
+                      className={`px-3 py-1.5 rounded-xl border-2 text-sm font-semibold transition-all ${(form as any).sales_division === div ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm' : 'border-gray-200 text-gray-500 hover:border-teal-300'}`}>
+                      {div}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Bell notif */}
-              {currentUser?.role !== "guest" && (
-                <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-xl transition-all hover:bg-red-50 border-2 border-transparent hover:border-red-200" title="Notifications">
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "#f59e0b" }}>
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-              )}
-
-              {/* Approval button - Redesigned */}
-              {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
-                <button onClick={() => setShowApprovalModal(true)} className="relative flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#ea580c,#c2410c)", boxShadow: "0 2px 8px rgba(234,88,12,0.35)" }}>
-                  ⏳ Approval
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{pendingApprovalTickets.length}</span>
-                </button>
-              )}
-
-              {/* Services Approval button - Redesigned */}
-              {currentUserTeamType === "Team Services" && pendingServicesApprovalTickets.length > 0 && (
-                <button onClick={() => setShowServicesApprovalModal(true)} className="relative flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#db2777,#be185d)", boxShadow: "0 2px 8px rgba(219,39,119,0.35)" }}>
-                  🔧 Ticket Masuk
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{pendingServicesApprovalTickets.length}</span>
-                </button>
-              )}
-
-              {/* Guest Mapping button - Redesigned */}
-              {canAccessAccountSettings && (
-                <button onClick={() => { setShowGuestMapping(!showGuestMapping); setShowAccountSettings(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", boxShadow: "0 2px 8px rgba(13,148,136,0.3)" }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="hidden sm:inline">Guest Mapping</span>
-                </button>
-              )}
-
-              {/* Reminder button - Redesigned */}
-              {canAccessAccountSettings && (
-                <button onClick={() => { setShowReminderSchedule(true); setShowAccountSettings(false); setShowGuestMapping(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#7c3aed,#6d28d9)", boxShadow: "0 2px 8px rgba(124,58,237,0.3)" }} title={`Reminder: ${getCronDisplay()}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="hidden sm:inline">Reminder</span>
-                </button>
-              )}
-
-              {/* New Ticket button - Redesigned */}
-              {canCreateTicket && (
-                <button onClick={() => { setShowNewTicket(!showNewTicket); setShowAccountSettings(false); setShowGuestMapping(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.4)" }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                  </svg>
-                  New Ticket
-                </button>
-              )}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai</label>
+                <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+              </div>
             </div>
           </div>
-        </header>
 
-        <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
+          {/* Kebutuhan & Solution */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
+              Kategori Kebutuhan & Solution
+            </h3>
+            <CheckGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
+              value={form.kebutuhan} onChange={v => setForm({ ...form, kebutuhan: v })} />
+            <div className="mb-3">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Kebutuhan</label>
+              <input value={form.kebutuhan_other} onChange={e => setForm({ ...form, kebutuhan_other: e.target.value })}
+                placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+            </div>
+            <CheckGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
+              value={form.solution_product} onChange={v => setForm({ ...form, solution_product: v })} />
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
+              <input value={form.solution_other} onChange={e => setForm({ ...form, solution_other: e.target.value })}
+                placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+            </div>
+          </div>
 
-          {/* ── GUEST SUMMARY SECTION (same style as admin) ── */}
-          {currentUser?.role === "guest" && (
-            <div className="mb-4 space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {[
-                  { label: "Total Tickets", value: stats.total, sub: "Seluruh tiket saya", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)" },
-                  { label: "Waiting Approval", value: tickets.filter((t) => t.status === "Waiting Approval").length, sub: "Menunggu persetujuan", gradient: "linear-gradient(135deg,#ea580c,#c2410c)", shadow: "rgba(234,88,12,0.35)" },
-                  { label: "Pending", value: stats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)" },
-                  { label: "In Progress", value: stats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)" },
-                  { label: "Solved", value: stats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)" },
-                ].map((card, i) => (
-                  <div key={i} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2" style={{ background: card.gradient, boxShadow: `0 4px 16px ${card.shadow}` }}>
-                    <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
-                    <div>
-                      <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
-                      <p className="text-[10px] font-medium leading-tight" style={{ color: "rgba(255,255,255,0.75)" }}>{card.sub}</p>
-                    </div>
+          {/* Signage & Network */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
+              Layout Konten & Jaringan CMS
+            </h3>
+            <CheckGroup label="Layout Signage" options={['Full Screen', 'Split Screen', 'Portrait', 'Landscape', 'Custom']}
+              value={form.layout_signage} onChange={v => setForm({ ...form, layout_signage: v })} />
+            <CheckGroup label="Jaringan CMS" options={['Internet', 'Intranet', 'Offline']}
+              value={form.jaringan_cms} onChange={v => setForm({ ...form, jaringan_cms: v })} />
+          </div>
+
+          {/* I/O & Source */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
+              Input / Output & Source
+            </h3>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
+                <input value={form.jumlah_input} onChange={e => setForm({ ...form, jumlah_input: e.target.value })}
+                  placeholder="e.g. 4" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label>
+                <input value={form.jumlah_output} onChange={e => setForm({ ...form, jumlah_output: e.target.value })}
+                  placeholder="e.g. 2" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+              </div>
+            </div>
+            <CheckGroup label="Source" options={['PC', 'URL', 'NVR', 'Laptop']}
+              value={form.source} onChange={v => setForm({ ...form, source: v })} />
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Source</label>
+              <input value={form.source_other} onChange={e => setForm({ ...form, source_other: e.target.value })}
+                placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+            </div>
+          </div>
+
+          {/* Camera & Audio */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📷</span>
+              Camera Conference & Audio
+            </h3>
+            <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={form.camera_conference} onChange={v => setForm({ ...form, camera_conference: v })} />
+            {form.camera_conference === 'Yes' && (
+              <div className="ml-0 pl-4 border-l-4 border-teal-300 mb-3">
+                <div className="mb-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Kamera</label>
+                  <input value={form.camera_jumlah} onChange={e => setForm({ ...form, camera_jumlah: e.target.value })}
+                    placeholder="e.g. 2" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-400 transition-all bg-white" />
+                </div>
+                <CheckGroup label="Tracking" options={['No Tracking', 'Voice', 'Human Detection', 'Track Mic Delegate']}
+                  value={form.camera_tracking} onChange={v => setForm({ ...form, camera_tracking: v })} />
+              </div>
+            )}
+            <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system} onChange={v => setForm({ ...form, audio_system: v })} />
+            {form.audio_system === 'Yes' && (
+              <div className="ml-0 pl-4 border-l-4 border-teal-300 mb-3 space-y-2">
+                <RadioGroup label="Mixer" options={['Analog', 'DSP Mixer']} value={form.audio_mixer} onChange={v => setForm({ ...form, audio_mixer: v })} />
+                <CheckGroup label="Keperluan Audio" options={['Mic', 'PC Audio', 'Speaker']}
+                  value={form.audio_detail} onChange={v => setForm({ ...form, audio_detail: v })} />
+              </div>
+            )}
+          </div>
+
+          {/* Wallplate, Tabletop & Wireless */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📡</span>
+              Wallplate, Tabletop & Wireless
+            </h3>
+            <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input} onChange={v => setForm({ ...form, wallplate_input: v })} />
+            {form.wallplate_input === 'Yes' && (
+              <div className="mb-3 pl-4 border-l-4 border-teal-300">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Wallplate</label>
+                <input value={form.wallplate_jumlah} onChange={e => setForm({ ...form, wallplate_jumlah: e.target.value })}
+                  placeholder="e.g. 3" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-400 transition-all bg-white" />
+              </div>
+            )}
+            <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input} onChange={v => setForm({ ...form, tabletop_input: v })} />
+            {form.tabletop_input === 'Yes' && (
+              <div className="mb-3 pl-4 border-l-4 border-teal-300">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Tabletop</label>
+                <input value={form.tabletop_jumlah} onChange={e => setForm({ ...form, tabletop_jumlah: e.target.value })}
+                  placeholder="e.g. 2" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-400 transition-all bg-white" />
+              </div>
+            )}
+            <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation} onChange={v => setForm({ ...form, wireless_presentation: v })} />
+            {form.wireless_presentation === 'Yes' && (
+              <div className="mb-3 pl-4 border-l-4 border-teal-300 space-y-2">
+                <CheckGroup label="Wireless Mode" options={['BYOM', 'BYOD']}
+                  value={form.wireless_mode} onChange={v => setForm({ ...form, wireless_mode: v })} />
+                <RadioGroup label="Wireless Dongle" options={['Yes', 'No']} value={form.wireless_dongle} onChange={v => setForm({ ...form, wireless_dongle: v })} />
+              </div>
+            )}
+          </div>
+
+          {/* Controller */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎛️</span>
+              Controller Automation
+            </h3>
+            <RadioGroup label="Controller Automation" options={['Yes', 'No']} value={form.controller_automation} onChange={v => setForm({ ...form, controller_automation: v })} />
+            {form.controller_automation === 'Yes' && (
+              <div className="pl-4 border-l-4 border-teal-300">
+                <CheckGroup label="Tipe Controller" options={['Tablet or iPad', 'Touchscreen 10"']}
+                  value={form.controller_type} onChange={v => setForm({ ...form, controller_type: v })} />
+              </div>
+            )}
+          </div>
+
+          {/* Ukuran & Keterangan */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
+              Ukuran & Keterangan
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
+                <input value={form.ukuran_ruangan} onChange={e => setForm({ ...form, ukuran_ruangan: e.target.value })}
+                  placeholder="e.g. 10m × 8m × 3m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan</label>
+                <textarea value={form.suggest_tampilan} onChange={e => setForm({ ...form, suggest_tampilan: e.target.value })} rows={2}
+                  placeholder="Deskripsi tampilan yang diinginkan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
+                <textarea value={form.keterangan_lain} onChange={e => setForm({ ...form, keterangan_lain: e.target.value })} rows={2}
+                  placeholder="Informasi tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none resize-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* Survey Photos */}
+          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📸</span>
+              Foto Survey (Opsional)
+            </h3>
+            <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={e => {
+                const files = Array.from(e.target.files || []);
+                setSurveyPhotos(prev => [...prev, ...files]);
+                const previews = files.map(f => URL.createObjectURL(f));
+                setSurveyPhotosPreviews(prev => [...prev, ...previews]);
+                e.target.value = '';
+              }} />
+            <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-teal-300 rounded-xl text-sm text-teal-600 font-semibold hover:bg-teal-50 transition-all w-full justify-center">
+              📷 Upload Foto Survey
+            </button>
+            {surveyPhotosPreviews.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {surveyPhotosPreviews.map((src, i) => (
+                  <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm group">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => { setSurveyPhotos(p => p.filter((_, idx) => idx !== i)); setSurveyPhotosPreviews(p => p.filter((_, idx) => idx !== i)); }}
+                      className="absolute top-1 right-1 bg-red-600 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                   </div>
                 ))}
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <StatusDonutCard
-                  data={[
-                    { name: "Waiting Approval", value: tickets.filter((t) => t.status === "Waiting Approval").length, color: "#FB923C" },
-                    ...stats.statusData,
-                  ].filter((d) => d.value > 0)}
-                  total={stats.total}
-                  onSliceClick={() => {}}
-                  title="Status Distribution"
-                  icon="🥧"
-                />
-              </div>
-            </div>
-          )}
-
-          {(currentUser?.role === "admin" || (currentUser?.role === "team" && currentUserTeamType === "Team PTS" || currentUserTeamType === "Guest")) && (
-            <div className="mb-4 space-y-4">
-              {/* ── Stat Cards (Redesigned like ReminderSchedule) ── */}
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                {[
-                  { label: "Total Tickets", value: stats.total, sub: "Seluruh tiket", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)", onClick: () => { setFilterStatus("All"); setHandlerFilter(null); }, active: filterStatus === "All" && !handlerFilter },
-                  { label: "Pending", value: stats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)", onClick: () => { setFilterStatus(filterStatus === "Pending" ? "All" : "Pending"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Pending" },
-                  { label: "In Progress", value: stats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)", onClick: () => { setFilterStatus(filterStatus === "In Progress" ? "All" : "In Progress"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "In Progress" },
-                  { label: "Solved", value: stats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)", onClick: () => { setFilterStatus(filterStatus === "Solved" ? "All" : "Solved"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Solved" },
-                  { label: "Overdue", value: stats.overdue, sub: "Berpotensi denda", gradient: "linear-gradient(135deg,#dc2626,#b91c1c)", shadow: "rgba(220,38,38,0.35)", onClick: () => { setFilterStatus(filterStatus === "Overdue" ? "All" : "Overdue"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Overdue" },
-                  { label: "Solved Overdue", value: stats.solvedOverdue, sub: "Butuh verifikasi", gradient: "linear-gradient(135deg,#7c3aed,#6d28d9)", shadow: "rgba(124,58,237,0.35)", onClick: () => { setFilterStatus(filterStatus === "Solved Overdue" ? "All" : "Solved Overdue"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Solved Overdue" },
-                ].map((card, i) => (
-                  <div key={i} onClick={card.onClick} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none" style={{ background: card.gradient, boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`, outline: card.active ? "3px solid white" : "none", transform: card.active ? "scale(1.04)" : undefined }}>
-                    {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
-                    {card.active && <span className="absolute top-1 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
-                    <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
-                    <div>
-                      <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
-                      <p className="text-[10px] font-medium leading-tight" style={{ color: "rgba(255,255,255,0.75)" }}>{card.sub}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* ── Donut Charts ── */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <StatusDonutCard data={stats.statusData} total={stats.statusData.reduce((s, d) => s + d.value, 0)} onSliceClick={(name: string) => { const mapped = name === "Solved (Overdue)" ? "Solved Overdue" : name; setFilterStatus((prev) => prev === mapped ? "All" : mapped); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} title="Status Distribution" icon="🥧" />
-                <HandlerDonutCard data={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).map((h: any, i: number) => ({ name: h.name, value: h.tickets, color: ["#7c3aed", "#0ea5e9", "#10b981", "#e11d48", "#f59e0b", "#6366f1", "#14b8a6", "#f97316", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"][i % 12] }))} total={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).reduce((s, h) => s + h.tickets, 0)} teamToggle={selectedHandlerTeam} onToggle={(t: "PTS" | "Services") => setSelectedHandlerTeam(t)} onSliceClick={(name: string) => { setHandlerFilter((prev: string | null) => prev === name ? null : name); setFilterStatus("All"); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeHandler={handlerFilter} title="Team Handlers" icon="👥" />
-                <SalesDivisionDonutCard data={salesDivisionStats.data} total={salesDivisionStats.total} onSliceClick={(division: string) => { setSalesDivisionFilter((prev: string | null) => prev === division ? null : division); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeDivision={salesDivisionFilter} />
-              </div>
-
-              {/* ── Active filter chips ── */}
-              {(filterStatus !== "All" || handlerFilter || salesDivisionFilter) && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
-                  {filterStatus !== "All" && (
-                    <button onClick={() => setFilterStatus("All")} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#d97706" }}>Status: {filterStatus} ✕</button>
-                  )}
-                  {handlerFilter && (
-                    <button onClick={() => setHandlerFilter(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#7c3aed" }}>Handler: {handlerFilter} ✕</button>
-                  )}
-                  {salesDivisionFilter && (
-                    <button onClick={() => setSalesDivisionFilter(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#ec4899" }}>Division: {salesDivisionFilter} ✕</button>
-                  )}
-                  <button onClick={() => { setFilterStatus("All"); setHandlerFilter(null); setSalesDivisionFilter(null); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: "rgba(0,0,0,0.1)", color: "#374151" }}>Reset Semua</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
-          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
-            {/* Header with title and actions */}
-            <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
-                <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? "..." : filteredTickets.length}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                <button onClick={() => fetchData()} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: "white" }}>🔄 Refresh</button>
-                <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}>📊 Export Report</button>
-              </div>
-            </div>
-
-            {/* Integrated search filters row - like the image */}
-            <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
-                    <input 
-                      type="text" 
-                      value={searchProject} 
-                      onChange={(e) => setSearchProject(e.target.value)} 
-                      placeholder="Search project / lokasi..." 
-                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
-                    <input 
-                      type="text" 
-                      value={searchSalesName} 
-                      onChange={(e) => setSearchSalesName(e.target.value)} 
-                      placeholder="Search sales name..." 
-                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👥</span>
-                    <select 
-                      value={handlerFilter || ""} 
-                      onChange={(e) => setHandlerFilter(e.target.value || null)} 
-                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
-                    >
-                      <option value="">All Handlers</option>
-                      {teamMembers.filter(m => m.team_type === `Team ${selectedHandlerTeam}`).map((m) => (
-                        <option key={m.id} value={m.name}>{m.name}</option>
-                      ))}
-                    </select>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
-                    <select 
-                      value={filterStatus} 
-                      onChange={(e) => setFilterStatus(e.target.value)} 
-                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
-                    >
-                      <option value="All">All Status</option>
-                      <option value="Waiting Approval">⏳ Waiting Approval</option>
-                      <option value="Pending">🟡 Pending</option>
-                      <option value="Call">📞 Call</option>
-                      <option value="Onsite">🚗 Onsite</option>
-                      <option value="In Progress">🔵 In Progress</option>
-                      <option value="Solved">✅ Solved</option>
-                      {currentUser?.role === "admin" && (
-                        <>
-                          <option value="Overdue">🚨 Overdue</option>
-                          <option value="Solved Overdue">⚠️ Solved Overdue</option>
-                        </>
-                      )}
-                    </select>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
-                    <select 
-                      value={filterYear} 
-                      onChange={(e) => setFilterYear(e.target.value)} 
-                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
-                    >
-                      <option value="all">All Years</option>
-                      {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
-                    </select>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {ticketsLoading ? (
-              <div className="space-y-3 py-2 p-4">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
-                    <div className="flex-1 space-y-2"><div className="h-4 bg-gray-200 rounded w-2/5"></div><div className="h-3 bg-gray-100 rounded w-1/4"></div></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/6"></div><div className="h-4 bg-gray-200 rounded w-1/5"></div><div className="h-6 bg-gray-200 rounded-full w-20"></div><div className="h-8 bg-gray-200 rounded-lg w-16"></div>
-                  </div>
-                ))}
-                <div className="flex items-center justify-center gap-3 py-4 text-gray-500"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div><span className="text-sm font-medium">Memuat daftar ticket...</span></div>
-              </div>
-            ) : filteredTickets.length === 0 ? (
-              <div className="text-center py-12"><div className="text-6xl mb-4">📭</div><p className="text-gray-600 font-medium">{searchProject || filterStatus !== "All" ? "No tickets match the search." : "No tickets yet. Create your first ticket!"}</p></div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed bg-white border-collapse">
-                  <colgroup><col style={{ width: "15%" }} /><col style={{ width: "7%" }} /><col style={{ width: "12%" }} /><col style={{ width: "9%" }} /><col style={{ width: "11%" }} /><col style={{ width: "8%" }} /><col style={{ width: "8%" }} /><col style={{ width: "4%" }} /><col style={{ width: "3%" }} /><col style={{ width: "3%" }} /><col style={{ width: "3%" }} /><col style={{ width: "3%" }} /></colgroup>
-                  <thead>
-                    <tr className="bg-white border-b-2 border-gray-100">
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Issue</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
-                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 5 : 3}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTickets.map((ticket, index) => {
-                      const overdue = isTicketOverdue(ticket);
-                      const overdueSetting = getOverdueSetting(ticket.id);
-                      const creatorUser = users.find((u) => u.username === ticket.created_by);
-                      const creatorLabel = creatorUser ? creatorUser.full_name : ticket.created_by || "-";
-                      const isSolvedOverdue = overdue && ticket.status === "Solved";
-                      const isActiveOverdue = overdue && ticket.status !== "Solved";
-                      return (
-                        <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white"}`}>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
-                            <div className="flex items-start gap-1">
-                              {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
-                              {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
-                              <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
-                            {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
-                            {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
-                           </td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
-                            <div className="flex flex-col gap-1 items-start">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
-                              {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
-                              {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
-                            </div>
-                           </td>
-                          <td className="px-2 py-3 border-r border-gray-100 align-middle"><div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || "—"}</div>{ticket.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{ticket.sales_division}</div>}</td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>{ticket.created_by && <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>}{ticket.created_at && <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(",")[0]}</div>}</td>
-                          <td className="px-0 py-2 border-r border-gray-100 text-center align-middle">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <div className="flex items-center justify-center gap-0.5 mb-0.5"><span className="text-gray-400 text-xs">🗒️</span>{ticket.activity_logs && ticket.activity_logs.length > 0 && <span className="bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none" style={{ fontSize: "10px" }}>{ticket.activity_logs.length}</span>}</div>
-                              <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-sm">👁</span></button>
-                              {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors" title="Re-open"><span className="text-sm">🔓</span></button>}
-                            </div>
-                           </td>
-                          <td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"><span className="text-sm">📊</span></button>{canAccessAccountSettings && ticket.status === "Waiting Approval" && <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-0.5 animate-pulse" title="Approve"><span className="text-sm">✅</span></button>}</td>
-                          <td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => exportToPDF(ticket)} className="text-green-600 hover:text-green-800 transition-colors mx-auto block" title="Print PDF"><span className="text-sm">🖨️</span></button></td>
-                          {canAccessAccountSettings && (<td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setDeleteTargetTicket(ticket); setDeleteConfirmText(""); setShowDeleteModal(true); }} className="text-red-500 hover:text-red-700 transition-colors mx-auto block" title="Hapus Ticket"><span className="text-sm">🗑️</span></button></td>)}
-                          {canAccessAccountSettings && (<td className="px-0 py-2 align-middle text-center"><button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors mx-auto block ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-sm">⏰</span></button></td>)}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white"><span className="text-xs text-gray-400">{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} ditemukan</span><span className="text-xs text-gray-400">{filteredTickets.length > 0 ? `1–${filteredTickets.length}` : "0"} of {tickets.length}</span></div>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── All modals remain the same as original (notifications, detail popup, etc.) ── */}
-        {/* ... (all other modals - notification popup, ticket detail, update form, approval modals, etc. remain unchanged) ... */}
+        <div className="flex-shrink-0 px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button onClick={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); }}
+            className="px-6 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all">Batal</button>
+          <button onClick={handleSubmitForm} disabled={submitting}
+            className="flex items-center gap-2 bg-gradient-to-r from-teal-600 to-teal-800 text-white px-8 py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all disabled:opacity-50 shadow-lg">
+            {submitting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Mengirim...</> : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>Kirim Request ke Superadmin</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
-        {/* ── NOTIFICATION POPUP (Redesigned) ── */}
-        {showNotificationPopup && notifications.length > 0 && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
-              <div className="p-5" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3"><span className="text-3xl animate-bounce">🔔</span><div><h3 className="text-lg font-bold text-white">Ticket Notifications</h3><p className="text-sm text-white/90">{notifications.length} tickets need attention</p></div></div>
-                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
-                </div>
+  // ── VIEW: LIST ──
+  if (view === 'list') return (
+    <div className="min-h-full p-4 md:p-6 bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <NotifToast />
+
+      {showNewFormModal && <NewFormModal />}
+      {assignModal.open && assignModal.req && (
+        <AssignPTSModal
+          req={assignModal.req}
+          onClose={() => setAssignModal({ open: false, req: null })}
+          onAssigned={() => {
+            setAssignModal({ open: false, req: null });
+            notify('success', `Request diapprove & di-assign ke Tim PTS!`);
+            fetchRequests();
+            if (selectedRequest?.id === assignModal.req?.id) {
+              setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
+              fetchMessages(assignModal.req!.id);
+            }
+          }}
+          currentUser={currentUser}
+        />
+      )}
+
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
+        <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
+      </div>
+
+      {/* Header */}
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border-4 border-teal-600">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 mb-1">
+              🏗️ Form Require Project
+            </h1>
+            <p className="text-gray-800 font-bold text-lg">IVP Product — AV Solution Request</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Logged in as: <span className="font-bold text-teal-600">{currentUser.full_name}</span>
+              <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${currentUser.role === 'superadmin' ? 'bg-red-100 text-red-800' : currentUser.role === 'admin' ? 'bg-purple-100 text-purple-800' : (currentUser.role === 'team_pts' || currentUser.role === 'team') ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                {currentUser.role === 'superadmin' ? 'Super Admin' : currentUser.role === 'admin' ? 'Admin / PTS' : (currentUser.role === 'team_pts' || currentUser.role === 'team') ? 'Tim PTS' : 'Sales / User'}
+              </span>
+            </p>
+          </div>
+          {!isPTS && (
+            <button onClick={() => setShowNewFormModal(true)}
+              className="flex items-center gap-2 bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg hover:scale-105">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+              Buat Request Baru
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+        {[
+          { key: 'all', label: 'Total', count: statCounts.all, color: 'from-gray-600 to-gray-800', active: filterStatus === 'all' },
+          { key: 'pending', label: 'Pending', count: statCounts.pending, color: 'from-amber-500 to-amber-700', active: filterStatus === 'pending' },
+          { key: 'approved', label: 'Approved', count: statCounts.approved, color: 'from-emerald-500 to-emerald-700', active: filterStatus === 'approved' },
+          { key: 'in_progress', label: 'In Progress', count: statCounts.in_progress, color: 'from-teal-500 to-teal-700', active: filterStatus === 'in_progress' },
+          { key: 'completed', label: 'Completed', count: statCounts.completed, color: 'from-purple-500 to-purple-700', active: filterStatus === 'completed' },
+          { key: 'rejected', label: 'Rejected', count: statCounts.rejected, color: 'from-red-500 to-red-700', active: filterStatus === 'rejected' },
+        ].map(s => (
+          <button key={s.key} onClick={() => setFilterStatus(s.key)}
+            className={`rounded-2xl p-3 text-center transition-all border-2 ${s.active ? `bg-gradient-to-br ${s.color} text-white border-transparent shadow-lg scale-105` : 'bg-white/80 backdrop-blur-sm border-gray-200 text-gray-700 hover:border-teal-300 hover:shadow-md'}`}>
+            <p className={`text-2xl font-bold ${s.active ? 'text-white' : 'text-gray-800'}`}>{s.count}</p>
+            <p className={`text-[11px] font-bold uppercase tracking-wide ${s.active ? 'text-white/90' : 'text-gray-500'}`}>{s.label}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* ── TICKET LIST — same style as ticketing/page.tsx ── */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+        {/* Header row */}
+        <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+            <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{loading ? '...' : filteredRequests.length}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-2 sm:mt-0">
+            <button onClick={fetchRequests} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600" style={{ background: 'white' }}>
+              🔄 Refresh
+            </button>
+            {!isPTS && (
+              <button onClick={() => setShowNewFormModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105" style={{ background: 'linear-gradient(135deg,#0f766e,#134e4a)', boxShadow: '0 2px 8px rgba(15,118,110,0.3)' }}>
+                ➕ Request Baru
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Unified search + filter frame — all in one row */}
+        <div className="px-6 py-4 bg-white/60 border-b border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Search Project */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Ruangan</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Cari project / ruangan..."
+                  className="w-full rounded-xl pl-8 pr-3 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
+                />
               </div>
-              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
-                {notifications.map((ticket) => {
-                  const overdueFlag = isTicketOverdue(ticket);
-                  return (
-                    <div key={ticket.id} onClick={() => { setSelectedTicket(ticket); setShowNotificationPopup(false); setShowTicketDetailPopup(true); }} className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all" style={{ background: "rgba(249,250,251,0.9)", borderColor: overdueFlag ? "#dc2626" : "#e5e7eb" }}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0"><div className="flex items-center gap-1.5 mb-1 flex-wrap">{overdueFlag && <span className="text-red-500">🚨</span>}<p className="font-bold text-sm text-gray-800 truncate">{ticket.project_name}</p></div><p className="text-xs text-gray-500">{ticket.issue_case}</p>{overdueFlag && <p className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE - Segera tangani!</p>}</div>
-                        <div className="flex-shrink-0 text-right"><span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${overdueFlag ? statusColors["Overdue"] : statusColors[currentUserTeamType === "Team Services" ? ticket.services_status || "Pending" : ticket.status]}`}>{overdueFlag ? "🚨 Overdue" : (currentUserTeamType === "Team Services" ? (ticket.services_status || "Pending") : ticket.status)}</span></div>
-                      </div>
-                    </div>
-                  );
-                })}
+            </div>
+            {/* Search Sales */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales / Divisi</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
+                <input
+                  type="text"
+                  value={searchSales}
+                  onChange={e => setSearchSales(e.target.value)}
+                  placeholder="Cari sales..."
+                  className="w-full rounded-xl pl-8 pr-3 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
+                />
               </div>
-              <div className="p-4 border-t" style={{ borderColor: "rgba(0,0,0,0.08)", background: "rgba(249,250,251,0.8)" }}><button onClick={() => setShowNotificationPopup(false)} className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold transition-all">✕ Tutup</button></div>
+            </div>
+            {/* Filter Status */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">⏳ Pending</option>
+                  <option value="approved">✅ Approved</option>
+                  <option value="in_progress">🔄 In Progress</option>
+                  <option value="completed">🏁 Completed</option>
+                  <option value="rejected">❌ Rejected</option>
+                </select>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+              </div>
+            </div>
+            {/* Filter Tahun */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Tahun</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                <select
+                  value={filterYear}
+                  onChange={e => setFilterYear(e.target.value)}
+                  className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Years</option>
+                  {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+              </div>
+            </div>
+            {/* Filter Team Handler */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👷</span>
+                <input
+                  type="text"
+                  value={filterHandler}
+                  onChange={e => setFilterHandler(e.target.value)}
+                  placeholder="Search handler..."
+                  className="w-full rounded-xl pl-8 pr-3 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
+                />
+              </div>
             </div>
           </div>
-        )}
-
-        {/* ── NOTIFICATIONS MODAL (Redesigned) ── */}
-        {showNotifications && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
-              <div className="p-5" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3"><span className="text-3xl">🔔</span><div><h3 className="text-lg font-bold text-white">Ticket Notifications</h3>{notifications.length > 0 && <p className="text-sm text-white/90">{notifications.length} tickets need attention</p>}</div></div>
-                  <button onClick={() => setShowNotifications(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
-                </div>
-              </div>
-              {notifications.length === 0 ? (
-                <div className="p-12 text-center text-gray-500"><div className="text-6xl mb-4">✅</div><p className="text-lg font-medium">No notifications</p><p className="text-sm mt-2">All tickets have been handled</p></div>
-              ) : (
-                <div className="max-h-[calc(80vh-120px)] overflow-y-auto p-4"><div className="space-y-3">{notifications.map((ticket) => { const overdueFlag = isTicketOverdue(ticket); return (
-                  <div key={ticket.id} onClick={() => { setSelectedTicket(ticket); setShowNotifications(false); setShowTicketDetailPopup(true); }} className={`rounded-xl p-4 border-2 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all ${overdueFlag ? "bg-red-50 border-red-400" : "bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300"}`}>
-                    <div className="flex justify-between items-start mb-3"><div className="flex-1"><div className="flex items-center gap-2 mb-2">{overdueFlag && <span className="text-red-500">🚨</span>}<p className="font-bold text-lg text-gray-800">{ticket.project_name}</p><span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-800 font-bold">{ticket.current_team}</span></div><p className="text-sm text-gray-600 mt-1">{ticket.issue_case}</p>{overdueFlag && <p className="text-xs text-red-600 font-bold mt-1">⏰ OVERDUE - Segera tangani!</p>}</div><div className="ml-3"><span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${overdueFlag ? statusColors["Overdue"] : statusColors[currentUserTeamType === "Team Services" ? ticket.services_status || "Pending" : ticket.status]}`}>{overdueFlag ? "🚨 Overdue" : (currentUserTeamType === "Team Services" ? (ticket.services_status || "Pending") : ticket.status)}</span></div></div>
-                    <div className="flex justify-between items-center pt-3 border-t border-gray-300"><span className="text-xs text-gray-500">📅 {ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</span><span className="text-sm text-blue-600 font-semibold">Click to view details →</span></div>
-                  </div>
-                )})}</div></div>
-              )}
-              <div className="p-4 border-t" style={{ borderColor: "rgba(0,0,0,0.08)", background: "rgba(249,250,251,0.8)" }}><button onClick={() => setShowNotifications(false)} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold transition-all">Close</button></div>
+          {/* Active filter chips */}
+          {(searchQuery || searchSales || filterStatus !== 'all' || filterYear !== 'all' || filterHandler) && (
+            <div className="flex flex-wrap gap-2 items-center mt-3">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter aktif:</span>
+              {searchQuery && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-100 text-teal-700">🔍 {searchQuery} <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {searchSales && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">👤 {searchSales} <button onClick={() => setSearchSales('')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {filterStatus !== 'all' && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">🏷️ {filterStatus} <button onClick={() => setFilterStatus('all')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {filterYear !== 'all' && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">📅 {filterYear} <button onClick={() => setFilterYear('all')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {filterHandler && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">👷 {filterHandler} <button onClick={() => setFilterHandler('')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              <button onClick={() => { setSearchQuery(''); setSearchSales(''); setFilterStatus('all'); setFilterYear('all'); setFilterHandler(''); }}
+                className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">Reset Semua</button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* ── TICKET DETAIL POPUP (Redesigned with red header) ── */}
-        {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); } }}>
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-4xl my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(0,0,0,0.1)", maxHeight: "96vh" }}>
-              <div className="px-6 py-5 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
-                <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#059669", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>🎫 {selectedTicket.current_team}</span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : "#d97706", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>{selectedTicket.status}</span>
-                  {selectedTicket.services_status && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#7c3aed", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>Svc: {selectedTicket.services_status}</span>}
+        {/* Table header */}
+        <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Ruangan</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Requester</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</span>
+        </div>
+
+        {/* Rows */}
+        <div className="divide-y divide-gray-100">
+          {loading ? (
+            <div className="space-y-3 py-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
+                  <div className="flex-1 space-y-2"><div className="h-4 bg-gray-200 rounded w-2/5" /><div className="h-3 bg-gray-100 rounded w-1/4" /></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6" /><div className="h-4 bg-gray-200 rounded w-1/5" /><div className="h-6 bg-gray-200 rounded-full w-20" /><div className="h-8 bg-gray-200 rounded-lg w-16" />
                 </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
-                {selectedTicket.description && <p className="text-white/80 text-sm mt-2">{selectedTicket.description}</p>}
+              ))}
+              <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-500" />
+                <span className="text-sm font-medium">Memuat data...</span>
               </div>
-
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(95vh - 140px)" }}>
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>📋 Detail Ticket</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>Handler</p>
-                      <p className="text-sm font-bold text-slate-800">{selectedTicket.assigned_to || "—"}</p>
-                    </div>
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>Tanggal Dibuat</p>
-                      <p className="text-sm font-bold text-slate-800">{selectedTicket.created_at ? formatDateTime(selectedTicket.created_at) : "-"}</p>
-                    </div>
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-6xl mb-4">📭</div>
+              <p className="text-gray-600 font-medium">{(searchQuery || searchSales || filterStatus !== 'all') ? 'Tidak ada hasil yang cocok.' : 'Belum ada form yang masuk.'}</p>
+            </div>
+          ) : filteredRequests.map((req) => {
+            const sc = statusConfig[req.status] || statusConfig.pending;
+            const unread = unreadMsgMap[req.id] || 0;
+            const dueStatus = getDueStatus(req.due_date, req.status);
+            return (
+              <div key={req.id}
+                className={`group hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-3 cursor-pointer hover:bg-teal-50/40 transition-all ${req.status === 'rejected' ? 'bg-red-50/20' : ''}`}
+                onClick={() => handleOpenDetail(req)}>
+                {/* Project Name */}
+                <div className="flex flex-col justify-center min-w-0 pr-3">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
+                    {unread > 0 && <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">{unread > 9 ? '9+' : unread}💬</span>}
                   </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                  {dueStatus?.type === 'overdue' && <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full w-fit">⚠️ {dueStatus.label}</span>}
+                  {dueStatus?.type === 'urgent' && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full w-fit">⏰ {dueStatus.label}</span>}
                 </div>
-
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>🏢 Informasi Project</p>
-                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-                    {selectedTicket.address && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📍</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Alamat</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.address}</p></div></div>}
-                    <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">⚠️</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Issue Case</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.issue_case}</p></div></div>
-                    {selectedTicket.sn_unit && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">🔢</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>SN Unit</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sn_unit}</p></div></div>}
-                    {selectedTicket.customer_phone && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📱</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Customer Phone</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.customer_phone}</p></div></div>}
-                    {selectedTicket.sales_name && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Sales Name</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sales_name}{selectedTicket.sales_division && <span className="text-xs text-purple-600 ml-1">({selectedTicket.sales_division})</span>}</p></div></div>}
-                    {selectedTicket.created_by && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Created By</p><p className="text-sm font-semibold text-slate-800 break-words">@{selectedTicket.created_by}</p></div></div>}
-                  </div>
+                {/* Room Name */}
+                <div className="flex flex-col justify-center pr-3">
+                  <p className="text-sm text-gray-700 font-medium truncate">{req.room_name || <span className="text-gray-300">—</span>}</p>
+                  {req.solution_product?.length > 0 && <p className="text-[11px] text-gray-400 truncate">{req.solution_product.join(', ')}</p>}
                 </div>
-
-                {selectedTicket.photo_url && (
-                  <div className="rounded-2xl overflow-hidden" style={{ border: "1.5px solid rgba(220,38,38,0.35)", background: "rgba(220,38,38,0.05)" }}>
-                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: "rgba(220,38,38,0.12)", borderBottom: "1px solid rgba(220,38,38,0.2)" }}><span className="text-base">📸</span><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#dc2626" }}>Foto Awal Masalah</p></div>
-                    <div className="p-3"><img src={selectedTicket.photo_url} alt={selectedTicket.photo_name || "Foto ticket"} className="w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity" style={{ maxHeight: 220 }} onClick={() => window.open(selectedTicket.photo_url!, "_blank")} />{selectedTicket.photo_name && <p className="text-xs text-gray-500 mt-2">📎 {selectedTicket.photo_name}</p>}</div>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>📝 Activity Log</p>
-                  <div className="space-y-2">
-                    {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? selectedTicket.activity_logs.map((log) => (
-                      <div key={log.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div><div className="flex items-center gap-2"><p className="font-bold text-gray-800 text-sm">{log.handler_name}</p><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.15)", color: "#7c3aed" }}>{log.team_type}</span></div><p className="text-xs text-gray-500 mt-0.5">{formatDateTime(log.created_at)}</p></div>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[log.new_status]}`}>{log.new_status}</span>
-                        </div>
-                        {log.action_taken && <div className="rounded-lg p-2 mb-2" style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)" }}><p className="text-xs font-bold text-blue-700">🔧 Action:</p><p className="text-sm text-gray-800">{log.action_taken}</p></div>}
-                        <p className="text-xs font-bold text-gray-600">📝 Notes:</p>
-                        <p className="text-sm text-gray-800 whitespace-pre-line">{log.notes}</p>
-                        {log.assigned_to_services && <div className="mt-2 p-2 rounded-lg" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.25)" }}><p className="text-xs font-bold text-red-700">→ Ticket assigned to Team Services</p></div>}
-                        {log.photo_url && <div className="mt-3"><img src={log.photo_url} alt={log.photo_name || "Activity photo"} className="max-w-md w-full rounded-lg border cursor-pointer hover:scale-105 transition-transform" onClick={() => window.open(log.photo_url!, "_blank")} /></div>}
-                        {log.file_url && <a href={log.file_url} download={log.file_name} className="inline-block mt-2 text-xs font-bold text-blue-600 hover:underline">📄 {log.file_name || "Download Report"}</a>}
-                      </div>
-                    )) : <p className="text-gray-500 text-center py-4">No activities yet</p>}
-                  </div>
+                {/* Sales */}
+                <div className="flex flex-col justify-center pr-3">
+                  <p className="text-sm text-gray-700 font-medium truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
+                  {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold">{req.sales_division}</p>}
                 </div>
-
-                {canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-                  <div className="border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-                    <div className="flex justify-between items-center"><h3 className="font-semibold text-base text-gray-700">➕ Update Activity</h3><button onClick={() => setShowUpdateForm(!showUpdateForm)} className={`px-4 py-2 rounded-lg font-bold transition-all text-sm ${showUpdateForm ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : "bg-gradient-to-r from-red-500 to-red-700 text-white hover:from-red-600 hover:to-red-800"}`}>{showUpdateForm ? "✕ Tutup Form" : "▼ Buka Form"}</button></div>
-                  </div>
-                )}
-
-                {canUpdateTicket && currentUserTeamType === "Team Services" && selectedTicket.services_status === "Waiting Approval" && (
-                  <div className="border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.08)" }}><div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "rgba(219,39,119,0.1)", border: "1.5px solid rgba(219,39,119,0.3)" }}><span className="text-2xl">⏳</span><div className="flex-1"><p className="text-sm font-bold text-rose-800">Menunggu Konfirmasi Team Services</p><p className="text-xs text-rose-600 mt-0.5">Ticket dari Team PTS menunggu diterima atau ditolak.</p><button onClick={() => setShowServicesApprovalModal(true)} className="mt-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all">🔧 Buka Panel Konfirmasi</button></div></div></div>
-                )}
-
-                <div className="flex gap-3 pt-2 flex-wrap">
-                  <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "white", boxShadow: "0 4px 12px rgba(22,163,74,0.3)" }}>📄 Export PDF</button>
-                  {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
-                    <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "white", boxShadow: "0 4px 12px rgba(245,158,11,0.3)" }}>🔓 Re-open</button>
+                {/* Status */}
+                <div className="flex flex-col justify-center pr-3">
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border w-fit ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                  {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[10px] font-bold text-red-600 mt-1 animate-pulse">🔔 Perlu Approval</p>}
+                  {req.pts_assigned && <p className="text-[11px] text-gray-400 mt-0.5">🔧 {req.pts_assigned}</p>}
+                </div>
+                {/* Requester */}
+                <div className="flex flex-col justify-center pr-3">
+                  <p className="text-sm text-gray-700 font-medium truncate">{req.requester_name}</p>
+                  <p className="text-[11px] text-gray-400">{req.due_date ? `Target: ${formatDueDate(req.due_date)}` : ''}</p>
+                </div>
+                {/* Action */}
+                <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                  {isPTS && !isTeamPTS && req.status === 'pending' && (
+                    <>
+                      <button onClick={() => handleApprove(req)}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm">✅</button>
+                      <button onClick={() => handleReject(req)}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all">❌</button>
+                    </>
                   )}
-                  <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ border: "1px solid rgba(0,0,0,0.15)", color: "#64748b", background: "rgba(255,255,255,0.55)" }}>✕ Close</button>
+                  <button onClick={() => handleOpenDetail(req)}
+                    className="w-8 h-8 bg-gray-100 hover:bg-teal-50 border border-gray-200 hover:border-teal-200 rounded-lg flex items-center justify-center transition-all group/btn">
+                    <svg className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
                 </div>
+
+                {/* Mobile fallback row */}
               </div>
-            </div>
-          </div>
-        )}
+            );
+          })}
 
-        {/* ── UPDATE ACTIVITY FORM (Right panel) - keep similar but adjust colors */}
-        {showUpdateForm && canUpdateTicket && selectedTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) setShowUpdateForm(false); }}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(220,38,38,0.25)" }}>
-              <div className="p-4" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
-                <div className="flex items-center justify-between"><h3 className="font-bold text-white text-base">{currentUserTeamType === "Team Services" ? "🔧 Update Status Services" : "➕ Update Activity"}</h3><button onClick={() => setShowUpdateForm(false)} className="text-white hover:bg-white/20 rounded-lg p-1.5 font-bold transition-all text-sm">✕ Tutup</button></div>
-              </div>
-              <div className="p-5 space-y-4 max-h-[calc(90vh-80px)] overflow-y-auto">
-                <div className="rounded-xl px-4 py-2.5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><span className="text-gray-500 text-sm">👤 Handler:</span><span className="font-bold text-gray-800 text-sm ml-2">{newActivity.handler_name}</span></div>
-
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔢 No SN Unit</label><input type="text" value={newActivity.sn_unit} onChange={(e) => setNewActivity({ ...newActivity, sn_unit: e.target.value })} placeholder="Update SN Unit..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-
-                {/* Status selection simplified for brevity - keeping the original logic but with red-themed buttons */}
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Pilih Status Baru *</label>
-                  <div className="flex flex-col gap-2">
-                    {currentUserTeamType === "Team Services" ? (
+          {/* Mobile cards */}
+          {!loading && filteredRequests.map((req) => {
+            const sc = statusConfig[req.status] || statusConfig.pending;
+            const unread = unreadMsgMap[req.id] || 0;
+            const dueStatus = getDueStatus(req.due_date, req.status);
+            return (
+              <div key={`m-${req.id}`} className="md:hidden flex flex-col gap-2 p-4 cursor-pointer hover:bg-teal-50/40 transition-all border-b border-gray-100 last:border-0"
+                onClick={() => handleOpenDetail(req)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-gray-800 text-sm truncate">{req.project_name}</p>
+                      {unread > 0 && <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">{unread}💬</span>}
+                    </div>
+                    <p className="text-xs text-gray-400">{req.room_name || '—'} · {req.sales_name || '—'}</p>
+                    {dueStatus && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${dueStatus.type === 'overdue' ? 'text-red-600 bg-red-100' : 'text-amber-600 bg-amber-100'}`}>{dueStatus.label}</span>}
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-400">{req.requester_name} · {new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</p>
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                    {isPTS && !isTeamPTS && req.status === 'pending' && (
                       <>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Pending", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Pending" ? "bg-yellow-500 text-white border-yellow-500 shadow-md" : "bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50"}`}><span>🟡</span><span className="flex-1 text-left">Pending Check</span>{newActivity.new_status === "Pending" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}><span>✅</span><span className="flex-1 text-left">Solved</span>{newActivity.new_status === "Solved" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Pending", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Pending" ? "bg-amber-500 text-white border-amber-500 shadow-md" : "bg-white text-amber-600 border-amber-300 hover:bg-amber-50"}`}><span>🟡</span><span className="flex-1 text-left">Pending</span>{newActivity.new_status === "Pending" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "In Progress", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "In Progress" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"}`}><span>🔵</span><span className="flex-1 text-left">In Progress</span>{newActivity.new_status === "In Progress" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}><span>✅</span><span className="flex-1 text-left">Solved</span>{newActivity.new_status === "Solved" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
+                        <button onClick={() => handleApprove(req)} className="bg-emerald-500 text-white px-2 py-1 rounded text-xs font-bold">✅</button>
+                        <button onClick={() => handleReject(req)} className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded text-xs font-bold">❌</button>
                       </>
                     )}
                   </div>
                 </div>
-
-                {newActivity.new_status !== "Pending" && newActivity.new_status !== "Solved" && newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status) && (
-                  <>
-                    <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔧 Action Taken</label><textarea value={newActivity.action_taken} onChange={(e) => setNewActivity({ ...newActivity, action_taken: e.target.value })} placeholder="Contoh: Cek kabel HDMI, restart sistem..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" rows={3} style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-                    <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Notes *</label><textarea value={newActivity.notes} onChange={(e) => setNewActivity({ ...newActivity, notes: e.target.value })} placeholder="Jelaskan detail penanganan..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" rows={3} style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-                  </>
-                )}
-
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📷 Upload Foto Bukti</label><input type="file" accept="image/jpeg,image/jpg,image/png" onChange={(e) => setNewActivity({ ...newActivity, photo: e.target.files?.[0] || null })} className="w-full border rounded-xl px-4 py-2.5 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all" style={{ borderColor: "rgba(0,0,0,0.12)" }} /></div>
-
-                <button onClick={addActivity} disabled={uploading || (!newActivity.notes && newActivity.new_status !== "Pending" && newActivity.new_status !== "Solved" && newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status))} className="w-full text-white py-3.5 rounded-xl font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>{uploading ? "⏳ Menyimpan..." : "💾 Simpan Activity"}</button>
               </div>
-            </div>
-          </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+        .animate-scale-in { animation: scale-in 0.2s ease-out; }
+      `}</style>
+    </div>
+  );
+
+  // ── VIEW: DETAIL ──
+  if (view === 'detail' && selectedRequest) {
+    const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
+    const isPending = selectedRequest.status === 'pending';
+    const isNotAssigned = !selectedRequest.pts_assigned;
+    // ── LOCK: chat & edit blocked when pending OR not yet assigned ──
+    const isChatLocked = isPending || (selectedRequest.status === 'approved' && isNotAssigned) || selectedRequest.status === 'rejected';
+    const isEditLocked = isPending || isNotAssigned;
+
+    const isFileType = (type: string) => type.startsWith('image/');
+    const detailDueStatus = getDueStatus(selectedRequest.due_date, selectedRequest.status);
+
+    const filteredAttachments = activeAttachTab === 'all'
+      ? attachments
+      : attachments.filter(a => a.attachment_category === activeAttachTab);
+
+    return (
+      <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+        <NotifToast />
+
+        {assignModal.open && assignModal.req && (
+          <AssignPTSModal
+            req={assignModal.req}
+            onClose={() => setAssignModal({ open: false, req: null })}
+            onAssigned={() => {
+              setAssignModal({ open: false, req: null });
+              notify('success', `Request diapprove & di-assign ke Tim PTS!`);
+              fetchRequests();
+              if (selectedRequest) {
+                setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
+                fetchMessages(selectedRequest.id);
+              }
+            }}
+            currentUser={currentUser}
+          />
         )}
 
-        {/* ── APPROVAL MODAL (Redesigned) ── */}
-        {showApprovalModal && canAccessAccountSettings && (
+        {/* Reject Modal */}
+        {rejectModal.open && rejectModal.req && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
-              <div className="p-6" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
-                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="text-3xl">⏳</span><div><h3 className="text-xl font-bold text-white">Ticket Approval</h3><p className="text-sm text-white/90">{pendingApprovalTickets.length} ticket menunggu persetujuan</p></div></div><button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button></div>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border-2 border-red-500 animate-scale-in">
+              <div className="flex items-center gap-3 mb-4">
+                <div><h3 className="text-lg font-bold text-gray-800">Tolak Request</h3><p className="text-xs text-gray-500">{rejectModal.req.project_name}</p></div>
               </div>
-              <div className="max-h-[calc(85vh-80px)] overflow-y-auto p-4 space-y-4">
-                {pendingApprovalTickets.length === 0 ? (<div className="text-center py-12"><div className="text-5xl mb-3">✅</div><p className="text-gray-500 font-medium">Tidak ada ticket yang menunggu approval</p></div>) : pendingApprovalTickets.map((ticket) => (
-                  <div key={ticket.id} className="rounded-xl p-4" style={{ background: "rgba(245,158,11,0.1)", border: "2px solid rgba(245,158,11,0.3)" }}>
-                    <div className="flex justify-between items-start mb-3"><div><p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p><p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>{ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}<div className="flex gap-2 mt-2 flex-wrap text-xs text-gray-500">{ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}{ticket.sales_name && <span>💼 {ticket.sales_name}</span>}{ticket.sn_unit && <span>🔢 {ticket.sn_unit}</span>}</div><p className="text-xs text-orange-700 font-semibold mt-2">Dibuat oleh: @{ticket.created_by || "-"} • {ticket.date}</p></div><span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-orange-100 text-orange-800 border-orange-400 whitespace-nowrap ml-2">⏳ Waiting Approval</span></div>
-                    <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(245,158,11,0.3)" }}><label className="block text-sm font-bold text-gray-700 mb-2">👨‍💼 Assign ke Team PTS:</label><div className="flex gap-2"><select className="flex-1 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-orange-500" style={{ border: "2px solid rgba(245,158,11,0.3)", background: "white" }} value={approvalTicket?.id === ticket.id ? approvalAssignee : ""} onChange={(e) => { setApprovalTicket(ticket); setApprovalAssignee(e.target.value); }}><option value="">Pilih anggota Team PTS</option>{teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}</select><button onClick={async () => { if (!approvalAssignee || approvalTicket?.id !== ticket.id) { alert("Pilih anggota Team PTS terlebih dahulu!"); return; } await approveTicket(); }} disabled={uploading || !(approvalTicket?.id === ticket.id && approvalAssignee)} className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">✅ Approve</button><button onClick={() => rejectTicket(ticket)} disabled={uploading} className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm">❌ Reject</button></div></div>
-                  </div>
-                ))}
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-xs text-red-800 font-medium">Alasan penolakan akan terlihat di chat oleh semua pihak.</div>
+              <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Tuliskan alasan penolakan (opsional)..." rows={3}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-sm mb-4 focus:border-red-500 outline-none resize-none transition-all" />
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={handleRejectConfirm} className="bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold hover:from-red-700 hover:to-red-900 transition-all">Tolak Request</button>
+                <button onClick={() => { setRejectModal({ open: false, req: null }); setRejectNote(''); }} className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── SERVICES APPROVAL MODAL (Redesigned) ── */}
-        {showServicesApprovalModal && currentUserTeamType === "Team Services" && (
+        {/* ── EDIT FORM MODAL — shows ALL fields, compact popup ── */}
+        {editFormModal && selectedRequest && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(219,39,119,0.5)" }}>
-              <div className="p-6" style={{ background: "linear-gradient(135deg,#db2777,#be185d)" }}>
-                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="text-3xl">🔧</span><div><h3 className="text-xl font-bold text-white">Ticket Masuk — Team Services</h3><p className="text-sm text-white/90">{pendingServicesApprovalTickets.length} ticket menunggu konfirmasi</p></div></div><button onClick={() => setShowServicesApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button></div>
-              </div>
-              <div className="max-h-[calc(85vh-80px)] overflow-y-auto p-4 space-y-4">
-                {pendingServicesApprovalTickets.length === 0 ? (<div className="text-center py-12"><div className="text-5xl mb-3">✅</div><p className="text-gray-500 font-medium">Tidak ada ticket yang menunggu konfirmasi</p></div>) : pendingServicesApprovalTickets.map((ticket) => (
-                  <div key={ticket.id} className="rounded-xl p-4" style={{ background: "rgba(219,39,119,0.1)", border: "2px solid rgba(219,39,119,0.3)" }}>
-                    <div className="flex justify-between items-start mb-3"><div className="flex-1"><p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p><p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>{ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}<div className="flex gap-3 mt-2 flex-wrap text-xs text-gray-500">{ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}{ticket.sales_name && <span>💼 {ticket.sales_name}</span>}{ticket.sn_unit && <span>🔢 SN: {ticket.sn_unit}</span>}{ticket.address && <span>📍 {ticket.address}</span>}</div><p className="text-xs text-rose-700 font-semibold mt-2">Dikirim oleh Team PTS • {ticket.date}</p></div><span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-rose-100 text-rose-800 border-rose-400 whitespace-nowrap ml-3">⏳ Menunggu Konfirmasi</span></div>
-                    <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(219,39,119,0.3)" }}><p className="text-xs text-gray-600 mb-3 rounded-lg px-3 py-2" style={{ background: "rgba(219,39,119,0.05)", border: "1px solid rgba(219,39,119,0.2)" }}>💡 Terima ticket untuk mulai proses penanganan, atau tolak untuk mengembalikan ke Team PTS.</p><div className="flex gap-2"><button onClick={() => approveServicesTicket(ticket)} disabled={uploading} className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2.5 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">✅ Terima & Mulai Proses</button><button onClick={() => rejectServicesTicket(ticket)} disabled={uploading} className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2.5 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm">❌ Tolak (Kembalikan ke PTS)</button></div></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── REMINDER SCHEDULE MODAL (Redesigned) ── */}
-        {showReminderSchedule && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(124,58,237,0.5)" }}>
-              <div className="flex items-center justify-between mb-5"><div className="flex items-center gap-3"><span className="text-3xl">⏰</span><div><h3 className="text-lg font-bold text-gray-800">Jadwal WA Reminder</h3><p className="text-xs text-gray-500">Kirim reminder otomatis ke semua handler</p></div></div><button onClick={() => setShowReminderSchedule(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button></div>
-              <div className="flex items-center justify-between rounded-xl p-3 mb-4" style={{ background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.2)" }}><div><p className="text-sm font-bold text-violet-800">Status Reminder</p><p className="text-xs text-violet-600">{reminderSchedule.active ? "Aktif — akan kirim WA otomatis" : "Nonaktif — tidak ada WA dikirim"}</p></div><button onClick={() => setReminderSchedule((prev) => ({ ...prev, active: !prev.active }))} className={`relative w-12 h-6 rounded-full transition-colors ${reminderSchedule.active ? "bg-violet-600" : "bg-gray-300"}`}><span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${reminderSchedule.active ? "translate-x-6" : "translate-x-0.5"}`} /></button></div>
-              <div className="mb-4"><label className="block text-sm font-bold text-gray-700 mb-2">🕐 Jam Pengiriman (WIB)</label><div className="flex items-center gap-2"><select value={reminderSchedule.hour_wib} onChange={(e) => setReminderSchedule((prev) => ({ ...prev, hour_wib: e.target.value }))} className="flex-1 rounded-lg px-3 py-2.5 font-bold text-center text-lg focus:ring-2 focus:ring-violet-500" style={{ border: "2px solid rgba(124,58,237,0.3)", background: "white" }}>{Array.from({ length: 24 }, (_, i) => (<option key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</option>))}</select><span className="text-gray-500 font-semibold">:</span><select value={reminderSchedule.minute} onChange={(e) => setReminderSchedule((prev) => ({ ...prev, minute: e.target.value }))} className="w-24 rounded-lg px-3 py-2.5 font-bold text-center text-lg focus:ring-2 focus:ring-violet-500" style={{ border: "2px solid rgba(124,58,237,0.3)", background: "white" }}>{["00", "15", "30", "45"].map((m) => (<option key={m} value={m}>{m}</option>))}</select><span className="text-sm font-bold text-gray-600">WIB</span></div><div className="flex gap-2 mt-2 flex-wrap">{[{ label: "07:00", h: "7", m: "0" }, { label: "08:00", h: "8", m: "0" }, { label: "09:00", h: "9", m: "0" }, { label: "13:00", h: "13", m: "0" }].map((t) => (<button key={t.label} onClick={() => setReminderSchedule((prev) => ({ ...prev, hour_wib: t.h, minute: t.m }))} className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.hour_wib === t.h && reminderSchedule.minute === t.m ? "bg-violet-600 text-white border-violet-600" : "bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100"}`}>{t.label}</button>))}</div></div>
-              <div className="mb-5"><label className="block text-sm font-bold text-gray-700 mb-2">📅 Frekuensi</label><div className="grid grid-cols-3 gap-2"><button onClick={() => setReminderSchedule((prev) => ({ ...prev, frequency: "daily" }))} className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.frequency === "daily" ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"}`}>📆 Setiap Hari</button><button onClick={() => setReminderSchedule((prev) => ({ ...prev, frequency: "weekdays" }))} className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.frequency === "weekdays" ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"}`}>💼 Senin–Jumat</button><button onClick={() => setReminderSchedule((prev) => ({ ...prev, frequency: "custom" }))} className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.frequency === "custom" ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"}`}>✏️ Pilih Hari</button></div>{reminderSchedule.frequency === "custom" && (<div className="mt-3 flex gap-1.5 flex-wrap">{["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((day, idx) => (<button key={idx} onClick={() => { const days = reminderSchedule.custom_days.includes(idx) ? reminderSchedule.custom_days.filter((d) => d !== idx) : [...reminderSchedule.custom_days, idx].sort(); setReminderSchedule((prev) => ({ ...prev, custom_days: days })); }} className={`w-10 h-10 rounded-full text-xs font-bold border-2 transition-all ${reminderSchedule.custom_days.includes(idx) ? "bg-violet-600 text-white border-violet-600" : "bg-white text-gray-600 border-gray-300 hover:border-violet-400"}`}>{day}</button>))}</div>)}</div>
-              <div className="rounded-xl p-3 mb-5" style={{ background: "rgba(0,0,0,0.05)", border: "1px solid rgba(0,0,0,0.08)" }}><p className="text-xs text-gray-500 mb-1">Preview jadwal:</p><p className="text-sm font-bold text-gray-800">📬 {getCronDisplay()}</p><p className="text-xs text-gray-400 mt-1">Reminder dikirim ke WA semua handler dengan ticket Pending/In Progress</p></div>
-              <div className="grid grid-cols-2 gap-3"><button onClick={saveCronSchedule} disabled={reminderSaving} className="bg-gradient-to-r from-violet-600 to-violet-800 text-white py-3 rounded-xl font-bold hover:from-violet-700 hover:to-violet-900 transition-all disabled:opacity-50">{reminderSaving ? "⏳ Menyimpan..." : "💾 Simpan"}</button><button onClick={() => setShowReminderSchedule(false)} className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all">✕ Batal</button></div>
-            </div>
-          </div>
-        )}
-
-        {/* ── ACCOUNT SETTINGS MODAL (Redesigned) ── */}
-        {showAccountSettings && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(75,85,99,0.3)" }}>
-              <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">⚙️ Account Management</h2><button onClick={() => setShowAccountSettings(false)} className="text-gray-500 hover:text-gray-700 text-xl font-bold">✕</button></div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-blue-900">➕ Create New Account</h3><div className="space-y-3"><input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="admin">Administrator</option><option value="team">Team</option><option value="guest">Guest</option></select>{newUser.role === "team" && (<select value={newUser.team_type} onChange={(e) => setNewUser({ ...newUser, team_type: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="Team PTS">Team PTS</option><option value="Team Services">Team Services</option></select>)}<button onClick={createUser} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all">➕ Create Account</button></div></div>
-                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-orange-900">🔒 Change Password</h3><div className="space-y-3"><select value={selectedUserForPassword} onChange={(e) => { setSelectedUserForPassword(e.target.value); setChangePassword({ current: "", new: "", confirm: "" }); }} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">Select User</option>{users.map((u) => (<option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>))}</select>{selectedUserForPassword && (<><input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({ ...changePassword, current: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({ ...changePassword, new: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({ ...changePassword, confirm: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><button onClick={updatePassword} className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all">🔒 Change Password</button></>)}</div></div>
-              </div>
-              <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-gray-800">👥 User List</h3><div className="max-h-[400px] overflow-y-auto"><div className="space-y-2">{users.map((u) => (<div key={u.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex justify-between items-center"><div><p className="font-bold text-sm">{u.full_name}</p><p className="text-xs text-gray-600">@{u.username}</p></div><div className="flex gap-2"><span className={`text-xs px-2 py-1 rounded ${u.role === "admin" ? "bg-red-100 text-red-800" : u.role === "team" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}`}>{u.role === "admin" ? "Admin" : u.role === "team" ? "Team" : "Guest"}</span>{u.team_type && <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">{u.team_type}</span>}</div></div>))}</div></div></div>
-            </div>
-          </div>
-        )}
-
-        {/* ── GUEST MAPPING MODAL (Redesigned) ── */}
-        {showGuestMapping && canAccessAccountSettings && (() => {
-          const guestUsers = users.filter((u) => u.role === "guest");
-          const selectedGuestForMapping = newMapping.guestUsername;
-          const guestMappingsForSelected = guestMappings.filter((m) => m.guest_username === selectedGuestForMapping);
-          const mappedProjects = guestMappingsForSelected.map((m) => m.project_name);
-          const handleToggleProjectMapping = async (projectName: string) => {
-            if (!selectedGuestForMapping) return;
-            const isAlreadyMapped = mappedProjects.includes(projectName);
-            if (isAlreadyMapped) {
-              const mapping = guestMappings.find((m) => m.guest_username === selectedGuestForMapping && m.project_name === projectName);
-              if (mapping) await supabase.from("guest_mappings").delete().eq("id", mapping.id);
-            } else await supabase.from("guest_mappings").insert([{ guest_username: selectedGuestForMapping, project_name: projectName }]);
-            await fetchGuestMappings();
-          };
-          return (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(13,148,136,0.5)" }}>
-                <div className="p-5 border-b" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", borderColor: "rgba(13,148,136,0.3)" }}>
-                  <div className="flex justify-between items-center"><div><h2 className="text-xl font-bold text-white">👥 Guest Project Mapping</h2><p className="text-teal-100 text-sm mt-0.5">Pilih user guest → centang project yang boleh diakses</p></div><button onClick={() => setShowGuestMapping(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button></div>
-                </div>
-                <div className="flex flex-1 overflow-hidden min-h-0">
-                  <div className="w-56 border-r flex flex-col flex-shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}><div className="px-4 py-2.5" style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}><p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">User Guest</p></div><div className="flex-1 overflow-y-auto">{guestUsers.length === 0 ? (<div className="p-4 text-center text-gray-400 text-xs py-10"><div className="text-3xl mb-2">🙅</div><p>Belum ada user guest</p></div>) : guestUsers.map((u) => { const mappingCount = guestMappings.filter((m) => m.guest_username === u.username).length; const isSelected = selectedGuestForMapping === u.username; return (<button key={u.id} onClick={() => setNewMapping({ ...newMapping, guestUsername: u.username })} className={`w-full text-left px-4 py-3 border-b transition-all ${isSelected ? "bg-teal-50 border-l-4 border-l-teal-500" : "hover:bg-gray-50 border-l-4 border-l-transparent"}`} style={{ borderColor: "rgba(0,0,0,0.05)" }}><p className={`text-sm font-bold truncate ${isSelected ? "text-teal-700" : "text-gray-700"}`}>{u.full_name}</p><p className="text-xs text-gray-400">@{u.username}</p>{mappingCount > 0 && <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{mappingCount} project</span>}</button>); })}</div></div>
-                  <div className="flex-1 flex flex-col overflow-hidden min-h-0"><div className="px-4 py-2.5 flex items-center justify-between flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}><p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{selectedGuestForMapping ? `Project untuk @${selectedGuestForMapping}` : "Pilih guest terlebih dahulu"}</p>{selectedGuestForMapping && uniqueProjectNames.length > 0 && <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full">{mappedProjects.length}/{uniqueProjectNames.length}</span>}</div><div className="flex-1 overflow-y-auto p-3">{!selectedGuestForMapping ? (<div className="flex flex-col items-center justify-center h-full text-gray-400 py-12"><div className="text-5xl mb-3">👈</div><p className="text-sm font-medium">Pilih user guest di sebelah kiri</p></div>) : uniqueProjectNames.length === 0 ? (<div className="text-center text-gray-400 py-8 text-sm"><div className="text-3xl mb-2">📭</div><p>Belum ada project ticket tersedia</p></div>) : (<div className="space-y-1.5">{uniqueProjectNames.map((projectName) => { const isMapped = mappedProjects.includes(projectName); return (<button key={projectName} onClick={() => handleToggleProjectMapping(projectName)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${isMapped ? "border-teal-400 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:bg-teal-50/50"}`}><div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${isMapped ? "border-teal-500 bg-teal-500" : "border-gray-300 bg-white"}`}>{isMapped && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><span className="text-sm font-medium truncate flex-1">{projectName}</span>{isMapped && <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Aktif</span>}</button>); })}</div>)}</div></div>
-                </div>
-                <div className="p-4 border-t flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderColor: "rgba(0,0,0,0.05)" }}><button onClick={() => setShowGuestMapping(false)} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-lg">✓ Selesai</button></div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── NEW TICKET MODAL  ── */}
-        {showNewTicket && canCreateTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) setShowNewTicket(false); }}>
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1.5px solid rgba(220,38,38,0.25)" }}>
-              {/* Header - Red gradient like ReminderSchedule */}
-              <div className="px-8 py-6 rounded-t-2xl" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">🎫 Create New Ticket</h2>
-                    <p className="text-red-200/80 text-xs mt-1">Isi detail ticket & informasi troubleshooting</p>
-                  </div>
-                  <button onClick={() => setShowNewTicket(false)} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border-2 border-amber-400 animate-scale-in" style={{ maxHeight: '85vh' }}>
+              <div className="bg-gradient-to-r from-amber-500 to-amber-700 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0">
+                <div><h3 className="font-bold text-lg">✏️ Edit Detail Kebutuhan</h3><p className="text-amber-100 text-xs">{selectedRequest.project_name}</p></div>
+                <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-all text-white font-bold text-lg">✕</button>
               </div>
 
-              <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
-                {/* Informasi Ticket Section */}
-                <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
-                  <span className="text-lg">🎫</span>
-                  <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Ticket</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Project Name *</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📌</span>
-                      <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({ ...newTicket, project_name: e.target.value })} placeholder="Example: BCA Cibitung Project" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-                    </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Nama Project</label>
+                    <input value={editFormData.project_name} onChange={e => setEditFormData({ ...editFormData, project_name: e.target.value })} className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
-                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="Example: SN12345678" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-                    </div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                    <input value={editFormData.room_name} onChange={e => setEditFormData({ ...editFormData, room_name: e.target.value })} className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Nama Sales</label>
+                    <input value={editFormData.sales_name} onChange={e => setEditFormData({ ...editFormData, sales_name: e.target.value })} className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Customer Phone</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
-                      <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({ ...newTicket, customer_phone: e.target.value })} placeholder="Adi - 08xx-xxxx-xxxx" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Date *</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📅</span>
-                      <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({ ...newTicket, date: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Issue Case - full width */}
+                {/* Divisi */}
                 <div>
-                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Issue Case *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3">⚠️</span>
-                    <input type="text" value={newTicket.issue_case} onChange={(e) => { const val = e.target.value; const words = val.trim().split(/\s+/).filter(Boolean); if (words.length < 4 || (words.length === 4 && !val.endsWith(" "))) setNewTicket({ ...newTicket, issue_case: val }); }} placeholder="Maks. 4 kata, contoh: Videowall Not Working" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
-                  </div>
-                  <div className="flex justify-between items-center mt-1.5 px-1">
-                    <span className="text-xs text-gray-500">Maksimal 4 kata</span>
-                    <span className={`text-xs font-bold ${newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length >= 4 ? "text-red-500" : "text-gray-400"}`}>
-                      {newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length}/4 kata
-                    </span>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Divisi Sales</label>
+                  <div className="flex flex-wrap gap-2">
+                    {SALES_DIVISIONS.map(div => (
+                      <button key={div} type="button" onClick={() => setEditFormData({ ...editFormData, sales_division: div })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.sales_division === div ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{div}</button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Address */}
+                {/* Kebutuhan */}
                 <div>
-                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3">📍</span>
-                    <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Kategori Kebutuhan</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, kebutuhan: toggleArr(editFormData.kebutuhan, opt) })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.kebutuhan.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
                   </div>
+                  <input value={editFormData.kebutuhan_other} onChange={e => setEditFormData({ ...editFormData, kebutuhan_other: e.target.value })} placeholder="Other kebutuhan..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
                 </div>
 
-                {/* Description */}
+                {/* Solution */}
                 <div>
-                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Detailed Description</label>
-                  <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} rows={3} placeholder="Explain the problem details..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Solution Product</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, solution_product: toggleArr(editFormData.solution_product, opt) })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.solution_product.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
+                  </div>
+                  <input value={editFormData.solution_other} onChange={e => setEditFormData({ ...editFormData, solution_other: e.target.value })} placeholder="Other solution..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
                 </div>
 
-                {/* Informasi Sales Section */}
-                <div className="flex items-center gap-2 pb-2 border-b pt-2" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
-                  <span className="text-lg">🏢</span>
-                  <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Sales</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Layout & CMS */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Name</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                      <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({ ...newTicket, sales_name: e.target.value })} placeholder="Dhany - IVP" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Layout Signage</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Full Screen', 'Split Screen', 'Portrait', 'Landscape', 'Custom'].map(opt => (
+                        <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, layout_signage: toggleArr(editFormData.layout_signage, opt) })}
+                          className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.layout_signage.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                      ))}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Division</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🏢</span>
-                      <select value={newTicket.sales_division} onChange={(e) => setNewTicket({ ...newTicket, sales_division: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                        <option value="">— Pilih Division —</option>
-                        {SALES_DIVISIONS.map((div) => (<option key={div} value={div}>{div}</option>))}
-                      </select>
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Jaringan CMS</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Internet', 'Intranet', 'Offline'].map(opt => (
+                        <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, jaringan_cms: toggleArr(editFormData.jaringan_cms, opt) })}
+                          className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.jaringan_cms.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Status & Assign - khusus admin */}
-                {currentUser?.role === "admin" && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Status</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🏷️</span>
-                        <select value={newTicket.status} onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                          <option value="Pending">🟡 Pending</option>
-                          <option value="Call">📞 Call</option>
-                          <option value="Onsite">🚗 Onsite</option>
-                          <option value="In Progress">🔵 In Progress</option>
-                          <option value="Solved">✅ Solved</option>
-                        </select>
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                {/* I/O & Source */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Jumlah Input</label>
+                    <input value={editFormData.jumlah_input} onChange={e => setEditFormData({ ...editFormData, jumlah_input: e.target.value })} placeholder="e.g. 4" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Jumlah Output</label>
+                    <input value={editFormData.jumlah_output} onChange={e => setEditFormData({ ...editFormData, jumlah_output: e.target.value })} placeholder="e.g. 2" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Source</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['PC', 'URL', 'NVR', 'Laptop'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, source: toggleArr(editFormData.source, opt) })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.source.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
+                  </div>
+                  <input value={editFormData.source_other} onChange={e => setEditFormData({ ...editFormData, source_other: e.target.value })} placeholder="Other source..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                </div>
+
+                {/* Camera */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Camera Conference</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes', 'No'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, camera_conference: opt })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.camera_conference === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
+                  </div>
+                  {editFormData.camera_conference === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 space-y-2">
+                      <input value={editFormData.camera_jumlah} onChange={e => setEditFormData({ ...editFormData, camera_jumlah: e.target.value })} placeholder="Jumlah kamera..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                      <div className="flex flex-wrap gap-1.5">
+                        {['No Tracking', 'Voice', 'Human Detection', 'Track Mic Delegate'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, camera_tracking: toggleArr(editFormData.camera_tracking, opt) })}
+                            className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.camera_tracking.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                        ))}
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Assign To *</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👨‍💼</span>
-                        <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({ ...newTicket, assigned_to: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                          <option value="">— Pilih Handler —</option>
-                          <optgroup label="Team PTS">
-                            {teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}
-                          </optgroup>
-                        </select>
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Non-admin: info bahwa perlu approval */}
-                {currentUser?.role !== "admin" && (
-                  <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "rgba(245,158,11,0.1)", border: "1.5px solid rgba(245,158,11,0.3)" }}>
-                    <span className="text-2xl">⏳</span>
-                    <div>
-                      <p className="text-sm font-bold text-orange-800">Perlu Persetujuan Superadmin</p>
-                      <p className="text-xs text-orange-700 mt-0.5">Ticket yang Anda buat akan masuk ke antrian approval Superadmin terlebih dahulu. Setelah disetujui, Superadmin akan assign ticket ke Tim PTS yang tersedia.</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Upload Foto Section */}
-                <div className="flex items-center gap-2 pb-2 border-b pt-2" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
-                  <span className="text-lg">📸</span>
-                  <span className="text-sm font-bold tracking-wide text-slate-700">Foto Pendukung</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Upload Foto <span className="text-gray-400 font-normal">(Optional)</span></label>
-                  <p className="text-xs text-gray-500 mb-3">Foto pendukung kondisi awal / bukti masalah</p>
-                  <input type="file" accept="image/*" onChange={(e) => setNewTicket({ ...newTicket, photo: e.target.files?.[0] || null })} className="w-full border rounded-xl px-4 py-2.5 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 transition-all text-sm" style={{ borderColor: "rgba(0,0,0,0.12)" }} />
-                  {newTicket.photo && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center gap-2 p-2 bg-white rounded-lg border" style={{ borderColor: "rgba(220,38,38,0.2)" }}>
-                        <span className="text-red-600">✓</span>
-                        <span className="text-sm font-semibold text-gray-700 flex-1 truncate">{newTicket.photo.name}</span>
-                        <span className="text-xs text-gray-400">({(newTicket.photo.size / 1024).toFixed(1)} KB)</span>
-                        <button type="button" onClick={() => setNewTicket({ ...newTicket, photo: null })} className="text-red-400 hover:text-red-600 font-bold text-xs ml-1">✕</button>
-                      </div>
-                      <img src={URL.createObjectURL(newTicket.photo)} alt="Preview" className="w-full max-h-48 object-cover rounded-lg border-2 shadow-sm" style={{ borderColor: "rgba(220,38,38,0.3)" }} />
                     </div>
                   )}
                 </div>
 
-                {/* Action Buttons - Red gradient like ReminderSchedule */}
-                <div className="flex gap-3 pt-4">
-                  <button onClick={() => setShowNewTicket(false)} className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all" style={{ background: "rgba(255,255,255,0.55)", color: "#64748b", border: "1px solid rgba(0,0,0,0.12)" }}>
-                    Batal
-                  </button>
-                  <button onClick={createTicket} disabled={uploading} className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>
-                    {uploading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                    {uploading ? "⏳ Menyimpan..." : "💾 Save Ticket"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── OVERDUE SETTING MODAL (Redesigned) ── */}
-        {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
-              <div className="flex items-center gap-3 mb-4"><span className="text-3xl">⏰</span><div><h3 className="text-lg font-bold text-gray-800">Overdue Setting</h3><p className="text-xs text-gray-500 font-medium">{overdueTargetTicket.project_name}</p><p className="text-xs text-gray-400">{overdueTargetTicket.issue_case}</p></div></div>
-              <p className="text-xs text-orange-700 rounded-lg p-2 mb-4" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>⚠️ Setting ini hanya terlihat oleh admin Anda. Handler akan mendapat notifikasi merah ketika ticket overdue. Default otomatis: ticket overdue setelah 48 jam jika tidak di-set manual.</p>
-              <div className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-gray-700">⏱️ Overdue Setelah Berapa Jam?</label><div className="flex items-center gap-3"><input type="number" min="1" value={overdueForm.due_hours} onChange={(e) => setOverdueForm({ due_hours: e.target.value })} className="flex-1 rounded-lg px-3 py-2.5 text-lg font-bold text-center focus:ring-2 focus:ring-orange-500" style={{ border: "2px solid rgba(245,158,11,0.3)", background: "white" }} /><span className="text-gray-600 font-semibold text-sm">jam</span></div><div className="flex gap-2 mt-2">{[24, 48, 72, 96].map((h) => (<button key={h} type="button" onClick={() => setOverdueForm({ due_hours: String(h) })} className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? "bg-orange-500 text-white border-orange-500" : "bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100"}`}>{h}j{h === 48 ? " (default)" : ""}</button>))}</div><p className="text-xs text-gray-400 mt-2">⏰ Dihitung dari waktu ticket pertama kali dibuat</p></div><div className="grid grid-cols-2 gap-3 pt-2"><button onClick={saveOverdueSetting} className="bg-gradient-to-r from-orange-500 to-orange-700 text-white py-2.5 rounded-xl font-bold hover:from-orange-600 hover:to-orange-800 transition-all">💾 Simpan</button><button onClick={() => { setShowOverdueSetting(false); setOverdueTargetTicket(null); setOverdueForm({ due_hours: "48" }); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">✕ Batal</button></div>{getOverdueSetting(overdueTargetTicket.id) && (<button onClick={() => { deleteOverdueSetting(overdueTargetTicket.id); setShowOverdueSetting(false); setOverdueTargetTicket(null); }} className="w-full bg-red-100 text-red-700 py-2 rounded-xl font-bold hover:bg-red-200 transition-all text-sm border border-red-300">🗑️ Hapus Setting Overdue</button>)}</div>
-            </div>
-          </div>
-        )}
-
-        {/* ── RE-OPEN TICKET MODAL (Redesigned) ── */}
-        {showReopenModal && reopenTargetTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
-              <div className="flex items-center gap-3 mb-5"><span className="text-3xl">🔓</span><div><h3 className="text-lg font-bold text-gray-800">Re-open Ticket</h3><p className="text-xs text-gray-500">{reopenTargetTicket.project_name} · {reopenTargetTicket.issue_case}</p></div></div>
-              <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "#b45309" }}>⚠️ Status akan berubah ke <strong>Pending</strong> dan activity log baru ditambahkan otomatis.</div>
-              <div className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-gray-700">Assign ke Handler *</label><select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">— Pilih Handler —</option>{teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}</select></div><div><label className="block text-sm font-bold mb-1 text-gray-700">Alasan (opsional)</label><textarea value={reopenNotes} onChange={(e) => setReopenNotes(e.target.value)} placeholder="Masalah muncul kembali..." rows={3} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div><div className="grid grid-cols-2 gap-3"><button onClick={reopenTicket} disabled={uploading || !reopenAssignee} className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{uploading ? "⏳..." : "🔓 Re-open"}</button><button onClick={() => { setShowReopenModal(false); setReopenTargetTicket(null); setReopenAssignee(""); setReopenNotes(""); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button></div></div>
-            </div>
-          </div>
-        )}
-
-        {/* ── ACTIVITY SUMMARY MODAL (Redesigned) ── */}
-        {showActivitySummary && summaryTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-2">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(59,130,246,0.5)" }}>
-              <div className="p-5 border-b flex-shrink-0" style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(0,0,0,0.1)" }}>
-                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="text-2xl">🔄</span><div><h3 className="text-lg font-bold text-white">Activity Summary</h3><p className="text-sm text-blue-100 font-medium">{summaryTicket.project_name}</p><p className="text-xs text-blue-200">{summaryTicket.issue_case}</p></div></div><button onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all text-lg">✕</button></div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-5">
-                <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-xl text-xs" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                  <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span><span className="font-bold">{summaryTicket.assigned_to || "-"}</span></span><span className="text-gray-300">|</span>
-                  <span className="flex items-center gap-1"><span className="text-gray-500">📅 Dibuat:</span><span className="font-bold">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : "-"}</span></span><span className="text-gray-300">|</span>
-                  <span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.status]}`}>{summaryTicket.status}</span>
-                  {summaryTicket.services_status && (<><span className="text-gray-300">|</span><span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.services_status]}`}>Svc: {summaryTicket.services_status}</span></>)}
-                </div>
-                {!summaryTicket.activity_logs || summaryTicket.activity_logs.length === 0 ? (<div className="text-center py-10 text-gray-400"><div className="text-5xl mb-3">📭</div><p className="font-semibold">Belum ada activity yang tercatat</p></div>) : (
-                  <div className="relative">
-                    <div className="flex items-center gap-3 mb-1"><div className="flex flex-col items-center"><div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shadow-md">🎫</div></div><div className="flex-1 rounded-xl px-4 py-2" style={{ background: "rgba(59,130,246,0.1)", border: "2px solid rgba(59,130,246,0.3)" }}><p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Ticket Dibuat</p><p className="text-sm font-semibold text-gray-800">{summaryTicket.project_name}</p><p className="text-xs text-gray-500">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : "-"}</p></div></div>
-                    {[...summaryTicket.activity_logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((log, idx, arr) => {
-                      const isLast = idx === arr.length - 1;
-                      const isSolved = log.new_status === "Solved";
-                      const isServices = log.assigned_to_services;
-                      const nodeColor = isSolved ? "bg-green-500" : isServices ? "bg-red-500" : log.new_status === "In Progress" ? "bg-blue-500" : "bg-yellow-500";
-                      const cardBorder = isSolved ? "border-green-300 bg-green-50" : isServices ? "border-red-300 bg-red-50" : log.new_status === "In Progress" ? "border-blue-300 bg-blue-50" : "border-yellow-300 bg-yellow-50";
-                      return (
-                        <div key={log.id}>
-                          <div className="flex items-stretch gap-3"><div className="flex flex-col items-center"><div className="w-0.5 bg-gray-300 flex-1 mx-auto" style={{ minHeight: "16px" }}></div></div><div className="flex-1" /></div>
-                          <div className="flex items-start gap-3"><div className="flex flex-col items-center flex-shrink-0"><div className={`w-9 h-9 rounded-full ${nodeColor} flex items-center justify-center text-white text-xs font-bold shadow-md`}>{isSolved ? "✅" : isServices ? "🔄" : idx + 1}</div>{!isLast && <div className="w-0.5 bg-gray-300 flex-1" style={{ minHeight: "12px" }}></div>}</div><div className={`flex-1 border-2 rounded-xl px-4 py-3 mb-1 ${cardBorder}`}><div className="flex justify-between items-start mb-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-gray-800">{log.handler_name}</span><span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">{log.team_type}</span></div><span className={`text-xs px-2 py-0.5 rounded-full font-bold border flex-shrink-0 ml-2 ${statusColors[log.new_status] || "bg-gray-100 text-gray-700 border-gray-300"}`}>{log.new_status}</span></div><p className="text-xs text-gray-500 mb-2">{formatDateTime(log.created_at)}</p>{log.action_taken && (<div className="rounded-lg px-3 py-1.5 mb-2" style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)" }}><p className="text-xs font-bold text-blue-700">🔧 Action:</p><p className="text-xs text-gray-800">{log.action_taken}</p></div>)}<div className="rounded-lg px-3 py-1.5" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)" }}><p className="text-xs font-bold text-gray-600">📝 Notes:</p><p className="text-xs text-gray-800 whitespace-pre-line">{log.notes}</p></div>{isServices && <div className="mt-2 flex items-center gap-1 text-xs font-bold text-red-700 rounded-lg px-2 py-1" style={{ background: "rgba(220,38,38,0.1)" }}><span>🔄</span> Diteruskan ke Team Services</div>}{log.photo_url && <div className="mt-2"><img src={log.photo_url} alt="bukti" className="max-h-28 rounded-lg border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(log.photo_url!, "_blank")} /></div>}{log.file_url && <a href={log.file_url} download={log.file_name} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-700 rounded-lg px-2 py-1 hover:bg-blue-200 transition-colors" style={{ background: "rgba(59,130,246,0.1)" }}>📎 {log.file_name || "Download Report"}</a>}</div></div>
-                        </div>
-                      );
-                    })}
-                    <div className="flex items-stretch gap-3"><div className="flex flex-col items-center"><div className="w-0.5 bg-gray-300 mx-auto" style={{ minHeight: "16px" }}></div></div><div className="flex-1" /></div>
-                    <div className="flex items-center gap-3"><div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-base shadow-md flex-shrink-0 ${summaryTicket.status === "Solved" ? "bg-green-600" : "bg-gray-400"}`}>{summaryTicket.status === "Solved" ? "🏁" : "⏳"}</div><div className={`flex-1 rounded-xl px-4 py-2 border-2 ${summaryTicket.status === "Solved" ? "bg-green-50 border-green-300" : "bg-gray-50 border-gray-300"}`}><p className={`text-xs font-bold uppercase tracking-wide ${summaryTicket.status === "Solved" ? "text-green-700" : "text-gray-500"}`}>{summaryTicket.status === "Solved" ? "✅ Ticket Selesai" : `⏳ Status: ${summaryTicket.status}`}</p><p className="text-xs text-gray-500 mt-0.5">{summaryTicket.activity_logs?.length || 0} aktivitas tercatat</p></div></div>
+                {/* Audio */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Audio System</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes', 'No'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, audio_system: opt })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.audio_system === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
                   </div>
-                )}
+                  {editFormData.audio_system === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 space-y-2">
+                      <div className="flex gap-2">
+                        {['Analog', 'DSP Mixer'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, audio_mixer: opt })}
+                            className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.audio_mixer === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Mic', 'PC Audio', 'Speaker'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, audio_detail: toggleArr(editFormData.audio_detail, opt) })}
+                            className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.audio_detail.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Wallplate */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Wallplate Input</label>
+                    <div className="flex gap-2 mb-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, wallplate_input: opt })}
+                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.wallplate_input === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {editFormData.wallplate_input === 'Yes' && (
+                      <input value={editFormData.wallplate_jumlah} onChange={e => setEditFormData({ ...editFormData, wallplate_jumlah: e.target.value })} placeholder="Jumlah..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Tabletop Input</label>
+                    <div className="flex gap-2 mb-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, tabletop_input: opt })}
+                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.tabletop_input === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {editFormData.tabletop_input === 'Yes' && (
+                      <input value={editFormData.tabletop_jumlah} onChange={e => setEditFormData({ ...editFormData, tabletop_jumlah: e.target.value })} placeholder="Jumlah..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Wireless */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Wireless Presentation</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes', 'No'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, wireless_presentation: opt })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.wireless_presentation === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
+                  </div>
+                  {editFormData.wireless_presentation === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 space-y-2">
+                      <div className="flex gap-2">
+                        {['BYOM', 'BYOD'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, wireless_mode: toggleArr(editFormData.wireless_mode, opt) })}
+                            className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.wireless_mode.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <label className="text-xs text-gray-500 font-bold uppercase tracking-widest self-center">Dongle:</label>
+                        {['Yes', 'No'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, wireless_dongle: opt })}
+                            className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.wireless_dongle === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Controller */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Controller Automation</label>
+                  <div className="flex gap-2 mb-2">
+                    {['Yes', 'No'].map(opt => (
+                      <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, controller_automation: opt })}
+                        className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${editFormData.controller_automation === opt ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                    ))}
+                  </div>
+                  {editFormData.controller_automation === 'Yes' && (
+                    <div className="pl-3 border-l-4 border-amber-300 flex gap-2 flex-wrap">
+                      {['Tablet or iPad', 'Touchscreen 10"'].map(opt => (
+                        <button key={opt} type="button" onClick={() => setEditFormData({ ...editFormData, controller_type: toggleArr(editFormData.controller_type, opt) })}
+                          className={`px-2.5 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${editFormData.controller_type.includes(opt) ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-600 hover:border-amber-300'}`}>{opt}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Ukuran & Keterangan */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
+                    <input value={editFormData.ukuran_ruangan} onChange={e => setEditFormData({ ...editFormData, ukuran_ruangan: e.target.value })} placeholder="e.g. 10m × 8m × 3m" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Suggest Tampilan</label>
+                    <textarea value={editFormData.suggest_tampilan} onChange={e => setEditFormData({ ...editFormData, suggest_tampilan: e.target.value })} rows={2} placeholder="Deskripsi tampilan..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Keterangan Lain</label>
+                    <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData({ ...editFormData, keterangan_lain: e.target.value })} rows={2} placeholder="Informasi tambahan..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 transition-all resize-none" />
+                  </div>
+                </div>
               </div>
-              <div className="p-4 border-t flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderColor: "rgba(0,0,0,0.08)" }}><button onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition-all">✕ Tutup</button></div>
-            </div>
-          </div>
-        )}
-        {/* ── DELETE TICKET MODAL (Admin Only) ── */}
-        {showDeleteModal && deleteTargetTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(220,38,38,0.5)" }}>
-              <div className="flex items-center gap-3 mb-4"><span className="text-3xl">🗑️</span><div><h3 className="text-lg font-bold text-gray-800">Hapus Ticket</h3><p className="text-xs text-gray-500 font-medium">{deleteTargetTicket.project_name}</p><p className="text-xs text-gray-400">{deleteTargetTicket.issue_case}</p></div></div>
-              <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#b91c1c" }}>
-                ⚠️ <strong>Tindakan ini tidak dapat dibatalkan.</strong> Ticket beserta seluruh activity log dan overdue setting akan dihapus permanen dari database.
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold mb-1 text-gray-700">Ketik <span className="font-mono bg-red-100 text-red-700 px-1 rounded">HAPUS</span> untuk konfirmasi</label>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="Ketik HAPUS di sini..."
-                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500"
-                  style={{ border: "2px solid rgba(220,38,38,0.3)", background: "white" }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={deleteTicket}
-                  disabled={deleteConfirmText !== "HAPUS" || uploading}
-                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-900"
-                >
-                  {uploading ? "⏳..." : "🗑️ Hapus Permanen"}
-                </button>
-                <button onClick={() => { setShowDeleteModal(false); setDeleteTargetTicket(null); setDeleteConfirmText(""); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">✕ Batal</button>
+
+              <div className="flex-shrink-0 px-5 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 rounded-b-2xl">
+                <button onClick={() => setEditFormModal(false)} className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-100 transition-all">Batal</button>
+                <button onClick={handleEditFormSubmit} className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-700 text-white rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all shadow-md">💾 Simpan</button>
               </div>
             </div>
           </div>
         )}
 
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
+          <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
+        </div>
+
+        {/* Detail Header */}
+        <div className="bg-white/95 backdrop-blur-md border-b-4 border-teal-600 px-6 py-4 flex-shrink-0 shadow-xl">
+          <div className="flex items-center gap-4">
+            <button onClick={() => { activeRequestIdRef.current = null; setView('list'); }} className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-md transition-all">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 truncate">{selectedRequest.project_name}</h2>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                {selectedRequest.pts_assigned && <span className="bg-teal-100 text-teal-800 px-2.5 py-1 rounded-full text-xs font-bold border border-teal-300">🔧 {selectedRequest.pts_assigned}</span>}
+              </div>
+              <p className="text-gray-600 text-sm mt-0.5">{selectedRequest.room_name && `📍 ${selectedRequest.room_name}`}{selectedRequest.sales_name && ` · 👤 ${selectedRequest.sales_name}`}{selectedRequest.sales_division && ` (${selectedRequest.sales_division})`}</p>
+            </div>
+            {/* Actions */}
+            {isPTS && !isTeamPTS && (
+              <div className="flex gap-2 flex-shrink-0">
+                {selectedRequest.status === 'pending' && (
+                  <>
+                    <button onClick={() => handleApprove(selectedRequest)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">✅ Approve</button>
+                    <button onClick={() => handleReject(selectedRequest)} className="bg-red-50 hover:bg-red-100 text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">❌ Tolak</button>
+                  </>
+                )}
+                {selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                  <select value={selectedRequest.status} onChange={e => handleStatusUpdate(selectedRequest, e.target.value)}
+                    className="border-2 border-teal-300 rounded-xl px-3 py-2 text-sm font-bold text-teal-700 bg-teal-50 outline-none cursor-pointer">
+                    <option value="approved">✅ Approved</option>
+                    <option value="in_progress">🔄 In Progress</option>
+                    <option value="completed">🏁 Completed</option>
+                  </select>
+                )}
+                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">🖨️ Print</button>
+              </div>
+            )}
+            {isTeamPTS && <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex-shrink-0">🖨️ Print</button>}
+            {!isPTS && (
+              <div className="flex gap-2 flex-shrink-0">
+                {selectedRequest.status !== 'rejected' && (
+                  <button onClick={handleOpenEditForm} disabled={isEditLocked}
+                    title={isEditLocked ? 'Edit tersedia setelah request di-approve & di-assign' : 'Edit Detail'}
+                    className={`border-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isEditLocked ? 'opacity-40 cursor-not-allowed bg-gray-50 border-gray-200 text-gray-400' : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300'}`}>
+                    ✏️ Edit Kebutuhan
+                  </button>
+                )}
+                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">🖨️ Print</button>
+              </div>
+            )}
+          </div>
+
+          {/* Lock notice banner */}
+          {(isPending || isNotAssigned) && selectedRequest.status !== 'rejected' && (
+            <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-amber-800">
+              <span className="text-base">🔒</span>
+              {isPending
+                ? 'Chat dan Edit tidak tersedia sampai request di-approve oleh Admin.'
+                : 'Chat dan Edit tidak tersedia sampai request di-assign ke Tim PTS.'}
+            </div>
+          )}
+
+          {/* Due date */}
+          {selectedRequest.due_date && (
+            <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${detailDueStatus?.type === 'overdue' ? 'bg-red-100 text-red-800 border-red-300' : detailDueStatus?.type === 'urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-700 border-gray-300'}`}>
+              📅 Target: {formatDueDate(selectedRequest.due_date)} {detailDueStatus && `· ${detailDueStatus.label}`}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 flex overflow-hidden">
+          {/* LEFT: Details + Attachments */}
+          <div className="w-[400px] flex-shrink-0 border-r-2 border-gray-200 flex flex-col overflow-hidden bg-white/90 backdrop-blur-sm">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Detail Section */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 space-y-2.5 text-sm border-2 border-gray-200 shadow-md">
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
+                  <p className="text-xs font-bold text-teal-600 tracking-widest uppercase">Detail Kebutuhan</p>
+                  {!isPTS && selectedRequest.status !== 'rejected' && (
+                    <button onClick={handleOpenEditForm} disabled={isEditLocked}
+                      title={isEditLocked ? 'Edit tersedia setelah approve & assign' : 'Edit'}
+                      className={`text-xs border px-2 py-0.5 rounded-lg font-bold transition-all ${isEditLocked ? 'opacity-30 cursor-not-allowed text-gray-400 border-gray-200' : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300'}`}>
+                      Edit
+                    </button>
+                  )}
+                </div>
+                {selectedRequest.kebutuhan?.length > 0 && <div><span className="font-bold text-gray-700">Kebutuhan:</span> <span className="text-gray-600">{selectedRequest.kebutuhan.join(', ')}</span></div>}
+                {selectedRequest.kebutuhan_other && <div><span className="font-bold text-gray-700">Other:</span> <span className="text-gray-600">{selectedRequest.kebutuhan_other}</span></div>}
+                {selectedRequest.solution_product?.length > 0 && <div><span className="font-bold text-gray-700">Solution:</span> <span className="text-gray-600">{selectedRequest.solution_product.join(', ')}</span></div>}
+                {selectedRequest.solution_other && <div><span className="font-bold text-gray-700">Other Solution:</span> <span className="text-gray-600">{selectedRequest.solution_other}</span></div>}
+                {selectedRequest.layout_signage?.length > 0 && <div><span className="font-bold text-gray-700">Layout:</span> <span className="text-gray-600">{selectedRequest.layout_signage.join(', ')}</span></div>}
+                {selectedRequest.jaringan_cms?.length > 0 && <div><span className="font-bold text-gray-700">CMS:</span> <span className="text-gray-600">{selectedRequest.jaringan_cms.join(', ')}</span></div>}
+                {(selectedRequest.jumlah_input || selectedRequest.jumlah_output) && <div><span className="font-bold text-gray-700">I/O:</span> <span className="text-gray-600">Input {selectedRequest.jumlah_input || '—'} / Output {selectedRequest.jumlah_output || '—'}</span></div>}
+                {selectedRequest.source?.length > 0 && <div><span className="font-bold text-gray-700">Source:</span> <span className="text-gray-600">{selectedRequest.source.join(', ')}{selectedRequest.source_other ? `, ${selectedRequest.source_other}` : ''}</span></div>}
+                <div><span className="font-bold text-gray-700">Camera:</span> <span className="text-gray-600">{selectedRequest.camera_conference}{selectedRequest.camera_jumlah ? ` (${selectedRequest.camera_jumlah} unit)` : ''}</span></div>
+                {selectedRequest.camera_tracking?.length > 0 && <div><span className="font-bold text-gray-700">Tracking:</span> <span className="text-gray-600">{selectedRequest.camera_tracking.join(', ')}</span></div>}
+                <div><span className="font-bold text-gray-700">Audio:</span> <span className="text-gray-600">{selectedRequest.audio_system}{selectedRequest.audio_mixer ? ` — ${selectedRequest.audio_mixer}` : ''}{selectedRequest.audio_detail?.length > 0 ? ` (${selectedRequest.audio_detail.join(', ')})` : ''}</span></div>
+                <div><span className="font-bold text-gray-700">Wallplate:</span> <span className="text-gray-600">{selectedRequest.wallplate_input}{selectedRequest.wallplate_jumlah ? ` (${selectedRequest.wallplate_jumlah})` : ''}</span></div>
+                <div><span className="font-bold text-gray-700">Tabletop:</span> <span className="text-gray-600">{selectedRequest.tabletop_input}{selectedRequest.tabletop_jumlah ? ` (${selectedRequest.tabletop_jumlah})` : ''}</span></div>
+                <div><span className="font-bold text-gray-700">Wireless:</span> <span className="text-gray-600">{selectedRequest.wireless_presentation}{selectedRequest.wireless_mode?.length > 0 ? ` — ${selectedRequest.wireless_mode.join(', ')}` : ''}{selectedRequest.wireless_dongle !== 'No' ? ` · Dongle: ${selectedRequest.wireless_dongle}` : ''}</span></div>
+                <div><span className="font-bold text-gray-700">Controller:</span> <span className="text-gray-600">{selectedRequest.controller_automation}{selectedRequest.controller_type?.length > 0 ? ` — ${selectedRequest.controller_type.join(', ')}` : ''}</span></div>
+                {selectedRequest.ukuran_ruangan && <div><span className="font-bold text-gray-700">Ukuran:</span> <span className="text-gray-600">{selectedRequest.ukuran_ruangan}</span></div>}
+                {selectedRequest.suggest_tampilan && <div><span className="font-bold text-gray-700">Suggest:</span> <span className="text-gray-600">{selectedRequest.suggest_tampilan}</span></div>}
+                {selectedRequest.keterangan_lain && <div><span className="font-bold text-gray-700">Keterangan:</span> <span className="text-gray-600">{selectedRequest.keterangan_lain}</span></div>}
+              </div>
+
+              {/* PTS Admin controls */}
+              {isPTS && !isTeamPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                <div className="bg-white rounded-2xl p-4 border-2 border-teal-200 shadow-sm space-y-3">
+                  <p className="text-xs font-bold text-teal-600 uppercase tracking-widest">Admin Controls</p>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Set Target Selesai</label>
+                    <div className="flex gap-2">
+                      <input type="date" defaultValue={selectedRequest.due_date || ''}
+                        id={`due-${selectedRequest.id}`}
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-teal-400 transition-all" />
+                      <button onClick={async () => {
+                        const val = (document.getElementById(`due-${selectedRequest.id}`) as HTMLInputElement)?.value;
+                        const { error } = await supabase.from('project_requests').update({ due_date: val || null }).eq('id', selectedRequest.id);
+                        if (!error) { notify('success', val ? `Target diset: ${formatDueDate(val)}` : 'Target dihapus.'); fetchRequests(); }
+                        else notify('error', 'Gagal menyimpan target.');
+                      }} className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow flex-shrink-0">
+                        Simpan
+                      </button>
+                    </div>
+                  </div>
+                  <button onClick={() => setAssignModal({ open: true, req: selectedRequest })}
+                    className="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 border-2 border-teal-200 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                    👥 Re-assign Tim PTS
+                  </button>
+                </div>
+              )}
+
+              {/* Attachments */}
+              <div>
+                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
+                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
+                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
+
+                <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">Attachments</p>
+                    <button onClick={() => fileInputRef.current?.click()}
+                      className="text-xs bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1">
+                      📎 Upload
+                    </button>
+                  </div>
+
+                  {/* Category tabs */}
+                  <div className="flex border-b border-gray-100">
+                    {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => (
+                      <button key={tab} onClick={() => setActiveAttachTab(tab)}
+                        className={`flex-1 py-2 text-[11px] font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-teal-700 border-b-2 border-teal-500 bg-teal-50' : 'text-gray-400 hover:text-gray-600'}`}>
+                        {tab === 'all' ? 'All' : tab === 'design3d' ? '3D' : tab.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Category upload buttons for PTS */}
+                  {isPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                    <div className="flex gap-1 p-2 border-b border-gray-100 bg-gray-50">
+                      {[
+                        { cat: 'sld' as const, ref: sldFileRef, label: '📐 SLD', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                        { cat: 'boq' as const, ref: boqFileRef, label: '📊 BOQ', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                        { cat: 'design3d' as const, ref: design3dFileRef, label: '🎨 3D', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                      ].map(({ cat, ref, label, color }) => (
+                        <button key={cat} onClick={() => ref.current?.click()} disabled={uploadingCategory === cat}
+                          className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${color}`}>
+                          {uploadingCategory === cat ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+                    {filteredAttachments.length === 0 ? (
+                      <p className="text-xs text-gray-400 text-center py-6">Belum ada attachment</p>
+                    ) : filteredAttachments.map(att => (
+                      <div key={att.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-all">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-base">
+                          {isFileType(att.file_type) ? '🖼️' : att.file_type === 'application/pdf' ? '📄' : att.file_type.includes('sheet') || att.file_type.includes('excel') ? '📊' : '📎'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-semibold text-gray-700 truncate">{att.file_name}</p>
+                            {att.attachment_category !== 'general' && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${att.attachment_category === 'sld' ? 'bg-blue-100 text-blue-700' : att.attachment_category === 'boq' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                                {att.attachment_category === 'design3d' ? '3D' : att.attachment_category?.toUpperCase()}
+                                {att.revision_version ? ` R${att.revision_version}` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-400">{formatFileSize(att.file_size)} · {att.uploaded_by}</p>
+                        </div>
+                        <a href={att.file_url} target="_blank" rel="noreferrer"
+                          className="text-xs text-teal-600 hover:text-teal-800 font-bold flex-shrink-0">↗️</a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Chat */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-white/80 backdrop-blur-sm">
+            <div className="px-5 py-3 border-b border-gray-200 bg-white/95 flex-shrink-0">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
+              <p className="text-xs text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan · {selectedRequest.requester_name}</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+                  <div className="text-5xl">💬</div>
+                  <p className="font-medium text-sm">Belum ada pesan</p>
+                </div>
+              ) : messages.map(msg => {
+                const isSystem = msg.sender_role === 'system';
+                const isMe = msg.sender_id === currentUser.id;
+                if (isSystem) return (
+                  <div key={msg.id} className="flex justify-center">
+                    <div className="bg-gray-100 text-gray-500 text-xs px-4 py-2 rounded-full font-medium max-w-sm text-center">{msg.message}</div>
+                  </div>
+                );
+                return (
+                  <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                      <p className="text-[10px] text-gray-400 font-medium px-1">{isMe ? 'Saya' : msg.sender_name} · {new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                      <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${isMe ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'}`}>
+                        {msg.message}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Chat input */}
+            <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white/95">
+              {selectedRequest.status === 'rejected' ? (
+                <div className="flex items-center justify-center bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-3 text-sm font-bold text-red-700">Request ini telah ditolak. Chat tidak tersedia.</div>
+              ) : isChatLocked ? (
+                <div className="flex items-center justify-center gap-2 bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-amber-700">
+                  <span>🔒</span>
+                  {isPending
+                    ? 'Chat tersedia setelah request di-approve oleh Admin.'
+                    : 'Chat tersedia setelah request di-assign ke Tim PTS.'}
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <div className="flex-1 flex items-end gap-2 bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-2 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 transition-all">
+                    <textarea value={msgText} onChange={e => setMsgText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                      placeholder="Ketik pesan... (Enter untuk kirim)"
+                      rows={1} className="flex-1 bg-transparent text-sm text-gray-800 outline-none resize-none max-h-32 placeholder-gray-400 font-medium" />
+                    <button onClick={() => chatFileRef.current?.click()} className="text-gray-400 hover:text-teal-600 transition-colors p-1 flex-shrink-0">
+                      {uploadingFile ? <div className="w-5 h-5 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" /> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>}
+                    </button>
+                    <input ref={chatFileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                  </div>
+                  <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
+                    className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white p-3 rounded-2xl transition-all disabled:opacity-50 flex-shrink-0 shadow-xl">
+                    {sendingMsg ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <style jsx>{`
+          @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+          .animate-scale-in { animation: scale-in 0.2s ease-out; }
+        `}</style>
       </div>
-      <style jsx>{`
-        @keyframes scale-in {
-          from { opacity: 0; transform: scale(0.92); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
-          40% { transform: scale(1); opacity: 1; }
-        }
-        .animate-scale-in { animation: scale-in 0.25s ease-out; }
-        .animate-bounce { animation: bounce 0.6s ease-out; }
-        input:focus, select:focus, textarea:focus { outline: none; }
-      `}</style>
+    );
+  }
+
+  return null;
+}
+
+// ─── Page Root ────────────────────────────────────────────────────────────────
+
+export default function Page() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('pts_user');
+    if (stored) {
+      try { setCurrentUser(JSON.parse(stored)); } catch {}
+    }
+    setLoading(false);
+  }, []);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin" />
+        <p className="text-gray-500 font-medium">Memuat...</p>
+      </div>
     </div>
   );
+
+  if (!currentUser) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center border-2 border-teal-200">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Akses Ditolak</h2>
+        <p className="text-gray-500 text-sm">Silakan login terlebih dahulu melalui dashboard.</p>
+      </div>
+    </div>
+  );
+
+  return <FormRequireProject currentUser={currentUser} />;
 }
