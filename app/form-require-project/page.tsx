@@ -1717,6 +1717,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
       </div>
+      </div>
 
       {/* Reject Modal */}
       {rejectModal.open && rejectModal.req && (
