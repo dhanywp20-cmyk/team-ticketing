@@ -1630,13 +1630,18 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
 
                       {/* Due Date */}
-					  <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
-                        {detailDueStatus && (
-                          <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
-                            🎯 {detailDueStatus.label}
-                          </div>
-                        )}
-					  </div>
+					  {isPTS && !isTeamPTS && (
+						<div className="pt-3 border-t border-gray-200 space-y-3">
+						  <div>
+							<p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Target Selesai</p>
+							{detailDueStatus && (
+							  <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
+								🎯 {detailDueStatus.label}
+							  </div>
+							)}
+						  </div>
+						</div>
+					  )}
 
                       {/* Created By */}
                       <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
