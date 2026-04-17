@@ -109,7 +109,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
   rejected:    { label: '❌ Rejected',    color: 'text-red-700',    bg: 'bg-red-50',     border: 'border-red-400' },
 };
 
-// ─── MiniPieChart — identical to Reminder Schedule ───────────────────────────
+// ─── MiniPieChart ─────────────────────────────────────────────────────────────
 
 function MiniPieChart({
   data, title, icon, onSliceClick,
@@ -171,7 +171,7 @@ function MiniPieChart({
   );
 }
 
-// ─── Loading Screen — sama dengan Reminder Schedule ──────────────────────────
+// ─── Loading Screen ───────────────────────────────────────────────────────────
 
 function LoadingScreen() {
   return (
@@ -192,7 +192,7 @@ function LoadingScreen() {
   );
 }
 
-// ─── Assign PTS Modal ────────────────────────────────────────────────────────
+// ─── Assign PTS Modal ─────────────────────────────────────────────────────────
 
 function AssignPTSModal({
   req, onClose, onAssigned, currentUser,
@@ -219,8 +219,6 @@ function AssignPTSModal({
         request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
         message: `✅ Request diapprove oleh ${currentUser.full_name} dan di-assign ke ${selected}. Tim PTS akan segera memproses.`,
       }]);
-
-      // FIX #3: Kirim WA ke handler yang di-assign via notify-handler
       const selectedMember = teamMembers.find(m => m.full_name === selected);
       if (selectedMember?.phone_number) {
         await supabase.functions.invoke('notify-handler', {
@@ -239,7 +237,6 @@ function AssignPTSModal({
           },
         });
       }
-
       onAssigned();
     }
     setSaving(false);
@@ -289,8 +286,7 @@ function AssignPTSModal({
   );
 }
 
-// ─── NewFormModal — EXTRACTED as top-level to prevent cursor-jump re-mount bug ──
-// FIX #1: Dipindah ke luar FormRequireProject agar tidak di-remount setiap keystroke
+// ─── NewFormModal ─────────────────────────────────────────────────────────────
 
 type InitialFormType = {
   project_name: string; room_name: string; project_location: string; sales_name: string; sales_division: string;
@@ -378,7 +374,6 @@ function NewFormModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
-        {/* Modal Header */}
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">📋 Form Equipment Request — IVP</h2>
@@ -388,7 +383,6 @@ function NewFormModal({
             className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold transition-all text-lg">✕</button>
         </div>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
           {/* Project Info */}
@@ -422,7 +416,6 @@ function NewFormModal({
                   placeholder="Nama Sales / Account Manager"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              {/* FIX #5: Dropdown instead of button grid */}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Divisi Sales</label>
                 <select
@@ -504,7 +497,6 @@ function NewFormModal({
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
             </div>
 
-            {/* Camera */}
             <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={form.camera_conference}
               onChange={v => setForm(prev => ({ ...prev, camera_conference: v }))} />
             {form.camera_conference === 'Yes' && (
@@ -519,7 +511,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Audio */}
             <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system}
               onChange={v => setForm(prev => ({ ...prev, audio_system: v }))} />
             {form.audio_system === 'Yes' && (
@@ -534,7 +525,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Wallplate */}
             <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input}
               onChange={v => setForm(prev => ({ ...prev, wallplate_input: v }))} />
             {form.wallplate_input === 'Yes' && (
@@ -545,7 +535,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Tabletop */}
             <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input}
               onChange={v => setForm(prev => ({ ...prev, tabletop_input: v }))} />
             {form.tabletop_input === 'Yes' && (
@@ -556,7 +545,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Wireless */}
             <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation}
               onChange={v => setForm(prev => ({ ...prev, wireless_presentation: v }))} />
             {form.wireless_presentation === 'Yes' && (
@@ -568,7 +556,6 @@ function NewFormModal({
               </div>
             )}
 
-            {/* Controller */}
             <RadioGroup label="Controller / Automation" options={['Yes', 'No']} value={form.controller_automation}
               onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
             {form.controller_automation === 'Yes' && (
@@ -605,15 +592,13 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Foto Survey + BOQ Upload — side by side */}
+          {/* Foto Survey + BOQ Upload */}
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
               Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-              {/* Foto Survey */}
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
                 <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
@@ -657,7 +642,6 @@ function NewFormModal({
                 )}
               </div>
 
-              {/* BOQ Upload */}
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel</p>
                 <input ref={boqFormRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
@@ -697,7 +681,6 @@ function NewFormModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
           <button type="button" onClick={onClose}
             className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">
@@ -715,7 +698,7 @@ function NewFormModal({
   );
 }
 
-// ─── Form Require Project Module ─────────────────────────────────────────────
+// ─── Form Require Project Module ──────────────────────────────────────────────
 
 function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [appReady, setAppReady] = useState(false);
@@ -756,7 +739,21 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [deleting, setDeleting] = useState(false);
   const [editFormModal, setEditFormModal] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
-  const [editFormData, setEditFormData] = useState({project_name:'',room_name:'',project_location:'',sales_name:'',kebutuhan:[] as string[],kebutuhan_other:'',solution_product:[] as string[],solution_other:'',layout_signage:[] as string[],jaringan_cms:[] as string[],jumlah_input:'',jumlah_output:'',source:[] as string[],source_other:'',camera_conference:'No',camera_jumlah:'',camera_tracking:[] as string[],audio_system:'No',audio_mixer:'',audio_detail:[] as string[],wallplate_input:'No',wallplate_jumlah:'',tabletop_input:'No',tabletop_jumlah:'',wireless_presentation:'No',wireless_mode:[] as string[],wireless_dongle:'No',controller_automation:'No',controller_type:[] as string[],ukuran_ruangan:'',suggest_tampilan:'',keterangan_lain:''});
+  const [editFormData, setEditFormData] = useState({
+    project_name: '', room_name: '', project_location: '', sales_name: '',
+    kebutuhan: [] as string[], kebutuhan_other: '',
+    solution_product: [] as string[], solution_other: '',
+    layout_signage: [] as string[], jaringan_cms: [] as string[],
+    jumlah_input: '', jumlah_output: '',
+    source: [] as string[], source_other: '',
+    camera_conference: 'No', camera_jumlah: '', camera_tracking: [] as string[],
+    audio_system: 'No', audio_mixer: '', audio_detail: [] as string[],
+    wallplate_input: 'No', wallplate_jumlah: '',
+    tabletop_input: 'No', tabletop_jumlah: '',
+    wireless_presentation: 'No', wireless_mode: [] as string[], wireless_dongle: 'No',
+    controller_automation: 'No', controller_type: [] as string[],
+    ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
+  });
 
   const role = currentUser.role?.toLowerCase().trim() ?? '';
   const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
@@ -795,14 +792,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
     if (!isPTS) {
-      // Guest/sales: hanya milik sendiri
       query = query.eq('requester_id', currentUser.id);
     }
-    // Semua PTS (team_pts, team, admin, superadmin) → lihat SEMUA ticket
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
-      // Collect unique assigned handlers for dropdown
       const assigned = [...new Set((data as ProjectRequest[]).map(r => r.pts_assigned).filter(Boolean) as string[])].sort();
       setPtsMembersList(assigned);
       const ids = (data as ProjectRequest[]).map(r => r.id);
@@ -910,7 +904,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const toggleArr = (arr: string[], val: string): string[] =>
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
 
-  // ── Helpers ──
   const formatFileSize = (bytes: number) =>
     bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB';
   const formatDate = (dt: string) => new Date(dt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -926,8 +919,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     return { type: 'ok', label: `${diffDays} hari lagi`, days: diffDays };
   };
 
-  // ── Available years ──
-  const availableYears = [...new Set(requests.map(r => new Date(r.created_at).getFullYear().toString()))].sort((a,b) => b.localeCompare(a));
+  const availableYears = [...new Set(requests.map(r => new Date(r.created_at).getFullYear().toString()))].sort((a, b) => b.localeCompare(a));
 
   const filteredRequests = requests.filter(r => {
     const matchStatus = filterStatus === 'all' || r.status === filterStatus;
@@ -942,34 +934,32 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     return matchStatus && matchYear && matchMonth && matchHandler && matchProject && matchSales;
   });
 
-  // FIX #4: stats now includes 'approved' as separate count
   const stats = {
-    total:       requests.length,
-    pending:     requests.filter(r => r.status === 'pending').length,
-    approved:    requests.filter(r => r.status === 'approved').length,
+    total: requests.length,
+    pending: requests.filter(r => r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'approved').length,
     in_progress: requests.filter(r => r.status === 'in_progress').length,
-    completed:   requests.filter(r => r.status === 'completed').length,
-    rejected:    requests.filter(r => r.status === 'rejected').length,
+    completed: requests.filter(r => r.status === 'completed').length,
+    rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
-  // ── Pie chart data ──
   const statusPieData = [
-    { label: 'Pending',     value: stats.pending,     color: '#f59e0b' },
-    { label: 'Approved',    value: requests.filter(r=>r.status==='approved').length, color: '#10b981' },
+    { label: 'Pending', value: stats.pending, color: '#f59e0b' },
+    { label: 'Approved', value: stats.approved, color: '#10b981' },
     { label: 'In Progress', value: stats.in_progress, color: '#3b82f6' },
-    { label: 'Completed',   value: stats.completed,   color: '#8b5cf6' },
-    { label: 'Rejected',    value: stats.rejected,    color: '#ef4444' },
+    { label: 'Completed', value: stats.completed, color: '#8b5cf6' },
+    { label: 'Rejected', value: stats.rejected, color: '#ef4444' },
   ].filter(d => d.value > 0);
 
   const divisionCounts: Record<string, number> = {};
-  for (const r of requests) { const d = r.sales_division || 'Lainnya'; divisionCounts[d] = (divisionCounts[d]||0)+1; }
-  const divisionPieData = Object.entries(divisionCounts).map(([label,value],i) => ({ label, value, color: PIE_COLORS[i%PIE_COLORS.length] }));
+  for (const r of requests) { const d = r.sales_division || 'Lainnya'; divisionCounts[d] = (divisionCounts[d] || 0) + 1; }
+  const divisionPieData = Object.entries(divisionCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
   const assignedCounts: Record<string, number> = {};
-  for (const r of requests) { const a = r.pts_assigned || 'Unassigned'; assignedCounts[a] = (assignedCounts[a]||0)+1; }
-  const assignedPieData = Object.entries(assignedCounts).map(([label,value],i) => ({ label, value, color: PIE_COLORS[i%PIE_COLORS.length] }));
+  for (const r of requests) { const a = r.pts_assigned || 'Unassigned'; assignedCounts[a] = (assignedCounts[a] || 0) + 1; }
+  const assignedPieData = Object.entries(assignedCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
-  // ── CHECKBOX / RADIO GROUP (for edit modal) ──
+  // CheckGroup & RadioGroup for edit modal
   const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
     <div className="mb-4">
       <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2">{label}</label>
@@ -1007,12 +997,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     </div>
   );
 
-  // ─── Notification Toast ───────────────────────────────────────────────────
   const NotifToast = () => notification ? (
     <div className={`fixed top-4 right-4 z-[9999] px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold flex items-center gap-3 border-2 max-w-sm animate-scale-in ${
       notification.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-400' :
-      notification.type === 'error'   ? 'bg-red-50 text-red-800 border-red-400' :
-                                        'bg-blue-50 text-blue-800 border-blue-400'}`}>
+      notification.type === 'error' ? 'bg-red-50 text-red-800 border-red-400' :
+        'bg-blue-50 text-blue-800 border-blue-400'}`}>
       <span className="text-xl">{notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️'}</span>
       <div>
         <p className="font-bold">{notification.type === 'success' ? 'Berhasil!' : notification.type === 'error' ? 'Gagal!' : 'Info'}</p>
@@ -1069,8 +1058,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }
           }
         }
-
-        // Upload BOQ form file jika ada
         if (boqFormFile && data?.id) {
           const filePath = `project-files/${data.id}/boq-initial-${Date.now()}-${boqFormFile.name}`;
           const { error: boqErr } = await supabase.storage.from('project-files').upload(filePath, boqFormFile, { cacheControl: '3600', upsert: false });
@@ -1083,10 +1070,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }]);
           }
         }
-
-        // WA ke semua admin saat guest/sales submit — via notify-handler
-        // Semua role (bukan hanya guest/sales) — admin juga tetap butuh notif jika
-        // yang submit adalah user dengan role lain
         await supabase.functions.invoke('notify-handler', {
           body: {
             type: 'form_require_approval',
@@ -1139,7 +1122,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handleDeleteConfirm = async () => {
     const req = deleteModal.req; if (!req) return;
     setDeleting(true);
-    // Delete attachments from storage
     const { data: attachData } = await supabase.from('project_attachments').select('file_url').eq('request_id', req.id);
     if (attachData && attachData.length > 0) {
       const filePaths = (attachData as { file_url: string }[]).map(a => {
@@ -1172,9 +1154,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handleOpenEditForm = () => {
     if (!selectedRequest) return;
     setEditFormData({
-      project_name: selectedRequest.project_name||'', room_name: selectedRequest.room_name||'',
-      project_location: selectedRequest.project_location||'',
-      sales_name: selectedRequest.sales_name||'', kebutuhan: selectedRequest.kebutuhan||[],
+      project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
+      project_location: selectedRequest.project_location || '',
+      sales_name: selectedRequest.sales_name || '', kebutuhan: selectedRequest.kebutuhan || [],
       kebutuhan_other: selectedRequest.kebutuhan_other || '', solution_product: selectedRequest.solution_product || [],
       solution_other: selectedRequest.solution_other || '', layout_signage: selectedRequest.layout_signage || [],
       jaringan_cms: selectedRequest.jaringan_cms || [], jumlah_input: selectedRequest.jumlah_input || '',
@@ -1303,7 +1285,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (w) { w.document.write(printContent); w.document.close(); w.print(); }
   };
 
-  // ── RENDER — single return, detail jadi modal overlay ──
   if (!appReady) return <LoadingScreen />;
 
   const detailSc = selectedRequest ? (statusConfig[selectedRequest.status] || statusConfig.pending) : null;
@@ -1315,7 +1296,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     <div className="flex flex-col min-h-screen bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
-      {/* FIX #1: NewFormModal is now a top-level component, passes all state as props */}
       {showNewFormModal && (
         <NewFormModal
           currentUser={currentUser}
@@ -1353,7 +1333,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         />
       )}
 
-      {/* ── STICKY HEADER — sama dengan Reminder Schedule ── */}
+      {/* STICKY HEADER */}
       <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '3px solid #0d9488', backdropFilter: 'blur(16px)' }}>
         <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -1387,14 +1367,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
       <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
-        {/* ── Stat Cards — sama dengan Reminder Schedule ── */}
+        {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Total',       value: stats.total,       sub: 'Semua request',     gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',   onClick: () => setFilterStatus('all'),                                                     active: filterStatus === 'all' },
-            { label: 'Pending',     value: stats.pending,     sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',   onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),             active: filterStatus === 'pending' },
-            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)',   onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'),     active: filterStatus === 'in_progress' },
-            { label: 'Completed',   value: stats.completed,   sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)',   onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'),         active: filterStatus === 'completed' },
-            { label: 'Rejected',    value: stats.rejected,    sub: 'Ditolak',           gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)',   onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'),           active: filterStatus === 'rejected' },
+            { label: 'Total', value: stats.total, sub: 'Semua request', gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)', onClick: () => setFilterStatus('all'), active: filterStatus === 'all' },
+            { label: 'Pending', value: stats.pending, sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)', onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'), active: filterStatus === 'pending' },
+            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)', onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
+            { label: 'Completed', value: stats.completed, sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)', onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
+            { label: 'Rejected', value: stats.rejected, sub: 'Ditolak', gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)', onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'), active: filterStatus === 'rejected' },
           ].map(card => (
             <div key={card.label} onClick={card.onClick}
               className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
@@ -1411,23 +1391,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           ))}
         </div>
 
-        {/* ── Pie Charts — MiniPieChart persis Reminder Schedule ── */}
+        {/* Pie Charts */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MiniPieChart data={statusPieData} title="Status Request" icon="📊"
             onSliceClick={label => {
-              const map: Record<string,string> = { Pending:'pending', Approved:'approved', 'In Progress':'in_progress', Completed:'completed', Rejected:'rejected' };
-              setFilterStatus(prev => prev === (map[label]||label) ? 'all' : (map[label]||label));
+              const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
+              setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
             }} />
           <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="👤"
             onSliceClick={label => {
-              // filter by sales division — using searchSales as proxy filter
               setSearchSales(prev => prev === label ? '' : label);
             }} />
           <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
             onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
         </div>
 
-        {/* ── Active filter chips ── */}
+        {/* Active filter chips */}
         {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || searchQuery || searchSales) && (
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
@@ -1441,10 +1420,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           </div>
         )}
 
-        {/* ── TICKET LIST — container sama dengan Reminder Schedule ── */}
+        {/* TICKET LIST */}
         <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
 
-          {/* Search + filter bar — integrated di atas list */}
+          {/* Search + filter bar */}
           <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
             <div className="flex-1 min-w-[150px] relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -1458,7 +1437,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
                 style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search sales / requester..." />
             </div>
-            {/* Team Handler dropdown */}
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
               <select value={filterHandler} onChange={e => setFilterHandler(e.target.value)}
@@ -1469,7 +1447,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </select>
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
             </div>
-            {/* Filter status */}
             <div className="relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
@@ -1484,7 +1461,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </select>
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
             </div>
-            {/* Filter tahun */}
             <div className="relative">
               <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
                 className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
@@ -1494,7 +1470,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </select>
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
             </div>
-            {/* Filter bulan */}
             <div className="relative">
               <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
                 className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
@@ -1531,9 +1506,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </button>
           </div>
 
-          {/* No column header needed for card grid */}
-
-          {/* Table header — 8 columns with dividers */}
+          {/* Table header */}
           <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-500"
             style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px', borderBottom: '2px solid #e5e7eb', background: '#f1f5f9', borderTop: '1px solid #e5e7eb' }}>
             <span className="pr-3 border-r-2 border-gray-300 py-1">NAMA PROJECT</span>
@@ -1546,7 +1519,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             <span className="pl-3 py-1 text-center">ACTION</span>
           </div>
 
-          {/* Table body — row listing */}
+          {/* Table body */}
           {loading ? (
             <div className="space-y-0">
               {[...Array(5)].map((_, i) => (
@@ -1611,23 +1584,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
                     </div>
 
-                    {/* Desktop row — 8 columns with dividers */}
-                    <div className="hidden md:grid px-5 py-3.5 transition-colors group"
-                      style={{
-                        gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto',
-                        borderBottom: '1px solid #e5e7eb',
-                        borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
-                      }}>
-
-                    {/* Desktop row — 8 columns with dividers */}
+                    {/* Desktop row */}
                     <div className="hidden md:grid px-5 py-3.5 transition-colors group hover:bg-teal-50/30"
                       style={{
                         gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px',
                         borderBottom: '1px solid #e5e7eb',
                         borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
                       }}>
-
-                      {/* Nama Project + Ruangan */}
                       <div className="pr-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
                         <div className="flex items-center gap-1.5">
                           {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
@@ -1636,19 +1599,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         </div>
                         {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🛋️ {req.room_name}</p>}
                       </div>
-
-                      {/* Lokasi */}
                       <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
                         <p className="text-xs text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
                       </div>
-
-                      {/* Sales + Divisi */}
                       <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
                         <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
                         {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
                       </div>
-
-                      {/* Handler */}
                       <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
                         {req.pts_assigned ? (
                           <div className="flex items-center gap-1.5">
@@ -1659,14 +1616,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
                       </div>
-
-                      {/* Status */}
                       <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                         {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 mt-1 animate-pulse">🔔 Perlu Approval</p>}
                       </div>
-
-                      {/* Due Date */}
                       <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
                         {req.due_date ? (
                           <>
@@ -1681,14 +1634,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           <span className="text-gray-300 text-xs">—</span>
                         )}
                       </div>
-
-                      {/* Created By */}
                       <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
                         <p className="text-xs font-semibold text-gray-700 truncate">{req.requester_name}</p>
                         <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                       </div>
-
-                      {/* Action */}
                       <div className="pl-3 flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
                         {isPTS && !isTeamPTS && req.status === 'pending' && (
                           <>
@@ -1717,7 +1666,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
       </div>
-      </div>
 
       {/* Reject Modal */}
       {rejectModal.open && rejectModal.req && (
@@ -1740,7 +1688,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       )}
 
-      {/* Delete Confirmation Modal — Admin only */}
+      {/* Delete Confirmation Modal */}
       {deleteModal.open && deleteModal.req && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-600 animate-scale-in overflow-hidden">
@@ -1785,59 +1733,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         ::-webkit-scrollbar-thumb { background: rgba(13,148,136,0.25); border-radius: 4px; }
       `}</style>
 
-      {/* ── DETAIL MODAL POPUP ── */}
-      {showDetailModal && selectedRequest && detailSc && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-2 md:p-4"
-          onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl animate-slide-up flex flex-col overflow-hidden"
-            style={{ maxHeight: '94vh', border: '2px solid rgba(13,148,136,0.3)' }}>
-
-            {/* Detail Modal Header */}
-            <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-5 py-4 flex items-center gap-4 flex-shrink-0">
-              <button onClick={handleCloseDetail}
-                className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl transition-all flex-shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
-                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
-                </div>
-                <p className="text-teal-100 text-xs mt-0.5 truncate">
-                  {selectedRequest.room_name && `${selectedRequest.room_name} · `}
-                  {selectedRequest.project_location && `📍 ${selectedRequest.project_location} · `}
-                  {selectedRequest.requester_name} · {selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
-                </p>
-              </div>
-              {/* Actions in header */}
-              <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                {isPTS && !isTeamPTS && detailIsPending && (
-                  <>
-                    <button onClick={() => { setAssignModal({ open: true, req: selectedRequest }); }}
-                      className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✅ Approve</button>
-                    <button onClick={() => handleReject(selectedRequest)}
-                      className="bg-white/20 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">❌ Tolak</button>
-                  </>
-                )}
-                {isPTS && !isTeamPTS && selectedRequest.status === 'approved' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
-                    className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🔄 In Progress</button>
-                )}
-                {isPTS && !isTeamPTS && selectedRequest.status === 'in_progress' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
-                    className="bg-purple-500 hover:bg-purple-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🏆 Selesai</button>
-                )}
-                {!isPTS && selectedRequest.status !== 'rejected' && (
-                  <button onClick={handleOpenEditForm}
-                    className="bg-amber-400 hover:bg-amber-300 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✏️ Edit</button>
-                )}
-                <button onClick={handlePrint}
-                  className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">🖨️ Print</button>
-              </div>
-            </div>
-
-      {/* ── DETAIL MODAL POPUP ── */}
+      {/* DETAIL MODAL */}
       {showDetailModal && selectedRequest && detailSc && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-2 md:p-3"
           onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
@@ -1862,7 +1758,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   {selectedRequest.requester_name} · {selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
                 </p>
               </div>
-              {/* Actions in header */}
               <div className="flex gap-2 flex-shrink-0 flex-wrap">
                 {isPTS && !isTeamPTS && detailIsPending && (
                   <>
@@ -1892,12 +1787,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             {/* Detail Modal Body — 3 columns */}
             <div className="flex-1 flex overflow-hidden min-h-0">
 
-              {/* LEFT: Detail Info — form-style display */}
+              {/* LEFT: Detail Info */}
               <div className="flex-[2] min-w-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
                 <div className="p-5 space-y-4">
                   <p className="text-[11px] font-bold text-teal-600 tracking-widest uppercase">📋 Detail Kebutuhan</p>
 
-                  {/* Info Umum */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-teal-50 to-teal-100 px-4 py-2 border-b border-teal-200">
                       <p className="text-xs font-bold text-teal-700 flex items-center gap-1.5">📁 Informasi Project</p>
@@ -1919,7 +1813,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
-                  {/* Kebutuhan & Solution */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-violet-50 to-violet-100 px-4 py-2 border-b border-violet-200">
                       <p className="text-xs font-bold text-violet-700 flex items-center gap-1.5">🎯 Kategori & Solution</p>
@@ -1928,7 +1821,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Kebutuhan</p>
                         <div className="flex flex-wrap gap-1">
-                          {[...(selectedRequest.kebutuhan||[]), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
+                          {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
                             <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">{item}</span>
                           ))}
                         </div>
@@ -1936,7 +1829,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Solution Product</p>
                         <div className="flex flex-wrap gap-1">
-                          {[...(selectedRequest.solution_product||[]), selectedRequest.solution_other].filter(Boolean).map(item => (
+                          {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
                             <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{item}</span>
                           ))}
                         </div>
@@ -1944,7 +1837,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Layout Signage</p>
                         <div className="flex flex-wrap gap-1">
-                          {(selectedRequest.layout_signage||[]).map(item => (
+                          {(selectedRequest.layout_signage || []).map(item => (
                             <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">{item}</span>
                           ))}
                         </div>
@@ -1952,7 +1845,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jaringan / CMS</p>
                         <div className="flex flex-wrap gap-1">
-                          {(selectedRequest.jaringan_cms||[]).map(item => (
+                          {(selectedRequest.jaringan_cms || []).map(item => (
                             <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">{item}</span>
                           ))}
                         </div>
@@ -1960,7 +1853,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
-                  {/* Source & I/O */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-amber-50 to-amber-100 px-4 py-2 border-b border-amber-200">
                       <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">🔌 Source & I/O</p>
@@ -1969,7 +1861,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div className="col-span-2">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</p>
                         <div className="flex flex-wrap gap-1">
-                          {[...(selectedRequest.source||[]), selectedRequest.source_other].filter(Boolean).map(item => (
+                          {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
                             <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{item}</span>
                           ))}
                         </div>
@@ -1985,7 +1877,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
-                  {/* Peripheral */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2 border-b border-emerald-200">
                       <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">📹 Peripheral</p>
@@ -1997,7 +1888,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           <div className="mt-0.5">
                             <p className="text-sm font-semibold text-gray-800">Yes — {selectedRequest.camera_jumlah || '-'} unit</p>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedRequest.camera_tracking||[]).map(item => (
+                              {(selectedRequest.camera_tracking || []).map(item => (
                                 <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item}</span>
                               ))}
                             </div>
@@ -2010,7 +1901,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           <div className="mt-0.5">
                             <p className="text-sm font-semibold text-gray-800">Yes — {selectedRequest.audio_mixer || '-'}</p>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedRequest.audio_detail||[]).map(item => (
+                              {(selectedRequest.audio_detail || []).map(item => (
                                 <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item}</span>
                               ))}
                             </div>
@@ -2030,7 +1921,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         {selectedRequest.wireless_presentation === 'Yes' ? (
                           <div className="mt-0.5">
                             <div className="flex flex-wrap gap-1">
-                              {(selectedRequest.wireless_mode||[]).map(item => (
+                              {(selectedRequest.wireless_mode || []).map(item => (
                                 <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">{item}</span>
                               ))}
                             </div>
@@ -2042,7 +1933,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Controller / Automation</p>
                         {selectedRequest.controller_automation === 'Yes' ? (
                           <div className="mt-0.5 flex flex-wrap gap-1">
-                            {(selectedRequest.controller_type||[]).map(item => (
+                            {(selectedRequest.controller_type || []).map(item => (
                               <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">{item}</span>
                             ))}
                           </div>
@@ -2051,7 +1942,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
-                  {/* Ruangan & Keterangan */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-2 border-b border-slate-200">
                       <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">📐 Ruangan & Keterangan</p>
@@ -2192,7 +2082,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <div className="flex-1 flex flex-col overflow-hidden bg-white">
                 <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m=>m.sender_role !== 'system').length} pesan</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -2267,7 +2157,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
-              {/* Info Project */}
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
@@ -2299,7 +2188,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
               </div>
 
-              {/* Kebutuhan & Solution */}
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
@@ -2321,7 +2209,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
               </div>
 
-              {/* Layout & Jaringan */}
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
@@ -2345,7 +2232,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
               </div>
 
-              {/* Source & Peripheral */}
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
@@ -2359,7 +2245,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
                 </div>
 
-                {/* Camera */}
                 <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={editFormData.camera_conference}
                   onChange={v => setEditFormData(p => ({ ...p, camera_conference: v }))} />
                 {editFormData.camera_conference === 'Yes' && (
@@ -2374,7 +2259,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
                 )}
 
-                {/* Audio */}
                 <RadioGroup label="Audio System" options={['Yes', 'No']} value={editFormData.audio_system}
                   onChange={v => setEditFormData(p => ({ ...p, audio_system: v }))} />
                 {editFormData.audio_system === 'Yes' && (
@@ -2389,7 +2273,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
                 )}
 
-                {/* Wallplate */}
                 <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={editFormData.wallplate_input}
                   onChange={v => setEditFormData(p => ({ ...p, wallplate_input: v }))} />
                 {editFormData.wallplate_input === 'Yes' && (
@@ -2400,7 +2283,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
                 )}
 
-                {/* Tabletop */}
                 <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={editFormData.tabletop_input}
                   onChange={v => setEditFormData(p => ({ ...p, tabletop_input: v }))} />
                 {editFormData.tabletop_input === 'Yes' && (
@@ -2411,7 +2293,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
                 )}
 
-                {/* Wireless */}
                 <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={editFormData.wireless_presentation}
                   onChange={v => setEditFormData(p => ({ ...p, wireless_presentation: v }))} />
                 {editFormData.wireless_presentation === 'Yes' && (
@@ -2423,7 +2304,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
                 )}
 
-                {/* Controller */}
                 <RadioGroup label="Controller / Automation" options={['Yes', 'No']} value={editFormData.controller_automation}
                   onChange={v => setEditFormData(p => ({ ...p, controller_automation: v }))} />
                 {editFormData.controller_automation === 'Yes' && (
@@ -2434,7 +2314,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 )}
               </div>
 
-              {/* Ruangan & Keterangan */}
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
@@ -2468,44 +2347,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Reject Modal */}
-      {rejectModal.open && rejectModal.req && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
-            <div className="bg-gradient-to-r from-red-500 to-red-700 px-6 py-4">
-              <h3 className="font-bold text-white text-lg">❌ Tolak Request</h3>
-              <p className="text-red-100 text-xs mt-0.5">{rejectModal.req.project_name}</p>
-            </div>
-            <div className="p-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Alasan penolakan (opsional):</label>
-              <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} rows={3} placeholder="Tuliskan alasan..."
-                className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-red-400 outline-none resize-none mb-4" />
-              <div className="flex gap-3">
-                <button onClick={() => setRejectModal({ open: false, req: null })} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
-                <button onClick={handleRejectConfirm} className="flex-[2] bg-gradient-to-r from-red-500 to-red-700 text-white py-3 rounded-xl font-bold shadow-lg">❌ Ya, Tolak</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {assignModal.open && assignModal.req && (
-        <AssignPTSModal
-          req={assignModal.req}
-          onClose={() => setAssignModal({ open: false, req: null })}
-          onAssigned={() => {
-            setAssignModal({ open: false, req: null });
-            notify('success', 'Request diapprove & di-assign ke Tim PTS!');
-            fetchRequests();
-            if (selectedRequest) {
-              setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
-              fetchMessages(selectedRequest.id);
-            }
-          }}
-          currentUser={currentUser}
-        />
       )}
     </div>
   );
