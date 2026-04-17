@@ -170,8 +170,8 @@ function AssignPTSModal({ req, onClose, onAssigned, currentUser }: AssignPTSModa
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase.from('users').select('id, full_name, role').in('role', ['admin', 'superadmin', 'team_pts', 'team']).then(({ data }) => {
-      if (data) setTeamMembers(data);
+    supabase.from('users').select('id, full_name, role').in('role', ['admin', 'superadmin', 'team_pts', 'team']).then((res: { data: { id: string; full_name: string; role: string }[] | null }) => {
+      if (res.data) setTeamMembers(res.data);
     });
   }, []);
 
@@ -252,6 +252,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSales, setSearchSales] = useState('');
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filterHandler, setFilterHandler] = useState<string>('');
   const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -321,7 +323,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
-    if (!isPTS) query = query.eq('requester_id', currentUser.id);
+    if (!isPTS) {
+      // Guest/Sales: only their own requests
+      query = query.eq('requester_id', currentUser.id);
+    } else if (isTeamPTS) {
+      // Team PTS: only tickets assigned to them
+      query = query.eq('pts_assigned', currentUser.full_name);
+    }
+    // admin/superadmin: see all
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
@@ -635,6 +644,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     w.print();
   };
 
+  // ─── Available years for filter ───────────────────────────────────────────
+  const availableYears = [...new Set(requests.map(r => new Date(r.created_at).getFullYear().toString()))].sort((a, b) => b.localeCompare(a));
+
   // ─── Filtered list ────────────────────────────────────────────────────────
   const filteredRequests = requests.filter(r => {
     const matchStatus = filterStatus === 'all' || r.status === filterStatus;
@@ -642,7 +654,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const matchSearch = !q || r.project_name?.toLowerCase().includes(q) || r.room_name?.toLowerCase().includes(q);
     const qs = searchSales.toLowerCase();
     const matchSales = !qs || r.sales_name?.toLowerCase().includes(qs) || (r.sales_division || '').toLowerCase().includes(qs);
-    return matchStatus && matchSearch && matchSales;
+    const matchYear = filterYear === 'all' || new Date(r.created_at).getFullYear().toString() === filterYear;
+    const matchHandler = !filterHandler || (r.pts_assigned || '').toLowerCase().includes(filterHandler.toLowerCase());
+    return matchStatus && matchSearch && matchSales && matchYear && matchHandler;
   });
 
   // ─── Stats ────────────────────────────────────────────────────────────────
@@ -1054,9 +1068,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           </div>
         </div>
 
-        {/* Integrated search/filter row — matches ticketing/page.tsx style */}
-        <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Unified search + filter frame — all in one row */}
+        <div className="px-6 py-4 bg-white/60 border-b border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Search Project */}
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Ruangan</label>
               <div className="relative">
@@ -1066,10 +1081,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Cari project / ruangan..."
-                  className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
+                  className="w-full rounded-xl pl-8 pr-3 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
                 />
               </div>
             </div>
+            {/* Search Sales */}
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales / Divisi</label>
               <div className="relative">
@@ -1079,10 +1095,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   value={searchSales}
                   onChange={e => setSearchSales(e.target.value)}
                   placeholder="Cari sales..."
-                  className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
+                  className="w-full rounded-xl pl-8 pr-3 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
                 />
               </div>
             </div>
+            {/* Filter Status */}
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
               <div className="relative">
@@ -1102,15 +1119,50 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
               </div>
             </div>
-            <div className="flex items-end">
-              {(searchQuery || searchSales || filterStatus !== 'all') && (
-                <button onClick={() => { setSearchQuery(''); setSearchSales(''); setFilterStatus('all'); }}
-                  className="w-full rounded-xl px-4 py-2 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 transition-all border border-gray-200">
-                  🗑️ Reset Filter
-                </button>
-              )}
+            {/* Filter Tahun */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Tahun</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                <select
+                  value={filterYear}
+                  onChange={e => setFilterYear(e.target.value)}
+                  className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Years</option>
+                  {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+              </div>
+            </div>
+            {/* Filter Team Handler */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👷</span>
+                <input
+                  type="text"
+                  value={filterHandler}
+                  onChange={e => setFilterHandler(e.target.value)}
+                  placeholder="Search handler..."
+                  className="w-full rounded-xl pl-8 pr-3 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300"
+                />
+              </div>
             </div>
           </div>
+          {/* Active filter chips */}
+          {(searchQuery || searchSales || filterStatus !== 'all' || filterYear !== 'all' || filterHandler) && (
+            <div className="flex flex-wrap gap-2 items-center mt-3">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter aktif:</span>
+              {searchQuery && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-100 text-teal-700">🔍 {searchQuery} <button onClick={() => setSearchQuery('')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {searchSales && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">👤 {searchSales} <button onClick={() => setSearchSales('')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {filterStatus !== 'all' && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">🏷️ {filterStatus} <button onClick={() => setFilterStatus('all')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {filterYear !== 'all' && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">📅 {filterYear} <button onClick={() => setFilterYear('all')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              {filterHandler && <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">👷 {filterHandler} <button onClick={() => setFilterHandler('')} className="ml-0.5 hover:text-red-500">✕</button></span>}
+              <button onClick={() => { setSearchQuery(''); setSearchSales(''); setFilterStatus('all'); setFilterYear('all'); setFilterHandler(''); }}
+                className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">Reset Semua</button>
+            </div>
+          )}
         </div>
 
         {/* Table header */}
