@@ -721,6 +721,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [filterHandler, setFilterHandler] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSales, setSearchSales] = useState('');
+  const [filterDivision, setFilterDivision] = useState<string>('all');
   const [ptsMembersList, setPtsMembersList] = useState<string[]>([]);
   const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
@@ -926,12 +927,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const matchYear = filterYear === 'all' || new Date(r.created_at).getFullYear().toString() === filterYear;
     const matchMonth = filterMonth === 'all' || (new Date(r.created_at).getMonth() + 1).toString().padStart(2, '0') === filterMonth;
     const matchHandler = filterHandler === 'all' || (r.pts_assigned || '') === filterHandler;
+    const matchDivision = filterDivision === 'all' || (r.sales_division || 'Lainnya') === filterDivision;
     const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase())
       || (r.project_location || '').toLowerCase().includes(searchQuery.toLowerCase())
       || (r.room_name || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchSales = !searchSales || (r.sales_name || '').toLowerCase().includes(searchSales.toLowerCase())
-      || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase());
-    return matchStatus && matchYear && matchMonth && matchHandler && matchProject && matchSales;
+      || (r.requester_name || '').toLowerCase().includes(searchSales.toLowerCase())
+      || (r.sales_division || '').toLowerCase().includes(searchSales.toLowerCase());
+    return matchStatus && matchYear && matchMonth && matchHandler && matchDivision && matchProject && matchSales;
   });
 
   const stats = {
@@ -1400,23 +1403,24 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }} />
           <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="👤"
             onSliceClick={label => {
-              setSearchSales(prev => prev === label ? '' : label);
+              setFilterDivision(prev => prev === label ? 'all' : label);
             }} />
           <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
             onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
         </div>
 
         {/* Active filter chips */}
-        {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || searchQuery || searchSales) && (
+        {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
             {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>🏷️ {filterStatus} ✕</button>}
             {filterYear !== 'all' && <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>📅 {filterYear} ✕</button>}
             {filterMonth !== 'all' && <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>🗓️ Bln {filterMonth} ✕</button>}
             {filterHandler !== 'all' && <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>👷 {filterHandler} ✕</button>}
+            {filterDivision !== 'all' && <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0d9488' }}>🏢 {filterDivision} ✕</button>}
             {searchQuery && <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>🔍 {searchQuery} ✕</button>}
             {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
-            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setSearchQuery(''); setSearchSales(''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
+            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales(''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
           </div>
         )}
 
@@ -1735,10 +1739,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
       {/* DETAIL MODAL */}
       {showDetailModal && selectedRequest && detailSc && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-2 md:p-3"
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-0"
           onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[1400px] animate-slide-up flex flex-col overflow-hidden"
-            style={{ maxHeight: '96vh', border: '2px solid rgba(13,148,136,0.3)' }}>
+          <div className="bg-white w-full h-full animate-slide-up flex flex-col overflow-hidden"
+            style={{ border: 'none' }}>
 
             {/* Detail Modal Header */}
             <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-5 py-4 flex items-center gap-4 flex-shrink-0">
@@ -1784,19 +1788,20 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </div>
             </div>
 
-            {/* Detail Modal Body — 3 columns */}
+            {/* Detail Modal Body — 2 columns: LEFT (info + attachments) | RIGHT (chat) */}
             <div className="flex-1 flex overflow-hidden min-h-0">
 
-              {/* LEFT: Detail Info */}
-              <div className="flex-[2] min-w-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
+              {/* LEFT: Detail Info + Attachments */}
+              <div className="flex-[3] min-w-0 border-r border-gray-200 overflow-y-auto bg-gray-50">
                 <div className="p-5 space-y-4">
                   <p className="text-[11px] font-bold text-teal-600 tracking-widest uppercase">📋 Detail Kebutuhan</p>
 
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-teal-50 to-teal-100 px-4 py-2 border-b border-teal-200">
+                  {/* Project Info */}
+                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-teal-50 to-teal-100 px-4 py-2.5 border-b border-teal-200">
                       <p className="text-xs font-bold text-teal-700 flex items-center gap-1.5">📁 Informasi Project</p>
                     </div>
-                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                    <div className="p-4 grid grid-cols-3 gap-x-6 gap-y-4">
                       {[
                         ['Nama Project', selectedRequest.project_name],
                         ['Nama Ruangan', selectedRequest.room_name],
@@ -1813,75 +1818,81 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-violet-50 to-violet-100 px-4 py-2 border-b border-violet-200">
-                      <p className="text-xs font-bold text-violet-700 flex items-center gap-1.5">🎯 Kategori & Solution</p>
+                  {/* Two-column row: Kategori + Source */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-violet-50 to-violet-100 px-4 py-2.5 border-b border-violet-200">
+                        <p className="text-xs font-bold text-violet-700 flex items-center gap-1.5">🎯 Kategori & Solution</p>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Kebutuhan</p>
+                          <div className="flex flex-wrap gap-1">
+                            {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
+                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Solution Product</p>
+                          <div className="flex flex-wrap gap-1">
+                            {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
+                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Layout Signage</p>
+                          <div className="flex flex-wrap gap-1">
+                            {(selectedRequest.layout_signage || []).map(item => (
+                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jaringan / CMS</p>
+                          <div className="flex flex-wrap gap-1">
+                            {(selectedRequest.jaringan_cms || []).map(item => (
+                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Kebutuhan</p>
-                        <div className="flex flex-wrap gap-1">
-                          {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
-                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">{item}</span>
-                          ))}
-                        </div>
+
+                    <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-amber-50 to-amber-100 px-4 py-2.5 border-b border-amber-200">
+                        <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">🔌 Source & I/O</p>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Solution Product</p>
-                        <div className="flex flex-wrap gap-1">
-                          {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
-                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{item}</span>
-                          ))}
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</p>
+                          <div className="flex flex-wrap gap-1">
+                            {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
+                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{item}</span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Layout Signage</p>
-                        <div className="flex flex-wrap gap-1">
-                          {(selectedRequest.layout_signage || []).map(item => (
-                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">{item}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jaringan / CMS</p>
-                        <div className="flex flex-wrap gap-1">
-                          {(selectedRequest.jaringan_cms || []).map(item => (
-                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">{item}</span>
-                          ))}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Input</p>
+                            <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_input || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Output</p>
+                            <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_output || '-'}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-amber-50 to-amber-100 px-4 py-2 border-b border-amber-200">
-                      <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">🔌 Source & I/O</p>
+                  {/* Peripheral full row */}
+                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2.5 border-b border-emerald-200">
+                      <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">📹 Peripheral & Kontrol</p>
                     </div>
-                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
-                      <div className="col-span-2">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</p>
-                        <div className="flex flex-wrap gap-1">
-                          {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
-                            <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{item}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Input</p>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_input || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Output</p>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_output || '-'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2 border-b border-emerald-200">
-                      <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">📹 Peripheral</p>
-                    </div>
-                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                    <div className="p-4 grid grid-cols-3 gap-x-6 gap-y-4">
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Camera Conference</p>
                         {selectedRequest.camera_conference === 'Yes' ? (
@@ -1942,11 +1953,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-2 border-b border-slate-200">
+                  {/* Ruangan & Keterangan */}
+                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-2.5 border-b border-slate-200">
                       <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">📐 Ruangan & Keterangan</p>
                     </div>
-                    <div className="p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                    <div className="p-4 grid grid-cols-3 gap-x-6 gap-y-4">
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ukuran Ruangan</p>
                         <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.ukuran_ruangan || '-'}</p>
@@ -1955,12 +1967,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Suggest Tampilan</p>
                         <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.suggest_tampilan || '-'}</p>
                       </div>
-                      {selectedRequest.keterangan_lain && (
-                        <div className="col-span-2">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Keterangan Lain</p>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5 whitespace-pre-wrap">{selectedRequest.keterangan_lain}</p>
-                        </div>
-                      )}
                       {selectedRequest.pts_assigned && (
                         <div>
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">PTS Handler</p>
@@ -1976,13 +1982,97 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           )}
                         </div>
                       )}
+                      {selectedRequest.keterangan_lain && (
+                        <div className="col-span-3">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Keterangan Lain</p>
+                          <p className="text-sm font-semibold text-gray-800 mt-0.5 whitespace-pre-wrap">{selectedRequest.keterangan_lain}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attachments Panel — prominent */}
+                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 px-4 py-2.5 border-b border-indigo-200 flex items-center justify-between">
+                      <p className="text-xs font-bold text-indigo-700 flex items-center gap-1.5">📎 File & Attachment</p>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                          className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg font-bold transition-all">
+                          {uploadingFile ? '⏳ Uploading...' : '+ Upload File'}
+                        </button>
+                      </div>
+                    </div>
+                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                    <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
+                    <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls,.csv"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
+                    <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf,.dwg,.skp"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
+
+                    {isPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                      <div className="flex gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest my-auto">Upload:</p>
+                        {[
+                          { cat: 'sld' as const, ref: sldFileRef, label: '📐 SLD (PDF)', cls: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
+                          { cat: 'boq' as const, ref: boqFileRef, label: '📊 BOQ (Excel)', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
+                          { cat: 'design3d' as const, ref: design3dFileRef, label: '🎨 Design 3D', cls: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
+                        ].map(({ cat, ref, label, cls }) => (
+                          <button key={cat} onClick={() => ref.current?.click()} disabled={uploadingCategory === cat}
+                            className={`px-3 py-1 rounded-lg border text-xs font-bold transition-all ${cls}`}>
+                            {uploadingCategory === cat ? '⏳ Uploading...' : label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Tabs */}
+                    <div className="flex border-b border-gray-100">
+                      {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => (
+                        <button key={tab} onClick={() => setActiveAttachTab(tab)}
+                          className={`flex-1 py-2 text-xs font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-indigo-700 border-b-2 border-indigo-500 bg-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}>
+                          {tab === 'all' ? `All (${attachments.length})` : tab === 'design3d' ? `3D (${attachments.filter(a => a.attachment_category === 'design3d').length})` : `${tab.toUpperCase()} (${attachments.filter(a => a.attachment_category === tab).length})`}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* File grid */}
+                    <div className="p-4">
+                      {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).length === 0 ? (
+                        <div className="text-center py-6 text-gray-400">
+                          <div className="text-3xl mb-2">📂</div>
+                          <p className="text-xs font-medium">Belum ada file</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
+                            <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
+                              className="group flex items-center gap-3 p-3 rounded-xl border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 transition-all cursor-pointer">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${isFileType(att.file_type) ? 'bg-teal-50' : att.file_type.includes('pdf') ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                                {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-700 truncate group-hover:text-indigo-700">{att.file_name}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">{formatFileSize(att.file_size)}{att.revision_version ? ` · Rev ${att.revision_version}` : ''}</p>
+                                {att.attachment_category && att.attachment_category !== 'general' && (
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-1 inline-block ${att.attachment_category === 'sld' ? 'bg-blue-100 text-blue-700' : att.attachment_category === 'boq' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                                    {att.attachment_category.toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              <svg className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Admin controls */}
                   {isPTS && !isTeamPTS && (
-                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-rose-50 to-rose-100 px-4 py-2 border-b border-rose-200">
+                    <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-rose-50 to-rose-100 px-4 py-2.5 border-b border-rose-200">
                         <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">⚙️ Admin Controls</p>
                       </div>
                       <div className="p-4 space-y-3">
@@ -2016,70 +2106,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
               </div>
 
-              {/* MIDDLE: Attachments */}
-              <div className="w-48 flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden bg-white">
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">📎 Files</p>
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
-                    className="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg font-bold transition-all">
-                    {uploadingFile ? '...' : '+ Upload'}
-                  </button>
-                </div>
-                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-                <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
-                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls,.csv"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
-                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf,.dwg,.skp"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
-
-                {isPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
-                  <div className="flex gap-1 p-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
-                    {[
-                      { cat: 'sld' as const, ref: sldFileRef, label: '📐 SLD', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-                      { cat: 'boq' as const, ref: boqFileRef, label: '📊 BOQ', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                      { cat: 'design3d' as const, ref: design3dFileRef, label: '🎨 3D', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-                    ].map(({ cat, ref, label, cls }) => (
-                      <button key={cat} onClick={() => ref.current?.click()} disabled={uploadingCategory === cat}
-                        className={`flex-1 py-1 rounded-lg border text-[9px] font-bold transition-all ${cls}`}>
-                        {uploadingCategory === cat ? '...' : label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex border-b border-gray-100 flex-shrink-0">
-                  {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => (
-                    <button key={tab} onClick={() => setActiveAttachTab(tab)}
-                      className={`flex-1 py-1.5 text-[9px] font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-teal-700 border-b-2 border-teal-500 bg-teal-50' : 'text-gray-400'}`}>
-                      {tab === 'all' ? 'All' : tab === 'design3d' ? '3D' : tab.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex-1 overflow-y-auto divide-y divide-gray-50 p-1">
-                  {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).length === 0 ? (
-                    <p className="text-[10px] text-gray-400 text-center py-6">Belum ada file</p>
-                  ) : (activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
-                    <div key={att.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-xl transition-all">
-                      <div className="w-7 h-7 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0 text-sm">
-                        {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-semibold text-gray-700 truncate">{att.file_name}</p>
-                        <p className="text-[9px] text-gray-400">{formatFileSize(att.file_size)}{att.revision_version ? ` · R${att.revision_version}` : ''}</p>
-                      </div>
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-teal-500 hover:text-teal-700 flex-shrink-0">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* RIGHT: Chat */}
-              <div className="flex-1 flex flex-col overflow-hidden bg-white">
+              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 320 }}>
                 <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
