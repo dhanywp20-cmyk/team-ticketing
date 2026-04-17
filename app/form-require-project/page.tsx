@@ -202,21 +202,24 @@ function AssignPTSModal({
         message: `✅ Request diapprove oleh ${currentUser.full_name} dan di-assign ke ${selected}. Tim PTS akan segera memproses.`,
       }]);
 
-      // FIX #3: Kirim WA ke handler yang di-assign
+      // FIX #3: Kirim WA ke handler yang di-assign via notify-handler
       const selectedMember = teamMembers.find(m => m.full_name === selected);
       if (selectedMember?.phone_number) {
-        const handlerMsg =
-          `🏗️ *FORM REQUIRE PROJECT — ASSIGNED TO YOU*\n\n` +
-          `Halo *${selectedMember.full_name}*, kamu di-assign untuk menangani request berikut:\n\n` +
-          `📋 *Project:* ${req.project_name}\n` +
-          `🏢 *Sales:* ${req.sales_name || '-'}\n` +
-          `📂 *Divisi:* ${req.sales_division || '-'}\n` +
-          `👤 *Requester:* ${req.requester_name}\n` +
-          (req.due_date ? `🎯 *Target:* ${new Date(req.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}\n` : '') +
-          `\n✅ Request telah di-approve & assigned ke kamu.\n` +
-          `Segera proses dan update status ya! 💪\n\n` +
-          `Link Dashboard: https://team-ticketing.vercel.app/dashboard`;
-        await supabase.functions.invoke('send-wa', { body: { target: selectedMember.phone_number, message: handlerMsg } });
+        await supabase.functions.invoke('notify-handler', {
+          body: {
+            type: 'form_require_assigned',
+            handlerName: selectedMember.full_name,
+            handlerPhone: selectedMember.phone_number,
+            projectName: req.project_name,
+            salesName: req.sales_name || '',
+            salesDivision: req.sales_division || '',
+            requesterName: req.requester_name,
+            dueDate: req.due_date
+              ? new Date(req.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+              : null,
+            approvedBy: currentUser.full_name,
+          },
+        });
       }
 
       onAssigned();
@@ -298,6 +301,8 @@ interface NewFormModalProps {
   setSurveyPhotos: React.Dispatch<React.SetStateAction<File[]>>;
   surveyPhotosPreviews: string[];
   setSurveyPhotosPreviews: React.Dispatch<React.SetStateAction<string[]>>;
+  boqFormFile: File | null;
+  setBoqFormFile: React.Dispatch<React.SetStateAction<File | null>>;
   submitting: boolean;
   onClose: () => void;
   onSubmit: () => void;
@@ -306,9 +311,11 @@ interface NewFormModalProps {
 function NewFormModal({
   currentUser, form, setForm, initialForm, dueDateForm, setDueDateForm,
   surveyPhotos, setSurveyPhotos, surveyPhotosPreviews, setSurveyPhotosPreviews,
+  boqFormFile, setBoqFormFile,
   submitting, onClose, onSubmit,
 }: NewFormModalProps) {
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
+  const boqFormRef = useRef<HTMLInputElement>(null);
 
   const toggleArr = (arr: string[], val: string): string[] =>
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
@@ -443,7 +450,7 @@ function NewFormModal({
             </h3>
             <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
               value={form.layout_signage} onChange={v => setForm(prev => ({ ...prev, layout_signage: v }))} />
-            <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
+            <CheckGroup label="Jaringan / CMS" options={['Cloud', 'Onpremise', 'USB']}
               value={form.jaringan_cms} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
@@ -465,7 +472,7 @@ function NewFormModal({
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
               Source & Peripheral
             </h3>
-            <CheckGroup label="Source" options={['PC / Mini PC', 'Laptop', 'Media Player', 'IPTV', 'Set Top Box']}
+            <CheckGroup label="Source" options={['PC / Mini PC', 'Laptop', 'URL Dashboard', 'NVR CCTV', 'Media Player', 'IPTV', 'Set Top Box']}
               value={form.source} onChange={v => setForm(prev => ({ ...prev, source: v }))} />
             <div className="mb-4">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Source</label>
@@ -530,7 +537,7 @@ function NewFormModal({
               onChange={v => setForm(prev => ({ ...prev, wireless_presentation: v }))} />
             {form.wireless_presentation === 'Yes' && (
               <div className="ml-4 mb-4 space-y-3 border-l-2 border-teal-200 pl-4">
-                <CheckGroup label="Wireless Mode" options={['Clickshare', 'AirPlay', 'Miracast', 'WiPG', 'BYOM']}
+                <CheckGroup label="Wireless Mode" options={['Aplikasi', 'AirPlay', 'Miracast', 'Chromecast', 'BYOM']}
                   value={form.wireless_mode} onChange={v => setForm(prev => ({ ...prev, wireless_mode: v }))} />
                 <RadioGroup label="Dongle" options={['Yes', 'No']} value={form.wireless_dongle}
                   onChange={v => setForm(prev => ({ ...prev, wireless_dongle: v }))} />
@@ -542,7 +549,7 @@ function NewFormModal({
               onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
             {form.controller_automation === 'Yes' && (
               <div className="ml-4 mb-4 border-l-2 border-teal-200 pl-4">
-                <CheckGroup label="Controller Type" options={['Crestron', 'AMX', 'Extron', 'Q-SYS', 'Custom']}
+                <CheckGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
                   value={form.controller_type} onChange={v => setForm(prev => ({ ...prev, controller_type: v }))} />
               </div>
             )}
@@ -574,51 +581,95 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Foto Survey */}
+          {/* Foto Survey + BOQ Upload — side by side */}
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📸</span>
-              Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
+              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
+              Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
             </h3>
-            <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
-              onChange={e => {
-                const files = Array.from(e.target.files || []);
-                if (!files.length) return;
-                const combined = [...surveyPhotos, ...files].slice(0, 10);
-                setSurveyPhotos(combined);
-                setSurveyPhotosPreviews(combined.map(f => URL.createObjectURL(f)));
-                e.target.value = '';
-              }} />
-            {surveyPhotosPreviews.length === 0 ? (
-              <button type="button" onClick={() => surveyPhotoRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-300 rounded-xl py-8 text-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
-                <div className="text-3xl mb-2">📷</div>
-                <p className="text-sm font-medium">Klik untuk upload foto survey</p>
-                <p className="text-xs mt-1">Max 10 foto</p>
-              </button>
-            ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* Foto Survey */}
               <div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {surveyPhotosPreviews.map((src, i) => (
-                    <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
-                      <img src={src} alt="" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => {
-                        const newPhotos = surveyPhotos.filter((_, j) => j !== i);
-                        setSurveyPhotos(newPhotos);
-                        setSurveyPhotosPreviews(newPhotos.map(f => URL.createObjectURL(f)));
-                      }} className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
+                <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
+                    const combined = [...surveyPhotos, ...files].slice(0, 10);
+                    setSurveyPhotos(combined);
+                    setSurveyPhotosPreviews(combined.map(f => URL.createObjectURL(f)));
+                    e.target.value = '';
+                  }} />
+                {surveyPhotosPreviews.length === 0 ? (
+                  <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+                    className="w-full border-2 border-dashed border-gray-300 rounded-xl py-6 text-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
+                    <div className="text-2xl mb-1">📷</div>
+                    <p className="text-xs font-medium">Klik upload foto</p>
+                    <p className="text-[11px] mt-0.5 opacity-70">Max 10 foto</p>
+                  </button>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-3 gap-1.5 mb-2">
+                      {surveyPhotosPreviews.map((src, i) => (
+                        <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
+                          <img src={src} alt="" className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => {
+                            const newPhotos = surveyPhotos.filter((_, j) => j !== i);
+                            setSurveyPhotos(newPhotos);
+                            setSurveyPhotosPreviews(newPhotos.map(f => URL.createObjectURL(f)));
+                          }} className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                        </div>
+                      ))}
+                      {surveyPhotos.length < 10 && (
+                        <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+                          className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
+                          <span className="text-xl">+</span>
+                        </button>
+                      )}
                     </div>
-                  ))}
-                  {surveyPhotos.length < 10 && (
-                    <button type="button" onClick={() => surveyPhotoRef.current?.click()}
-                      className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
-                      <span className="text-2xl">+</span>
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400">{surveyPhotos.length}/10 foto dipilih</p>
+                    <p className="text-[11px] text-gray-400">{surveyPhotos.length}/10 foto</p>
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* BOQ Upload */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel</p>
+                <input ref={boqFormRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) setBoqFormFile(f);
+                    e.target.value = '';
+                  }} />
+                {!boqFormFile ? (
+                  <button type="button" onClick={() => boqFormRef.current?.click()}
+                    className="w-full border-2 border-dashed border-emerald-300 rounded-xl py-6 text-center text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50 transition-all">
+                    <div className="text-2xl mb-1">📊</div>
+                    <p className="text-xs font-medium">Klik upload BOQ</p>
+                    <p className="text-[11px] mt-0.5 opacity-70">.xlsx / .xls / .csv</p>
+                  </button>
+                ) : (
+                  <div className="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">📊</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-emerald-800 truncate">{boqFormFile.name}</p>
+                      <p className="text-[11px] text-emerald-600">{(boqFormFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button type="button" onClick={() => setBoqFormFile(null)}
+                      className="text-red-400 hover:text-red-600 font-bold text-sm flex-shrink-0">✕</button>
+                  </div>
+                )}
+                {boqFormFile && (
+                  <button type="button" onClick={() => boqFormRef.current?.click()}
+                    className="mt-2 w-full text-xs text-emerald-600 hover:text-emerald-800 font-bold py-1 transition-all">
+                    🔄 Ganti File
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -632,7 +683,7 @@ function NewFormModal({
             className="flex-[2] bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
             {submitting
               ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Mengirim...</>
-              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>Kirim Request ke Superadmin</>}
+              : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>Submit Form</>}
           </button>
         </div>
       </div>
@@ -702,6 +753,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [dueDateForm, setDueDateForm] = useState('');
   const [surveyPhotos, setSurveyPhotos] = useState<File[]>([]);
   const [surveyPhotosPreviews, setSurveyPhotosPreviews] = useState<string[]>([]);
+  const [boqFormFile, setBoqFormFile] = useState<File | null>(null);
 
   const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -711,7 +763,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
-    if (!isPTS) query = query.eq('requester_id', currentUser.id);
+    if (!isPTS) {
+      // Guest/sales: hanya milik sendiri
+      query = query.eq('requester_id', currentUser.id);
+    } else if (isTeamPTS) {
+      // Team handler: hanya yang sudah approved/in_progress dan di-assign ke mereka
+      // TIDAK melihat pending — pending hanya untuk admin
+      query = query.in('status', ['approved', 'in_progress', 'completed']).eq('pts_assigned', currentUser.full_name);
+    }
+    // admin/superadmin: lihat semua (no filter)
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
@@ -967,27 +1027,36 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           }
         }
 
-        // FIX #3: WA ke admin saat guest/sales submit — "Waiting Approval"
-        const isGuestOrSales = ['guest', 'sales'].includes(role);
-        if (isGuestOrSales) {
-          // Ambil nomor admin dari DB
-          const { data: adminData } = await supabase.from('users').select('phone_number').in('role', ['superadmin', 'admin']).not('phone_number', 'is', null).limit(1).single();
-          if (adminData?.phone_number) {
-            const adminMsg =
-              `🏗️ *FORM REQUIRE PROJECT — REQUEST BARU*\n\n` +
-              `Ada request baru yang *menunggu approval*:\n\n` +
-              `📋 *Project:* ${form.project_name.trim()}\n` +
-              `👤 *Requester:* ${currentUser.full_name}\n` +
-              `🏢 *Sales:* ${form.sales_name.trim() || '-'}\n` +
-              `📂 *Divisi:* ${form.sales_division || '-'}\n` +
-              `🕐 *Dikirim:* ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}\n\n` +
-              `Silakan login dan approve di:\nhttps://team-ticketing.vercel.app/dashboard`;
-            await supabase.functions.invoke('send-wa', { body: { target: adminData.phone_number, message: adminMsg } });
+        // Upload BOQ form file jika ada
+        if (boqFormFile && data?.id) {
+          const filePath = `project-files/${data.id}/boq-initial-${Date.now()}-${boqFormFile.name}`;
+          const { error: boqErr } = await supabase.storage.from('project-files').upload(filePath, boqFormFile, { cacheControl: '3600', upsert: false });
+          if (!boqErr) {
+            const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+            await supabase.from('project_attachments').insert([{
+              request_id: data.id, message_id: null, file_name: boqFormFile.name,
+              file_url: urlData.publicUrl, file_type: boqFormFile.type, file_size: boqFormFile.size,
+              uploaded_by: currentUser.full_name, attachment_category: 'boq', revision_version: 1,
+            }]);
           }
         }
+
+        // WA ke semua admin saat guest/sales submit — via notify-handler
+        // Semua role (bukan hanya guest/sales) — admin juga tetap butuh notif jika
+        // yang submit adalah user dengan role lain
+        await supabase.functions.invoke('notify-handler', {
+          body: {
+            type: 'form_require_approval',
+            projectName: form.project_name.trim(),
+            requesterName: currentUser.full_name,
+            salesName: form.sales_name.trim() || '',
+            salesDivision: form.sales_division || '',
+            submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          },
+        });
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
-      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]);
+      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null);
       setShowNewFormModal(false);
       fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
@@ -1176,8 +1245,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           setSurveyPhotos={setSurveyPhotos}
           surveyPhotosPreviews={surveyPhotosPreviews}
           setSurveyPhotosPreviews={setSurveyPhotosPreviews}
+          boqFormFile={boqFormFile}
+          setBoqFormFile={setBoqFormFile}
           submitting={submitting}
-          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); }}
+          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); }}
           onSubmit={handleSubmitForm}
         />
       )}
@@ -1219,12 +1290,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 🔔 {unreadCount} pending
               </span>
             )}
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-              role === 'superadmin' ? 'bg-red-100 text-red-700' :
-              role === 'admin' ? 'bg-purple-100 text-purple-700' :
-              isTeamPTS ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-              {currentUser.full_name}
-            </span>
+
             {!isPTS && (
               <button onClick={() => setShowNewFormModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
@@ -1244,7 +1310,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           {[
             { label: 'Total',       value: stats.total,       sub: 'Semua request',       gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',   onClick: () => setFilterStatus('all'),                                           active: filterStatus === 'all' },
             { label: 'Pending',     value: stats.pending,     sub: 'Menunggu approval',   gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',   onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),   active: filterStatus === 'pending' },
-            { label: 'Approved',    value: stats.approved,    sub: 'Disetujui admin',     gradient: 'linear-gradient(135deg,#0891b2,#0e7490)', icon: '✅', shadow: 'rgba(8,145,178,0.35)',   onClick: () => setFilterStatus(filterStatus === 'approved' ? 'all' : 'approved'), active: filterStatus === 'approved' },
             { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan',   gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)',   onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
             { label: 'Completed',   value: stats.completed,   sub: 'Selesai ditangani',   gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)',   onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
             { label: 'Rejected',    value: stats.rejected,    sub: 'Ditolak',             gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)',   onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'),  active: filterStatus === 'rejected' },
@@ -1311,11 +1376,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </button>
           </div>
 
-          <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
+          <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1.2fr_1.2fr_1.3fr_1.1fr] gap-0 px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Project</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nama Ruangan</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Team Handler</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status Handle</span>
+			<span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Due Date</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Created By</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</span>
           </div>
@@ -1344,12 +1410,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-gray-800 truncate group-hover:text-teal-700 transition-colors">{req.project_name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {req.pts_assigned && <span className="text-xs text-teal-600 font-medium">🔧 {req.pts_assigned}</span>}
+                        {req.room_name && <span className="text-xs text-teal-600 font-medium">🔧 {req.room_name}</span>}
                         {unread > 0 && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center"><span className="text-sm text-gray-600 truncate">{req.room_name || '—'}</span></div>
+                  <div className="flex items-center"><span className="text-sm text-gray-600 truncate">{req.pts_assigned || '—'}</span></div>
                   <div className="flex items-center">
                     <div>
                       <p className="text-sm text-gray-600 truncate">{req.sales_name || '—'}</p>
@@ -1359,11 +1425,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <div className="flex items-center">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                   </div>
+				  <div className="flex items-center"><span className="text-sm text-gray-600 truncate">{req.pts_assigned || '—'}</span></div>
+                  <div className="flex items-center">
+                    <div>
+                      <p className="text-sm text-gray-600 truncate">{req.due_date || '—'}</p>
+                      {dueStatus && <p className={`text-xs font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-gray-400'}`}>🎯 {dueStatus.label}</p>}
+                    </div>
+                  </div>
                   <div className="flex items-center">
                     <div>
                       <p className="text-sm text-gray-600">{req.requester_name}</p>
-                      <p className="text-xs text-gray-400">{formatDate(req.created_at)}</p>
-                      {dueStatus && <p className={`text-xs font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-gray-400'}`}>🎯 {dueStatus.label}</p>}
+                      <p className="text-xs text-gray-400">{formatDate(req.created_at)}</p>         
                     </div>
                   </div>
                   <div className="hidden md:flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
@@ -1489,9 +1561,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 truncate">{selectedRequest.project_name}</h2>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                {selectedRequest.pts_assigned && <span className="bg-teal-100 text-teal-800 px-2.5 py-1 rounded-full text-xs font-bold border border-teal-300">🔧 {selectedRequest.pts_assigned}</span>}
               </div>
-              <p className="text-gray-600 text-sm mt-0.5">{selectedRequest.room_name} · {selectedRequest.requester_name} · {formatDate(selectedRequest.created_at)}</p>
+              <p className="text-gray-600 text-sm mt-0.5">{selectedRequest.room_name} · {selectedRequest.requester_name} · {selectedRequest.sales_division} · {formatDate(selectedRequest.created_at)}</p>
             </div>
             {isPTS && !isTeamPTS && (
               <div className="flex gap-2 flex-shrink-0 flex-wrap">
@@ -1548,7 +1619,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   ['Ukuran Ruangan', selectedRequest.ukuran_ruangan],
                   ['Suggest Tampilan', selectedRequest.suggest_tampilan],
                   ['Keterangan', selectedRequest.keterangan_lain],
-                  ['Approved By', selectedRequest.approved_by],
                 ].filter(([, v]) => v).map(([k, v]) => (
                   <div key={k} className="flex gap-2">
                     <span className="text-gray-400 font-semibold flex-shrink-0 w-24">{k}</span>
@@ -1667,7 +1737,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
           {/* RIGHT: Chat */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-gray-50/50">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-white">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center text-gray-400">
@@ -1735,7 +1805,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
                 <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
                   value={editFormData.kebutuhan} onChange={v => setEditFormData(p => ({ ...p, kebutuhan: v }))} />
-                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
+                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Videotron', 'Kiosk', 'IFP']}
                   value={editFormData.solution_product} onChange={v => setEditFormData(p => ({ ...p, solution_product: v }))} />
                 <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
                   value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
