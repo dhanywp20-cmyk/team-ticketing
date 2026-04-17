@@ -1635,13 +1635,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           }}>
                           <span className="text-xl font-black leading-none"
                             style={{ color: isToday ? '#dc2626' : '#4f46e5' }}>
-                            {new Date(r.due_date + 'T00:00:00').getDate()}
+                            {new Date(req.due_date + 'T00:00:00').getDate()}
                           </span>
                           <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
                             style={{ color: isToday ? '#dc2626' : '#6366f1' }}>
-                            {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
+                            {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
                           </span>
-                          {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
+                          {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{req.due_time}</span>}
                         </div>
                       </div>
 
