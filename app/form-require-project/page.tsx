@@ -1638,7 +1638,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                               {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
                             </span>
                             {dueStatus && dueStatus.type !== 'ok' && (
-                              <span className={`text-[6px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{detailDueStatus.label}</span>
+                              <span className={`text-[6px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{DueStatus.label}</span>
                             )}
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
