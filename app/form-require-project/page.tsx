@@ -171,6 +171,27 @@ function MiniPieChart({
   );
 }
 
+// ─── Loading Screen — sama dengan Reminder Schedule ──────────────────────────
+
+function LoadingScreen() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-[9999]"
+      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="flex flex-col items-center gap-4 px-10 py-8 rounded-2xl"
+        style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <svg className="w-14 h-14 animate-spin" viewBox="0 0 50 50" fill="none">
+          <circle cx="25" cy="25" r="20" stroke="#e2e8f0" strokeWidth="5" />
+          <path d="M25 5 A20 20 0 0 1 45 25" stroke="#0d9488" strokeWidth="5" strokeLinecap="round" />
+        </svg>
+        <div className="text-center">
+          <p className="text-gray-800 font-bold text-base">🏗️ Form Require Project</p>
+          <p className="text-gray-500 text-sm mt-1">Memuat data...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Assign PTS Modal ────────────────────────────────────────────────────────
 
 function AssignPTSModal({
@@ -697,7 +718,8 @@ function NewFormModal({
 // ─── Form Require Project Module ─────────────────────────────────────────────
 
 function FormRequireProject({ currentUser }: { currentUser: User }) {
-  const [view, setView] = useState<'list' | 'detail'>('list');
+  const [appReady, setAppReady] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showNewFormModal, setShowNewFormModal] = useState(false);
   const [requests, setRequests] = useState<ProjectRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ProjectRequest | null>(null);
@@ -799,6 +821,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       }
     }
     setLoading(false);
+    setAppReady(true);
   }, [currentUser.id, isPTS]);
 
   const fetchMessages = useCallback(async (requestId: string) => {
@@ -1198,13 +1221,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handleOpenDetail = async (req: ProjectRequest) => {
     activeRequestIdRef.current = req.id;
     setSelectedRequest(req);
+    setMessages([]);
+    setAttachments([]);
+    setShowDetailModal(true);
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
     const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
     stored[req.id] = Date.now();
     localStorage.setItem('pts_last_seen', JSON.stringify(stored));
     setUnreadMsgMap(prev => { const n = { ...prev }; delete n[req.id]; return n; });
-    setView('detail');
+  };
+
+  const handleCloseDetail = () => {
+    activeRequestIdRef.current = null;
+    setShowDetailModal(false);
+    setSelectedRequest(null);
+    setMessages([]);
+    setAttachments([]);
   };
 
   const handlePrint = () => {
@@ -1243,9 +1276,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (w) { w.document.write(printContent); w.document.close(); w.print(); }
   };
 
-  // ── VIEW: LIST ──
-  if (view === 'list') return (
-    // FIX #2: Sticky header like reminder-schedule, wrapper is flex col full screen
+  // ── RENDER — single return, detail jadi modal overlay ──
+  if (!appReady) return <LoadingScreen />;
+
+  const detailSc = selectedRequest ? (statusConfig[selectedRequest.status] || statusConfig.pending) : null;
+  const detailIsPending = selectedRequest?.status === 'pending';
+  const detailDueStatus = selectedRequest ? getDueStatus(selectedRequest.due_date, selectedRequest.status) : null;
+  const isFileType = (type: string) => type.startsWith('image/');
+
+  return (
     <div className="flex flex-col min-h-screen bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
@@ -1439,24 +1478,18 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             </button>
           </div>
 
-          {/* Table header — 8 columns */}
-          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-            style={{ gridTemplateColumns: '2fr 1.2fr 1.2fr 1fr 1fr 1fr 1.1fr 80px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
-            <span>NAMA PROJECT</span>
-            <span>LOKASI</span>
-            <span>SALES</span>
-            <span>HANDLER</span>
-            <span>STATUS</span>
-            <span>DUE DATE</span>
-            <span>CREATED BY</span>
-            <span className="text-right">ACTION</span>
-          </div>
+          {/* No column header needed for card grid */}
 
-          {/* Table body */}
+          {/* Card Grid Body */}
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <div className="w-10 h-10 border-4 border-gray-200 border-t-teal-500 rounded-full animate-spin" />
-              <p className="text-sm text-gray-500 font-medium">Memuat data...</p>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="animate-pulse rounded-2xl p-4 border border-gray-200 bg-white/60 space-y-3">
+                  <div className="flex justify-between"><div className="h-4 bg-gray-200 rounded w-2/3" /><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
+                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  <div className="grid grid-cols-3 gap-2"><div className="h-3 bg-gray-100 rounded" /><div className="h-3 bg-gray-100 rounded" /><div className="h-3 bg-gray-100 rounded" /></div>
+                </div>
+              ))}
             </div>
           ) : filteredRequests.length === 0 ? (
             <div className="text-center py-16">
@@ -1466,7 +1499,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
-            <div>
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredRequests.map((req) => {
                 const sc = statusConfig[req.status] || statusConfig.pending;
                 const unread = unreadMsgMap[req.id] || 0;
@@ -1474,113 +1507,74 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 const isToday = req.due_date === new Date().toISOString().split('T')[0];
                 return (
                   <div key={req.id}
-                    className="px-5 py-4 transition-colors hover:bg-teal-50/40 cursor-pointer"
-                    style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}
+                    className="group rounded-2xl p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 border"
+                    style={{
+                      background: 'white',
+                      borderColor: isToday ? '#0d9488' : 'rgba(0,0,0,0.08)',
+                      borderWidth: isToday ? '2px' : '1px',
+                      boxShadow: isToday ? '0 0 0 1px rgba(13,148,136,0.2)' : '0 2px 8px rgba(0,0,0,0.06)',
+                    }}
                     onClick={() => handleOpenDetail(req)}>
 
-                    {/* Mobile */}
-                    <div className="md:hidden space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
-                            <span className="text-sm font-bold text-gray-800 truncate">{req.project_name}</span>
-                          </div>
-                          <p className="text-xs text-gray-500">{req.room_name}{req.project_location ? ` · 📍 ${req.project_location}` : ''}</p>
+                    {/* Card Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
+                          <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors leading-tight">{req.project_name}</p>
+                          {unread > 0 && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread} baru</span>}
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                        {req.room_name && <p className="text-[11px] text-teal-600 font-semibold mt-0.5 truncate">🔧 {req.room_name}</p>}
+                        {req.project_location && <p className="text-[11px] text-gray-400 mt-0.5 truncate">📍 {req.project_location}</p>}
                       </div>
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>{req.sales_name}{req.sales_division ? ` · ${req.sales_division}` : ''}</span>
-                        <span>{dueStatus ? `🎯 ${dueStatus.label}` : new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
-                      </div>
-                      {isPTS && !isTeamPTS && req.status === 'pending' && (
-                        <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => handleApprove(req)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold">✅ Approve</button>
-                          <button onClick={() => handleReject(req)} className="flex-1 bg-red-50 text-red-600 border border-red-300 py-2 rounded-xl text-xs font-bold">❌ Tolak</button>
-                        </div>
-                      )}
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                     </div>
 
-                    {/* Desktop — 8 columns */}
-                    <div className="hidden md:grid items-center gap-3"
-                      style={{ gridTemplateColumns: '2fr 1.2fr 1.2fr 1fr 1fr 1fr 1.1fr 80px' }}>
-
-                      {/* Nama Project + Ruangan */}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                          <span className="font-bold text-gray-800 text-sm truncate block">{req.project_name}</span>
-                          {unread > 0 && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread}</span>}
-                        </div>
-                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🔧 {req.room_name}</p>}
+                    {/* Card grid info */}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] mb-3">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-gray-400 flex-shrink-0">👤</span>
+                        <span className="text-gray-600 truncate">{req.sales_name || '—'}</span>
+                        {req.sales_division && <span className="text-indigo-400 font-bold flex-shrink-0">· {req.sales_division}</span>}
                       </div>
-
-                      {/* Lokasi */}
-                      <div className="min-w-0">
-                        <p className="text-sm text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
-                      </div>
-
-                      {/* Sales + Divisi */}
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
-                        {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
-                      </div>
-
-                      {/* Handler */}
-                      <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-gray-400 flex-shrink-0">👷</span>
                         {req.pts_assigned ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{req.pts_assigned.charAt(0).toUpperCase()}</div>
-                            <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <div className="w-4 h-4 rounded-full bg-teal-600 text-white text-[8px] font-bold flex items-center justify-center flex-shrink-0">{req.pts_assigned.charAt(0).toUpperCase()}</div>
+                            <span className="text-gray-700 font-semibold truncate">{req.pts_assigned}</span>
                           </div>
-                        ) : <span className="text-gray-300 text-sm">—</span>}
+                        ) : <span className="text-gray-300">Belum di-assign</span>}
                       </div>
-
-                      {/* Status */}
-                      <div className="space-y-1">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                        {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[10px] font-bold text-red-500 animate-pulse">🔔 Perlu Approval</p>}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-gray-400 flex-shrink-0">🙋</span>
+                        <span className="text-gray-600 truncate">{req.requester_name}</span>
                       </div>
-
-                      {/* Due Date */}
-                      <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-gray-400 flex-shrink-0">📅</span>
                         {req.due_date ? (
-                          <div className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-xl text-center"
-                            style={{ background: isToday ? 'rgba(13,148,136,0.12)' : 'rgba(99,102,241,0.08)', border: isToday ? '1px solid rgba(13,148,136,0.35)' : '1px solid rgba(99,102,241,0.2)' }}>
-                            <span className="text-xl font-black leading-none" style={{ color: isToday ? '#0d9488' : '#4f46e5' }}>
-                              {new Date(req.due_date + 'T00:00:00').getDate()}
-                            </span>
-                            <span className="text-[9px] font-bold uppercase tracking-wider leading-tight" style={{ color: isToday ? '#0d9488' : '#6366f1' }}>
-                              {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                            </span>
-                            {dueStatus && dueStatus.type !== 'ok' && (
-                              <span className={`text-[8px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{dueStatus.label}</span>
-                            )}
-                          </div>
-                        ) : <span className="text-gray-300 text-sm">—</span>}
+                          <span className={`font-bold ${dueStatus?.type === 'overdue' ? 'text-red-500' : dueStatus?.type === 'urgent' ? 'text-amber-500' : 'text-gray-600'}`}>
+                            {formatDueDate(req.due_date)}{dueStatus ? ` (${dueStatus.label})` : ''}
+                          </span>
+                        ) : <span className="text-gray-300">—</span>}
                       </div>
+                    </div>
 
-                      {/* Created By */}
-                      <div className="min-w-0">
-                        <p className="text-sm text-gray-600 truncate">{req.requester_name}</p>
-                        <p className="text-[11px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                      </div>
-
-                      {/* Action */}
-                      <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                    {/* Card footer */}
+                    <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                      <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                         {isPTS && !isTeamPTS && req.status === 'pending' && (
                           <>
-                            <button onClick={() => handleApprove(req)} title="Approve"
-                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">✅</button>
-                            <button onClick={() => handleReject(req)} title="Tolak"
-                              className="w-7 h-7 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">❌</button>
+                            <button onClick={() => handleApprove(req)}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold transition-all">✅ Approve</button>
+                            <button onClick={() => handleReject(req)}
+                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-[10px] font-bold transition-all">❌ Tolak</button>
                           </>
                         )}
                         <button onClick={() => handleOpenDetail(req)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-                          style={{ border: '1px solid #e5e7eb' }}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-all bg-gray-50 hover:bg-teal-50 text-gray-400 hover:text-teal-600 border border-gray-200">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
                       </div>
                     </div>
@@ -1615,382 +1609,356 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
       <style jsx>{`
         @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+        @keyframes slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         .animate-scale-in { animation: scale-in 0.2s ease-out; }
+        .animate-slide-up { animation: slide-up 0.25s ease-out; }
         select option { background: #ffffff; color: #1e293b; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(13,148,136,0.25); border-radius: 4px; }
       `}</style>
-    </div>
-  );
 
-  // ── VIEW: DETAIL ──
-  if (view === 'detail' && selectedRequest) {
-    const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
-    const isPending = selectedRequest.status === 'pending';
-    const isFileType = (type: string) => type.startsWith('image/');
-    const detailDueStatus = getDueStatus(selectedRequest.due_date, selectedRequest.status);
+      {/* ── DETAIL MODAL POPUP ── */}
+      {showDetailModal && selectedRequest && detailSc && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-2 md:p-4"
+          onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl animate-slide-up flex flex-col overflow-hidden"
+            style={{ maxHeight: '94vh', border: '2px solid rgba(13,148,136,0.3)' }}>
 
-    return (
-      <div className="h-full flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-        <NotifToast />
-
-        {assignModal.open && assignModal.req && (
-          <AssignPTSModal
-            req={assignModal.req}
-            onClose={() => setAssignModal({ open: false, req: null })}
-            onAssigned={() => {
-              setAssignModal({ open: false, req: null });
-              notify('success', `Request diapprove & di-assign ke Tim PTS!`);
-              fetchRequests();
-              if (selectedRequest) {
-                setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
-                fetchMessages(selectedRequest.id);
-              }
-            }}
-            currentUser={currentUser}
-          />
-        )}
-
-        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-600 pointer-events-none">
-          <div className="h-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-pulse" />
-        </div>
-
-        {/* Detail Header */}
-        <div className="bg-white/95 backdrop-blur-md border-b-4 border-teal-600 px-6 py-4 flex-shrink-0 shadow-xl">
-          <div className="flex items-center gap-4">
-            <button onClick={() => { activeRequestIdRef.current = null; setView('list'); }}
-              className="bg-gradient-to-r from-gray-600 to-gray-800 text-white p-2 rounded-xl hover:from-gray-700 hover:to-gray-900 font-bold shadow-md transition-all">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-teal-800 truncate">{selectedRequest.project_name}</h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+            {/* Detail Modal Header */}
+            <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-5 py-4 flex items-center gap-4 flex-shrink-0">
+              <button onClick={handleCloseDetail}
+                className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl transition-all flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
+                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
+                </div>
+                <p className="text-teal-100 text-xs mt-0.5 truncate">
+                  {selectedRequest.room_name && `${selectedRequest.room_name} · `}
+                  {selectedRequest.project_location && `📍 ${selectedRequest.project_location} · `}
+                  {selectedRequest.requester_name} · {selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
+                </p>
               </div>
-              <p className="text-gray-600 text-sm mt-0.5">
-                {selectedRequest.room_name && `🔧 ${selectedRequest.room_name} · `}
-                {selectedRequest.project_location && `📍 ${selectedRequest.project_location} · `}
-                {selectedRequest.requester_name} · {selectedRequest.sales_division} · {formatDate(selectedRequest.created_at)}
-              </p>
-            </div>
-            {isPTS && !isTeamPTS && (
+              {/* Actions in header */}
               <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                {isPending && (
+                {isPTS && !isTeamPTS && detailIsPending && (
                   <>
-                    <button onClick={() => handleApprove(selectedRequest)} className="bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">✅ Approve & Assign</button>
-                    <button onClick={() => handleReject(selectedRequest)} className="bg-red-50 hover:bg-red-100 text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">❌ Tolak</button>
+                    <button onClick={() => { setAssignModal({ open: true, req: selectedRequest }); }}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✅ Approve</button>
+                    <button onClick={() => handleReject(selectedRequest)}
+                      className="bg-white/20 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">❌ Tolak</button>
                   </>
                 )}
-                {selectedRequest.status === 'approved' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')} className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🔄 In Progress</button>
+                {isPTS && !isTeamPTS && selectedRequest.status === 'approved' && (
+                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
+                    className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🔄 In Progress</button>
                 )}
-                {selectedRequest.status === 'in_progress' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')} className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md">🏆 Selesai</button>
+                {isPTS && !isTeamPTS && selectedRequest.status === 'in_progress' && (
+                  <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
+                    className="bg-purple-500 hover:bg-purple-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🏆 Selesai</button>
                 )}
-                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">🖨️ Print</button>
+                {!isPTS && selectedRequest.status !== 'rejected' && (
+                  <button onClick={handleOpenEditForm}
+                    className="bg-amber-400 hover:bg-amber-300 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✏️ Edit</button>
+                )}
+                <button onClick={handlePrint}
+                  className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">🖨️ Print</button>
               </div>
-            )}
-            {isTeamPTS && <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all flex-shrink-0">🖨️ Print</button>}
-            {!isPTS && (
-              <div className="flex gap-2 flex-shrink-0">
-                {selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="bg-amber-50 hover:bg-amber-100 text-amber-700 border-2 border-amber-300 px-4 py-2 rounded-xl text-sm font-bold transition-all">✏️ Edit</button>}
-                <button onClick={handlePrint} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-sm font-bold transition-all">🖨️ Print</button>
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* LEFT: Details + Attachments */}
-          <div className="w-[400px] flex-shrink-0 border-r-2 border-gray-200 flex flex-col overflow-hidden bg-white/90 backdrop-blur-sm">
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 space-y-2.5 text-sm border-2 border-gray-200 shadow-md">
-                <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
-                  <p className="text-xs font-bold text-teal-600 tracking-widest uppercase">Detail Kebutuhan</p>
-                  {!isPTS && selectedRequest.status !== 'rejected' && <button onClick={handleOpenEditForm} className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-1 rounded-lg font-bold transition-all">✏️ Edit</button>}
-                </div>
-                {[
-                  ['Ruangan', selectedRequest.room_name],
-                  ['Lokasi', selectedRequest.project_location],
-                  ['Sales', selectedRequest.sales_name],
-                  ['Divisi', selectedRequest.sales_division],
-                  ['Kebutuhan', [...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).join(', ')],
-                  ['Solution', [...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).join(', ')],
-                  ['Layout', selectedRequest.layout_signage?.join(', ')],
-                  ['Jaringan', selectedRequest.jaringan_cms?.join(', ')],
-                  ['I/O', `${selectedRequest.jumlah_input || '-'} in / ${selectedRequest.jumlah_output || '-'} out`],
-                  ['Source', [...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).join(', ')],
-                  ['Camera', selectedRequest.camera_conference === 'Yes' ? `Yes — ${selectedRequest.camera_jumlah}` : 'No'],
-                  ['Audio', selectedRequest.audio_system === 'Yes' ? `Yes — ${selectedRequest.audio_mixer}` : 'No'],
-                  ['Wallplate', selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah}` : 'No'],
-                  ['Tabletop', selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah}` : 'No'],
-                  ['Wireless', selectedRequest.wireless_presentation === 'Yes' ? `Yes — ${selectedRequest.wireless_mode?.join(', ')}` : 'No'],
-                  ['Controller', selectedRequest.controller_automation === 'Yes' ? `Yes — ${selectedRequest.controller_type?.join(', ')}` : 'No'],
-                  ['Ukuran Ruangan', selectedRequest.ukuran_ruangan],
-                  ['Suggest Tampilan', selectedRequest.suggest_tampilan],
-                  ['Keterangan', selectedRequest.keterangan_lain],
-                ].filter(([, v]) => v).map(([k, v]) => (
-                  <div key={k} className="flex gap-2">
-                    <span className="text-gray-400 font-semibold flex-shrink-0 w-24">{k}</span>
-                    <span className="text-gray-700 font-medium">{v}</span>
-                  </div>
-                ))}
+            {/* Detail Modal Body — 3 columns */}
+            <div className="flex-1 flex overflow-hidden min-h-0">
 
-                {/* Due date */}
-                {isPTS && !isTeamPTS && (
-                  <div className="pt-2 border-t border-gray-200">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Target Selesai</p>
-                    {detailDueStatus && (
-                      <div className={`mb-2 px-3 py-1.5 rounded-lg text-xs font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
-                        🎯 {detailDueStatus.label}
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <input type="date" defaultValue={selectedRequest.due_date || ''} id="due_date_input"
-                        className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:border-teal-400 outline-none bg-white" />
-                      <button onClick={async () => {
-                        const val = (document.getElementById('due_date_input') as HTMLInputElement)?.value;
-                        const { error } = await supabase.from('project_requests').update({ due_date: val || null }).eq('id', selectedRequest.id);
-                        if (!error) { notify('success', val ? `Target diset: ${formatDueDate(val)}` : 'Target dihapus.'); fetchRequests(); }
-                        else notify('error', 'Gagal menyimpan target.');
-                      }} className="bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow flex-shrink-0">
-                        Simpan
-                      </button>
+              {/* LEFT: Detail Info */}
+              <div className="w-64 flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
+                <div className="p-4 space-y-3">
+                  <p className="text-[10px] font-bold text-teal-600 tracking-widest uppercase">Detail Kebutuhan</p>
+                  {[
+                    ['Ruangan', selectedRequest.room_name],
+                    ['Lokasi', selectedRequest.project_location],
+                    ['Sales', selectedRequest.sales_name],
+                    ['Divisi', selectedRequest.sales_division],
+                    ['Kebutuhan', [...(selectedRequest.kebutuhan||[]), selectedRequest.kebutuhan_other].filter(Boolean).join(', ')],
+                    ['Solution', [...(selectedRequest.solution_product||[]), selectedRequest.solution_other].filter(Boolean).join(', ')],
+                    ['Layout', selectedRequest.layout_signage?.join(', ')],
+                    ['Jaringan', selectedRequest.jaringan_cms?.join(', ')],
+                    ['I/O', `${selectedRequest.jumlah_input||'-'} in / ${selectedRequest.jumlah_output||'-'} out`],
+                    ['Source', [...(selectedRequest.source||[]), selectedRequest.source_other].filter(Boolean).join(', ')],
+                    ['Camera', selectedRequest.camera_conference === 'Yes' ? `Yes — ${selectedRequest.camera_jumlah}` : 'No'],
+                    ['Audio', selectedRequest.audio_system === 'Yes' ? `Yes — ${selectedRequest.audio_mixer}` : 'No'],
+                    ['Wallplate', selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah}` : 'No'],
+                    ['Tabletop', selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah}` : 'No'],
+                    ['Wireless', selectedRequest.wireless_presentation === 'Yes' ? `Yes — ${selectedRequest.wireless_mode?.join(', ')}` : 'No'],
+                    ['Controller', selectedRequest.controller_automation === 'Yes' ? `Yes — ${selectedRequest.controller_type?.join(', ')}` : 'No'],
+                    ['Ukuran', selectedRequest.ukuran_ruangan],
+                    ['Suggest', selectedRequest.suggest_tampilan],
+                    ['Keterangan', selectedRequest.keterangan_lain],
+                  ].filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k as string} className="text-xs">
+                      <p className="font-bold text-gray-400 uppercase tracking-wider text-[9px]">{k as string}</p>
+                      <p className="text-gray-700 font-medium mt-0.5 break-words">{v as string}</p>
                     </div>
-                  </div>
-                )}
+                  ))}
 
-                {/* Re-assign PTS button */}
-                {isPTS && !isTeamPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
-                  <div className="pt-2 border-t border-gray-200">
-                    <button onClick={() => setAssignModal({ open: true, req: selectedRequest })}
-                      className="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 border-2 border-teal-200 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
-                      👥 Re-assign Tim PTS
-                    </button>
-                  </div>
-                )}
+                  {/* Admin controls */}
+                  {isPTS && !isTeamPTS && (
+                    <div className="pt-3 border-t border-gray-200 space-y-3">
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Target Selesai</p>
+                        {detailDueStatus && (
+                          <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
+                            🎯 {detailDueStatus.label}
+                          </div>
+                        )}
+                        <div className="flex gap-1.5">
+                          <input type="date" defaultValue={selectedRequest.due_date || ''} id="detail_due_date"
+                            className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:border-teal-400 outline-none bg-white" />
+                          <button onClick={async () => {
+                            const val = (document.getElementById('detail_due_date') as HTMLInputElement)?.value;
+                            const { error } = await supabase.from('project_requests').update({ due_date: val || null }).eq('id', selectedRequest.id);
+                            if (!error) { notify('success', val ? `Target: ${formatDueDate(val)}` : 'Dihapus.'); setSelectedRequest(prev => prev ? { ...prev, due_date: val || undefined } : null); fetchRequests(); }
+                            else notify('error', 'Gagal.');
+                          }} className="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded-lg text-[10px] font-bold transition-all">OK</button>
+                        </div>
+                      </div>
+                      {selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                        <button onClick={() => setAssignModal({ open: true, req: selectedRequest })}
+                          className="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 py-1.5 rounded-xl text-[10px] font-bold transition-all">
+                          👥 Re-assign Tim PTS
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Attachments */}
-              <div>
-                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              {/* MIDDLE: Attachments */}
+              <div className="w-56 flex-shrink-0 border-r border-gray-100 flex flex-col overflow-hidden bg-white">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">📎 Files</p>
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                    className="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2 py-1 rounded-lg font-bold transition-all">
+                    {uploadingFile ? '...' : '+ Upload'}
+                  </button>
+                </div>
+                <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
                 <input ref={sldFileRef} type="file" className="hidden" accept=".pdf"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'sld'); e.target.value = ''; }} />
-                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls"
+                <input ref={boqFileRef} type="file" className="hidden" accept=".xlsx,.xls,.csv"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'boq'); e.target.value = ''; }} />
-                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf"
+                <input ref={design3dFileRef} type="file" className="hidden" accept=".pdf,.dwg,.skp"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
 
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-500 tracking-widest uppercase">📎 Attachments</p>
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
-                    className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
-                    {uploadingFile ? <div className="w-3 h-3 border border-teal-400 border-t-teal-600 rounded-full animate-spin" /> : '+'}
-                    Upload File
-                  </button>
-                </div>
-
-                {/* Category upload buttons */}
-                {isPTS && (
-                  <div className="grid grid-cols-3 gap-2 mb-3">
+                {isPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
+                  <div className="flex gap-1 p-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
                     {[
-                      { key: 'sld' as const, label: 'SLD', ref: sldFileRef, color: 'blue' },
-                      { key: 'boq' as const, label: 'BOQ', ref: boqFileRef, color: 'emerald' },
-                      { key: 'design3d' as const, label: '3D', ref: design3dFileRef, color: 'purple' },
-                    ].map(({ key, label, ref, color }) => (
-                      <button key={key} onClick={() => ref.current?.click()} disabled={uploadingCategory === key}
-                        className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${
-                          color === 'blue' ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' :
-                          color === 'emerald' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' :
-                          'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>
-                        {uploadingCategory === key ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mx-auto" /> : `📁 Upload ${label}`}
+                      { cat: 'sld' as const, ref: sldFileRef, label: '📐 SLD', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                      { cat: 'boq' as const, ref: boqFileRef, label: '📊 BOQ', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                      { cat: 'design3d' as const, ref: design3dFileRef, label: '🎨 3D', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+                    ].map(({ cat, ref, label, cls }) => (
+                      <button key={cat} onClick={() => ref.current?.click()} disabled={uploadingCategory === cat}
+                        className={`flex-1 py-1 rounded-lg border text-[9px] font-bold transition-all ${cls}`}>
+                        {uploadingCategory === cat ? '...' : label}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* Attachment tabs */}
-                <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-xl">
+                <div className="flex border-b border-gray-100 flex-shrink-0">
                   {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => (
                     <button key={tab} onClick={() => setActiveAttachTab(tab)}
-                      className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all ${activeAttachTab === tab ? 'bg-white shadow text-teal-700' : 'text-gray-500 hover:text-gray-700'}`}>
-                      {tab === 'all' ? 'All' : tab.toUpperCase()}
+                      className={`flex-1 py-1.5 text-[9px] font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-teal-700 border-b-2 border-teal-500 bg-teal-50' : 'text-gray-400'}`}>
+                      {tab === 'all' ? 'All' : tab === 'design3d' ? '3D' : tab.toUpperCase()}
                     </button>
                   ))}
                 </div>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {attachments.filter(a => activeAttachTab === 'all' || a.attachment_category === activeAttachTab).length === 0 ? (
-                    <p className="text-center text-gray-400 text-xs py-4">Belum ada file</p>
-                  ) : attachments.filter(a => activeAttachTab === 'all' || a.attachment_category === activeAttachTab).map(att => (
-                    <div key={att.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 border border-gray-200 hover:border-teal-200 transition-all group">
-                      <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0 text-sm">
-                        {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : att.file_type.includes('sheet') || att.file_type.includes('excel') ? '📊' : '📎'}
+                <div className="flex-1 overflow-y-auto divide-y divide-gray-50 p-1">
+                  {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).length === 0 ? (
+                    <p className="text-[10px] text-gray-400 text-center py-6">Belum ada file</p>
+                  ) : (activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
+                    <div key={att.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-xl transition-all">
+                      <div className="w-7 h-7 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0 text-sm">
+                        {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-700 truncate">{att.file_name}</p>
-                        <p className="text-[10px] text-gray-400">{formatFileSize(att.file_size)} · {att.uploaded_by}
-                          {att.attachment_category !== 'general' && att.revision_version && <span className="ml-1 bg-blue-100 text-blue-600 px-1 rounded text-[9px] font-bold">Rev {att.revision_version}</span>}
-                        </p>
+                        <p className="text-[10px] font-semibold text-gray-700 truncate">{att.file_name}</p>
+                        <p className="text-[9px] text-gray-400">{formatFileSize(att.file_size)}{att.revision_version ? ` · R${att.revision_version}` : ''}</p>
                       </div>
-                      <a href={att.file_url} target="_blank" rel="noopener noreferrer"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-teal-100 hover:bg-teal-200 rounded-lg text-teal-600">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-teal-500 hover:text-teal-700 flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                       </a>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* RIGHT: Chat */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-white">
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-gray-400">
-                    <div className="text-4xl mb-3">💬</div>
-                    <p className="font-medium text-sm">Belum ada pesan</p>
-                    <p className="text-xs mt-1">Mulai diskusi tentang request ini</p>
-                  </div>
+              {/* RIGHT: Chat */}
+              <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m=>m.sender_role !== 'system').length} pesan</p>
                 </div>
-              ) : messages.map(msg => {
-                const isSystem = msg.sender_role === 'system';
-                const isMe = msg.sender_id === currentUser.id;
-                return (
-                  <div key={msg.id} className={`flex ${isSystem ? 'justify-center' : isMe ? 'justify-end' : 'justify-start'}`}>
-                    {isSystem ? (
-                      <div className="bg-teal-50 border border-teal-200 text-teal-700 text-xs px-4 py-2 rounded-full font-medium max-w-md text-center shadow-sm">{msg.message}</div>
-                    ) : (
-                      <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                        {!isMe && <p className="text-xs font-bold text-gray-500 px-1">{msg.sender_name}</p>}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-gradient-to-br from-teal-500 to-teal-700 text-white rounded-tr-md' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-md'}`}>
-                          {msg.message}
-                        </div>
-                        <p className="text-[10px] text-gray-400 px-1">{formatDate(msg.created_at)}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
 
-            {/* Chat input */}
-            {selectedRequest.status !== 'rejected' && (
-              <div className="border-t-2 border-gray-200 p-4 bg-white flex-shrink-0">
-                <div className="flex gap-2">
-                  <input
-                    value={msgText}
-                    onChange={e => setMsgText(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                    placeholder="Ketik pesan... (Enter to send)"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-teal-400 focus:ring-2 focus:ring-teal-100 outline-none transition-all"
-                  />
-                  <input ref={chatFileRef} type="file" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
-                  <button onClick={() => chatFileRef.current?.click()} className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-all border border-gray-200">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                  </button>
-                  <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
-                    className="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-md flex items-center gap-2">
-                    {sendingMsg ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
-                  </button>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+                      <div className="text-4xl">💬</div>
+                      <p className="font-medium text-sm">Belum ada pesan</p>
+                    </div>
+                  ) : messages.map(msg => {
+                    const isSystem = msg.sender_role === 'system';
+                    const isMe = msg.sender_id === currentUser.id;
+                    if (isSystem) return (
+                      <div key={msg.id} className="flex justify-center">
+                        <div className="bg-gray-100 text-gray-500 text-xs px-4 py-2 rounded-full font-medium max-w-sm text-center">{msg.message}</div>
+                      </div>
+                    );
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                          <p className="text-[10px] text-gray-400 font-medium px-1">{isMe ? 'Saya' : msg.sender_name} · {new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${isMe ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}>
+                            {msg.message}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-gray-50">
+                  {selectedRequest.status === 'rejected' ? (
+                    <div className="text-center text-xs font-bold text-red-500 bg-red-50 border border-red-200 rounded-xl py-3">Request ini ditolak. Chat tidak tersedia.</div>
+                  ) : selectedRequest.status === 'pending' ? (
+                    <div className="text-center text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl py-3">🔒 Chat tersedia setelah di-approve.</div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex-1 flex items-end gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-teal-500 transition-all">
+                        <textarea value={msgText} onChange={e => setMsgText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                          placeholder="Ketik pesan... (Enter kirim)" rows={1}
+                          className="flex-1 bg-transparent text-sm text-gray-800 outline-none resize-none max-h-24 placeholder-gray-400" />
+                        <button onClick={() => chatFileRef.current?.click()} className="text-gray-400 hover:text-teal-600 transition-colors flex-shrink-0">
+                          {uploadingFile ? <div className="w-4 h-4 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>}
+                        </button>
+                        <input ref={chatFileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
+                      </div>
+                      <button onClick={handleSendMessage} disabled={sendingMsg || !msgText.trim()}
+                        className="bg-gradient-to-r from-teal-600 to-teal-800 text-white px-4 py-2 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md flex-shrink-0">
+                        {sendingMsg ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Edit Form Modal */}
-        {editFormModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
-              <div className="bg-gradient-to-r from-amber-500 to-amber-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
-                <h2 className="text-lg font-bold text-white">✏️ Edit Kebutuhan Project</h2>
-                <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg">✕</button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Project</label>
-                    <input value={editFormData.project_name} onChange={e => setEditFormData(p => ({ ...p, project_name: e.target.value }))}
-                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
-                      <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
-                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
-                      <input value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
-                        placeholder="Gedung / Alamat..."
-                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales</label>
-                    <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
-                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
-                  </div>
-                </div>
-                <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
-                  value={editFormData.kebutuhan} onChange={v => setEditFormData(p => ({ ...p, kebutuhan: v }))} />
-                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Videotron', 'Kiosk', 'IFP']}
-                  value={editFormData.solution_product} onChange={v => setEditFormData(p => ({ ...p, solution_product: v }))} />
-                <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
-                  value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
-                <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
-                  value={editFormData.jaringan_cms} onChange={v => setEditFormData(p => ({ ...p, jaringan_cms: v }))} />
+      {/* Edit Form Modal */}
+      {editFormModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9995] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500 to-amber-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-bold text-white">✏️ Edit Kebutuhan Project</h2>
+              <button onClick={() => setEditFormModal(false)} className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
-                  <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData(p => ({ ...p, keterangan_lain: e.target.value }))}
-                    rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none resize-none" />
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Project</label>
+                  <input value={editFormData.project_name} onChange={e => setEditFormData(p => ({ ...p, project_name: e.target.value }))}
+                    className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                    <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
+                    <input value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
+                      placeholder="Gedung / Alamat..."
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales</label>
+                  <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
+                    className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" />
                 </div>
               </div>
-              <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
-                <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
-                <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg">💾 Simpan Perubahan</button>
+              <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
+                value={editFormData.kebutuhan} onChange={v => setEditFormData(p => ({ ...p, kebutuhan: v }))} />
+              <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Videotron', 'Kiosk', 'IFP']}
+                value={editFormData.solution_product} onChange={v => setEditFormData(p => ({ ...p, solution_product: v }))} />
+              <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
+                value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
+              <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
+                value={editFormData.jaringan_cms} onChange={v => setEditFormData(p => ({ ...p, jaringan_cms: v }))} />
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
+                <textarea value={editFormData.keterangan_lain} onChange={e => setEditFormData(p => ({ ...p, keterangan_lain: e.target.value }))}
+                  rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none resize-none" />
+              </div>
+            </div>
+            <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
+              <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
+              <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg">💾 Simpan Perubahan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {rejectModal.open && rejectModal.req && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
+            <div className="bg-gradient-to-r from-red-500 to-red-700 px-6 py-4">
+              <h3 className="font-bold text-white text-lg">❌ Tolak Request</h3>
+              <p className="text-red-100 text-xs mt-0.5">{rejectModal.req.project_name}</p>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Alasan penolakan (opsional):</label>
+              <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} rows={3} placeholder="Tuliskan alasan..."
+                className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-red-400 outline-none resize-none mb-4" />
+              <div className="flex gap-3">
+                <button onClick={() => setRejectModal({ open: false, req: null })} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
+                <button onClick={handleRejectConfirm} className="flex-[2] bg-gradient-to-r from-red-500 to-red-700 text-white py-3 rounded-xl font-bold shadow-lg">❌ Ya, Tolak</button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Reject Modal (in detail view) */}
-        {rejectModal.open && rejectModal.req && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
-              <div className="bg-gradient-to-r from-red-500 to-red-700 px-6 py-4">
-                <h3 className="font-bold text-white text-lg">❌ Tolak Request</h3>
-                <p className="text-red-100 text-xs mt-0.5">{rejectModal.req.project_name}</p>
-              </div>
-              <div className="p-6">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Alasan penolakan (opsional):</label>
-                <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} rows={3} placeholder="Tuliskan alasan..."
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-red-400 outline-none resize-none mb-4" />
-                <div className="flex gap-3">
-                  <button onClick={() => setRejectModal({ open: false, req: null })} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
-                  <button onClick={handleRejectConfirm} className="flex-[2] bg-gradient-to-r from-red-500 to-red-700 text-white py-3 rounded-xl font-bold shadow-lg">❌ Ya, Tolak</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <style jsx>{`
-          @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
-          .animate-scale-in { animation: scale-in 0.2s ease-out; }
-        `}</style>
-      </div>
-    );
-  }
-
-  return null;
+      {assignModal.open && assignModal.req && (
+        <AssignPTSModal
+          req={assignModal.req}
+          onClose={() => setAssignModal({ open: false, req: null })}
+          onAssigned={() => {
+            setAssignModal({ open: false, req: null });
+            notify('success', 'Request diapprove & di-assign ke Tim PTS!');
+            fetchRequests();
+            if (selectedRequest) {
+              setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
+              fetchMessages(selectedRequest.id);
+            }
+          }}
+          currentUser={currentUser}
+        />
+      )}
+    </div>
+  );
 }
 
 // ─── Page Entry ───────────────────────────────────────────────────────────────
@@ -2015,22 +1983,20 @@ export default function Page() {
     setLoading(false);
   }, []);
 
-  if (loading) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-gray-200 border-t-teal-600 rounded-full animate-spin" />
-        <p className="text-gray-500 font-semibold">Memuat...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
 
   if (!currentUser) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="text-6xl mb-4">🔐</div>
+    <div className="fixed inset-0 flex items-center justify-center"
+      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
+      <div className="relative z-10 bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center"
+        style={{ border: '2px solid rgba(13,148,136,0.3)' }}>
+        <div className="text-5xl mb-4">🔐</div>
         <h2 className="text-xl font-bold text-gray-800 mb-2">Sesi Habis</h2>
         <p className="text-gray-500 text-sm mb-6">Silakan login kembali melalui dashboard.</p>
-        <a href="/dashboard" className="bg-teal-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">Kembali ke Dashboard</a>
+        <a href="/dashboard" className="bg-gradient-to-r from-teal-600 to-teal-800 text-white px-6 py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-md inline-block">
+          Kembali ke Dashboard
+        </a>
       </div>
     </div>
   );
