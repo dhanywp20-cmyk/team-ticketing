@@ -618,7 +618,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       setRequireNotifs([]);
     } else {
     try {
-      let q = supabase.from('project_requests').select('id, project_name, requester_name, status, created_at, requester_id');
+      let q = supabase.from('project_requests').select('id, project_name, room_name, requester_name, status, created_at, requester_id');
       if (isPTS) {
         // PTS/Admin: semua yang pending approval atau baru
         q = q.in('status', ['pending', 'approved', 'in_progress']);
@@ -632,7 +632,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           id: r.id,
           type: 'require' as const,
           title: r.project_name,
-          subtitle: `${r.status === 'pending' ? '⏳ Menunggu Approval' : r.status === 'approved' ? '✅ Approved' : '🔄 In Progress'} · ${r.requester_name}`,
+          title: r.room_name,
+          subtitle: `${r.status === 'pending' ? '⏳ wait Approval' : r.status === 'approved' ? '✅ Approved' : '🔄 In Progress'} · ${r.requester_name}`,
           time: r.created_at,
           url: '/form-require-project',
           internalUrl: '/form-require-project',
