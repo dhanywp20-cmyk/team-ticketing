@@ -1383,7 +1383,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status Handle</span>
 			<span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Due Date</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Created By</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</span>
           </div>
 
           <div className="divide-y divide-gray-100">
@@ -1443,9 +1442,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         <button onClick={() => handleReject(req)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all">❌ Tolak</button>
                       </>
                     )}
-                    <button onClick={() => handleOpenDetail(req)} className="w-8 h-8 bg-gray-100 hover:bg-teal-50 border border-gray-200 hover:border-teal-200 rounded-lg flex items-center justify-center transition-all group/btn">
-                      <svg className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </button>
+
                   </div>
                 </div>
               );
