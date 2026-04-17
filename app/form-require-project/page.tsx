@@ -737,8 +737,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [editFormModal, setEditFormModal] = useState(false);
+  const [statusUpdateModal, setStatusUpdateModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [selectedNewStatus, setSelectedNewStatus] = useState<string>('');
+  const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [editFormData, setEditFormData] = useState({
     project_name: '', room_name: '', project_location: '', sales_name: '',
@@ -1140,6 +1144,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (error) { notify('error', 'Gagal menghapus: ' + error.message); return; }
     notify('success', `Request "${req.project_name}" berhasil dihapus.`);
     setDeleteModal({ open: false, req: null });
+    setDeleteConfirmText('');
     if (selectedRequest?.id === req.id) { setShowDetailModal(false); setSelectedRequest(null); }
     fetchRequests();
   };
@@ -1286,6 +1291,106 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       </table></body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(printContent); w.document.close(); w.print(); }
+  };
+
+  const handleDownloadPackage = async () => {
+    if (!selectedRequest) return;
+    setDownloadingPackage(true);
+    notify('info', 'Menyiapkan paket download...');
+    try {
+      // Dynamically load JSZip from CDN
+      const JSZip = (await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js' as any)).default || (window as any).JSZip;
+      const zip = new JSZip();
+      const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
+      const dateStr = new Date().toISOString().split('T')[0];
+      const projectSlug = selectedRequest.project_name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+      const folderName = `FormRequire_${projectSlug}_${dateStr}`;
+
+      // 1. Generate PDF-like HTML as form detail text file
+      const formContent = `FORM EQUIPMENT REQUEST — IVP
+================================================
+Tanggal Cetak : ${new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' })}
+Status        : ${sc.label}
+Requester     : ${selectedRequest.requester_name}
+================================================
+
+INFORMASI PROJECT
+-----------------
+Nama Project   : ${selectedRequest.project_name}
+Nama Ruangan   : ${selectedRequest.room_name || '-'}
+Lokasi         : ${selectedRequest.project_location || '-'}
+Sales/Account  : ${selectedRequest.sales_name || '-'}
+Divisi Sales   : ${selectedRequest.sales_division || '-'}
+Target Selesai : ${selectedRequest.due_date ? formatDueDate(selectedRequest.due_date) : '-'}
+PTS Handler    : ${selectedRequest.pts_assigned || '-'}
+Approved By    : ${selectedRequest.approved_by || '-'}
+
+KATEGORI KEBUTUHAN & SOLUTION
+------------------------------
+Kebutuhan      : ${[...selectedRequest.kebutuhan, selectedRequest.kebutuhan_other].filter(Boolean).join(', ') || '-'}
+Solution       : ${[...selectedRequest.solution_product, selectedRequest.solution_other].filter(Boolean).join(', ') || '-'}
+Layout Signage : ${selectedRequest.layout_signage?.join(', ') || '-'}
+Jaringan/CMS   : ${selectedRequest.jaringan_cms?.join(', ') || '-'}
+Jumlah Input   : ${selectedRequest.jumlah_input || '-'}
+Jumlah Output  : ${selectedRequest.jumlah_output || '-'}
+
+SOURCE & PERIPHERAL
+--------------------
+Source         : ${[...selectedRequest.source, selectedRequest.source_other].filter(Boolean).join(', ') || '-'}
+Camera         : ${selectedRequest.camera_conference === 'Yes' ? `Ya — ${selectedRequest.camera_jumlah} unit (${selectedRequest.camera_tracking?.join(', ') || '-'})` : 'Tidak'}
+Audio          : ${selectedRequest.audio_system === 'Yes' ? `Ya — ${selectedRequest.audio_mixer || '-'}, ${selectedRequest.audio_detail?.join(', ') || '-'}` : 'Tidak'}
+Wallplate      : ${selectedRequest.wallplate_input === 'Yes' ? `Ya — ${selectedRequest.wallplate_jumlah} unit` : 'Tidak'}
+Tabletop       : ${selectedRequest.tabletop_input === 'Yes' ? `Ya — ${selectedRequest.tabletop_jumlah} unit` : 'Tidak'}
+Wireless       : ${selectedRequest.wireless_presentation === 'Yes' ? `Ya — ${selectedRequest.wireless_mode?.join(', ') || '-'}, Dongle: ${selectedRequest.wireless_dongle}` : 'Tidak'}
+Controller     : ${selectedRequest.controller_automation === 'Yes' ? `Ya — ${selectedRequest.controller_type?.join(', ') || '-'}` : 'Tidak'}
+
+RUANGAN & KETERANGAN
+----------------------
+Ukuran Ruangan : ${selectedRequest.ukuran_ruangan || '-'}
+Suggest Tampilan: ${selectedRequest.suggest_tampilan || '-'}
+Keterangan Lain: ${selectedRequest.keterangan_lain || '-'}
+`;
+      zip.file(`${folderName}/01_Form_Detail_${projectSlug}.txt`, formContent);
+
+      // 2. Download all attachments by category
+      const cats: { cat: ProjectAttachment['attachment_category']; prefix: string }[] = [
+        { cat: 'sld', prefix: '02_SLD' },
+        { cat: 'boq', prefix: '03_BOQ' },
+        { cat: 'design3d', prefix: '04_Design3D' },
+        { cat: 'general', prefix: '05_Files' },
+      ];
+
+      for (const { cat, prefix } of cats) {
+        const catFiles = attachments.filter(a => a.attachment_category === cat);
+        for (let i = 0; i < catFiles.length; i++) {
+          const att = catFiles[i];
+          try {
+            const resp = await fetch(att.file_url);
+            if (resp.ok) {
+              const blob = await resp.blob();
+              const ext = att.file_name.includes('.') ? '' : '';
+              zip.file(`${folderName}/${prefix}_Rev${att.revision_version || (i + 1)}_${att.file_name}`, blob);
+            }
+          } catch { /* skip failed downloads */ }
+        }
+      }
+
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${folderName}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notify('success', `✅ Paket "${folderName}.zip" berhasil didownload!`);
+    } catch (err) {
+      console.error(err);
+      notify('error', 'Gagal membuat paket download. Pastikan JSZip tersedia.');
+    } finally {
+      setDownloadingPackage(false);
+    }
   };
 
   if (!appReady) return <LoadingScreen />;
@@ -1646,19 +1751,24 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         {isPTS && !isTeamPTS && req.status === 'pending' && (
                           <>
                             <button onClick={() => handleApprove(req)} title="Approve"
-                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">✅</button>
+                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 rounded-lg flex items-center justify-center transition-all group">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                            </button>
                             <button onClick={() => handleReject(req)} title="Tolak"
-                              className="w-7 h-7 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg flex items-center justify-center text-xs font-bold transition-all">❌</button>
+                              className="w-7 h-7 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 rounded-lg flex items-center justify-center transition-all">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                           </>
                         )}
                         {(isSuperAdmin || isAdmin) && (
-                          <button onClick={() => setDeleteModal({ open: true, req })} title="Hapus"
+                          <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus Ticket"
                             className="w-7 h-7 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         )}
-                        <button onClick={() => handleOpenDetail(req)} title="Detail"
-                          className="px-3 h-8 rounded-lg flex items-center justify-center transition-all bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold border border-teal-600">
+                        <button onClick={() => handleOpenDetail(req)} title="Lihat Detail"
+                          className="h-7 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold border border-teal-600">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                           Detail
                         </button>
                       </div>
@@ -1692,33 +1802,103 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteModal.open && deleteModal.req && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-600 animate-scale-in overflow-hidden">
-            <div className="bg-gradient-to-r from-red-700 to-red-900 px-6 py-4">
-              <h3 className="font-bold text-white text-lg flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                Hapus Request
-              </h3>
-              <p className="text-red-100 text-xs mt-0.5 truncate">{deleteModal.req.project_name}</p>
-            </div>
-            <div className="p-6">
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
-                <p className="text-sm font-bold text-red-700 mb-1">⚠️ Aksi ini tidak bisa dibatalkan!</p>
-                <p className="text-xs text-red-600">Semua data request termasuk pesan chat dan file attachment akan dihapus permanen dari database dan storage.</p>
+      {/* Status Update Modal */}
+      {statusUpdateModal.open && statusUpdateModal.req && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border border-gray-200 animate-scale-in overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Update Status
+                </h3>
+                <p className="text-blue-100 text-xs mt-0.5 truncate">{statusUpdateModal.req.project_name}</p>
               </div>
-              <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-200">
-                <p className="text-xs text-gray-500 font-medium">Request yang akan dihapus:</p>
-                <p className="text-sm font-bold text-gray-800 mt-0.5">{deleteModal.req.project_name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{deleteModal.req.requester_name} · {statusConfig[deleteModal.req.status]?.label}</p>
+              <button onClick={() => setStatusUpdateModal({ open: false, req: null })} className="bg-white/20 hover:bg-white/30 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold transition-all">✕</button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Pilih Status Baru</p>
+              <div className="space-y-2 mb-5">
+                {[
+                  { value: 'approved', label: '✅ Approved', color: 'border-teal-300 bg-teal-50 text-teal-700', active: 'border-teal-500 bg-teal-100' },
+                  { value: 'in_progress', label: '🔄 In Progress', color: 'border-blue-300 bg-blue-50 text-blue-700', active: 'border-blue-500 bg-blue-100' },
+                  { value: 'completed', label: '🏆 Completed', color: 'border-purple-300 bg-purple-50 text-purple-700', active: 'border-purple-500 bg-purple-100' },
+                  { value: 'rejected', label: '❌ Rejected', color: 'border-red-300 bg-red-50 text-red-700', active: 'border-red-500 bg-red-100' },
+                  { value: 'pending', label: '⏳ Pending', color: 'border-amber-300 bg-amber-50 text-amber-700', active: 'border-amber-500 bg-amber-100' },
+                ].filter(s => s.value !== statusUpdateModal.req!.status).map(s => (
+                  <button key={s.value} type="button" onClick={() => setSelectedNewStatus(s.value)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all font-semibold text-sm ${selectedNewStatus === s.value ? s.active + ' shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedNewStatus === s.value ? 'border-current' : 'border-gray-300'}`}>
+                      {selectedNewStatus === s.value && <div className="w-2 h-2 rounded-full bg-current" />}
+                    </div>
+                    {s.label}
+                  </button>
+                ))}
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setDeleteModal({ open: false, req: null })} disabled={deleting}
-                  className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all disabled:opacity-50">Batal</button>
-                <button onClick={handleDeleteConfirm} disabled={deleting}
-                  className="flex-[2] bg-gradient-to-r from-red-700 to-red-900 hover:from-red-800 hover:to-red-950 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                  {deleting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menghapus...</> : <>🗑️ Ya, Hapus Permanen</>}
+                <button onClick={() => setStatusUpdateModal({ open: false, req: null })} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-xl font-bold hover:bg-gray-50 transition-all text-sm">Batal</button>
+                <button
+                  disabled={!selectedNewStatus}
+                  onClick={async () => {
+                    if (!selectedNewStatus || !statusUpdateModal.req) return;
+                    await handleStatusUpdate(statusUpdateModal.req, selectedNewStatus);
+                    setStatusUpdateModal({ open: false, req: null });
+                    setSelectedNewStatus('');
+                  }}
+                  className="flex-[2] bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white py-2.5 rounded-xl font-bold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Update Status
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.open && deleteModal.req && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in overflow-hidden" style={{ border: '1.5px solid #e5e7eb' }}>
+            {/* Header */}
+            <div className="p-6 pb-4">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-900 text-base">Hapus Ticket</h3>
+                  <p className="text-sm text-gray-500 mt-0.5 font-medium truncate">{deleteModal.req.project_name}</p>
+                  <p className="text-xs text-gray-400 truncate">{deleteModal.req.requester_name}</p>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2.5 mb-5">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-xs font-semibold text-amber-700">Tindakan ini tidak dapat dibatalkan. Ticket beserta seluruh activity log dan overdue setting akan dihapus permanen dari database.</p>
+              </div>
+              <div className="mb-4">
+                <p className="text-sm font-bold text-gray-700 mb-2">Ketik <span className="text-red-500 font-black tracking-widest">HAPUS</span> untuk konfirmasi</p>
+                <input
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Ketik HAPUS di sini..."
+                  autoFocus
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition-all placeholder-gray-300"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDeleteConfirm()}
+                  disabled={deleteConfirmText !== 'HAPUS' || deleting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: deleteConfirmText === 'HAPUS' ? 'linear-gradient(135deg,#dc2626,#b91c1c)' : '#e5e7eb', color: deleteConfirmText === 'HAPUS' ? 'white' : '#9ca3af' }}>
+                  {deleting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menghapus...</> : <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Hapus Permanen
+                  </>}
+                </button>
+                <button onClick={() => { setDeleteModal({ open: false, req: null }); setDeleteConfirmText(''); }} disabled={deleting}
+                  className="px-5 py-3 rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50 border border-gray-200">
+                  × Batal
                 </button>
               </div>
             </div>
@@ -1766,25 +1946,48 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 {isPTS && !isTeamPTS && detailIsPending && (
                   <>
                     <button onClick={() => { setAssignModal({ open: true, req: selectedRequest }); }}
-                      className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✅ Approve</button>
+                      className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      Approve
+                    </button>
                     <button onClick={() => handleReject(selectedRequest)}
-                      className="bg-white/20 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">❌ Tolak</button>
+                      className="bg-white/20 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                      Tolak
+                    </button>
                   </>
                 )}
-                {isPTS && !isTeamPTS && selectedRequest.status === 'approved' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
-                    className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🔄 In Progress</button>
-                )}
-                {isPTS && !isTeamPTS && selectedRequest.status === 'in_progress' && (
-                  <button onClick={() => handleStatusUpdate(selectedRequest, 'completed')}
-                    className="bg-purple-500 hover:bg-purple-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">🏆 Selesai</button>
+                {isPTS && !isTeamPTS && !detailIsPending && (
+                  <button onClick={() => { setSelectedNewStatus(''); setStatusUpdateModal({ open: true, req: selectedRequest }); }}
+                    className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Update Status
+                  </button>
                 )}
                 {!isPTS && selectedRequest.status !== 'rejected' && (
                   <button onClick={handleOpenEditForm}
-                    className="bg-amber-400 hover:bg-amber-300 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all">✏️ Edit</button>
+                    className="bg-amber-400 hover:bg-amber-300 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Edit
+                  </button>
                 )}
+                {(isSuperAdmin || isAdmin) && (
+                  <button onClick={() => { setDeleteModal({ open: true, req: selectedRequest }); setDeleteConfirmText(''); }}
+                    className="bg-white/10 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/20 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Hapus
+                  </button>
+                )}
+                <button onClick={handleDownloadPackage} disabled={downloadingPackage}
+                  className="bg-white/20 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30 flex items-center gap-1.5 disabled:opacity-60">
+                  {downloadingPackage ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                  {downloadingPackage ? 'Menyiapkan...' : 'Download .zip'}
+                </button>
                 <button onClick={handlePrint}
-                  className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30">🖨️ Print</button>
+                  className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30 flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  Print
+                </button>
               </div>
             </div>
 
@@ -1793,214 +1996,249 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
               {/* LEFT: Detail Info + Attachments */}
               <div className="flex-[3] min-w-0 border-r border-gray-200 overflow-y-auto bg-gray-50">
-                <div className="p-5 space-y-4">
-                  <p className="text-[11px] font-bold text-teal-600 tracking-widest uppercase">📋 Detail Kebutuhan</p>
+                <div className="p-5 space-y-5">
 
-                  {/* Project Info */}
-                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-teal-50 to-teal-100 px-4 py-2.5 border-b border-teal-200">
-                      <p className="text-xs font-bold text-teal-700 flex items-center gap-1.5">📁 Informasi Project</p>
-                    </div>
-                    <div className="p-4 grid grid-cols-3 gap-x-6 gap-y-4">
+                  {/* Project Info — form style */}
+                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
+                      Informasi Project
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
                       {[
-                        ['Nama Project', selectedRequest.project_name],
-                        ['Nama Ruangan', selectedRequest.room_name],
-                        ['Lokasi', selectedRequest.project_location],
-                        ['Sales / Account', selectedRequest.sales_name],
-                        ['Divisi Sales', selectedRequest.sales_division],
-                        ['Requester', selectedRequest.requester_name],
-                      ].filter(([, v]) => v).map(([k, v]) => (
-                        <div key={k as string}>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{k as string}</p>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5">{v as string}</p>
+                        { k: 'Nama Project', v: selectedRequest.project_name, full: true },
+                        { k: 'Nama Ruangan', v: selectedRequest.room_name },
+                        { k: 'Lokasi Project', v: selectedRequest.project_location },
+                        { k: 'Sales / Account', v: selectedRequest.sales_name },
+                        { k: 'Divisi Sales', v: selectedRequest.sales_division },
+                        { k: 'Requester', v: selectedRequest.requester_name },
+                        { k: 'PTS Handler', v: selectedRequest.pts_assigned ? `🔧 ${selectedRequest.pts_assigned}` : undefined },
+                        { k: 'Target Selesai', v: selectedRequest.due_date ? `📅 ${formatDueDate(selectedRequest.due_date)}${detailDueStatus ? ` (${detailDueStatus.label})` : ''}` : undefined },
+                        { k: 'Status', v: detailSc?.label },
+                      ].filter(item => item.v).map(item => (
+                        <div key={item.k} className={item.full ? 'col-span-2 md:col-span-3' : ''}>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">{item.k}</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{item.v}</p>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Two-column row: Kategori + Source */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-violet-50 to-violet-100 px-4 py-2.5 border-b border-violet-200">
-                        <p className="text-xs font-bold text-violet-700 flex items-center gap-1.5">🎯 Kategori & Solution</p>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Kebutuhan</p>
-                          <div className="flex flex-wrap gap-1">
-                            {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
-                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Solution Product</p>
-                          <div className="flex flex-wrap gap-1">
-                            {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
-                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Layout Signage</p>
-                          <div className="flex flex-wrap gap-1">
-                            {(selectedRequest.layout_signage || []).map(item => (
-                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jaringan / CMS</p>
-                          <div className="flex flex-wrap gap-1">
-                            {(selectedRequest.jaringan_cms || []).map(item => (
-                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">{item}</span>
-                            ))}
-                          </div>
+                  {/* Kategori & Solution — form style */}
+                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
+                      Kategori Kebutuhan & Solution
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Kebutuhan</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).length > 0
+                            ? [...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
+                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
+                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                                {item}
+                              </span>
+                            ))
+                            : <span className="text-sm text-gray-400 italic">—</span>}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-amber-50 to-amber-100 px-4 py-2.5 border-b border-amber-200">
-                        <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">🔌 Source & I/O</p>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Source</p>
-                          <div className="flex flex-wrap gap-1">
-                            {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
-                              <span key={item} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{item}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Input</p>
-                            <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_input || '-'}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jumlah Output</p>
-                            <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.jumlah_output || '-'}</p>
-                          </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Solution Product</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).length > 0
+                            ? [...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
+                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
+                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                                {item}
+                              </span>
+                            ))
+                            : <span className="text-sm text-gray-400 italic">—</span>}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Peripheral full row */}
-                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2.5 border-b border-emerald-200">
-                      <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">📹 Peripheral & Kontrol</p>
-                    </div>
-                    <div className="p-4 grid grid-cols-3 gap-x-6 gap-y-4">
+                  {/* Layout Konten & Jaringan — form style */}
+                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
+                      Layout Konten & Jaringan
+                    </h3>
+                    <div className="space-y-4">
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Camera Conference</p>
-                        {selectedRequest.camera_conference === 'Yes' ? (
-                          <div className="mt-0.5">
-                            <p className="text-sm font-semibold text-gray-800">Yes — {selectedRequest.camera_jumlah || '-'} unit</p>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedRequest.camera_tracking || []).map(item => (
-                                <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item}</span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Layout Signage</label>
+                        <div className="flex flex-wrap gap-2">
+                          {(selectedRequest.layout_signage || []).length > 0
+                            ? (selectedRequest.layout_signage || []).map(item => (
+                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
+                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                                {item}
+                              </span>
+                            ))
+                            : <span className="text-sm text-gray-400 italic">—</span>}
+                        </div>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Audio System</p>
-                        {selectedRequest.audio_system === 'Yes' ? (
-                          <div className="mt-0.5">
-                            <p className="text-sm font-semibold text-gray-800">Yes — {selectedRequest.audio_mixer || '-'}</p>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedRequest.audio_detail || []).map(item => (
-                                <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item}</span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Jaringan / CMS</label>
+                        <div className="flex flex-wrap gap-2">
+                          {(selectedRequest.jaringan_cms || []).length > 0
+                            ? (selectedRequest.jaringan_cms || []).map(item => (
+                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
+                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                                {item}
+                              </span>
+                            ))
+                            : <span className="text-sm text-gray-400 italic">—</span>}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Wallplate Input</p>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah || '-'} unit` : 'No'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tabletop Input</p>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah || '-'} unit` : 'No'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Wireless Presentation</p>
-                        {selectedRequest.wireless_presentation === 'Yes' ? (
-                          <div className="mt-0.5">
-                            <div className="flex flex-wrap gap-1">
-                              {(selectedRequest.wireless_mode || []).map(item => (
-                                <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">{item}</span>
-                              ))}
-                            </div>
-                            <p className="text-[11px] text-gray-500 mt-0.5">Dongle: {selectedRequest.wireless_dongle}</p>
-                          </div>
-                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Controller / Automation</p>
-                        {selectedRequest.controller_automation === 'Yes' ? (
-                          <div className="mt-0.5 flex flex-wrap gap-1">
-                            {(selectedRequest.controller_type || []).map(item => (
-                              <span key={item} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">{item}</span>
-                            ))}
-                          </div>
-                        ) : <p className="text-sm font-semibold text-gray-400 mt-0.5">No</p>}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.jumlah_input || '—'}</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.jumlah_output || '—'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Ruangan & Keterangan */}
-                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-2.5 border-b border-slate-200">
-                      <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">📐 Ruangan & Keterangan</p>
+                  {/* Source & Peripheral — form style */}
+                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
+                      Source & Peripheral
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Source</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).length > 0
+                            ? [...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
+                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
+                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                                {item}
+                              </span>
+                            ))
+                            : <span className="text-sm text-gray-400 italic">—</span>}
+                        </div>
+                      </div>
+
+                      {/* Camera */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Camera Conference</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          <span className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.camera_conference === 'Yes' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.camera_conference === 'Yes' ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.camera_conference === 'Yes' && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>
+                            Yes
+                          </span>
+                          <span className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.camera_conference === 'No' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}>
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.camera_conference === 'No' ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.camera_conference === 'No' && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>
+                            No
+                          </span>
+                        </div>
+                        {selectedRequest.camera_conference === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Camera</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.camera_jumlah || '—'}</p></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Camera Tracking</label>
+                              <div className="flex flex-wrap gap-2">{(selectedRequest.camera_tracking || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Audio */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Audio System</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.audio_system === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.audio_system === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.audio_system === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}
+                        </div>
+                        {selectedRequest.audio_system === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mixer / DSP</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.audio_mixer || '—'}</p></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Audio Detail</label>
+                              <div className="flex flex-wrap gap-2">{(selectedRequest.audio_detail || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Wallplate */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wallplate Input</label>
+                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.wallplate_input === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.wallplate_input === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.wallplate_input === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
+                        {selectedRequest.wallplate_input === 'Yes' && (<div className="ml-4 pl-4 border-l-2 border-teal-200"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Wallplate</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.wallplate_jumlah || '—'}</p></div>)}
+                      </div>
+
+                      {/* Tabletop */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Tabletop Input</label>
+                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.tabletop_input === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.tabletop_input === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.tabletop_input === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
+                        {selectedRequest.tabletop_input === 'Yes' && (<div className="ml-4 pl-4 border-l-2 border-teal-200"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Tabletop</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.tabletop_jumlah || '—'}</p></div>)}
+                      </div>
+
+                      {/* Wireless */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wireless Presentation</label>
+                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.wireless_presentation === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.wireless_presentation === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.wireless_presentation === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
+                        {selectedRequest.wireless_presentation === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wireless Mode</label><div className="flex flex-wrap gap-2">{(selectedRequest.wireless_mode || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Dongle</label><div className="flex flex-wrap gap-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.wireless_dongle === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.wireless_dongle === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.wireless_dongle === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div></div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Controller */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Controller / Automation</label>
+                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.controller_automation === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.controller_automation === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.controller_automation === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
+                        {selectedRequest.controller_automation === 'Yes' && (<div className="ml-4 pl-4 border-l-2 border-teal-200"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Controller Type</label><div className="flex flex-wrap gap-2">{(selectedRequest.controller_type || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div></div>)}
+                      </div>
                     </div>
-                    <div className="p-4 grid grid-cols-3 gap-x-6 gap-y-4">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ukuran Ruangan</p>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.ukuran_ruangan || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Suggest Tampilan</p>
-                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedRequest.suggest_tampilan || '-'}</p>
-                      </div>
-                      {selectedRequest.pts_assigned && (
+                  </div>
+
+                  {/* Ruangan & Keterangan — form style */}
+                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
+                      Ruangan & Informasi Lainnya
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">PTS Handler</p>
-                          <p className="text-sm font-semibold text-teal-700 mt-0.5">🔧 {selectedRequest.pts_assigned}</p>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.ukuran_ruangan || '—'}</p>
                         </div>
-                      )}
-                      {selectedRequest.due_date && (
                         <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Target Selesai</p>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5">📅 {formatDueDate(selectedRequest.due_date)}</p>
-                          {detailDueStatus && (
-                            <span className={`text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'text-red-500' : detailDueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>🎯 {detailDueStatus.label}</span>
-                          )}
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan (W × H)</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.suggest_tampilan || '—'}</p>
                         </div>
-                      )}
+                      </div>
                       {selectedRequest.keterangan_lain && (
-                        <div className="col-span-3">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Keterangan Lain</p>
-                          <p className="text-sm font-semibold text-gray-800 mt-0.5 whitespace-pre-wrap">{selectedRequest.keterangan_lain}</p>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 whitespace-pre-wrap">{selectedRequest.keterangan_lain}</p>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Attachments Panel — prominent */}
-                  <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 px-4 py-2.5 border-b border-indigo-200 flex items-center justify-between">
-                      <p className="text-xs font-bold text-indigo-700 flex items-center gap-1.5">📎 File & Attachment</p>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
-                          className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg font-bold transition-all">
-                          {uploadingFile ? '⏳ Uploading...' : '+ Upload File'}
-                        </button>
-                      </div>
+                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                        <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
+                        Dokumen & File Attachment
+                      </h3>
+                      <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                        className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 disabled:opacity-60">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        {uploadingFile ? 'Uploading...' : 'Upload File'}
+                      </button>
                     </div>
                     <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                       onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
@@ -2012,15 +2250,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       onChange={e => { const f = e.target.files?.[0]; if (f) handleCategoryUpload(f, 'design3d'); e.target.value = ''; }} />
 
                     {isPTS && selectedRequest.status !== 'pending' && selectedRequest.status !== 'rejected' && (
-                      <div className="flex gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest my-auto">Upload:</p>
+                      <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-gray-100">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest self-center">Upload Dokumen:</p>
                         {[
                           { cat: 'sld' as const, ref: sldFileRef, label: '📐 SLD (PDF)', cls: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
                           { cat: 'boq' as const, ref: boqFileRef, label: '📊 BOQ (Excel)', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
                           { cat: 'design3d' as const, ref: design3dFileRef, label: '🎨 Design 3D', cls: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
                         ].map(({ cat, ref, label, cls }) => (
                           <button key={cat} onClick={() => ref.current?.click()} disabled={uploadingCategory === cat}
-                            className={`px-3 py-1 rounded-lg border text-xs font-bold transition-all ${cls}`}>
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${cls}`}>
                             {uploadingCategory === cat ? '⏳ Uploading...' : label}
                           </button>
                         ))}
@@ -2028,56 +2266,55 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     )}
 
                     {/* Tabs */}
-                    <div className="flex border-b border-gray-100">
+                    <div className="flex border border-gray-200 rounded-xl overflow-hidden mb-4">
                       {(['all', 'sld', 'boq', 'design3d'] as const).map(tab => (
                         <button key={tab} onClick={() => setActiveAttachTab(tab)}
-                          className={`flex-1 py-2 text-xs font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-indigo-700 border-b-2 border-indigo-500 bg-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}>
-                          {tab === 'all' ? `All (${attachments.length})` : tab === 'design3d' ? `3D (${attachments.filter(a => a.attachment_category === 'design3d').length})` : `${tab.toUpperCase()} (${attachments.filter(a => a.attachment_category === tab).length})`}
+                          className={`flex-1 py-2 text-xs font-bold uppercase transition-all ${activeAttachTab === tab ? 'text-white bg-teal-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                          {tab === 'all' ? `Semua (${attachments.length})` : tab === 'design3d' ? `3D (${attachments.filter(a => a.attachment_category === 'design3d').length})` : `${tab.toUpperCase()} (${attachments.filter(a => a.attachment_category === tab).length})`}
                         </button>
                       ))}
                     </div>
 
                     {/* File grid */}
-                    <div className="p-4">
-                      {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).length === 0 ? (
-                        <div className="text-center py-6 text-gray-400">
-                          <div className="text-3xl mb-2">📂</div>
-                          <p className="text-xs font-medium">Belum ada file</p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
-                            <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
-                              className="group flex items-center gap-3 p-3 rounded-xl border-2 border-gray-100 hover:border-indigo-300 hover:bg-indigo-50 transition-all cursor-pointer">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${isFileType(att.file_type) ? 'bg-teal-50' : att.file_type.includes('pdf') ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                                {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-gray-700 truncate group-hover:text-indigo-700">{att.file_name}</p>
-                                <p className="text-[10px] text-gray-400 mt-0.5">{formatFileSize(att.file_size)}{att.revision_version ? ` · Rev ${att.revision_version}` : ''}</p>
-                                {att.attachment_category && att.attachment_category !== 'general' && (
-                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-1 inline-block ${att.attachment_category === 'sld' ? 'bg-blue-100 text-blue-700' : att.attachment_category === 'boq' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
-                                    {att.attachment_category.toUpperCase()}
-                                  </span>
-                                )}
-                              </div>
-                              <svg className="w-4 h-4 text-gray-300 group-hover:text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).length === 0 ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <div className="text-3xl mb-2">📂</div>
+                        <p className="text-xs font-medium">Belum ada file diupload</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
+                          <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
+                            className="group flex items-center gap-3 p-3 rounded-xl border-2 border-gray-100 hover:border-teal-300 hover:bg-teal-50 transition-all cursor-pointer">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${isFileType(att.file_type) ? 'bg-teal-50' : att.file_type.includes('pdf') ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                              {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-gray-700 truncate group-hover:text-teal-700">{att.file_name}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{formatFileSize(att.file_size)}{att.revision_version ? ` · Rev ${att.revision_version}` : ''}</p>
+                              {att.attachment_category && att.attachment_category !== 'general' && (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-1 inline-block ${att.attachment_category === 'sld' ? 'bg-blue-100 text-blue-700' : att.attachment_category === 'boq' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                                  {att.attachment_category.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <svg className="w-4 h-4 text-gray-300 group-hover:text-teal-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Admin controls */}
                   {isPTS && !isTeamPTS && (
-                    <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-rose-50 to-rose-100 px-4 py-2.5 border-b border-rose-200">
-                        <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">⚙️ Admin Controls</p>
-                      </div>
-                      <div className="p-4 space-y-3">
+                    <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                      <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <span className="w-7 h-7 bg-rose-500 text-white rounded-lg flex items-center justify-center text-xs shadow">⚙️</span>
+                        Admin Controls
+                      </h3>
+                      <div className="space-y-3">
                         <div>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Target Selesai</p>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Target Selesai</label>
                           {detailDueStatus && (
                             <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
                               🎯 {detailDueStatus.label}
@@ -2085,7 +2322,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           )}
                           <div className="flex gap-1.5">
                             <input type="date" defaultValue={selectedRequest.due_date || ''} id="detail_due_date"
-                              className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:border-teal-400 outline-none bg-white" />
+                              className="flex-1 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:border-teal-400 outline-none bg-white" />
                             <button onClick={async () => {
                               const val = (document.getElementById('detail_due_date') as HTMLInputElement)?.value;
                               const { error } = await supabase.from('project_requests').update({ due_date: val || null }).eq('id', selectedRequest.id);
