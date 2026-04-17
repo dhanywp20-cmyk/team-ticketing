@@ -1506,15 +1506,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           {/* No column header needed for card grid */}
 
           {/* Table header — 8 columns with dividers */}
-          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-            style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
-            <span className="pr-3 border-r border-gray-200">NAMA PROJECT</span>
-            <span className="px-3 border-r border-gray-200">LOKASI</span>
-            <span className="px-3 border-r border-gray-200">SALES</span>
-            <span className="px-3 border-r border-gray-200">HANDLER</span>
-            <span className="px-3 border-r border-gray-200">STATUS</span>
-            <span className="px-3 border-r border-gray-200">DUE DATE</span>
-            <span className="px-3 border-r border-gray-200">CREATED BY</span>
+          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-500"
+            style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto', borderBottom: '2px solid #e5e7eb', background: '#f8fafc' }}>
+            <span className="pr-3 border-r border-gray-300">NAMA PROJECT</span>
+            <span className="px-3 border-r border-gray-300">LOKASI</span>
+            <span className="px-3 border-r border-gray-300">SALES</span>
+            <span className="px-3 border-r border-gray-300">HANDLER</span>
+            <span className="px-3 border-r border-gray-300">STATUS</span>
+            <span className="px-3 border-r border-gray-300">DUE DATE</span>
+            <span className="px-3 border-r border-gray-300">CREATED BY</span>
             <span className="pl-3 text-right">ACTION</span>
           </div>
 
@@ -1522,15 +1522,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           {loading ? (
             <div className="space-y-0">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="animate-pulse hidden md:grid px-5 py-3.5 border-b border-gray-100"
+                <div key={i} className="animate-pulse hidden md:grid px-5 py-3.5 border-b border-gray-200"
                   style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto' }}>
-                  <div className="pr-3 border-r border-gray-100"><div className="h-4 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>
-                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
-                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/2 mt-1" /></div>
-                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
-                  <div className="px-3 border-r border-gray-100"><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
-                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-16" /></div>
-                  <div className="px-3 border-r border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /></div>
+                  <div className="pr-3 border-r border-gray-200"><div className="h-4 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>
+                  <div className="px-3 border-r border-gray-200"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
+                  <div className="px-3 border-r border-gray-200"><div className="h-4 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/2 mt-1" /></div>
+                  <div className="px-3 border-r border-gray-200"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
+                  <div className="px-3 border-r border-gray-200"><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
+                  <div className="px-3 border-r border-gray-200"><div className="h-4 bg-gray-100 rounded w-16" /></div>
+                  <div className="px-3 border-r border-gray-200"><div className="h-4 bg-gray-100 rounded w-3/4" /></div>
                   <div className="pl-3"><div className="h-7 bg-gray-100 rounded-lg w-16" /></div>
                 </div>
               ))}
@@ -1585,13 +1585,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <div className="hidden md:grid px-5 py-3.5 cursor-pointer hover:bg-teal-50/40 transition-colors group"
                       style={{
                         gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr auto',
-                        borderBottom: '1px solid rgba(0,0,0,0.05)',
+                        borderBottom: '1px solid #e5e7eb',
                         borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
                       }}
                       onClick={() => handleOpenDetail(req)}>
 
                       {/* Nama Project + Ruangan */}
-                      <div className="pr-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                      <div className="pr-3 border-r border-gray-200 flex flex-col justify-center min-w-0">
                         <div className="flex items-center gap-1.5">
                           {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
                           <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
@@ -1601,18 +1601,18 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
 
                       {/* Lokasi */}
-                      <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
+                      <div className="px-3 border-r border-gray-200 flex items-center min-w-0">
                         <p className="text-xs text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
                       </div>
 
                       {/* Sales + Divisi */}
-                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                      <div className="px-3 border-r border-gray-200 flex flex-col justify-center min-w-0">
                         <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
                         {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
                       </div>
 
                       {/* Handler */}
-                      <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
+                      <div className="px-3 border-r border-gray-200 flex items-center min-w-0">
                         {req.pts_assigned ? (
                           <div className="flex items-center gap-1.5">
                             <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
@@ -1624,27 +1624,29 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
 
                       {/* Status */}
-                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center">
+                      <div className="px-3 border-r border-gray-200 flex flex-col justify-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                         {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 mt-1 animate-pulse">🔔 Perlu Approval</p>}
                       </div>
 
                       {/* Due Date */}
-					  {isPTS && !isTeamPTS && (
-						<div className="pt-3 border-t border-gray-200 space-y-3">
-						  <div>
-							<p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Target Selesai</p>
-							{detailDueStatus && (
-							  <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${detailDueStatus.type === 'overdue' ? 'bg-red-100 text-red-600' : detailDueStatus.type === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-teal-100 text-teal-600'}`}>
-								🎯 {detailDueStatus.label}
-							  </div>
-							)}
-						  </div>
-						</div>
-					  )}
+                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                        {req.due_date ? (
+                          <>
+                            <p className="text-xs font-semibold text-gray-700">{formatDueDate(req.due_date)}</p>
+                            {dueStatus && (
+                              <span className={`text-[10px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>
+                                🎯 {dueStatus.label}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </div>
 
                       {/* Created By */}
-                      <div className="px-3 border-r border-gray-100 flex flex-col justify-center min-w-0">
+                      <div className="px-3 border-r border-gray-200 flex flex-col justify-center min-w-0">
                         <p className="text-xs font-semibold text-gray-700 truncate">{req.requester_name}</p>
                         <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                       </div>
