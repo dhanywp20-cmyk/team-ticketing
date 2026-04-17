@@ -632,7 +632,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           id: r.id,
           type: 'require' as const,
           title: r.project_name,
-          title: r.room_name,
+          title2: r.room_name,
           subtitle: `${r.status === 'pending' ? '⏳ wait Approval' : r.status === 'approved' ? '✅ Approved' : '🔄 In Progress'} · ${r.requester_name}`,
           time: r.created_at,
           url: '/form-require-project',
