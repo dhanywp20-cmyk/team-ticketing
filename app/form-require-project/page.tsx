@@ -1627,6 +1627,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
 
                       {/* Due Date */}
+                      {/* Due Date */}
                       <div className="min-w-0">
                         <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
                           style={{
@@ -1641,6 +1642,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             style={{ color: isToday ? '#dc2626' : '#6366f1' }}>
                             {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
                           </span>
+                          {/* FIX: Change r.due_time to req.due_time */}
                           {req.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{req.due_time}</span>}
                         </div>
                       </div>
