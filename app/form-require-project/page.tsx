@@ -326,11 +326,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (!isPTS) {
       // Guest/Sales: only their own requests
       query = query.eq('requester_id', currentUser.id);
-    } else if (isTeamPTS) {
-      // Team PTS: only tickets assigned to them
-      query = query.eq('pts_assigned', currentUser.full_name);
     }
-    // admin/superadmin: see all
+    // admin, superadmin, team_pts, team → see ALL tickets
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
@@ -1904,11 +1901,32 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('pts_user');
-    if (stored) {
-      try { setCurrentUser(JSON.parse(stored)); } catch {}
-    }
-    setLoading(false);
+    const tryLoad = () => {
+      // Try 'currentUser' key (used by ticketing/dashboard)
+      const stored = localStorage.getItem('currentUser') || localStorage.getItem('pts_user');
+      if (stored) {
+        try { setCurrentUser(JSON.parse(stored)); setLoading(false); return; } catch {}
+      }
+      // Try sessionStorage fallback
+      const session = sessionStorage.getItem('currentUser') || sessionStorage.getItem('pts_user');
+      if (session) {
+        try { setCurrentUser(JSON.parse(session)); setLoading(false); return; } catch {}
+      }
+      setLoading(false);
+    };
+
+    tryLoad();
+
+    // Listen for user data from parent dashboard (iframe postMessage)
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'pts_user' && event.data?.user) {
+        setCurrentUser(event.data.user);
+        setLoading(false);
+        try { localStorage.setItem('pts_user', JSON.stringify(event.data.user)); } catch {}
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   if (loading) return (
