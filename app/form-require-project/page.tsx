@@ -1597,7 +1597,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                           <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
                           {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread}</span>}
                         </div>
-                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🔧 {req.room_name}</p>}
+                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🛋️ {req.room_name}</p>}
                       </div>
 
                       {/* Lokasi */}
@@ -1615,9 +1615,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
                         {req.pts_assigned ? (
                           <div className="flex items-center gap-1.5">
-                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                              {req.pts_assigned.charAt(0).toUpperCase()}
-                            </div>
                             <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
@@ -1637,11 +1634,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             <span className="text-lg font-black leading-none" style={{ color: isToday ? '#0d9488' : '#4f46e5' }}>
                               {new Date(req.due_date + 'T00:00:00').getDate()}
                             </span>
-                            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: isToday ? '#0d9488' : '#6366f1' }}>
+                            <span className="text-[6px] font-bold uppercase tracking-wider" style={{ color: isToday ? '#0d9488' : '#6366f1' }}>
                               {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
                             </span>
                             {dueStatus && dueStatus.type !== 'ok' && (
-                              <span className={`text-[8px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{dueStatus.label}</span>
+                              <span className={`text-[6px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{req.due_date}</span>
                             )}
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
