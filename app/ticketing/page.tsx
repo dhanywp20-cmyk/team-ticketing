@@ -1294,28 +1294,6 @@ export default function TicketingSystem() {
     };
   }, [tickets, overdueSettings]);
 
-  // ── Guest Stats: hanya ticket milik guest itu sendiri ─────────────────────
-  const guestStats = useMemo(() => {
-    if (currentUser?.role !== "guest") return null;
-    const myTickets = tickets.filter((t) => t.created_by === currentUser.username);
-    const total = myTickets.length;
-    const waitingApproval = myTickets.filter((t) => t.status === "Waiting Approval").length;
-    const pending = myTickets.filter((t) => t.status === "Pending").length;
-    const processing = myTickets.filter((t) => t.status === "In Progress").length;
-    const solved = myTickets.filter((t) => t.status === "Solved").length;
-    const overdue = myTickets.filter((t) => isTicketOverdue(t) && t.status !== "Solved").length;
-    return {
-      total, waitingApproval, pending, processing, solved, overdue,
-      statusData: [
-        { name: "Waiting Approval", value: waitingApproval, color: "#FB923C" },
-        { name: "Pending", value: pending, color: "#FCD34D" },
-        { name: "In Progress", value: processing, color: "#60A5FA" },
-        { name: "Solved", value: solved, color: "#34D399" },
-        ...(overdue > 0 ? [{ name: "Overdue", value: overdue, color: "#EF4444" }] : []),
-      ].filter((d) => d.value > 0),
-    };
-  }, [tickets, currentUser, overdueSettings]);
-
   const salesDivisionStats = useMemo(() => {
     const divisionCounts: Record<string, number> = {};
     tickets.forEach((t) => { if (t.sales_division) divisionCounts[t.sales_division] = (divisionCounts[t.sales_division] || 0) + 1; });
@@ -1604,26 +1582,19 @@ export default function TicketingSystem() {
 
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
-          {/* ── GUEST SUMMARY SECTION ── */}
-          {currentUser?.role === "guest" && guestStats && (
+          {/* ── GUEST SUMMARY SECTION (same style as admin) ── */}
+          {currentUser?.role === "guest" && (
             <div className="mb-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎫</span>
-                <h2 className="text-sm font-bold text-gray-600 uppercase tracking-widest">Ringkasan Tiket Saya</h2>
-                <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-0.5 rounded-full">{guestStats.total} total</span>
-              </div>
-
-              {/* Stat Cards */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  { label: "Total Tiket", value: guestStats.total, sub: "Semua tiket saya", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)" },
-                  { label: "Waiting Approval", value: guestStats.waitingApproval, sub: "Menunggu persetujuan", gradient: "linear-gradient(135deg,#ea580c,#c2410c)", shadow: "rgba(234,88,12,0.35)" },
-                  { label: "Pending", value: guestStats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)" },
-                  { label: "In Progress", value: guestStats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)" },
-                  { label: "Solved", value: guestStats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)" },
+                  { label: "Total Tickets", value: stats.total, sub: "Seluruh tiket saya", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)" },
+                  { label: "Waiting Approval", value: tickets.filter((t) => t.status === "Waiting Approval").length, sub: "Menunggu persetujuan", gradient: "linear-gradient(135deg,#ea580c,#c2410c)", shadow: "rgba(234,88,12,0.35)" },
+                  { label: "Pending", value: stats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)" },
+                  { label: "In Progress", value: stats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)" },
+                  { label: "Solved", value: stats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)" },
                 ].map((card, i) => (
                   <div key={i} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2" style={{ background: card.gradient, boxShadow: `0 4px 16px ${card.shadow}` }}>
-                    <span className="text-3xl font-black text-white leading-none mt-1">{card.value}</span>
+                    <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
                     <div>
                       <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
                       <p className="text-[10px] font-medium leading-tight" style={{ color: "rgba(255,255,255,0.75)" }}>{card.sub}</p>
@@ -1631,39 +1602,17 @@ export default function TicketingSystem() {
                   </div>
                 ))}
               </div>
-
-              {/* Pie Chart + Status Breakdown */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <StatusDonutCard
-                  data={guestStats.statusData}
-                  total={guestStats.statusData.reduce((s, d) => s + d.value, 0)}
+                  data={[
+                    { name: "Waiting Approval", value: tickets.filter((t) => t.status === "Waiting Approval").length, color: "#FB923C" },
+                    ...stats.statusData,
+                  ].filter((d) => d.value > 0)}
+                  total={stats.total}
                   onSliceClick={() => {}}
-                  title="Status Tiket Saya"
+                  title="Status Distribution"
                   icon="🥧"
                 />
-                <div className="rounded-2xl p-4 flex flex-col gap-3 col-span-1 lg:col-span-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
-                  <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📋 Detail Status Tiket</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {[
-                      { label: "Waiting Approval", value: guestStats.waitingApproval, color: "#EA580C", bg: "rgba(234,88,12,0.08)", border: "rgba(234,88,12,0.2)", icon: "⏳" },
-                      { label: "Pending", value: guestStats.pending, color: "#D97706", bg: "rgba(217,119,6,0.08)", border: "rgba(217,119,6,0.2)", icon: "🕐" },
-                      { label: "In Progress", value: guestStats.processing, color: "#2563EB", bg: "rgba(37,99,235,0.08)", border: "rgba(37,99,235,0.2)", icon: "🔧" },
-                      { label: "Solved", value: guestStats.solved, color: "#059669", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.2)", icon: "✅" },
-                      ...(guestStats.overdue > 0 ? [{ label: "Overdue", value: guestStats.overdue, color: "#DC2626", bg: "rgba(220,38,38,0.08)", border: "rgba(220,38,38,0.2)", icon: "⚠️" }] : []),
-                    ].map((item, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-xl p-3" style={{ background: item.bg, border: `1px solid ${item.border}` }}>
-                        <span className="text-xl flex-shrink-0">{item.icon}</span>
-                        <div>
-                          <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">{item.label}</p>
-                          <p className="text-2xl font-black leading-tight" style={{ color: item.color }}>{item.value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {guestStats.total === 0 && (
-                    <p className="text-center text-gray-400 text-sm py-4">Belum ada tiket yang dibuat. Klik <strong>New Ticket</strong> untuk membuat tiket pertama!</p>
-                  )}
-                </div>
               </div>
             </div>
           )}
