@@ -820,7 +820,7 @@ export default function Dashboard() {
       title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
       gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
       description: 'Jadwal & reminder pekerjaan team PTS',
-      items: [{ name: 'Reminder', url: '/reminder-schedule', icon: '⏰', internal: true, embed: true }]
+      items: [{ name: 'Reminder', url: '/reminder-schedule2', icon: '⏰', internal: true, embed: true }]
     },
     {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
