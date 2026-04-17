@@ -1314,10 +1314,6 @@ export default function Dashboard() {
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold" style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)', color: '#c8861d', border: '2px solid rgba(200,134,29,0.4)' }}>
               {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-slate-900 text-xs font-bold truncate">{currentUser?.full_name}</p>
-              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#b8760d' }}>{currentUser?.role}</p>
-            </div>
           </div>
         )}
 
