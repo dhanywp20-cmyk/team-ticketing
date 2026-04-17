@@ -1317,7 +1317,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
       {/* FIX #1: NewFormModal is now a top-level component, passes all state as props */}
       {showNewFormModal && (
-        <div <NewFormModal
+        <NewFormModal
           currentUser={currentUser}
           form={form}
           setForm={setForm}
@@ -1352,7 +1352,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           currentUser={currentUser}
         />
       )}
-    </div>>
 
       {/* ── STICKY HEADER — sama dengan Reminder Schedule ── */}
       <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.95)', borderBottom: '3px solid #0d9488', backdropFilter: 'blur(16px)' }}>
