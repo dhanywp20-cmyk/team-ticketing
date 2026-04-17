@@ -1627,21 +1627,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                       </div>
 
                       {/* Due Date */}
-                      <div className="px-3 border-r border-gray-100 flex items-center min-w-0">
-                        {req.due_date ? (
-                          <div className="inline-flex flex-col items-center px-2 py-1 rounded-xl text-center"
-                            style={{ background: isToday ? 'rgba(13,148,136,0.12)' : 'rgba(99,102,241,0.08)', border: isToday ? '1px solid rgba(13,148,136,0.35)' : '1px solid rgba(99,102,241,0.2)' }}>
-                            <span className="text-lg font-black leading-none" style={{ color: isToday ? '#0d9488' : '#4f46e5' }}>
-                              {new Date(req.due_date + 'T00:00:00').getDate()}
-                            </span>
-                            <span className="text-[6px] font-bold uppercase tracking-wider" style={{ color: isToday ? '#0d9488' : '#6366f1' }}>
-                              {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                            </span>
-                            {dueStatus && dueStatus.type !== 'ok' && (
-                              <span className={`text-[6px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{DueStatus.label}</span>
-                            )}
-                          </div>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      <div className="min-w-0">
+                        <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
+                          style={{
+                            background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
+                            border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
+                          }}>
+                          <span className="text-xl font-black leading-none"
+                            style={{ color: today ? '#dc2626' : '#4f46e5' }}>
+                            {new Date(r.due_date + 'T00:00:00').getDate()}
+                          </span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
+                            style={{ color: today ? '#dc2626' : '#6366f1' }}>
+                            {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
+                          </span>
+                          {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
+                        </div>
                       </div>
 
                       {/* Created By */}
