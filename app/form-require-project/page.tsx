@@ -1638,7 +1638,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                               {new Date(req.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
                             </span>
                             {dueStatus && dueStatus.type !== 'ok' && (
-                              <span className={`text-[6px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{req.due_date}</span>
+                              <span className={`text-[6px] font-bold ${dueStatus.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>{detailDueStatus.label}</span>
                             )}
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
@@ -1763,12 +1763,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
-                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
+                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">{selectedRequest.pts_assigned}</span>}
                 </div>
                 <p className="text-teal-100 text-xs mt-0.5 truncate">
                   {selectedRequest.room_name && `${selectedRequest.room_name} · `}
                   {selectedRequest.project_location && `📍 ${selectedRequest.project_location} · `}
-                  {selectedRequest.requester_name} · {selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
+                  {selectedRequest.requester_name} ·{selectedRequest.sales_division || ''} · {formatDate(selectedRequest.created_at)}
                 </p>
               </div>
               {/* Actions in header */}
