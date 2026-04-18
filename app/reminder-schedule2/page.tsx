@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -552,6 +553,7 @@ function RescheduleModal({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ReminderSchedulePage() {
+  const router = useRouter();
   const [appReady, setAppReady]             = useState(false);
   const [dashLoading, setDashLoading]       = useState(false);
   const [isLoggedIn, setIsLoggedIn]         = useState(false);
@@ -1438,17 +1440,14 @@ export default function ReminderSchedulePage() {
                   </p>
                 )}
                 {detailReminder.description && <p className="text-white/70 text-xs mt-1.5">{detailReminder.description}</p>}
-                {/* Troubleshooting link ke Ticketing */}
+                {/* Troubleshooting link ke Ticketing — navigasi internal */}
                 {detailReminder.category === 'Troubleshooting' && (
-                  <a
-                    href="https://team-ticketing.vercel.app/ticketing"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
+                  <button
+                    onClick={e => { e.stopPropagation(); setDetailReminder(null); router.push('/ticketing'); }}
                     className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-[1.03]"
                     style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
-                    🎫 Lihat di Platform Ticketing →
-                  </a>
+                    🎫 Buka Platform Ticketing
+                  </button>
                 )}
               </div>
 
@@ -1970,15 +1969,12 @@ export default function ReminderSchedulePage() {
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
                                   </div>
                                   {r.category === 'Troubleshooting' && (
-                                    <a
-                                      href="https://team-ticketing.vercel.app/ticketing"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={e => e.stopPropagation()}
+                                    <button
+                                      onClick={e => { e.stopPropagation(); router.push('/ticketing'); }}
                                       className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded text-blue-600 hover:text-blue-800 transition-colors"
                                       style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                                      🎫 Ticketing →
-                                    </a>
+                                      🎫 Ticketing
+                                    </button>
                                   )}
                                 </td>
                                 {/* Sales */}
