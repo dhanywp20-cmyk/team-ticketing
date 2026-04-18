@@ -465,16 +465,7 @@ export default function TicketingSystem() {
     "Process Repair": "bg-blue-50 text-blue-700 border-blue-300",
   };
 
-  const checkSessionTimeout = () => {
-    if (loginTime) {
-      const now = Date.now();
-      const sixHours = 6 * 60 * 60 * 1000;
-      if (now - loginTime > sixHours) {
-        handleLogout();
-        alert("Your session has expired. Please login again.");
-      }
-    }
-  };
+  // Session timeout is handled by Dashboard only
 
   const DEFAULT_OVERDUE_HOURS = 48;
   const getDeadline = (ticket: Ticket): Date | null => {
@@ -839,11 +830,24 @@ export default function TicketingSystem() {
     const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase());
     const teamType = member?.team_type || "Team PTS";
     const isServicesTeam = teamType === "Team Services";
-    const validStatusesPTS = ["Waiting Approval", "Pending", "Call", "Onsite", "In Progress", "Solved"];
     if (isServicesTeam) {
       if (!(SERVICES_STATUSES as readonly string[]).includes(newActivity.new_status)) { alert("Status tidak valid untuk Team Services!"); return; }
     } else {
-      if (!validStatusesPTS.includes(newActivity.new_status)) { alert("Invalid status! Use: Pending, In Progress, or Solved"); return; }
+      // Flowchart enforcement: Pending → Call → Onsite → In Progress → Solved
+      const PTS_FLOW_V = ["Pending", "Call", "Onsite", "In Progress", "Solved"];
+      const currentIdx = PTS_FLOW_V.indexOf(selectedTicket.status);
+      const targetIdx = PTS_FLOW_V.indexOf(newActivity.new_status);
+      if (targetIdx === -1) { alert("Status tidak valid!"); return; }
+      if (targetIdx !== currentIdx + 1) {
+        const nextStatus = PTS_FLOW_V[currentIdx + 1] || "–";
+        alert(`Status harus maju satu langkah.
+
+Saat ini: ${selectedTicket.status}
+Berikutnya: ${nextStatus}
+
+❌ Tidak bisa mundur atau skip step.`);
+        return;
+      }
     }
     if (newActivity.assign_to_services && !newActivity.services_assignee) { alert("Select assignee from Team Services!"); return; }
     try {
@@ -1322,10 +1326,11 @@ export default function TicketingSystem() {
     if (saved && savedTime) {
       const user = JSON.parse(saved);
       const time = parseInt(savedTime);
-      const now = Date.now();
-      const sixHours = 6 * 60 * 60 * 1000;
-      if (now - time > sixHours) { handleLogout(); alert("Your session has expired. Please login again."); }
-      else { setCurrentUser(user); setIsLoggedIn(true); setLoginTime(time); fetchData(user); return; }
+      setCurrentUser(user);
+      setIsLoggedIn(true);
+      setLoginTime(time);
+      fetchData(user);
+      return;
     }
     fetchData(null);
   }, []);
@@ -1347,10 +1352,7 @@ export default function TicketingSystem() {
     }
   }, [tickets, isLoggedIn, currentUser]);
 
-  useEffect(() => {
-    const interval = setInterval(() => checkSessionTimeout(), 60000);
-    return () => clearInterval(interval);
-  }, [loginTime]);
+  // Session timeout check moved to Dashboard
 
   useEffect(() => {
     if (currentUser?.role === "admin") { fetchGuestMappings(); loadReminderSchedule(); }
@@ -1909,141 +1911,302 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* ── TICKET DETAIL POPUP (Redesigned with red header) ── */}
-        {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); } }}>
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-4xl my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(0,0,0,0.1)", maxHeight: "96vh" }}>
-              <div className="px-6 py-5 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
-                <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#059669", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>🎫 {selectedTicket.current_team}</span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : "#d97706", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>{selectedTicket.status}</span>
-                  {selectedTicket.services_status && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#7c3aed", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>Svc: {selectedTicket.services_status}</span>}
-                </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
-                {selectedTicket.description && <p className="text-white/80 text-sm mt-2">{selectedTicket.description}</p>}
-              </div>
+        {/* ── TICKET DETAIL POPUP — side-by-side: detail (left) + update panel (right) ── */}
+        {showTicketDetailPopup && selectedTicket && (() => {
+          // ── Status flowchart logic (Change 4) ──────────────────────────────
+          // Order: Pending → Call → Onsite → In Progress → Solved
+          // Rules: cannot skip, cannot go backward, Solved only after In Progress
+          const PTS_FLOW = ["Pending", "Call", "Onsite", "In Progress", "Solved"] as const;
+          type PTSStatus = typeof PTS_FLOW[number];
+          const currentStatusIndex = PTS_FLOW.indexOf(selectedTicket.status as PTSStatus);
+          const canSelectStatus = (targetStatus: string): boolean => {
+            const targetIdx = PTS_FLOW.indexOf(targetStatus as PTSStatus);
+            if (targetIdx === -1) return false;
+            // Must be exactly 1 step forward from current
+            return targetIdx === currentStatusIndex + 1;
+          };
+          const isStatusLocked = (targetStatus: string): boolean => !canSelectStatus(targetStatus);
 
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(95vh - 140px)" }}>
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>📋 Detail Ticket</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>Handler</p>
+          const showUpdatePanel = canUpdateTicket &&
+            selectedTicket.status !== "Waiting Approval" &&
+            (currentUserTeamType === "Team Services"
+              ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval"
+              : selectedTicket.status !== "Solved");
+
+          return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-3 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); } }}>
+            {/* Outer wrapper: side-by-side on lg screens */}
+            <div className="flex gap-3 w-full max-w-6xl my-4 items-start" style={{ animation: "scale-in 0.25s ease-out" }}>
+
+              {/* ── LEFT: Ticket Detail Card ── */}
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl flex-1 min-w-0 overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.1)", maxHeight: "96vh" }}>
+                {/* Header */}
+                <div className="px-6 py-5 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
+                  <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#059669", border: "2px solid rgba(255,255,255,0.6)" }}>🎫 {selectedTicket.current_team}</span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : "#d97706", border: "2px solid rgba(255,255,255,0.6)" }}>{selectedTicket.status}</span>
+                    {selectedTicket.services_status && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#7c3aed", border: "2px solid rgba(255,255,255,0.6)" }}>Svc: {selectedTicket.services_status}</span>}
+                  </div>
+                  <h2 className="text-xl font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
+                  {selectedTicket.description && <p className="text-white/80 text-sm mt-1">{selectedTicket.description}</p>}
+                </div>
+
+                {/* Body scrollable */}
+                <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(96vh - 150px)" }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
+                      <p className="text-[9px] font-bold tracking-widest uppercase mb-1" style={{ color: "#64748b" }}>Handler</p>
                       <p className="text-sm font-bold text-slate-800">{selectedTicket.assigned_to || "—"}</p>
                     </div>
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>Tanggal Dibuat</p>
+                    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
+                      <p className="text-[9px] font-bold tracking-widest uppercase mb-1" style={{ color: "#64748b" }}>Tanggal Dibuat</p>
                       <p className="text-sm font-bold text-slate-800">{selectedTicket.created_at ? formatDateTime(selectedTicket.created_at) : "-"}</p>
                     </div>
                   </div>
-                </div>
 
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>🏢 Informasi Project</p>
                   <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-                    {selectedTicket.address && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📍</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Alamat</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.address}</p></div></div>}
-                    <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">⚠️</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Issue Case</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.issue_case}</p></div></div>
-                    {selectedTicket.sn_unit && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">🔢</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>SN Unit</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sn_unit}</p></div></div>}
-                    {selectedTicket.customer_phone && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📱</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Customer Phone</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.customer_phone}</p></div></div>}
-                    {selectedTicket.sales_name && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Sales Name</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sales_name}{selectedTicket.sales_division && <span className="text-xs text-purple-600 ml-1">({selectedTicket.sales_division})</span>}</p></div></div>}
-                    {selectedTicket.created_by && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Created By</p><p className="text-sm font-semibold text-slate-800 break-words">@{selectedTicket.created_by}</p></div></div>}
+                    {selectedTicket.address && <div className="flex items-start gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-sm flex-shrink-0 mt-0.5">📍</span><div><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Alamat</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.address}</p></div></div>}
+                    <div className="flex items-start gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-sm flex-shrink-0 mt-0.5">⚠️</span><div><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Issue Case</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.issue_case}</p></div></div>
+                    {selectedTicket.sn_unit && <div className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-sm flex-shrink-0">🔢</span><div><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>SN Unit</p><p className="text-sm font-semibold text-slate-800">{selectedTicket.sn_unit}</p></div></div>}
+                    {selectedTicket.customer_phone && <div className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-sm flex-shrink-0">📱</span><div><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Customer Phone</p><p className="text-sm font-semibold text-slate-800">{selectedTicket.customer_phone}</p></div></div>}
+                    {selectedTicket.sales_name && <div className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-sm flex-shrink-0">👤</span><div><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Sales Name</p><p className="text-sm font-semibold text-slate-800">{selectedTicket.sales_name}{selectedTicket.sales_division && <span className="text-xs text-purple-600 ml-1">({selectedTicket.sales_division})</span>}</p></div></div>}
+                    {selectedTicket.created_by && <div className="flex items-center gap-3 px-4 py-2.5"><span className="text-sm flex-shrink-0">✍️</span><div><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Created By</p><p className="text-sm font-semibold text-slate-800">@{selectedTicket.created_by}</p></div></div>}
                   </div>
-                </div>
 
-                {selectedTicket.photo_url && (
-                  <div className="rounded-2xl overflow-hidden" style={{ border: "1.5px solid rgba(220,38,38,0.35)", background: "rgba(220,38,38,0.05)" }}>
-                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: "rgba(220,38,38,0.12)", borderBottom: "1px solid rgba(220,38,38,0.2)" }}><span className="text-base">📸</span><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#dc2626" }}>Foto Awal Masalah</p></div>
-                    <div className="p-3"><img src={selectedTicket.photo_url} alt={selectedTicket.photo_name || "Foto ticket"} className="w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity" style={{ maxHeight: 220 }} onClick={() => window.open(selectedTicket.photo_url!, "_blank")} />{selectedTicket.photo_name && <p className="text-xs text-gray-500 mt-2">📎 {selectedTicket.photo_name}</p>}</div>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>📝 Activity Log</p>
-                  <div className="space-y-2">
-                    {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? selectedTicket.activity_logs.map((log) => (
-                      <div key={log.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div><div className="flex items-center gap-2"><p className="font-bold text-gray-800 text-sm">{log.handler_name}</p><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.15)", color: "#7c3aed" }}>{log.team_type}</span></div><p className="text-xs text-gray-500 mt-0.5">{formatDateTime(log.created_at)}</p></div>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[log.new_status]}`}>{log.new_status}</span>
-                        </div>
-                        {log.action_taken && <div className="rounded-lg p-2 mb-2" style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)" }}><p className="text-xs font-bold text-blue-700">🔧 Action:</p><p className="text-sm text-gray-800">{log.action_taken}</p></div>}
-                        <p className="text-xs font-bold text-gray-600">📝 Notes:</p>
-                        <p className="text-sm text-gray-800 whitespace-pre-line">{log.notes}</p>
-                        {log.assigned_to_services && <div className="mt-2 p-2 rounded-lg" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.25)" }}><p className="text-xs font-bold text-red-700">→ Ticket assigned to Team Services</p></div>}
-                        {log.photo_url && <div className="mt-3"><img src={log.photo_url} alt={log.photo_name || "Activity photo"} className="max-w-md w-full rounded-lg border cursor-pointer hover:scale-105 transition-transform" onClick={() => window.open(log.photo_url!, "_blank")} /></div>}
-                        {log.file_url && <a href={log.file_url} download={log.file_name} className="inline-block mt-2 text-xs font-bold text-blue-600 hover:underline">📄 {log.file_name || "Download Report"}</a>}
-                      </div>
-                    )) : <p className="text-gray-500 text-center py-4">No activities yet</p>}
-                  </div>
-                </div>
-
-                {canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-                  <div className="border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-                    <div className="flex justify-between items-center"><h3 className="font-semibold text-base text-gray-700">➕ Update Activity</h3><button onClick={() => setShowUpdateForm(!showUpdateForm)} className={`px-4 py-2 rounded-lg font-bold transition-all text-sm ${showUpdateForm ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : "bg-gradient-to-r from-red-500 to-red-700 text-white hover:from-red-600 hover:to-red-800"}`}>{showUpdateForm ? "✕ Tutup Form" : "▼ Buka Form"}</button></div>
-                  </div>
-                )}
-
-                {canUpdateTicket && currentUserTeamType === "Team Services" && selectedTicket.services_status === "Waiting Approval" && (
-                  <div className="border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.08)" }}><div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "rgba(219,39,119,0.1)", border: "1.5px solid rgba(219,39,119,0.3)" }}><span className="text-2xl">⏳</span><div className="flex-1"><p className="text-sm font-bold text-rose-800">Menunggu Konfirmasi Team Services</p><p className="text-xs text-rose-600 mt-0.5">Ticket dari Team PTS menunggu diterima atau ditolak.</p><button onClick={() => setShowServicesApprovalModal(true)} className="mt-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all">🔧 Buka Panel Konfirmasi</button></div></div></div>
-                )}
-
-                <div className="flex gap-3 pt-2 flex-wrap">
-                  <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "white", boxShadow: "0 4px 12px rgba(22,163,74,0.3)" }}>📄 Export PDF</button>
-                  {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
-                    <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "white", boxShadow: "0 4px 12px rgba(245,158,11,0.3)" }}>🔓 Re-open</button>
+                  {selectedTicket.photo_url && (
+                    <div className="rounded-xl overflow-hidden" style={{ border: "1.5px solid rgba(220,38,38,0.3)" }}>
+                      <div className="px-4 py-2 flex items-center gap-2" style={{ background: "rgba(220,38,38,0.08)" }}><span>📸</span><p className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#dc2626" }}>Foto Awal Masalah</p></div>
+                      <div className="p-3"><img src={selectedTicket.photo_url} alt="Foto ticket" className="w-full rounded-xl object-cover cursor-pointer hover:opacity-90" style={{ maxHeight: 180 }} onClick={() => window.open(selectedTicket.photo_url!, "_blank")} /></div>
+                    </div>
                   )}
-                  <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ border: "1px solid rgba(0,0,0,0.15)", color: "#64748b", background: "rgba(255,255,255,0.55)" }}>✕ Close</button>
+
+                  <div>
+                    <p className="text-[9px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>📝 Activity Log</p>
+                    <div className="space-y-2">
+                      {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? selectedTicket.activity_logs.map((log) => (
+                        <div key={log.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
+                          <div className="flex justify-between items-start mb-1.5">
+                            <div><div className="flex items-center gap-2"><p className="font-bold text-gray-800 text-sm">{log.handler_name}</p><span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.15)", color: "#7c3aed" }}>{log.team_type}</span></div><p className="text-xs text-gray-500">{formatDateTime(log.created_at)}</p></div>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[log.new_status]}`}>{log.new_status}</span>
+                          </div>
+                          {log.action_taken && <div className="rounded-lg p-2 mb-1.5" style={{ background: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.15)" }}><p className="text-xs font-bold text-blue-700">🔧 Action:</p><p className="text-sm text-gray-800">{log.action_taken}</p></div>}
+                          <p className="text-xs font-bold text-gray-600">📝 Notes:</p>
+                          <p className="text-sm text-gray-800 whitespace-pre-line">{log.notes}</p>
+                          {log.assigned_to_services && <div className="mt-1.5 p-2 rounded-lg" style={{ background: "rgba(220,38,38,0.08)" }}><p className="text-xs font-bold text-red-700">→ Diteruskan ke Team Services</p></div>}
+                          {log.photo_url && <div className="mt-2"><img src={log.photo_url} alt="Activity photo" className="max-w-xs w-full rounded-lg border cursor-pointer hover:opacity-80" onClick={() => window.open(log.photo_url!, "_blank")} /></div>}
+                          {log.file_url && <a href={log.file_url} download={log.file_name} className="inline-block mt-1.5 text-xs font-bold text-blue-600 hover:underline">📄 {log.file_name || "Download Report"}</a>}
+                        </div>
+                      )) : <p className="text-gray-400 text-center py-4 text-sm">Belum ada activity</p>}
+                    </div>
+                  </div>
+
+                  {/* Services waiting approval notice */}
+                  {canUpdateTicket && currentUserTeamType === "Team Services" && selectedTicket.services_status === "Waiting Approval" && (
+                    <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "rgba(219,39,119,0.08)", border: "1.5px solid rgba(219,39,119,0.25)" }}>
+                      <span className="text-2xl">⏳</span>
+                      <div className="flex-1"><p className="text-sm font-bold text-rose-800">Menunggu Konfirmasi Team Services</p><button onClick={() => setShowServicesApprovalModal(true)} className="mt-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">🔧 Buka Panel Konfirmasi</button></div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1 flex-wrap">
+                    <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "white" }}>📄 Export PDF</button>
+                    {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
+                      <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "white" }}>🔓 Re-open</button>
+                    )}
+                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ border: "1px solid rgba(0,0,0,0.15)", color: "#64748b", background: "white" }}>✕ Tutup</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* ── UPDATE ACTIVITY FORM (Right panel) - keep similar but adjust colors */}
-        {showUpdateForm && canUpdateTicket && selectedTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) setShowUpdateForm(false); }}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(220,38,38,0.25)" }}>
-              <div className="p-4" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
-                <div className="flex items-center justify-between"><h3 className="font-bold text-white text-base">{currentUserTeamType === "Team Services" ? "🔧 Update Status Services" : "➕ Update Activity"}</h3><button onClick={() => setShowUpdateForm(false)} className="text-white hover:bg-white/20 rounded-lg p-1.5 font-bold transition-all text-sm">✕ Tutup</button></div>
-              </div>
-              <div className="p-5 space-y-4 max-h-[calc(90vh-80px)] overflow-y-auto">
-                <div className="rounded-xl px-4 py-2.5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><span className="text-gray-500 text-sm">👤 Handler:</span><span className="font-bold text-gray-800 text-sm ml-2">{newActivity.handler_name}</span></div>
+              {/* ── RIGHT: Update Status Panel (Change 5 — bukan modal overlay) ── */}
+              {showUpdatePanel && (
+                <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden flex-shrink-0" style={{ width: 340, maxHeight: "96vh", border: "1.5px solid rgba(220,38,38,0.25)" }}>
+                  {/* Panel header */}
+                  <div className="px-4 py-3" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
+                    <p className="font-bold text-white text-sm">{currentUserTeamType === "Team Services" ? "🔧 Update Status Services" : "➕ Update Activity"}</p>
+                    <p className="text-red-200 text-xs mt-0.5">👤 {newActivity.handler_name}</p>
+                  </div>
 
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔢 No SN Unit</label><input type="text" value={newActivity.sn_unit} onChange={(e) => setNewActivity({ ...newActivity, sn_unit: e.target.value })} placeholder="Update SN Unit..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
+                  <div className="p-4 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(96vh - 72px)" }}>
 
-                {/* Status selection simplified for brevity - keeping the original logic but with red-themed buttons */}
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Pilih Status Baru *</label>
-                  <div className="flex flex-col gap-2">
-                    {currentUserTeamType === "Team Services" ? (
-                      <>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Pending", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Pending" ? "bg-yellow-500 text-white border-yellow-500 shadow-md" : "bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50"}`}><span>🟡</span><span className="flex-1 text-left">Pending Check</span>{newActivity.new_status === "Pending" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}><span>✅</span><span className="flex-1 text-left">Solved</span>{newActivity.new_status === "Solved" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                      </>
+                    {/* SN Unit update */}
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔢 Update SN Unit</label>
+                      <input type="text" value={newActivity.sn_unit} onChange={(e) => setNewActivity({ ...newActivity, sn_unit: e.target.value })} placeholder="SN Unit (opsional)..." className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+
+                    {/* ── STATUS FLOWCHART (Change 4) ── */}
+                    {currentUserTeamType !== "Team Services" ? (
+                      <div>
+                        <label className="block text-[10px] font-bold mb-2 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔄 Status Flowchart</label>
+                        {/* Visual flow indicator */}
+                        <div className="flex items-center gap-1 mb-3 flex-wrap">
+                          {PTS_FLOW.map((s, i) => {
+                            const isDone = i < currentStatusIndex;
+                            const isCurrent = i === currentStatusIndex;
+                            const isNext = i === currentStatusIndex + 1;
+                            return (
+                              <div key={s} className="flex items-center gap-1">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${isDone ? "bg-gray-200 text-gray-500 line-through" : isCurrent ? "bg-blue-100 text-blue-700 ring-1 ring-blue-400" : isNext ? "bg-red-100 text-red-700 ring-1 ring-red-400" : "bg-gray-100 text-gray-400"}`}>{s}</span>
+                                {i < PTS_FLOW.length - 1 && <span className="text-gray-300 text-xs">›</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Status buttons - only the valid next step is clickable */}
+                        <div className="flex flex-col gap-2">
+                          {/* Call */}
+                          {(() => {
+                            const locked = isStatusLocked("Call");
+                            return (
+                              <button
+                                onClick={() => !locked && setNewActivity({ ...newActivity, new_status: "Call", action_taken: "", notes: "", onsite_use_schedule: false })}
+                                disabled={locked}
+                                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Call" ? "bg-sky-500 text-white border-sky-500 shadow-md" : locked ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-sky-600 border-sky-300 hover:bg-sky-50"}`}
+                              >
+                                <span>📞</span>
+                                <span className="flex-1 text-left text-sm">Call</span>
+                                {locked && <span className="text-xs text-gray-300">🔒</span>}
+                                {newActivity.new_status === "Call" && <span className="text-white text-xs">✓</span>}
+                              </button>
+                            );
+                          })()}
+
+                          {/* Onsite */}
+                          {(() => {
+                            const locked = isStatusLocked("Onsite");
+                            return (
+                              <div>
+                                <button
+                                  onClick={() => !locked && setNewActivity({ ...newActivity, new_status: "Onsite", action_taken: "", notes: "", onsite_use_schedule: false })}
+                                  disabled={locked}
+                                  className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Onsite" ? "bg-purple-500 text-white border-purple-500 shadow-md" : locked ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-purple-600 border-purple-300 hover:bg-purple-50"}`}
+                                >
+                                  <span>🚗</span>
+                                  <span className="flex-1 text-left text-sm">Onsite</span>
+                                  {locked && <span className="text-xs text-gray-300">🔒</span>}
+                                  {newActivity.new_status === "Onsite" && <span className="text-white text-xs">✓</span>}
+                                </button>
+                                {/* Schedule option when Onsite selected */}
+                                {newActivity.new_status === "Onsite" && (
+                                  <div className="mt-2 rounded-xl p-3 space-y-2" style={{ background: "rgba(124,58,237,0.06)", border: "1px solid rgba(124,58,237,0.2)" }}>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input type="checkbox" checked={newActivity.onsite_use_schedule} onChange={(e) => setNewActivity({ ...newActivity, onsite_use_schedule: e.target.checked, onsite_schedule_date: "", onsite_schedule_hour: "08", onsite_schedule_minute: "00" })} className="rounded" />
+                                      <span className="text-xs font-bold text-purple-700">📅 Jadwalkan (bukan hari ini)</span>
+                                    </label>
+                                    {newActivity.onsite_use_schedule && (
+                                      <div className="grid grid-cols-5 gap-1.5">
+                                        <input type="date" value={newActivity.onsite_schedule_date} onChange={(e) => setNewActivity({ ...newActivity, onsite_schedule_date: e.target.value })} className="col-span-3 rounded-lg px-2 py-1.5 text-xs outline-none" style={{ border: "1px solid rgba(0,0,0,0.15)" }} />
+                                        <select value={newActivity.onsite_schedule_hour} onChange={(e) => setNewActivity({ ...newActivity, onsite_schedule_hour: e.target.value })} className="col-span-1 rounded-lg px-1 py-1.5 text-xs outline-none" style={{ border: "1px solid rgba(0,0,0,0.15)" }}>
+                                          {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map(h => <option key={h} value={h}>{h}</option>)}
+                                        </select>
+                                        <select value={newActivity.onsite_schedule_minute} onChange={(e) => setNewActivity({ ...newActivity, onsite_schedule_minute: e.target.value })} className="col-span-1 rounded-lg px-1 py-1.5 text-xs outline-none" style={{ border: "1px solid rgba(0,0,0,0.15)" }}>
+                                          {["00","15","30","45"].map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* In Progress */}
+                          {(() => {
+                            const locked = isStatusLocked("In Progress");
+                            return (
+                              <button
+                                onClick={() => !locked && setNewActivity({ ...newActivity, new_status: "In Progress", action_taken: "", notes: "" })}
+                                disabled={locked}
+                                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "In Progress" ? "bg-blue-600 text-white border-blue-600 shadow-md" : locked ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"}`}
+                              >
+                                <span>🔵</span>
+                                <span className="flex-1 text-left text-sm">In Progress</span>
+                                {locked && <span className="text-xs text-gray-300">🔒</span>}
+                                {newActivity.new_status === "In Progress" && <span className="text-white text-xs">✓</span>}
+                              </button>
+                            );
+                          })()}
+
+                          {/* Solved — only after In Progress */}
+                          {(() => {
+                            const locked = isStatusLocked("Solved");
+                            return (
+                              <button
+                                onClick={() => !locked && setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })}
+                                disabled={locked}
+                                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : locked ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}
+                              >
+                                <span>✅</span>
+                                <span className="flex-1 text-left text-sm">Solved</span>
+                                {locked && <span className="text-xs text-gray-300">🔒</span>}
+                                {newActivity.new_status === "Solved" && <span className="text-white text-xs">✓</span>}
+                              </button>
+                            );
+                          })()}
+
+                          {/* Lock info */}
+                          <p className="text-[10px] text-gray-400 text-center mt-1">🔒 Hanya status berikutnya yang bisa dipilih · Tidak bisa mundur</p>
+                        </div>
+                      </div>
                     ) : (
+                      /* Team Services status buttons — simpler */
+                      <div>
+                        <label className="block text-[10px] font-bold mb-2 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Pilih Status *</label>
+                        <div className="flex flex-col gap-2">
+                          {(["Pending", "Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart", "Process Repair", "Solved"] as const).map((s) => (
+                            <button key={s} onClick={() => setNewActivity({ ...newActivity, new_status: s, action_taken: "", notes: "" })} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border-2 font-semibold text-xs transition-all ${newActivity.new_status === s ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600"}`}>
+                              <span className="flex-1 text-left">{s}</span>
+                              {newActivity.new_status === s && <span className="text-white text-xs">✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes & Action — shown for statuses that need them */}
+                    {newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status) && (
                       <>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Pending", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Pending" ? "bg-amber-500 text-white border-amber-500 shadow-md" : "bg-white text-amber-600 border-amber-300 hover:bg-amber-50"}`}><span>🟡</span><span className="flex-1 text-left">Pending</span>{newActivity.new_status === "Pending" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "In Progress", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "In Progress" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"}`}><span>🔵</span><span className="flex-1 text-left">In Progress</span>{newActivity.new_status === "In Progress" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}><span>✅</span><span className="flex-1 text-left">Solved</span>{newActivity.new_status === "Solved" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
+                        <div>
+                          <label className="block text-[10px] font-bold mb-1 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔧 Action Taken</label>
+                          <textarea value={newActivity.action_taken} onChange={(e) => setNewActivity({ ...newActivity, action_taken: e.target.value })} placeholder="Cek kabel HDMI, restart sistem..." className="w-full rounded-xl px-3 py-2.5 text-sm outline-none resize-none" rows={2} style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold mb-1 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Notes *</label>
+                          <textarea value={newActivity.notes} onChange={(e) => setNewActivity({ ...newActivity, notes: e.target.value })} placeholder="Jelaskan detail penanganan..." className="w-full rounded-xl px-3 py-2.5 text-sm outline-none resize-none" rows={3} style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        </div>
                       </>
                     )}
+
+                    {/* Photo upload */}
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📷 Foto Bukti</label>
+                      <input type="file" accept="image/jpeg,image/jpg,image/png" onChange={(e) => setNewActivity({ ...newActivity, photo: e.target.files?.[0] || null })} className="w-full border rounded-xl px-3 py-2 bg-white text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700" style={{ borderColor: "rgba(0,0,0,0.12)" }} />
+                    </div>
+
+                    {/* Submit */}
+                    <button
+                      onClick={addActivity}
+                      disabled={uploading || (
+                        newActivity.new_status !== "Call" &&
+                        newActivity.new_status !== "Onsite" &&
+                        !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status) &&
+                        !newActivity.notes
+                      )}
+                      className="w-full text-white py-3 rounded-xl font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 12px rgba(220,38,38,0.3)" }}
+                    >
+                      {uploading ? "⏳ Menyimpan..." : "💾 Simpan Activity"}
+                    </button>
                   </div>
                 </div>
-
-                {newActivity.new_status !== "Pending" && newActivity.new_status !== "Solved" && newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status) && (
-                  <>
-                    <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔧 Action Taken</label><textarea value={newActivity.action_taken} onChange={(e) => setNewActivity({ ...newActivity, action_taken: e.target.value })} placeholder="Contoh: Cek kabel HDMI, restart sistem..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" rows={3} style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-                    <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Notes *</label><textarea value={newActivity.notes} onChange={(e) => setNewActivity({ ...newActivity, notes: e.target.value })} placeholder="Jelaskan detail penanganan..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" rows={3} style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-                  </>
-                )}
-
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📷 Upload Foto Bukti</label><input type="file" accept="image/jpeg,image/jpg,image/png" onChange={(e) => setNewActivity({ ...newActivity, photo: e.target.files?.[0] || null })} className="w-full border rounded-xl px-4 py-2.5 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all" style={{ borderColor: "rgba(0,0,0,0.12)" }} /></div>
-
-                <button onClick={addActivity} disabled={uploading || (!newActivity.notes && newActivity.new_status !== "Pending" && newActivity.new_status !== "Solved" && newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status))} className="w-full text-white py-3.5 rounded-xl font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>{uploading ? "⏳ Menyimpan..." : "💾 Simpan Activity"}</button>
-              </div>
+              )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ── APPROVAL MODAL (Redesigned) ── */}
         {showApprovalModal && canAccessAccountSettings && (
@@ -2166,37 +2329,48 @@ export default function TicketingSystem() {
                   <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Ticket</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                {/* Row 1: Project Name + Address Detail (side by side, address lebar) */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div className="md:col-span-2">
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Project Name *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">📌</span>
-                      <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({ ...newTicket, project_name: e.target.value })} placeholder="Example: BCA Cibitung Project" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({ ...newTicket, project_name: e.target.value })} placeholder="BCA Cibitung Project" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit</label>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
-                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="Example: SN12345678" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <span className="absolute left-3 top-3 text-sm">📍</span>
+                      <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={1} placeholder="Jl. Jend. Sudirman No. 1, Jakarta — Gedung Wisma 77, Lantai 5" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                 </div>
 
+                {/* Row 2: SN Unit (optional) + Product / Brand */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Customer Phone</label>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit <span className="text-gray-400 normal-case font-normal">(opsional)</span></label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
-                      <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({ ...newTicket, customer_phone: e.target.value })} placeholder="Adi - 08xx-xxxx-xxxx" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
+                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="SN12345678 (opsional)" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Date *</label>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📦 Product / Brand</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📅</span>
-                      <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({ ...newTicket, date: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
+                      <input type="text" value={(newTicket as any).product || ""} onChange={(e) => setNewTicket({ ...newTicket, ...{ product: e.target.value } } as any)} placeholder="Panasonic PT-MZ682, LG 75UL3Q, dll" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Customer Phone */}
+                <div>
+                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Customer Phone</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
+                    <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({ ...newTicket, customer_phone: e.target.value })} placeholder="Adi - 08xx-xxxx-xxxx" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                   </div>
                 </div>
 
@@ -2212,15 +2386,6 @@ export default function TicketingSystem() {
                     <span className={`text-xs font-bold ${newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length >= 4 ? "text-red-500" : "text-gray-400"}`}>
                       {newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length}/4 kata
                     </span>
-                  </div>
-                </div>
-
-                {/* Address */}
-                <div>
-                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3">📍</span>
-                    <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                   </div>
                 </div>
 
