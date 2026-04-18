@@ -582,74 +582,85 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     setLastFetch(now);
 
     // ── 1. Ticket Troubleshooting ──
+    // Admin/Superadmin: SEMUA ticket yang belum Solved
+    // Team PTS: ticket yang di-assign ke mereka, belum Solved
+    // Guest: ticket yang mereka buat atau di-mapping, belum Solved
+    // Sales / Team Services: tidak dapat notif ticket
     try {
-      let q = supabase.from('tickets').select('id, project_name, issue_case, assigned_to, status, created_at').neq('status', 'Solved');
-      if (isAdmin) {
-        // Admin: lihat semua Waiting Approval + semua Pending/In Progress
-        q = q.in('status', ['Waiting Approval', 'Pending', 'In Progress', 'Call', 'Onsite']);
-      } else if (isTeamPTS) {
-        // Team PTS: hanya yang di-assign ke mereka
-        const { data: member } = await supabase
-          .from('team_members')
-          .select('name')
-          .eq('username', currentUser.username)
-          .maybeSingle();
-        if (member?.name) {
-          q = q.eq('assigned_to', member.name).in('status', ['Pending', 'In Progress', 'Call', 'Onsite']);
-        } else {
-          q = q.eq('assigned_to', currentUser.full_name).in('status', ['Pending', 'In Progress', 'Call', 'Onsite']);
-        }
-      } else if (isGuest) {
-        // Guest: hanya ticket yang mereka buat atau yang di-mapping ke mereka
-        const { data: mappings } = await supabase
-          .from('guest_mappings')
-          .select('project_name')
-          .eq('guest_username', currentUser.username);
-        const mappedProjects = (mappings ?? []).map((m: any) => m.project_name);
-        // Guest lihat ticket mereka buat atau yang di-mapping
-        q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mappedProjects.map((p: string) => `"${p}"`).join(',') || '""'})`);
-        q = q.in('status', ['Pending', 'In Progress', 'Call', 'Onsite', 'Waiting Approval']);
-      } else {
-        // Role lain (sales, team services): tidak dapat ticket notif
+      if (isTeamServices) {
         setTicketNotifs([]);
-        return;
-      }
-      const { data } = await q.order('created_at', { ascending: false }).limit(20);
-      if (data) {
-        setTicketNotifs(data.map((t: any) => ({
-          id: t.id,
-          type: 'ticket' as const,
-          title: t.project_name,
-          subtitle: `${t.status} · ${t.issue_case}`,
-          time: t.created_at,
-          url: '/ticketing',
-          internalUrl: '/ticketing',
-          menuTitle: 'Ticket Troubleshooting',
-        })));
+      } else {
+        let q = supabase.from('tickets').select('id, project_name, issue_case, assigned_to, status, created_at').neq('status', 'Solved');
+        if (isAdmin) {
+          // Admin: semua ticket yang belum Solved (semua status kecuali Solved)
+          // tidak perlu filter tambahan — neq('status','Solved') sudah cukup
+        } else if (isTeamPTS) {
+          // Team PTS: hanya yang di-assign ke mereka, belum Solved
+          const { data: member } = await supabase
+            .from('team_members')
+            .select('name')
+            .eq('username', currentUser.username)
+            .maybeSingle();
+          const assignedName = member?.name ?? currentUser.full_name;
+          q = q.eq('assigned_to', assignedName);
+        } else if (isGuest) {
+          // Guest: ticket yang mereka buat (created_by) atau yang di-mapping admin
+          const { data: mappings } = await supabase
+            .from('guest_mappings')
+            .select('project_name')
+            .eq('guest_username', currentUser.username);
+          const mappedProjects = (mappings ?? []).map((m: any) => m.project_name as string);
+          if (mappedProjects.length > 0) {
+            q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mappedProjects.map((p: string) => `"${p}"`).join(',')})`);
+          } else {
+            q = q.eq('created_by', currentUser.username);
+          }
+        } else {
+          // sales dan role lain: tidak dapat notif ticket
+          setTicketNotifs([]);
+          // lanjut ke require & reminder
+          q = supabase.from('tickets').select('id').limit(0); // dummy agar tidak error
+        }
+        const { data } = await q.order('created_at', { ascending: false }).limit(30);
+        if (data) {
+          setTicketNotifs(data.map((t: any) => ({
+            id: t.id,
+            type: 'ticket' as const,
+            title: t.project_name,
+            subtitle: `${t.status} · ${t.issue_case}`,
+            time: t.created_at,
+            url: '/ticketing',
+            internalUrl: '/ticketing',
+            menuTitle: 'Ticket Troubleshooting',
+          })));
+        }
       }
     } catch {}
 
-    // ── 2. Form Require Project ── (tidak untuk Team Services dan Guest)
-    if (isTeamServices || isGuest) {
+    // ── 2. Form Require Project ──
+    // Admin/Superadmin: semua yang belum completed/rejected
+    // Team PTS: semua yang belum completed/rejected (biar tahu ada require masuk)
+    // Guest & Sales: hanya milik sendiri yang belum selesai
+    // Team Services: tidak dapat notif require
+    if (isTeamServices) {
       setRequireNotifs([]);
     } else {
     try {
       let q = supabase.from('project_requests').select('id, project_name, room_name, requester_name, status, created_at, requester_id');
       if (isAdmin || isTeamPTS) {
-        // PTS/Admin: semua yang pending approval atau baru
-        q = q.in('status', ['pending', 'approved', 'in_progress']);
+        // Admin & Team PTS: semua yang belum completed/rejected
+        q = q.not('status', 'in', '("completed","rejected")');
       } else {
-        // User biasa / sales: hanya milik sendiri
-        q = q.eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected');
+        // Guest / Sales: hanya milik sendiri yang belum selesai
+        q = q.eq('requester_id', currentUser.id).not('status', 'in', '("completed","rejected")');
       }
-      const { data } = await q.order('created_at', { ascending: false }).limit(20);
+      const { data } = await q.order('created_at', { ascending: false }).limit(30);
       if (data) {
         setRequireNotifs(data.map((r: any) => ({
           id: r.id,
           type: 'require' as const,
           title: r.project_name,
-          title2: r.room_name,
-          subtitle: `${r.status === 'pending' ? '⏳ wait Approval' : r.status === 'approved' ? '✅ Approved' : '🔄 In Progress'} · ${r.requester_name}`,
+          subtitle: `${r.status === 'pending' ? '⏳ Waiting Approval' : r.status === 'approved' ? '✅ Approved' : r.status === 'in_progress' ? '🔄 In Progress' : r.status} · ${r.requester_name}`,
           time: r.created_at,
           url: '/form-require-project',
           internalUrl: '/form-require-project',
@@ -660,17 +671,19 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     }
 
     // ── 3. Reminder Schedule ──
-    // Hanya untuk admin, superadmin, Team PTS — TIDAK untuk guest, sales, Team Services
+    // Admin/Superadmin: semua reminder yang belum done/cancelled
+    // Team PTS: reminder yang di-assign ke mereka, belum done/cancelled
+    // Guest / Sales / Team Services: tidak dapat notif reminder
     const reminderAllowed = isAdmin || isTeamPTS;
     if (!reminderAllowed) {
       setReminderNotifs([]);
     } else {
     try {
       let q = supabase.from('reminders').select('id, title, category, due_date, due_time, assigned_to, assigned_name, status, created_at');
+      // Hanya yang belum selesai (bukan done/cancelled)
+      q = q.not('status', 'in', '("done","cancelled")');
       if (isTeamPTS) {
-        q = q.eq('assigned_to', currentUser.username).eq('status', 'pending');
-      } else {
-        q = q.eq('status', 'pending');
+        q = q.eq('assigned_to', currentUser.username);
       }
       const { data } = await q.order('due_date', { ascending: true }).limit(20);
       if (data) {
@@ -778,8 +791,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         onItemClick={handleClick}
       />
 
-      {/* Require Bell — tidak untuk Team Services dan Guest */}
-      {!isTeamServices && !isGuest && (
+      {/* Require Bell — tidak untuk Team Services */}
+      {!isTeamServices && (
       <NotifBell
         icon="🏗️"
         label="Require"
