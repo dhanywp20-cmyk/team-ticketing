@@ -98,6 +98,7 @@ interface Reminder {
   notes?: string;
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
+  product?: string;
 }
 
 interface TeamUser {
@@ -576,6 +577,8 @@ export default function ReminderSchedulePage() {
   const [searchDivisionSales, setSearchDivisionSales]       = useState('');
   const [searchTeamHandler, setSearchTeamHandler] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchProduct, setSearchProduct] = useState('');
+  const [productFilter, setProductFilter] = useState<string | null>(null);
 
   const [calendarMonth, setCalendarMonth]   = useState(new Date());
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -603,7 +606,7 @@ export default function ReminderSchedulePage() {
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
     sales_name: '', sales_division: '', project_location: '', pic_name: '', pic_phone: '',
-    notes: '',
+    notes: '', product: '',
   };
   const [formData, setFormData] = useState(emptyForm);
   const fd = (patch: Partial<typeof emptyForm>) => setFormData(prev => ({ ...prev, ...patch }));
@@ -614,19 +617,13 @@ export default function ReminderSchedulePage() {
     const initApp = async () => {
       await fetchTeamUsers();
       await fetchRemindersQuiet();
+      // ── No session timeout on this page — auth handled by Dashboard ──
       const saved = localStorage.getItem('currentUser');
-      const savedTime = localStorage.getItem('loginTime');
-      if (saved && savedTime) {
+      if (saved) {
         const user = JSON.parse(saved);
-        const time = parseInt(savedTime);
-        if (Date.now() - time > 6 * 60 * 60 * 1000) {
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('loginTime');
-        } else {
-          setCurrentUser(user);
-          setIsLoggedIn(true);
-          setLoginTime(time);
-        }
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setLoginTime(Date.now());
       }
       setTimeout(() => setAppReady(true), 1800);
     };
@@ -786,7 +783,7 @@ export default function ReminderSchedulePage() {
     setFormData({ title: r.title, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', project_location: r.project_location ?? '',
-      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '' });
+      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
     setDetailReminder(null);
     setShowFormModal(true);
   };
@@ -858,9 +855,9 @@ export default function ReminderSchedulePage() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const headers = ['No','Judul','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
+      const headers = ['No','Judul','Product','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.title, r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
+        i + 1, r.title, r.product ?? '', r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -895,6 +892,8 @@ export default function ReminderSchedulePage() {
     if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
     if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
         !r.assigned_to?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
+    if (productFilter && r.product !== productFilter) return false;
+    if (searchProduct && !r.product?.toLowerCase().includes(searchProduct.toLowerCase())) return false;
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
     return true;
   });
@@ -924,6 +923,12 @@ export default function ReminderSchedulePage() {
     const map: Record<string, number> = {};
     sourceReminders.forEach(r => { if (r.assigned_name) { map[r.assigned_name] = (map[r.assigned_name] || 0) + 1; } });
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
+
+  const productPieData = (() => {
+    const map: Record<string, number> = {};
+    sourceReminders.forEach(r => { if (r.product) { map[r.product] = (map[r.product] || 0) + 1; } });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
   const isAdmin = currentUser?.role === 'admin';
@@ -1138,6 +1143,14 @@ export default function ReminderSchedulePage() {
                 )}
 
                 <SectionHeader icon="🏢" title="Informasi Project" />
+
+                <FormField label="Product / Unit">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
+                    <input value={formData.product ?? ''} onChange={e => fd({ product: e.target.value })}
+                      className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Sony VPL-FHZ85, Crestron DMPS3..." />
+                  </div>
+                </FormField>
 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Nama Sales *">
@@ -1385,6 +1398,7 @@ export default function ReminderSchedulePage() {
                 <div>
                   <SectionHeaderSmall icon="🏢" title="Informasi Project" />
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
                     <InfoRow icon="📍" label="Lokasi Project" value={detailReminder.project_location} />
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
@@ -1436,12 +1450,6 @@ export default function ReminderSchedulePage() {
                         </button>
                       );
                     })}
-                    {/* Re-Schedule — hanya tampil jika status bukan done */}
-                    <button onClick={() => { setRescheduleTarget(detailReminder); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 2px 8px rgba(217,119,6,0.3)' }}>
-                      📅 Re-Schedule
-                    </button>
                   </div>
                   )}
 
@@ -1594,18 +1602,6 @@ export default function ReminderSchedulePage() {
                 )}
               </button>
 
-              {view === 'list' && (
-                <button onClick={handleExportExcel} disabled={exportLoading}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border"
-                  style={{ background: exportLoading ? '#f0fdf4' : '#16a34a', color: exportLoading ? '#16a34a' : 'white', borderColor: '#16a34a', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}>
-                  {exportLoading
-                    ? <div className="w-3.5 h-3.5 border-2 border-green-300 border-t-green-600 rounded-full animate-spin" />
-                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  }
-                  <span className="hidden sm:inline">{exportLoading ? 'Exporting...' : 'Export Excel'}</span>
-                </button>
-              )}
-
               {canAddReminder && view === 'list' && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setShowFormModal(true); }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
@@ -1676,7 +1672,7 @@ export default function ReminderSchedulePage() {
               </div>
 
               {/* ── Pie Charts — klick untuk filter ── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <MiniPieChart
                   data={projectPieData} title="Kegiatan / Kategori" icon="🖥️"
                   onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
@@ -1689,10 +1685,14 @@ export default function ReminderSchedulePage() {
                   data={teamPtsPieData} title="Team PTS" icon="👥"
                   onSliceClick={label => setSearchTeamHandler(searchTeamHandler === label ? '' : label)}
                 />
+                <MiniPieChart
+                  data={productPieData} title="Product / Unit" icon="📦"
+                  onSliceClick={label => setProductFilter(productFilter === label ? null : label)}
+                />
               </div>
 
               {/* Active filter chips */}
-              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay) && (
+              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-bold text-white-500 uppercase tracking-widest">Filter:</span>
                   {filterCategory !== 'all' && (
@@ -1730,6 +1730,13 @@ export default function ReminderSchedulePage() {
                       🔍 {searchProject} ✕
                     </button>
                   )}
+                  {productFilter && (
+                    <button onClick={() => { setProductFilter(null); setSearchProduct(''); }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
+                      style={{ background: '#6366f1' }}>
+                      📦 {productFilter} ✕
+                    </button>
+                  )}
                   {selectedCalDay && (
                     <button onClick={() => setSelectedCalDay(null)}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
@@ -1737,7 +1744,7 @@ export default function ReminderSchedulePage() {
                       📅 {formatDate(selectedCalDay)} ✕
                     </button>
                   )}
-                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
+                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
                     style={{ background: 'rgba(0,0,0,0.1)', color: '#f9fbfdff' }}>
                     Reset Semua
@@ -1751,87 +1758,117 @@ export default function ReminderSchedulePage() {
                 {/* ── TICKET LIST ── */}
                 <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
 
-                  {/* Search + filter bar */}
-                  <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                    {/* Search project */}
-                    <div className="flex-1 min-w-[150px] relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search project / lokasi..." />
-                    </div>
-                    {/* Search sales */}
-                    <div className="flex-1 min-w-[130px] relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search sales..." />
-                    </div>
-                    {/* Search Team Handler — NEW */}
-                    <div className="flex-1 min-w-[140px] relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
-                      <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
-                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-purple-400 outline-none"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search team handler..." />
-                    </div>
-                    {/* Filter status */}
-                    <div className="relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                      </svg>
-                      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
-                        className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
-                        <option value="all">All Status</option>
-                        {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                      </select>
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                    </div>
-                    {/* Filter tahun */}
-                    <div className="relative">
-                      <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                        className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
-                        <option value="all">Semua Tahun</option>
-                        {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                      </select>
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                  {/* Search + filter bar — style mirip Ticketing 18 */}
+                  <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(255,255,255,0.5)' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                      {/* Search project */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Lokasi</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                          <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
+                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-red-300"
+                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                            placeholder="Search project / lokasi..." />
+                        </div>
+                      </div>
+                      {/* Search sales */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
+                          <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-red-300"
+                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                            placeholder="Search sales..." />
+                        </div>
+                      </div>
+                      {/* Search product */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">📦 Product / Unit</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📦</span>
+                          <input value={searchProduct} onChange={e => { setSearchProduct(e.target.value); setProductFilter(null); }}
+                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-red-300"
+                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                            placeholder="Cari product..." />
+                        </div>
+                      </div>
+                      {/* Search Team Handler */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👷</span>
+                          <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
+                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-purple-300"
+                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+                            placeholder="Search team handler..." />
+                        </div>
+                      </div>
+                      {/* Filter status */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
+                          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
+                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all appearance-none cursor-pointer focus:bg-white focus:border-red-300"
+                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                            <option value="all">All Status</option>
+                            {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+                          </select>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                        </div>
+                      </div>
+                      {/* Filter tahun */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                          <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all appearance-none cursor-pointer focus:bg-white focus:border-red-300"
+                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                            <option value="all">All Years</option>
+                            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   {/* Ticket list header */}
-                  <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
-                      <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">
-                        {filteredReminders.length}
-                      </span>
+                  <div className="px-5 py-4 flex flex-wrap items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+                      <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
-                    <button onClick={fetchReminders} disabled={listLoading}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
-                      style={{ background: 'white' }}>
-                      <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Refresh
-                    </button>
+                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                      <button onClick={fetchReminders} disabled={listLoading}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
+                        style={{ background: 'white' }}>
+                        <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                      </button>
+                      <button onClick={handleExportExcel} disabled={exportLoading}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105"
+                        style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 2px 8px rgba(220,38,38,0.3)' }}>
+                        {exportLoading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '📊'}
+                        Export
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Table header — with Team Handler column */}
+                  {/* Table header — with Product column */}
                   <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-                    style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
+                    style={{ gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
                     <span>NAMA PROJECT</span>
+                    <span>PRODUCT</span>
                     <span>KEGIATAN</span>
                     <span>SALES</span>
                     <span>TEAM HANDLER</span>
-                    <span>PIC lOKASI</span>
+                    <span>PIC LOKASI</span>
                     <span>STATUS</span>
                     <span>TANGGAL</span>
                     <span className="text-right">ACT</span>
@@ -1878,13 +1915,24 @@ export default function ReminderSchedulePage() {
                               </div>
                             </div>
 
-                            {/* Desktop table row — with Team Handler column */}
+                            {/* Desktop table row — with Product + Team Handler columns */}
                             <div className="hidden md:grid items-center gap-3"
-                              style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
+                              style={{ gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
                               {/* Nama Project */}
                               <div className="min-w-0">
                                 <span className="font-bold text-gray-800 text-sm truncate block">{r.title}</span>
                                 {r.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</p>}
+                              </div>
+                              {/* Product */}
+                              <div className="min-w-0">
+                                {r.product ? (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
+                                    className="text-xs font-semibold px-2 py-0.5 rounded text-left break-words max-w-full transition-all"
+                                    style={{ background: productFilter === r.product ? '#6366f1' : '#eef2ff', color: productFilter === r.product ? 'white' : '#4338ca' }}>
+                                    {r.product}
+                                  </button>
+                                ) : <span className="text-gray-300 text-sm">—</span>}
                               </div>
                               {/* Kegiatan — larger text */}
                               <div className="min-w-0">
@@ -1901,7 +1949,7 @@ export default function ReminderSchedulePage() {
                                       <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">{r.sales_division}</p>
                                 )}
                               </div>
-                              {/* Team Handler — NEW COLUMN */}
+                              {/* Team Handler */}
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
@@ -1953,15 +2001,23 @@ export default function ReminderSchedulePage() {
                                   {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
                                 </div>
                               </div>
-                              {/* Action */}
-                              <div className="flex justify-end">
+                              {/* Action — Detail + Re-Schedule di ACT */}
+                              <div className="flex flex-col items-end gap-1">
                                 <button
                                   onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
                                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+                                  title="Detail"
                                   style={{ border: '1px solid #e5e7eb' }}>
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                   </svg>
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); setRescheduleTarget(r); }}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-amber-50 text-amber-500 hover:text-amber-700"
+                                  title="Re-Schedule"
+                                  style={{ border: '1px solid #fde68a' }}>
+                                  📅
                                 </button>
                               </div>
                             </div>
