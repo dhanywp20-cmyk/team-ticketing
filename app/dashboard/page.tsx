@@ -571,8 +571,10 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const roleLC = currentUser.role?.toLowerCase() ?? '';
   const teamType = currentUser.team_type ?? '';
   const isTeamServices = roleLC === 'team' && teamType === 'Team Services';
-  const isPTS  = ['admin', 'superadmin', 'team_pts'].includes(roleLC) || (roleLC === 'team' && teamType !== 'Team Services');
+  const isTeamPTS = roleLC === 'team' && teamType === 'Team PTS';
+  const isPTS  = ['admin', 'superadmin'].includes(roleLC) || isTeamPTS;
   const isAdmin = ['admin', 'superadmin'].includes(roleLC);
+  const isGuest = roleLC === 'guest';
 
   const fetchAll = useCallback(async () => {
     const now = Date.now();
@@ -585,8 +587,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       if (isAdmin) {
         // Admin: lihat semua Waiting Approval + semua Pending/In Progress
         q = q.in('status', ['Waiting Approval', 'Pending', 'In Progress', 'Call', 'Onsite']);
-      } else {
-        // Team: hanya yang di-assign ke mereka
+      } else if (isTeamPTS) {
+        // Team PTS: hanya yang di-assign ke mereka
         const { data: member } = await supabase
           .from('team_members')
           .select('name')
@@ -597,6 +599,20 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         } else {
           q = q.eq('assigned_to', currentUser.full_name).in('status', ['Pending', 'In Progress', 'Call', 'Onsite']);
         }
+      } else if (isGuest) {
+        // Guest: hanya ticket yang mereka buat atau yang di-mapping ke mereka
+        const { data: mappings } = await supabase
+          .from('guest_mappings')
+          .select('project_name')
+          .eq('guest_username', currentUser.username);
+        const mappedProjects = (mappings ?? []).map((m: any) => m.project_name);
+        // Guest lihat ticket mereka buat atau yang di-mapping
+        q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mappedProjects.map(p => `"${p}"`).join(',') || '""'})`);
+        q = q.in('status', ['Pending', 'In Progress', 'Call', 'Onsite', 'Waiting Approval']);
+      } else {
+        // Role lain (sales, team services): tidak dapat ticket notif
+        setTicketNotifs([]);
+        return;
       }
       const { data } = await q.order('created_at', { ascending: false }).limit(20);
       if (data) {
@@ -613,13 +629,13 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       }
     } catch {}
 
-    // ── 2. Form Require Project ── (tidak untuk Team Services)
-    if (isTeamServices) {
+    // ── 2. Form Require Project ── (tidak untuk Team Services dan Guest)
+    if (isTeamServices || isGuest) {
       setRequireNotifs([]);
     } else {
     try {
       let q = supabase.from('project_requests').select('id, project_name, room_name, requester_name, status, created_at, requester_id');
-      if (isPTS) {
+      if (isAdmin || isTeamPTS) {
         // PTS/Admin: semua yang pending approval atau baru
         q = q.in('status', ['pending', 'approved', 'in_progress']);
       } else {
@@ -644,14 +660,14 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     }
 
     // ── 3. Reminder Schedule ──
-    // Hanya untuk admin, superadmin, team_pts, Team PTS — TIDAK untuk guest, sales, Team Services
-    const reminderAllowed = ['admin', 'superadmin', 'team_pts'].includes(roleLC) || (roleLC === 'team' && teamType !== 'Team Services');
+    // Hanya untuk admin, superadmin, Team PTS — TIDAK untuk guest, sales, Team Services
+    const reminderAllowed = isAdmin || isTeamPTS;
     if (!reminderAllowed) {
       setReminderNotifs([]);
     } else {
     try {
       let q = supabase.from('reminders').select('id, title, category, due_date, due_time, assigned_to, assigned_name, status, created_at');
-      if (roleLC === 'team') {
+      if (isTeamPTS) {
         q = q.eq('assigned_to', currentUser.username).eq('status', 'pending');
       } else {
         q = q.eq('status', 'pending');
@@ -762,8 +778,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         onItemClick={handleClick}
       />
 
-      {/* Require Bell — tidak untuk Team Services */}
-      {!isTeamServices && (
+      {/* Require Bell — tidak untuk Team Services dan Guest */}
+      {!isTeamServices && !isGuest && (
       <NotifBell
         icon="🏗️"
         label="Require"
@@ -777,8 +793,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       />
       )}
 
-      {/* Reminder Bell — hanya tampil untuk admin, superadmin, team_pts, Team PTS — tidak untuk Team Services */}
-      {(['admin', 'superadmin', 'team_pts'].includes(roleLC) || (roleLC === 'team' && teamType !== 'Team Services')) && (
+      {/* Reminder Bell — hanya tampil untuk admin, superadmin, Team PTS — tidak untuk Team Services, guest, sales */}
+      {(isAdmin || isTeamPTS) && (
       <NotifBell
         icon="⏰"
         label="Reminder"
@@ -918,17 +934,25 @@ export default function Dashboard() {
   };
 
   const handleMenuClick = (item: MenuItem['items'][0], menuTitle: string) => {
-    setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing');
-    if (item.internal) {
-      setShowSidebar(true); setShowTicketing(true);
-      setInternalUrl(item.url);
-      setIframeTitle(`${menuTitle} - ${item.name}`);
-    } else if (item.external && !item.embed) {
+    if (item.external && !item.embed) {
       window.open(item.url, '_blank');
-    } else if (item.embed) {
-      setShowSidebar(true); setIframeUrl(item.url);
-      setIframeTitle(`${menuTitle} - ${item.name}`);
+      return;
     }
+    // Reset state terlebih dahulu agar React re-render iframe (force refresh)
+    setIframeUrl(null);
+    setShowTicketing(false);
+    setInternalUrl('/ticketing');
+    // Sedikit delay agar state reset bisa ter-apply sebelum set baru
+    setTimeout(() => {
+      if (item.internal) {
+        setShowSidebar(true); setShowTicketing(true);
+        setInternalUrl(item.url);
+        setIframeTitle(`${menuTitle} - ${item.name}`);
+      } else if (item.embed) {
+        setShowSidebar(true); setIframeUrl(item.url);
+        setIframeTitle(`${menuTitle} - ${item.name}`);
+      }
+    }, 50);
   };
 
   // Handler for notification bar navigation
