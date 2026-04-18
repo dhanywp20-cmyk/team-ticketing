@@ -566,10 +566,9 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const [ticketNotifs, setTicketNotifs]   = useState<NotificationItem[]>([]);
   const [requireNotifs, setRequireNotifs] = useState<NotificationItem[]>([]);
   const [reminderNotifs, setReminderNotifs] = useState<NotificationItem[]>([]);
-  const [lastFetch, setLastFetch]         = useState(0);
 
-  const roleLC = currentUser.role?.toLowerCase() ?? '';
-  const teamType = currentUser.team_type ?? '';
+  const roleLC = (currentUser.role ?? '').trim().toLowerCase();
+  const teamType = (currentUser.team_type ?? '').trim();
   const isTeamServices = roleLC === 'team' && teamType === 'Team Services';
   const isTeamPTS = roleLC === 'team' && teamType === 'Team PTS';
   const isPTS  = ['admin', 'superadmin'].includes(roleLC) || isTeamPTS;
@@ -577,163 +576,171 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const isGuest = roleLC === 'guest';
 
   const fetchAll = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastFetch < 15000) return; // debounce 15s
-    setLastFetch(now);
-
+    // ── FIX: Hapus debounce lastFetch — biarkan interval & realtime yang atur frekuensi
     // ── 1. Ticket Troubleshooting ──
-    // Admin/Superadmin: SEMUA ticket yang belum Solved
-    // Team PTS: ticket yang di-assign ke mereka, belum Solved
-    // Guest: ticket yang mereka buat atau di-mapping, belum Solved
-    // Sales / Team Services: tidak dapat notif ticket
+    // Admin/Superadmin : semua ticket belum Solved
+    // Team PTS         : ticket yang di-assign ke mereka, belum Solved
+    // Guest            : ticket yang mereka buat/mapping, belum Solved
+    // Sales/TeamServices: tidak dapat notif ticket
     try {
       if (isTeamServices) {
         setTicketNotifs([]);
-      } else {
-        let q = supabase.from('tickets').select('id, project_name, issue_case, assigned_to, status, created_at').neq('status', 'Solved');
-        if (isAdmin) {
-          // Admin: semua ticket yang belum Solved (semua status kecuali Solved)
-          // tidak perlu filter tambahan — neq('status','Solved') sudah cukup
-        } else if (isTeamPTS) {
-          // Team PTS: hanya yang di-assign ke mereka, belum Solved
-          const { data: member } = await supabase
-            .from('team_members')
-            .select('name')
-            .eq('username', currentUser.username)
-            .maybeSingle();
-          const assignedName = member?.name ?? currentUser.full_name;
-          q = q.eq('assigned_to', assignedName);
-        } else if (isGuest) {
-          // Guest: ticket yang mereka buat (created_by) atau yang di-mapping admin
-          const { data: mappings } = await supabase
-            .from('guest_mappings')
-            .select('project_name')
-            .eq('guest_username', currentUser.username);
-          const mappedProjects = (mappings ?? []).map((m: any) => m.project_name as string);
-          if (mappedProjects.length > 0) {
-            q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mappedProjects.map((p: string) => `"${p}"`).join(',')})`);
-          } else {
-            q = q.eq('created_by', currentUser.username);
-          }
+      } else if (isAdmin) {
+        // Admin: SEMUA ticket belum Solved
+        const { data } = await supabase
+          .from('tickets')
+          .select('id, project_name, issue_case, assigned_to, status, created_at')
+          .neq('status', 'Solved')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        setTicketNotifs((data ?? []).map((t: any) => ({
+          id: t.id, type: 'ticket' as const,
+          title: t.project_name,
+          subtitle: `${t.status} · ${t.issue_case}`,
+          time: t.created_at,
+          url: '/ticketing', internalUrl: '/ticketing',
+          menuTitle: 'Ticket Troubleshooting',
+        })));
+      } else if (isTeamPTS) {
+        // Team PTS: yang di-assign ke mereka, belum Solved
+        const { data: member } = await supabase
+          .from('team_members').select('name')
+          .eq('username', currentUser.username).maybeSingle();
+        const assignedName = member?.name ?? currentUser.full_name;
+        const { data } = await supabase
+          .from('tickets')
+          .select('id, project_name, issue_case, assigned_to, status, created_at')
+          .neq('status', 'Solved')
+          .eq('assigned_to', assignedName)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        setTicketNotifs((data ?? []).map((t: any) => ({
+          id: t.id, type: 'ticket' as const,
+          title: t.project_name,
+          subtitle: `${t.status} · ${t.issue_case}`,
+          time: t.created_at,
+          url: '/ticketing', internalUrl: '/ticketing',
+          menuTitle: 'Ticket Troubleshooting',
+        })));
+      } else if (isGuest) {
+        // Guest: ticket yang dibuat sendiri atau di-mapping admin
+        const { data: mappings } = await supabase
+          .from('guest_mappings').select('project_name')
+          .eq('guest_username', currentUser.username);
+        const mapped = (mappings ?? []).map((m: any) => m.project_name as string);
+        let q = supabase
+          .from('tickets')
+          .select('id, project_name, issue_case, assigned_to, status, created_at')
+          .neq('status', 'Solved');
+        if (mapped.length > 0) {
+          q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mapped.map((p: string) => `"${p}"`).join(',')})`);
         } else {
-          // sales dan role lain: tidak dapat notif ticket
-          setTicketNotifs([]);
-          // lanjut ke require & reminder
-          q = supabase.from('tickets').select('id').limit(0); // dummy agar tidak error
+          q = q.eq('created_by', currentUser.username);
         }
         const { data } = await q.order('created_at', { ascending: false }).limit(30);
-        if (data) {
-          setTicketNotifs(data.map((t: any) => ({
-            id: t.id,
-            type: 'ticket' as const,
-            title: t.project_name,
-            subtitle: `${t.status} · ${t.issue_case}`,
-            time: t.created_at,
-            url: '/ticketing',
-            internalUrl: '/ticketing',
-            menuTitle: 'Ticket Troubleshooting',
-          })));
-        }
+        setTicketNotifs((data ?? []).map((t: any) => ({
+          id: t.id, type: 'ticket' as const,
+          title: t.project_name,
+          subtitle: `${t.status} · ${t.issue_case}`,
+          time: t.created_at,
+          url: '/ticketing', internalUrl: '/ticketing',
+          menuTitle: 'Ticket Troubleshooting',
+        })));
+      } else {
+        // Sales dan role lain: tidak dapat notif ticket
+        setTicketNotifs([]);
       }
-    } catch {}
+    } catch (e) { console.error('[notif] ticket fetch error:', e); }
 
     // ── 2. Form Require Project ──
-    // Admin/Superadmin: semua yang belum completed/rejected
-    // Team PTS: semua yang belum completed/rejected (biar tahu ada require masuk)
-    // Guest & Sales: hanya milik sendiri yang belum selesai
-    // Team Services: tidak dapat notif require
+    // Admin/Team PTS  : semua request belum completed/rejected
+    // Guest/Sales     : hanya milik sendiri belum selesai
+    // Team Services   : tidak dapat notif require
     if (isTeamServices) {
       setRequireNotifs([]);
     } else {
-    try {
-      let q = supabase.from('project_requests').select('id, project_name, room_name, requester_name, status, created_at, requester_id');
-      if (isAdmin || isTeamPTS) {
-        // Admin & Team PTS: semua yang belum completed/rejected
-        q = q.not('status', 'in', '("completed","rejected")');
-      } else {
-        // Guest / Sales: hanya milik sendiri yang belum selesai
-        q = q.eq('requester_id', currentUser.id).not('status', 'in', '("completed","rejected")');
-      }
-      const { data } = await q.order('created_at', { ascending: false }).limit(30);
-      if (data) {
-        setRequireNotifs(data.map((r: any) => ({
-          id: r.id,
-          type: 'require' as const,
+      try {
+        let q = supabase
+          .from('project_requests')
+          .select('id, project_name, room_name, requester_name, status, created_at, requester_id')
+          .neq('status', 'completed')
+          .neq('status', 'rejected');
+        if (!isAdmin && !isTeamPTS) {
+          // Guest / Sales: hanya milik sendiri
+          q = q.eq('requester_id', currentUser.id);
+        }
+        const { data } = await q.order('created_at', { ascending: false }).limit(30);
+        setRequireNotifs((data ?? []).map((r: any) => ({
+          id: r.id, type: 'require' as const,
           title: r.project_name,
           subtitle: `${r.status === 'pending' ? '⏳ Waiting Approval' : r.status === 'approved' ? '✅ Approved' : r.status === 'in_progress' ? '🔄 In Progress' : r.status} · ${r.requester_name}`,
           time: r.created_at,
-          url: '/form-require-project',
-          internalUrl: '/form-require-project',
+          url: '/form-require-project', internalUrl: '/form-require-project',
           menuTitle: 'Form Require Project',
         })));
-      }
-    } catch {}
+      } catch (e) { console.error('[notif] require fetch error:', e); }
     }
 
     // ── 3. Reminder Schedule ──
-    // Admin/Superadmin: semua reminder yang belum done/cancelled
-    // Team PTS: reminder yang di-assign ke mereka, belum done/cancelled
-    // Guest / Sales / Team Services: tidak dapat notif reminder
-    const reminderAllowed = isAdmin || isTeamPTS;
-    if (!reminderAllowed) {
+    // Admin/Superadmin : semua reminder belum done/cancelled
+    // Team PTS         : reminder di-assign ke mereka, belum done/cancelled
+    // Guest/Sales/Services: tidak dapat notif reminder
+    if (!isAdmin && !isTeamPTS) {
       setReminderNotifs([]);
     } else {
-    try {
-      let q = supabase.from('reminders').select('id, title, category, due_date, due_time, assigned_to, assigned_name, status, created_at');
-      // Hanya yang belum selesai (bukan done/cancelled)
-      q = q.not('status', 'in', '("done","cancelled")');
-      if (isTeamPTS) {
-        q = q.eq('assigned_to', currentUser.username);
-      }
-      const { data } = await q.order('due_date', { ascending: true }).limit(20);
-      if (data) {
-        const today = new Date().toISOString().split('T')[0];
-        const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-        // Prioritaskan yang hari ini dan besok
-        const prioritized = [...(data as any[])].sort((a, b) => {
-          const aToday = a.due_date === today || a.due_date === tomorrow ? -1 : 0;
-          const bToday = b.due_date === today || b.due_date === tomorrow ? -1 : 0;
-          return aToday - bToday;
-        });
-        setReminderNotifs(prioritized.map((r: any) => ({
-          id: r.id,
-          type: 'reminder' as const,
-          title: r.title,
-          subtitle: `${r.category} · ${r.due_date === today ? '📅 Hari ini' : r.due_date === tomorrow ? '⏰ Besok' : r.due_date} ${r.due_time} · ${r.assigned_name}`,
-          time: r.created_at,
-          url: '/reminder-schedule',
-          internalUrl: '/reminder-schedule',
-          menuTitle: 'Reminder Schedule',
-        })));
-      }
-    } catch {}
+      try {
+        let q = supabase
+          .from('reminders')
+          .select('id, project_name, category, due_date, due_time, assigned_to, assigned_name, status, created_at')
+          .neq('status', 'done')
+          .neq('status', 'cancelled');
+        if (isTeamPTS) {
+          q = q.eq('assigned_to', currentUser.username);
+        }
+        const { data } = await q.order('due_date', { ascending: true }).limit(30);
+        if (data) {
+          const today = new Date().toISOString().split('T')[0];
+          const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+          const prioritized = [...(data as any[])].sort((a, b) => {
+            const aClose = a.due_date <= tomorrow ? -1 : 0;
+            const bClose = b.due_date <= tomorrow ? -1 : 0;
+            return aClose - bClose;
+          });
+          setReminderNotifs(prioritized.map((r: any) => ({
+            id: r.id, type: 'reminder' as const,
+            title: r.project_name,
+            subtitle: `${r.category} · ${r.due_date === today ? '📅 Hari ini' : r.due_date === tomorrow ? '⏰ Besok' : r.due_date} ${r.due_time} · ${r.assigned_name}`,
+            time: r.created_at,
+            url: '/reminder-schedule', internalUrl: '/reminder-schedule',
+            menuTitle: 'Reminder Schedule',
+          })));
+        }
+      } catch (e) { console.error('[notif] reminder fetch error:', e); }
     }
-  }, [currentUser, lastFetch, isPTS, isAdmin, roleLC, teamType]);
+  }, [currentUser, isAdmin, isTeamPTS, isGuest, isTeamServices]);
 
+  // Trigger fetchAll saat pertama mount dan setiap kali fetchAll berubah (= saat currentUser berubah)
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 30000);
+    const interval = setInterval(fetchAll, 20000); // setiap 20 detik
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions — trigger ulang fetchAll setiap ada perubahan di DB
   useEffect(() => {
-    const ch1 = supabase.channel('dash-notif-tickets')
+    const ch1 = supabase.channel('dash-notif-tickets-v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        setLastFetch(0); // reset debounce
-        setTimeout(fetchAll, 500);
+        setTimeout(fetchAll, 400);
       })
       .subscribe();
-    const ch2 = supabase.channel('dash-notif-requires')
+    const ch2 = supabase.channel('dash-notif-requires-v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_requests' }, () => {
-        setLastFetch(0);
-        setTimeout(fetchAll, 500);
+        setTimeout(fetchAll, 400);
       })
       .subscribe();
-    const ch3 = supabase.channel('dash-notif-reminders')
+    const ch3 = supabase.channel('dash-notif-reminders-v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
-        setLastFetch(0);
-        setTimeout(fetchAll, 500);
+        setTimeout(fetchAll, 400);
       })
       .subscribe();
     return () => {
