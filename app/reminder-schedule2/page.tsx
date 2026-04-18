@@ -278,14 +278,15 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value?: 
 // ─── Pie Chart Component ─────────────────────────────────────────────────────
 
 function MiniPieChart({
-  data, title, icon,
+  data, title, icon, activeFilter,
   onSliceClick,
 }: {
   data: { label: string; value: number; color: string }[];
   title: string; icon: string;
+  activeFilter?: string | null;
   onSliceClick?: (label: string) => void;
 }) {
-  const [hovered, setHovered] = useState<number | null>(null);
+  const [hov, setHov] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return (
     <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
@@ -294,24 +295,19 @@ function MiniPieChart({
     </div>
   );
 
-  let cumulativeAngle = -Math.PI / 2;
-  const cx = 60, cy = 60, r = 50, innerR = 28;
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
 
   const slices = data.map((d, i) => {
     const angle = (d.value / total) * 2 * Math.PI;
-    const x1 = cx + r * Math.cos(cumulativeAngle);
-    const y1 = cy + r * Math.sin(cumulativeAngle);
-    const x2 = cx + r * Math.cos(cumulativeAngle + angle);
-    const y2 = cy + r * Math.sin(cumulativeAngle + angle);
-    const xi1 = cx + innerR * Math.cos(cumulativeAngle);
-    const yi1 = cy + innerR * Math.sin(cumulativeAngle);
-    const xi2 = cx + innerR * Math.cos(cumulativeAngle + angle);
-    const yi2 = cy + innerR * Math.sin(cumulativeAngle + angle);
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
     const large = angle > Math.PI ? 1 : 0;
-    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
-    const midAngle = cumulativeAngle + angle / 2;
-    cumulativeAngle += angle;
-    return { ...d, path, midAngle, i };
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
   });
 
   return (
@@ -321,28 +317,35 @@ function MiniPieChart({
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
             <path key={s.i} d={s.path} fill={s.color}
-              opacity={hovered === null || hovered === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
-              onMouseEnter={() => setHovered(s.i)}
-              onMouseLeave={() => setHovered(null)}
+              opacity={hov === null || hov === s.i ? 1 : 0.45}
+              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }}
+              onMouseEnter={() => setHov(s.i)}
+              onMouseLeave={() => setHov(null)}
               onClick={() => onSliceClick && onSliceClick(s.label)} />
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {slices.map((s) => (
-            <div key={s.i}
-              className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-              style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
-              onMouseEnter={() => setHovered(s.i)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={() => onSliceClick && onSliceClick(s.label)}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
-              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
-            </div>
-          ))}
+        <div className="flex flex-col gap-1 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
+          {slices.map((s) => {
+            const isActive = activeFilter === s.label;
+            return (
+              <div key={s.i}
+                className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+                style={{
+                  background: hov === s.i || isActive ? `${s.color}20` : 'transparent',
+                  outline: isActive ? `1.5px solid ${s.color}` : 'none',
+                }}
+                onMouseEnter={() => setHov(s.i)}
+                onMouseLeave={() => setHov(null)}
+                onClick={() => onSliceClick && onSliceClick(s.label)}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+                {isActive && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1547,28 +1550,37 @@ export default function ReminderSchedulePage() {
                   </div>
                 )}
 
-                {/* Action buttons - admin only */}
-                {isAdmin && (
+                {/* Action buttons di detail popup */}
+                {(isAdmin || currentUser?.role === 'team') && (
                   <div className="flex gap-3 pt-2 flex-wrap">
-                    {/* Send WA - admin only */}
-                    <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
-                      style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
-                      {sendingWA === detailReminder.id
-                        ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        : '💬'}
-                      Kirim WA
-                    </button>
-                    <button onClick={() => openEdit(detailReminder)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
-                      ✏️ Edit
-                    </button>
-                    <button onClick={() => handleDelete(detailReminder.id)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
-                      🗑️ Hapus
-                    </button>
+                    {/* Re-Schedule — admin + team PTS bisa */}
+                    {detailReminder.status !== 'done' && (
+                      <button onClick={() => { setRescheduleTarget(detailReminder); }}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
+                        📅 Re-Schedule
+                      </button>
+                    )}
+                    {/* Send WA — admin only */}
+                    {isAdmin && (
+                      <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
+                        {sendingWA === detailReminder.id
+                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : '💬'}
+                        Kirim WA
+                      </button>
+                    )}
+                    {/* Edit — admin only */}
+                    {isAdmin && (
+                      <button onClick={() => openEdit(detailReminder)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
+                        ✏️ Edit
+                      </button>
+                    )}
+                    {/* TIDAK ADA tombol Hapus di detail popup — hapus hanya dari ACT di tabel */}
                   </div>
                 )}
               </div>
@@ -1675,184 +1687,63 @@ export default function ReminderSchedulePage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <MiniPieChart
                   data={projectPieData} title="Kegiatan / Kategori" icon="🖥️"
+                  activeFilter={filterCategory !== 'all' ? filterCategory : null}
                   onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
                 />
                 <MiniPieChart
                   data={salesPieData} title="Divisi Sales" icon="👤"
+                  activeFilter={searchDivisionSales || null}
                   onSliceClick={label => setSearchDivisionSales(searchDivisionSales === label ? '' : label)}
                 />
                 <MiniPieChart
                   data={teamPtsPieData} title="Team PTS" icon="👥"
+                  activeFilter={searchTeamHandler || null}
                   onSliceClick={label => setSearchTeamHandler(searchTeamHandler === label ? '' : label)}
                 />
                 <MiniPieChart
                   data={productPieData} title="Product / Unit" icon="📦"
+                  activeFilter={productFilter}
                   onSliceClick={label => setProductFilter(productFilter === label ? null : label)}
                 />
               </div>
 
               {/* Active filter chips */}
-              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-bold text-white-500 uppercase tracking-widest">Filter:</span>
-                  {filterCategory !== 'all' && (
-                    <button onClick={() => setFilterCategory('all')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#7c3aed' }}>
-                      🏷️ {filterCategory} ✕
-                    </button>
-                  )}
-                  {filterStatus !== 'all' && (
-                    <button onClick={() => setFilterStatus('all')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#d97706' }}>
-                      Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕
-                    </button>
-                  )}
-                  {searchSales && (
-                    <button onClick={() => setSearchSales('')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#454747ff' }}>
-                      👤 {searchSales} ✕
-                    </button>
-                  )}
-                  {searchTeamHandler && (
-                    <button onClick={() => setSearchTeamHandler('')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#7c3aed' }}>
-                      👷 {searchTeamHandler} ✕
-                    </button>
-                  )}
-                  {searchProject && (
-                    <button onClick={() => setSearchProject('')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#575454ff' }}>
-                      🔍 {searchProject} ✕
-                    </button>
-                  )}
-                  {productFilter && (
-                    <button onClick={() => { setProductFilter(null); setSearchProduct(''); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#6366f1' }}>
-                      📦 {productFilter} ✕
-                    </button>
-                  )}
-                  {selectedCalDay && (
-                    <button onClick={() => setSelectedCalDay(null)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#0891b2' }}>
-                      📅 {formatDate(selectedCalDay)} ✕
-                    </button>
-                  )}
-                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
-                    style={{ background: 'rgba(0,0,0,0.1)', color: '#f9fbfdff' }}>
-                    Reset Semua
-                  </button>
-                </div>
-              )}
-
               {/* Main area: list + calendar */}
               <div className="flex gap-4 items-start">
 
                 {/* ── TICKET LIST ── */}
-                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
 
-                  {/* Search + filter bar — style mirip Ticketing 18 */}
-                  <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(255,255,255,0.5)' }}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                      {/* Search project */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Lokasi</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
-                          <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-red-300"
-                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                            placeholder="Search project / lokasi..." />
-                        </div>
-                      </div>
-                      {/* Search sales */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
-                          <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-red-300"
-                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                            placeholder="Search sales..." />
-                        </div>
-                      </div>
-                      {/* Search product */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">📦 Product / Unit</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📦</span>
-                          <input value={searchProduct} onChange={e => { setSearchProduct(e.target.value); setProductFilter(null); }}
-                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-red-300"
-                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                            placeholder="Cari product..." />
-                        </div>
-                      </div>
-                      {/* Search Team Handler */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👷</span>
-                          <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
-                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all focus:bg-white focus:border-purple-300"
-                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                            placeholder="Search team handler..." />
-                        </div>
-                      </div>
-                      {/* Filter status */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
-                          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
-                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all appearance-none cursor-pointer focus:bg-white focus:border-red-300"
-                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                            <option value="all">All Status</option>
-                            {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                          </select>
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
-                        </div>
-                      </div>
-                      {/* Filter tahun */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
-                          <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                            className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all appearance-none cursor-pointer focus:bg-white focus:border-red-300"
-                            style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                            <option value="all">All Years</option>
-                            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                          </select>
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Ticket list header */}
-                  <div className="px-5 py-4 flex flex-wrap items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                  {/* ── TICKET LIST header + filter chips + refresh/export ── */}
+                  <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                    {/* Active filter chips */}
+                    {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
+                      <div className="flex flex-wrap gap-1.5 items-center my-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
+                        {filterCategory !== 'all' && <button onClick={() => setFilterCategory('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>🏷️ {filterCategory} ✕</button>}
+                        {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#d97706' }}>Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕</button>}
+                        {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
+                        {searchDivisionSales && <button onClick={() => setSearchDivisionSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#ec4899' }}>Division: {searchDivisionSales} ✕</button>}
+                        {searchTeamHandler && <button onClick={() => setSearchTeamHandler('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>👷 {searchTeamHandler} ✕</button>}
+                        {searchProject && <button onClick={() => setSearchProject('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>🔍 {searchProject} ✕</button>}
+                        {productFilter && <button onClick={() => { setProductFilter(null); setSearchProduct(''); }} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#6366f1' }}>📦 {productFilter} ✕</button>}
+                        {selectedCalDay && <button onClick={() => setSelectedCalDay(null)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#0891b2' }}>📅 {formatDate(selectedCalDay)} ✕</button>}
+                        <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-gray-600 border border-gray-300 hover:bg-gray-50">Reset Semua</button>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
                       <button onClick={fetchReminders} disabled={listLoading}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
-                        style={{ background: 'white' }}>
-                        <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60 bg-white">
+                        <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         Refresh
                       </button>
                       <button onClick={handleExportExcel} disabled={exportLoading}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105"
                         style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 2px 8px rgba(220,38,38,0.3)' }}>
                         {exportLoading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '📊'}
                         Export
@@ -1860,170 +1751,231 @@ export default function ReminderSchedulePage() {
                     </div>
                   </div>
 
-                  {/* Table header — with Product column */}
-                  <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-                    style={{ gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
-                    <span>NAMA PROJECT</span>
-                    <span>PRODUCT</span>
-                    <span>KEGIATAN</span>
-                    <span>SALES</span>
-                    <span>TEAM HANDLER</span>
-                    <span>PIC LOKASI</span>
-                    <span>STATUS</span>
-                    <span>TANGGAL</span>
-                    <span className="text-right">ACT</span>
+                  {/* ── Search / Filter bar — tepat di bawah TICKET LIST ── */}
+                  <div className="px-5 py-3 bg-white/60 border-b border-gray-100">
+                    <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🔍</span>
+                          <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
+                            placeholder="Search project / lokasi..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👤</span>
+                          <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
+                            placeholder="Search sales..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">📦 Product</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📦</span>
+                          <input value={searchProduct} onChange={e => { setSearchProduct(e.target.value); setProductFilter(null); }}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
+                            placeholder="Cari product..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👷</span>
+                          <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-purple-300 transition-all"
+                            placeholder="Search handler..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🏷️</span>
+                          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer transition-all">
+                            <option value="all">All Status</option>
+                            {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+                          </select>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📅</span>
+                          <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer transition-all">
+                            <option value="all">All Years</option>
+                            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Table body */}
+                  {/* ── TABLE ── */}
                   {listLoading ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-4">
-                      <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
-                      <p className="text-sm text-gray-500 font-medium">Memuat list...</p>
+                    <div className="space-y-2 p-4">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-3 border border-gray-200">
+                          <div className="flex-1 space-y-2"><div className="h-3 bg-gray-200 rounded w-2/5"></div><div className="h-2 bg-gray-100 rounded w-1/4"></div></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/6"></div><div className="h-3 bg-gray-200 rounded w-1/5"></div>
+                          <div className="h-5 bg-gray-200 rounded-full w-16"></div><div className="h-6 bg-gray-200 rounded-lg w-14"></div>
+                        </div>
+                      ))}
                     </div>
                   ) : filteredReminders.length === 0 ? (
-                    <div className="text-center py-16">
-                      <div className="text-4xl mb-3">📭</div>
-                      <p className="text-gray-600 font-semibold">Tidak ada reminder ditemukan</p>
-                      <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-3">📭</div>
+                      <p className="text-gray-600 font-semibold text-sm">Tidak ada reminder ditemukan</p>
+                      <p className="text-xs text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
                     </div>
                   ) : (
-                    <div>
-                      {filteredReminders.map((r) => {
-                        const today = isDueToday(r.due_date);
-                        return (
-                          <div key={r.id}
-                            className="px-5 py-4 transition-colors hover:bg-red-50/40 cursor-pointer"
-                            style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: today ? '3px solid #dc2626' : '3px solid transparent' }}
-                            onClick={() => setDetailReminder(r)}>
-
-                            {/* Mobile layout */}
-                            <div className="md:hidden space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-base font-bold text-gray-800">{r.title}</span>
-                                    <CategoryBadge category={r.category} />
+                    <div className="overflow-x-auto">
+                      <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '7%' }} />
+                        </colgroup>
+                        <thead>
+                          <tr className="bg-gray-50 border-b-2 border-gray-100">
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Kegiatan</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Priority</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
+                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredReminders.map((r) => {
+                            const today = isDueToday(r.due_date);
+                            return (
+                              <tr key={r.id}
+                                className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
+                                onClick={() => setDetailReminder(r)}>
+                                {/* Project */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{r.title}</div>
+                                  {r.project_location && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</div>}
+                                  <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
+                                </td>
+                                {/* Product */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  {r.product ? (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
+                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-left break-words leading-tight transition-all"
+                                      style={{ background: productFilter === r.product ? '#6366f1' : '#eef2ff', color: productFilter === r.product ? 'white' : '#4338ca' }}>
+                                      {r.product}
+                                    </button>
+                                  ) : <span className="text-gray-300 text-xs">—</span>}
+                                </td>
+                                {/* Kegiatan */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
+                                    <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
                                   </div>
-                                  <p className="text-xs text-gray-500">{formatDatetime(r.created_at)}</p>
-                                </div>
-                                <StatusBadge status={r.status} />
-                              </div>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                                {r.project_location && <span>📍 {r.project_location}</span>}
-                                {r.sales_name && <span>👤 {r.sales_name}</span>}
-                                <span>🎯 Target: {formatDate(r.due_date)}</span>
-                              </div>
-                            </div>
-
-                            {/* Desktop table row — with Product + Team Handler columns */}
-                            <div className="hidden md:grid items-center gap-3"
-                              style={{ gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
-                              {/* Nama Project */}
-                              <div className="min-w-0">
-                                <span className="font-bold text-gray-800 text-sm truncate block">{r.title}</span>
-                                {r.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</p>}
-                              </div>
-                              {/* Product */}
-                              <div className="min-w-0">
-                                {r.product ? (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
-                                    className="text-xs font-semibold px-2 py-0.5 rounded text-left break-words max-w-full transition-all"
-                                    style={{ background: productFilter === r.product ? '#6366f1' : '#eef2ff', color: productFilter === r.product ? 'white' : '#4338ca' }}>
-                                    {r.product}
-                                  </button>
-                                ) : <span className="text-gray-300 text-sm">—</span>}
-                              </div>
-                              {/* Kegiatan — larger text */}
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-lg">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
-                                  <span className="font-bold text-gray-800 text-sm">{r.category}</span>
-                                </div>
-                                {r.description && <p className="text-[10px] text-gray-400 truncate mt-0.5">{r.description}</p>}
-                              </div>
-                              {/* Sales */}
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-700 truncate">{r.sales_name || '—'}</p>
-                                {r.sales_division && (
-                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">{r.sales_division}</p>
-                                )}
-                              </div>
-                              {/* Team Handler */}
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                                    style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
-                                    {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
+                                </td>
+                                {/* Sales */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
+                                  {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
+                                </td>
+                                {/* Handler */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                                      style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
+                                      {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assigned_name}</span>
                                   </div>
-                                  <div className="min-w-0">
-                                    <p className="text-xs font-bold text-gray-800 truncate">{r.assigned_name}</p>
+                                </td>
+                                {/* PIC */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  {r.pic_name ? (
+                                    <>
+                                      <div className="text-[10px] font-semibold text-gray-700 truncate">{r.pic_name}</div>
+                                      {r.pic_phone && <div className="text-[10px] text-gray-400 truncate">📱{r.pic_phone}</div>}
+                                    </>
+                                  ) : <span className="text-gray-300 text-xs">—</span>}
+                                </td>
+                                {/* Status */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <StatusBadge status={r.status} />
+                                  {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
+                                </td>
+                                {/* Priority */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <PriorityBadge priority={r.priority} />
+                                </td>
+                                {/* Tanggal */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-center"
+                                    style={{
+                                      background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
+                                      border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
+                                    }}>
+                                    <span className="text-base font-black leading-none" style={{ color: today ? '#dc2626' : '#4f46e5' }}>
+                                      {new Date(r.due_date + 'T00:00:00').getDate()}
+                                    </span>
+                                    <span className="text-[8px] font-bold uppercase leading-tight" style={{ color: today ? '#dc2626' : '#6366f1' }}>
+                                      {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
+                                    </span>
+                                    {r.due_time && <span className="text-[8px] text-gray-400 leading-tight">{r.due_time}</span>}
                                   </div>
-                                </div>
-                              </div>
-                              {/* PIC & No PIC */}
-                              <div className="min-w-0">
-                                {r.pic_name ? (
-                                  <>
-                                    <p className="text-sm font-semibold text-gray-700 truncate flex items-center gap-1">
-                                      <span className="text-[11px]">🙋</span>{r.pic_name}
-                                    </p>
-                                    {r.pic_phone && (
-                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
-                                        <span>📱</span>{r.pic_phone}
-                                      </p>
+                                </td>
+                                {/* ACT */}
+                                <td className="px-1 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    {/* Detail */}
+                                    <button onClick={() => setDetailReminder(r)} title="Detail"
+                                      className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
+                                      <span className="text-sm">👁</span>
+                                    </button>
+                                    {/* Re-Schedule — semua team PTS & admin bisa lihat */}
+                                    {(isAdmin || currentUser?.role === 'team') && r.status !== 'done' && (
+                                      <button onClick={() => setRescheduleTarget(r)} title="Re-Schedule"
+                                        className="text-amber-500 hover:text-amber-700 transition-colors p-0.5">
+                                        <span className="text-sm">📅</span>
+                                      </button>
                                     )}
-                                  </>
-                                ) : <span className="text-gray-300 text-sm">—</span>}
-                              </div>
-                              {/* Status */}
-                              <div className="space-y-1">
-                                <StatusBadge status={r.status} />
-                                {r.wa_sent_h1 && (
-                                  <p className="text-[9px] font-bold text-green-600 flex items-center gap-0.5">✅ WA H-1</p>
-                                )}
-                              </div>
-                              {/* Tanggal Schedule */}
-                              <div className="min-w-0">
-                                <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
-                                  style={{
-                                    background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
-                                    border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
-                                  }}>
-                                  <span className="text-xl font-black leading-none"
-                                    style={{ color: today ? '#dc2626' : '#4f46e5' }}>
-                                    {new Date(r.due_date + 'T00:00:00').getDate()}
-                                  </span>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
-                                    style={{ color: today ? '#dc2626' : '#6366f1' }}>
-                                    {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                                  </span>
-                                  {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
-                                </div>
-                              </div>
-                              {/* Action — Detail + Re-Schedule di ACT */}
-                              <div className="flex flex-col items-end gap-1">
-                                <button
-                                  onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-                                  title="Detail"
-                                  style={{ border: '1px solid #e5e7eb' }}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={e => { e.stopPropagation(); setRescheduleTarget(r); }}
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-amber-50 text-amber-500 hover:text-amber-700"
-                                  title="Re-Schedule"
-                                  style={{ border: '1px solid #fde68a' }}>
-                                  📅
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                                    {/* Hapus — admin only */}
+                                    {isAdmin && (
+                                      <button onClick={() => handleDelete(r.id)} title="Hapus"
+                                        className="text-red-400 hover:text-red-600 transition-colors p-0.5">
+                                        <span className="text-sm">🗑️</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 bg-white">
+                        <span className="text-[10px] text-gray-400">{filteredReminders.length} jadwal ditemukan</span>
+                        <span className="text-[10px] text-gray-400">{filteredReminders.length > 0 ? `1–${filteredReminders.length}` : '0'} of {reminders.length}</span>
+                      </div>
                     </div>
                   )}
                 </div>
