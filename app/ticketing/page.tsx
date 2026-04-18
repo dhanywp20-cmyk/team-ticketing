@@ -1041,6 +1041,52 @@ export default function TicketingSystem() {
         }
         const { error: updateError } = await supabase.from("tickets").update(updateData).eq("id", selectedTicket.id);
         if (updateError) throw new Error(`Failed to update ticket: ${updateError.message}`);
+
+        // ── AUTO-CREATE REMINDER saat status Onsite ──────────────────────────
+        // Jika team update status ke Onsite (dengan jadwal), otomatis buat
+        // reminder di tabel reminders sebagai kategori Troubleshooting
+        if (newActivity.new_status === "Onsite" && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date) {
+          try {
+            const assignedUsername = currentUser?.username || "";
+            // Cari full_name user
+            const { data: userData } = await supabase
+              .from("users")
+              .select("full_name, username")
+              .eq("username", assignedUsername)
+              .single();
+            const assignedName = userData?.full_name || assignedUsername;
+
+            const reminderPayload = {
+              project_name: selectedTicket.project_name,   // kolom di table reminders = 'project_name'
+              description: `[AUTO dari Ticketing] Issue: ${selectedTicket.issue_case}${selectedTicket.product ? ` | Product: ${selectedTicket.product}` : ""}`,
+              assigned_to: assignedUsername,
+              assigned_name: assignedName,
+              due_date: newActivity.onsite_schedule_date,
+              due_time: `${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute}`,
+              priority: "high",
+              status: "pending",
+              repeat: "none",
+              category: "Troubleshooting",
+              sales_name: selectedTicket.sales_name || "",
+              sales_division: selectedTicket.sales_division || "",
+              project_location: selectedTicket.address || "",
+              pic_name: selectedTicket.customer_phone || "",
+              pic_phone: "",
+              product: selectedTicket.product || selectedTicket.sn_unit || "",
+              created_by: assignedUsername,
+              notes: `Ticket ID: ${selectedTicket.id} | Dibuat otomatis dari Platform Ticketing saat status Onsite`,
+            };
+            const { error: reminderErr } = await supabase.from("reminders").insert([reminderPayload]);
+            if (reminderErr) {
+              console.warn("[Auto Reminder] Gagal buat reminder otomatis:", reminderErr.message);
+            } else {
+              console.log("[Auto Reminder] ✅ Reminder Troubleshooting otomatis dibuat untuk:", selectedTicket.project_name);
+            }
+          } catch (reminderEx) {
+            console.warn("[Auto Reminder] Exception:", reminderEx);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
       }
       setNewActivity({
         handler_name: newActivity.handler_name,
@@ -1962,6 +2008,17 @@ export default function TicketingSystem() {
                               <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
                               {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
                               {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
+                              {ticket.status === "Onsite" && (
+                                <a
+                                  href="https://team-ticketing.vercel.app/reminder-schedule2"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                                  style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                                  🗓️ Jadwal →
+                                </a>
+                              )}
                             </div>
                            </td>
                           <td className="px-2 py-3 border-r border-gray-100 align-middle"><div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || "—"}</div>{ticket.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{ticket.sales_division}</div>}</td>
