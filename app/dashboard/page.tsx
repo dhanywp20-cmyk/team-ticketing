@@ -607,7 +607,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           .eq('guest_username', currentUser.username);
         const mappedProjects = (mappings ?? []).map((m: any) => m.project_name);
         // Guest lihat ticket mereka buat atau yang di-mapping
-        q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mappedProjects.map(p => `"${p}"`).join(',') || '""'})`);
+        q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mappedProjects.map((p: string) => `"${p}"`).join(',') || '""'})`);
         q = q.in('status', ['Pending', 'In Progress', 'Call', 'Onsite', 'Waiting Approval']);
       } else {
         // Role lain (sales, team services): tidak dapat ticket notif
