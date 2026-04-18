@@ -392,11 +392,17 @@ function NewFormModal({
               Informasi Project
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Project *</label>
                 <input value={form.project_name} onChange={e => setForm(prev => ({ ...prev, project_name: e.target.value }))}
                   placeholder="Contoh: Meeting Room Lantai 5 - PT ABC"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
+                <textarea value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
+                  rows={3} placeholder="Contoh: Gedung Wisma 46 Lt.12, Jakarta Pusat"
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
@@ -405,18 +411,12 @@ function NewFormModal({
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
-                <input value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
-                  placeholder="Contoh: Gedung Wisma 46 Lt.12, Jakarta"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
-              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
                 <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
                   placeholder="Nama Sales / Account Manager"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Divisi Sales</label>
                 <select
                   value={form.sales_division || ''}
@@ -443,15 +443,15 @@ function NewFormModal({
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
               Kategori Kebutuhan & Solution
             </h3>
-            <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
-              value={form.kebutuhan} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v }))} />
+            <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
+              value={form.kebutuhan[0] || ''} onChange={v => setForm(prev => ({ ...prev, kebutuhan: [v] }))} />
             <div className="mb-3">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Kebutuhan</label>
               <input value={form.kebutuhan_other} onChange={e => setForm(prev => ({ ...prev, kebutuhan_other: e.target.value }))}
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
-            <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
-              value={form.solution_product} onChange={v => setForm(prev => ({ ...prev, solution_product: v }))} />
+            <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
+              value={form.solution_product[0] || ''} onChange={v => setForm(prev => ({ ...prev, solution_product: [v] }))} />
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
               <input value={form.solution_other} onChange={e => setForm(prev => ({ ...prev, solution_other: e.target.value }))}
@@ -459,11 +459,12 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Signage & Network */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+          {/* Signage & Network — hanya tampil kalau Signage dipilih */}
+          {form.kebutuhan.includes('Signage') && (
+          <div className="bg-white rounded-2xl p-5 border-2 border-teal-300 shadow-sm">
+            <h3 className="text-sm font-bold text-teal-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
-              Layout Konten & Jaringan
+              Layout Konten & Jaringan <span className="text-xs font-normal text-teal-500">(Signage)</span>
             </h3>
             <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
               value={form.layout_signage} onChange={v => setForm(prev => ({ ...prev, layout_signage: v }))} />
@@ -482,6 +483,7 @@ function NewFormModal({
               </div>
             </div>
           </div>
+          )}
 
           {/* Source & Peripheral */}
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
@@ -760,11 +762,16 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
   });
 
-  const role = currentUser.role?.toLowerCase().trim() ?? '';
+  const role = (currentUser.role ?? '').toLowerCase().trim();
   const isPTS = ['admin', 'superadmin', 'team_pts', 'team'].includes(role);
   const isTeamPTS = role === 'team_pts' || role === 'team';
   const isSuperAdmin = role === 'superadmin';
   const isAdmin = role === 'admin';
+  const isGuest = role === 'guest';
+
+  // ── Notif popup state (sama seperti ticketing) ──
+  const [showNotifPopup, setShowNotifPopup] = useState(false);
+  const [notifRequests, setNotifRequests] = useState<ProjectRequest[]>([]);
 
   const initialForm: InitialFormType = {
     project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
@@ -796,6 +803,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
+    // Admin/Superadmin/Team PTS: lihat semua request
+    // Guest/Sales: hanya request milik sendiri
     if (!isPTS) {
       query = query.eq('requester_id', currentUser.id);
     }
@@ -843,6 +852,31 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   }, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  // ── Popup notif saat pertama load (seperti ticketing) ──────────────────
+  const [popupShown, setPopupShown] = useState(false);
+  useEffect(() => {
+    if (requests.length === 0 || popupShown) return;
+    let notifs: ProjectRequest[] = [];
+    if (isAdmin || isSuperAdmin) {
+      notifs = requests.filter(r => r.status === 'pending');
+    } else if (isTeamPTS) {
+      notifs = requests.filter(r =>
+        r.pts_assigned === currentUser.full_name &&
+        r.status !== 'completed' && r.status !== 'rejected'
+      );
+    } else {
+      notifs = requests.filter(r =>
+        r.requester_id === currentUser.id &&
+        r.status !== 'completed' && r.status !== 'rejected'
+      );
+    }
+    if (notifs.length > 0) {
+      setNotifRequests(notifs);
+      setTimeout(() => setShowNotifPopup(true), 600);
+    }
+    setPopupShown(true);
+  }, [requests, popupShown, isAdmin, isSuperAdmin, isTeamPTS, currentUser]);
 
   useEffect(() => {
     const channel = supabase.channel('global_messages_notif')
@@ -1081,6 +1115,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           body: {
             type: 'form_require_approval',
             projectName: form.project_name.trim(),
+            room_name: form.room_name.trim() || '',
             requesterName: currentUser.full_name,
             salesName: form.sales_name.trim() || '',
             salesDivision: form.sales_division || '',
@@ -1260,37 +1295,212 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handlePrint = () => {
     if (!selectedRequest) return;
     const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
-    const printContent = `
-      <html><head><title>Form Require Project — ${selectedRequest.project_name}</title>
-      <style>body{font-family:sans-serif;padding:24px;color:#111}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border:1px solid #ccc;padding:8px;font-size:13px;text-align:left}th{background:#f0fdfa;font-weight:bold}@media print{button{display:none}}</style>
-      </head><body>
+    const printDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    // Build chat log rows (dari messages state)
+    const chatRows = messages
+      .filter(m => m.sender_role !== 'system')
+      .map(m => {
+        const ts = new Date(m.created_at).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        const roleLabel = m.sender_role === 'admin' || m.sender_role === 'superadmin' ? '🔧 Admin/PTS'
+          : m.sender_role === 'team' || m.sender_role === 'team_pts' ? '🔧 Team PTS' : '👤 Requester';
+        return `<tr>
+          <td style="width:120px;white-space:nowrap;color:#64748b;font-size:11px">${ts}</td>
+          <td style="width:120px;font-weight:600;color:#0f766e">${m.sender_name}<br/><span style="font-weight:400;color:#94a3b8;font-size:10px">${roleLabel}</span></td>
+          <td style="font-size:12px;color:#1e293b;line-height:1.6">${m.message.replace(/\n/g, '<br/>')}</td>
+        </tr>`;
+      }).join('');
+
+    // System messages (timeline)
+    const sysRows = messages
+      .filter(m => m.sender_role === 'system')
+      .map(m => {
+        const ts = new Date(m.created_at).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        return `<tr style="background:#f8fafc">
+          <td style="width:120px;white-space:nowrap;color:#94a3b8;font-size:11px">${ts}</td>
+          <td colspan="2" style="color:#64748b;font-size:11px;font-style:italic">${m.message}</td>
+        </tr>`;
+      }).join('');
+
+    const row = (label: string, value: string | null | undefined, highlight = false) =>
+      value ? `<tr${highlight ? ' style="background:#f0fdfa"' : ''}>
+        <td style="font-weight:600;color:#475569;width:160px;padding:7px 10px;border:1px solid #e2e8f0;font-size:12px">${label}</td>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${value}</td>
+      </tr>` : '';
+
+    const badge = (text: string) =>
+      `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:#ccfbf1;color:#0f766e;font-size:11px;font-weight:700;margin:2px 2px 2px 0">${text}</span>`;
+
+    const printContent = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8">
+<title>Form Require Project — ${selectedRequest.project_name}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; }
+  .page { padding: 28px 32px; max-width: 900px; margin: 0 auto; }
+  .header { background: linear-gradient(135deg,#0d9488,#0f766e); color: white; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-left h1 { font-size: 17px; font-weight: 800; margin-bottom: 3px; }
+  .header-left p { font-size: 11px; opacity: 0.85; }
+  .header-right { text-align: right; font-size: 11px; opacity: 0.85; }
+  .status-pill { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.5); color: white; margin-top: 5px; }
+  .section { border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; overflow: hidden; page-break-inside: avoid; }
+  .section-title { background: #f1f5f9; padding: 8px 14px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em; color: #475569; border-bottom: 1px solid #e2e8f0; }
+  table.info { width: 100%; border-collapse: collapse; }
+  table.info td { padding: 7px 12px; border: 1px solid #e2e8f0; font-size: 12px; vertical-align: top; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .grid2 > * { border-right: 1px solid #e2e8f0; }
+  .grid2 > *:last-child { border-right: none; }
+  .info-box { padding: 10px 14px; }
+  .info-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 3px; }
+  .info-value { font-size: 12px; font-weight: 600; color: #1e293b; }
+  .chat-section { border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+  .chat-section .section-title { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+  table.chat { width: 100%; border-collapse: collapse; }
+  table.chat td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  table.chat tr:last-child td { border-bottom: none; }
+  .footer { margin-top: 20px; padding-top: 12px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+  @media print {
+    body { padding: 0; }
+    .page { padding: 16px 20px; }
+    .section, .chat-section { page-break-inside: avoid; }
+    button { display: none !important; }
+  }
+</style>
+</head>
+<body><div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
       <h1>🏗️ Form Equipment Request — IVP</h1>
-      <p style="margin:0;color:#555">${sc.label} · ${selectedRequest.requester_name} · ${formatDate(selectedRequest.created_at)}</p>
-      <table><tr><th>Field</th><th>Value</th></tr>
-      <tr><td>Project</td><td>${selectedRequest.project_name}</td></tr>
-      <tr><td>Ruangan</td><td>${selectedRequest.room_name}</td></tr>
-      <tr><td>Sales</td><td>${selectedRequest.sales_name}</td></tr>
-      <tr><td>Divisi</td><td>${selectedRequest.sales_division || '-'}</td></tr>
-      <tr><td>Kebutuhan</td><td>${[...selectedRequest.kebutuhan, selectedRequest.kebutuhan_other].filter(Boolean).join(', ')}</td></tr>
-      <tr><td>Solution</td><td>${[...selectedRequest.solution_product, selectedRequest.solution_other].filter(Boolean).join(', ')}</td></tr>
-      <tr><td>Layout Signage</td><td>${selectedRequest.layout_signage?.join(', ') || '-'}</td></tr>
-      <tr><td>Jaringan CMS</td><td>${selectedRequest.jaringan_cms?.join(', ') || '-'}</td></tr>
-      <tr><td>Jumlah I/O</td><td>${selectedRequest.jumlah_input} in / ${selectedRequest.jumlah_output} out</td></tr>
-      <tr><td>Source</td><td>${[...selectedRequest.source, selectedRequest.source_other].filter(Boolean).join(', ')}</td></tr>
-      <tr><td>Camera</td><td>${selectedRequest.camera_conference === 'Yes' ? `Yes — ${selectedRequest.camera_jumlah} unit, ${selectedRequest.camera_tracking?.join(', ') || ''}` : 'No'}</td></tr>
-      <tr><td>Audio</td><td>${selectedRequest.audio_system === 'Yes' ? `Yes — ${selectedRequest.audio_mixer}, ${selectedRequest.audio_detail?.join(', ') || ''}` : 'No'}</td></tr>
-      <tr><td>Wallplate</td><td>${selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah} unit` : 'No'}</td></tr>
-      <tr><td>Tabletop</td><td>${selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah} unit` : 'No'}</td></tr>
-      <tr><td>Wireless</td><td>${selectedRequest.wireless_presentation === 'Yes' ? `Yes — ${selectedRequest.wireless_mode?.join(', ')}, Dongle: ${selectedRequest.wireless_dongle}` : 'No'}</td></tr>
-      <tr><td>Controller</td><td>${selectedRequest.controller_automation === 'Yes' ? `Yes — ${selectedRequest.controller_type?.join(', ')}` : 'No'}</td></tr>
-      <tr><td>Ukuran Ruangan</td><td>${selectedRequest.ukuran_ruangan || '-'}</td></tr>
-      <tr><td>Suggest Tampilan</td><td>${selectedRequest.suggest_tampilan || '-'}</td></tr>
-      <tr><td>Keterangan Lain</td><td>${selectedRequest.keterangan_lain || '-'}</td></tr>
-      ${selectedRequest.pts_assigned ? `<tr><td>PTS Handler</td><td>${selectedRequest.pts_assigned}</td></tr>` : ''}
-      ${selectedRequest.due_date ? `<tr><td>Target Selesai</td><td>${formatDueDate(selectedRequest.due_date)}</td></tr>` : ''}
-      </table></body></html>`;
+      <p>Document Reference: FR-${selectedRequest.id?.substring(0,8).toUpperCase()}</p>
+      <div class="status-pill">${sc.label}</div>
+    </div>
+    <div class="header-right">
+      <div><b>Dicetak:</b> ${printDate}</div>
+      <div style="margin-top:3px"><b>Requester:</b> ${selectedRequest.requester_name}</div>
+      <div style="margin-top:2px"><b>Dibuat:</b> ${formatDate(selectedRequest.created_at)}</div>
+    </div>
+  </div>
+
+  <!-- INFORMASI PROJECT -->
+  <div class="section">
+    <div class="section-title">📁 Informasi Project</div>
+    <div class="grid2" style="border-bottom:1px solid #e2e8f0">
+      <div class="info-box"><div class="info-label">Nama Project</div><div class="info-value">${selectedRequest.project_name}</div></div>
+      <div class="info-box"><div class="info-label">Nama Ruangan</div><div class="info-value">${selectedRequest.room_name || '—'}</div></div>
+    </div>
+    <div class="grid2" style="border-bottom:1px solid #e2e8f0">
+      <div class="info-box"><div class="info-label">Lokasi Project</div><div class="info-value">${selectedRequest.project_location || '—'}</div></div>
+      <div class="info-box"><div class="info-label">Target Selesai</div><div class="info-value">${selectedRequest.due_date ? formatDueDate(selectedRequest.due_date) : '—'}</div></div>
+    </div>
+    <div class="grid2">
+      <div class="info-box"><div class="info-label">Sales / Account</div><div class="info-value">${selectedRequest.sales_name || '—'}</div></div>
+      <div class="info-box"><div class="info-label">Divisi Sales</div><div class="info-value">${selectedRequest.sales_division || '—'}</div></div>
+    </div>
+  </div>
+
+  <!-- KEBUTUHAN & SOLUTION -->
+  <div class="section">
+    <div class="section-title">🎯 Kategori Kebutuhan & Solution</div>
+    <div class="grid2" style="border-bottom:1px solid #e2e8f0">
+      <div class="info-box">
+        <div class="info-label">Kebutuhan</div>
+        <div>${[...(selectedRequest.kebutuhan||[]), selectedRequest.kebutuhan_other].filter(Boolean).map(badge).join('') || '—'}</div>
+      </div>
+      <div class="info-box">
+        <div class="info-label">Solution Product</div>
+        <div>${[...(selectedRequest.solution_product||[]), selectedRequest.solution_other].filter(Boolean).map(badge).join('') || '—'}</div>
+      </div>
+    </div>
+    ${(selectedRequest.kebutuhan||[]).includes('Signage') ? `
+    <div class="grid2" style="border-bottom:1px solid #e2e8f0">
+      <div class="info-box">
+        <div class="info-label">Layout Signage</div>
+        <div>${selectedRequest.layout_signage?.map(badge).join('') || '—'}</div>
+      </div>
+      <div class="info-box">
+        <div class="info-label">Jaringan / CMS</div>
+        <div>${selectedRequest.jaringan_cms?.map(badge).join('') || '—'}</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="info-box"><div class="info-label">Jumlah Input</div><div class="info-value">${selectedRequest.jumlah_input || '—'}</div></div>
+      <div class="info-box"><div class="info-label">Jumlah Output</div><div class="info-value">${selectedRequest.jumlah_output || '—'}</div></div>
+    </div>` : ''}
+  </div>
+
+  <!-- SOURCE & PERIPHERAL -->
+  <div class="section">
+    <div class="section-title">🔌 Source & Peripheral</div>
+    <div class="info-box" style="border-bottom:1px solid #e2e8f0">
+      <div class="info-label">Source</div>
+      <div>${[...(selectedRequest.source||[]), selectedRequest.source_other].filter(Boolean).map(badge).join('') || '—'}</div>
+    </div>
+    <table class="info">
+      ${row('Camera Conference', selectedRequest.camera_conference === 'Yes'
+        ? `Yes — ${selectedRequest.camera_jumlah || ''} unit | ${(selectedRequest.camera_tracking||[]).join(', ')||''}` : 'No')}
+      ${row('Audio System', selectedRequest.audio_system === 'Yes'
+        ? `Yes — Mixer: ${selectedRequest.audio_mixer||'-'} | ${(selectedRequest.audio_detail||[]).join(', ')||''}` : 'No')}
+      ${row('Wallplate Input', selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah||''} unit` : 'No')}
+      ${row('Tabletop Input', selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah||''} unit` : 'No')}
+      ${row('Wireless Presentation', selectedRequest.wireless_presentation === 'Yes'
+        ? `Yes — ${(selectedRequest.wireless_mode||[]).join(', ')||''} | Dongle: ${selectedRequest.wireless_dongle||''}` : 'No')}
+      ${row('Controller / Automation', selectedRequest.controller_automation === 'Yes'
+        ? `Yes — ${(selectedRequest.controller_type||[]).join(', ')||''}` : 'No')}
+    </table>
+  </div>
+
+  <!-- RUANGAN & INFO LAIN -->
+  <div class="section">
+    <div class="section-title">📐 Ruangan & Info Lainnya</div>
+    <table class="info">
+      ${row('Ukuran Ruangan', selectedRequest.ukuran_ruangan)}
+      ${row('Suggest Tampilan', selectedRequest.suggest_tampilan)}
+      ${row('PTS Handler', selectedRequest.pts_assigned)}
+      ${row('Keterangan Lain', selectedRequest.keterangan_lain)}
+    </table>
+  </div>
+
+  <!-- CHAT / DISKUSI -->
+  <div class="chat-section">
+    <div class="section-title">💬 Riwayat Diskusi & Perbincangan</div>
+    ${chatRows || sysRows ? `
+    <table class="chat">
+      <thead>
+        <tr style="background:#eff6ff">
+          <th style="padding:7px 10px;font-size:10px;font-weight:700;text-align:left;color:#1d4ed8;border-bottom:1px solid #bfdbfe;width:120px">Waktu</th>
+          <th style="padding:7px 10px;font-size:10px;font-weight:700;text-align:left;color:#1d4ed8;border-bottom:1px solid #bfdbfe;width:120px">Pengirim</th>
+          <th style="padding:7px 10px;font-size:10px;font-weight:700;text-align:left;color:#1d4ed8;border-bottom:1px solid #bfdbfe">Pesan</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sysRows}
+        ${chatRows}
+      </tbody>
+    </table>` : '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:12px">Belum ada diskusi</div>'}
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>🏗️ IndoVisual Professional Tools — Form Equipment Request System</div>
+    <div>Dicetak: ${printDate} | Status: ${sc.label}</div>
+  </div>
+
+  <div style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;page-break-inside:avoid">
+    ${['Requester', 'PTS Handler', 'Admin / Approver'].map(role => `
+      <div style="border-top:1.5px solid #334155;padding-top:8px;text-align:center">
+        <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">${role}</div>
+        <div style="margin-top:30px;font-size:11px;color:#94a3b8">Tanda Tangan</div>
+      </div>`).join('')}
+  </div>
+
+</div></body></html>`;
+
     const w = window.open('', '_blank');
-    if (w) { w.document.write(printContent); w.document.close(); w.print(); }
+    if (w) { w.document.write(printContent); w.document.close(); setTimeout(() => w.print(), 300); }
   };
 
   // ── Pure-JS ZIP helpers (no external library needed) ──────────────────────
@@ -1609,14 +1819,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 🔔 {unreadCount} pending
               </span>
             )}
-            {!isPTS && (
-              <button onClick={() => setShowNewFormModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                Buat Request
-              </button>
-            )}
+            <button onClick={() => setShowNewFormModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+              Buat Request
+            </button>
           </div>
         </div>
       </header>
@@ -1853,7 +2061,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                             <div>
                               <div className="font-bold text-gray-800 text-sm leading-tight">{req.project_name}</div>
                               {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
-                              <div className="text-xs text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                              {(req.kebutuhan?.length > 0 || req.solution_product?.length > 0) && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {req.kebutuhan?.slice(0,1).map((k: string) => (
+                                    <span key={k} className="text-[9px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-bold">{k}</span>
+                                  ))}
+                                  {req.solution_product?.slice(0,1).map((s: string) => (
+                                    <span key={s} className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-bold">{s}</span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="text-[10px] text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                             </div>
                           </div>
                         </td>
@@ -1936,6 +2154,70 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           )}
         </div>
       </div>
+
+      {/* ── NOTIF POPUP — muncul saat pertama login (sama seperti ticketing) ── */}
+      {showNotifPopup && notifRequests.length > 0 && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden"
+            style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(13,148,136,0.5)' }}>
+            <div className="p-5" style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)' }}>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl animate-bounce">🔔</span>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Form Require — Notifikasi</h3>
+                    <p className="text-sm text-white/90">
+                      {isAdmin || isSuperAdmin
+                        ? `${notifRequests.length} request menunggu approval`
+                        : isTeamPTS
+                          ? `${notifRequests.length} request aktif yang diassign ke kamu`
+                          : `${notifRequests.length} request kamu yang sedang diproses`}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowNotifPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
+              </div>
+            </div>
+            <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
+              {notifRequests.map(req => {
+                const sc = statusConfig[req.status] || statusConfig.pending;
+                return (
+                  <div key={req.id}
+                    onClick={() => { handleOpenDetail(req); setShowNotifPopup(false); }}
+                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          {req.kebutuhan?.map((k: string) => (
+                            <span key={k} className="text-[9px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-bold">{k}</span>
+                          ))}
+                          {req.solution_product?.map((s: string) => (
+                            <span key={s} className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-bold">{s}</span>
+                          ))}
+                        </div>
+                        <p className="font-bold text-sm text-gray-800 truncate">{req.project_name}</p>
+                        {req.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {req.project_location}</p>}
+                        <p className="text-xs text-gray-400 mt-0.5">👤 {req.requester_name}</p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                        {req.due_date && <p className="text-[10px] text-gray-500 mt-1">🎯 {formatDueDate(req.due_date)}</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-gray-50">
+              <button onClick={() => setShowNotifPopup(false)}
+                className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold transition-all">
+                ✕ Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectModal.open && rejectModal.req && (
@@ -2077,8 +2359,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       {showDetailModal && selectedRequest && detailSc && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-0"
           onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
-          <div className="bg-white w-full h-full animate-slide-up flex flex-col overflow-hidden"
-            style={{ border: 'none' }}>
+          <div className="w-full h-full animate-slide-up flex flex-col overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.93)', backdropFilter: 'blur(12px)', border: 'none' }}>
 
             {/* Detail Modal Header */}
             <div className="bg-gradient-to-r from-teal-700 to-teal-900 px-5 py-4 flex items-center gap-4 flex-shrink-0">
@@ -2780,17 +3062,13 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Auth & session timeout handled by Dashboard — cukup baca currentUser dari localStorage
     const saved = localStorage.getItem('currentUser');
-    const savedTime = localStorage.getItem('loginTime');
-    if (saved && savedTime) {
-      const user = JSON.parse(saved);
-      const time = parseInt(savedTime);
-      if (Date.now() - time > 8 * 60 * 60 * 1000) {
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('loginTime');
-      } else {
+    if (saved) {
+      try {
+        const user = JSON.parse(saved);
         setCurrentUser(user);
-      }
+      } catch { /* ignore */ }
     }
     setLoading(false);
   }, []);
