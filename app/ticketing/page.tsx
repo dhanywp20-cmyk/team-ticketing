@@ -2537,6 +2537,7 @@ export default function TicketingSystem() {
                   <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Ticket</span>
                 </div>
 
+                {/* Row 1: Project Name | Address Detail */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Project Name *</label>
@@ -2546,12 +2547,16 @@ export default function TicketingSystem() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit <span className="text-gray-400 normal-case font-normal text-[10px]">(opsional)</span></label>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
-                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="SN12345678 (opsional)" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <span className="absolute left-3 top-3">📍</span>
+                      <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
+                </div>
+
+                {/* Row 2: Product | SN Unit */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📦 Product / Brand</label>
                     <div className="relative">
@@ -2559,8 +2564,16 @@ export default function TicketingSystem() {
                       <input type="text" value={newTicket.product} onChange={(e) => setNewTicket({ ...newTicket, product: e.target.value })} placeholder="Panasonic PT-MZ682, LG 75UL3Q, dll" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit <span className="text-gray-400 normal-case font-normal text-[10px]">(opsional)</span></label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
+                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="SN12345678 (opsional)" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+                  </div>
                 </div>
 
+                {/* Row 3: Customer Phone | Date (auto) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Customer Phone</label>
@@ -2570,10 +2583,10 @@ export default function TicketingSystem() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Date *</label>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📅 Date <span className="text-gray-400 normal-case font-normal text-[10px]">(otomatis saat ticket dibuat)</span></label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📅</span>
-                      <input type="date" value={newTicket.date} onChange={(e) => setNewTicket({ ...newTicket, date: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">📅</span>
+                      <input type="text" value={new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })} disabled className="w-full rounded-xl pl-9 pr-4 py-3 text-sm text-slate-400 cursor-not-allowed" style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)" }} />
                     </div>
                   </div>
                 </div>
@@ -2590,15 +2603,6 @@ export default function TicketingSystem() {
                     <span className={`text-xs font-bold ${newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length >= 4 ? "text-red-500" : "text-gray-400"}`}>
                       {newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length}/4 kata
                     </span>
-                  </div>
-                </div>
-
-                {/* Address */}
-                <div>
-                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3">📍</span>
-                    <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                   </div>
                 </div>
 
