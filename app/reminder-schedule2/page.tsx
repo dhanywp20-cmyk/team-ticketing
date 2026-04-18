@@ -78,7 +78,7 @@ type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface Reminder {
   id: string;
-  title: string;
+  project_name: string;
   description: string;
   assigned_to: string;
   assigned_name: string;
@@ -436,7 +436,7 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
                 style={{ background: 'white', borderColor: 'rgba(0,0,0,0.08)' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800 truncate">{r.title}</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{r.project_name}</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assigned_name}</p>
                   </div>
                   <CategoryBadge category={r.category} />
@@ -495,7 +495,7 @@ function RescheduleModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">📅 Re-Schedule Jadwal</h3>
-              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.title}</p>
+              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.project_name}</p>
             </div>
             <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">✕</button>
           </div>
@@ -591,6 +591,11 @@ export default function ReminderSchedulePage() {
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
 
+  // ─── Delete Modal State ───────────────────────────────────────────────────
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget]       = useState<Reminder | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
   // ─── Update Status with photo ──────────────────────────────────────────────
   const [pendingStatus, setPendingStatus]   = useState<Status | null>(null);
   const [statusPhoto, setStatusPhoto]       = useState<File | null>(null);
@@ -604,7 +609,7 @@ export default function ReminderSchedulePage() {
   };
 
   const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'assigned_name' | 'created_by' | 'wa_sent_h1'> = {
-    title: '', description: '', assigned_to: '',
+    project_name: '', description: '', assigned_to: '',
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
@@ -675,7 +680,7 @@ export default function ReminderSchedulePage() {
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (!formData.title.trim())            { notify('error', 'Judul reminder wajib diisi!');  return; }
+    if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
     if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
     if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
@@ -705,7 +710,7 @@ export default function ReminderSchedulePage() {
       const msg =
         `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
-        `*Nama Project: ${formData.title}*\n` +
+        `*Nama Project: ${formData.project_name}*\n` +
         `*Deskripsi: ${formData.description}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.project_location || '-'}\n` +
@@ -733,13 +738,22 @@ export default function ReminderSchedulePage() {
     fetchRemindersQuiet();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus reminder ini?')) return;
-    const { error } = await supabase.from('reminders').delete().eq('id', id);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from('reminders').delete().eq('id', deleteTarget.id);
     if (error) { notify('error', 'Gagal menghapus.'); return; }
     notify('success', 'Reminder dihapus.');
     setDetailReminder(null);
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
     fetchRemindersQuiet();
+  };
+
+  const openDeleteModal = (r: Reminder) => {
+    setDeleteTarget(r);
+    setDeleteConfirmText('');
+    setShowDeleteModal(true);
   };
 
   const handleStatusChange = async (id: string, status: Status, photoUrl?: string) => {
@@ -783,7 +797,7 @@ export default function ReminderSchedulePage() {
 
   const openEdit = (r: Reminder) => {
     setEditingReminder(r);
-    setFormData({ title: r.title, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
+    setFormData({ project_name: r.project_name, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', project_location: r.project_location ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
@@ -835,7 +849,7 @@ export default function ReminderSchedulePage() {
     const msg =
       `📋 *REMINDER JADWAL PTS IVP*\n\n` +
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
-      `*Nama Project: ${formData.title}*\n` +
+      `*Nama Project: ${formData.project_name}*\n` +
       `*Deskripsi: ${formData.description}*\n` +
       `🏷️ Kategori: ${r.category}\n` +
       `📍 Lokasi: ${r.project_location || '-'}\n` +
@@ -858,9 +872,9 @@ export default function ReminderSchedulePage() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const headers = ['No','Judul','Product','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
+      const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.title, r.product ?? '', r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
+        i + 1, r.project_name, r.product ?? '', r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -889,7 +903,7 @@ export default function ReminderSchedulePage() {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
     if (filterCategory !== 'all' && r.category !== filterCategory) return false;
-    if (searchProject && !r.title.toLowerCase().includes(searchProject.toLowerCase()) &&
+    if (searchProject && !r.project_name.toLowerCase().includes(searchProject.toLowerCase()) &&
         !r.project_location?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
     if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
@@ -1048,6 +1062,53 @@ export default function ReminderSchedulePage() {
           />
         )}
 
+        {/* ── DELETE MODAL ── */}
+        {showDeleteModal && deleteTarget && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6"
+              style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(220,38,38,0.5)' }}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl">🗑️</span>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Hapus Reminder</h3>
+                  <p className="text-xs font-medium text-gray-500">{deleteTarget.project_name}</p>
+                  <p className="text-xs text-gray-400">{deleteTarget.category}</p>
+                </div>
+              </div>
+              <div className="rounded-xl p-3 mb-4 text-xs"
+                style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#b91c1c' }}>
+                ⚠️ <strong>Tindakan ini tidak dapat dibatalkan.</strong> Reminder ini akan dihapus permanen dari database.
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-bold mb-1 text-gray-700">
+                  Ketik <span className="font-mono bg-red-100 text-red-700 px-1.5 py-0.5 rounded">HAPUS</span> untuk konfirmasi
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Ketik HAPUS di sini..."
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                  style={{ border: '2px solid rgba(220,38,38,0.3)', background: 'white' }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteConfirmText !== 'HAPUS'}
+                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-900">
+                  🗑️ Hapus Permanen
+                </button>
+                <button
+                  onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); setDeleteConfirmText(''); }}
+                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
+                  ✕ Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── FORM MODAL (Tambah / Edit Reminder) ── */}
         {showFormModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
@@ -1072,7 +1133,7 @@ export default function ReminderSchedulePage() {
                 <SectionHeader icon="📋" title="Informasi Jadwal" />
 
                 <FormField label="Nama Project*">
-                  <input value={formData.title} onChange={e => fd({ title: e.target.value })}
+                  <input value={formData.project_name} onChange={e => fd({ project_name: e.target.value })}
                     className={inputCls} style={inputStyle} placeholder="Contoh: PT. Maju Bersama" />
                 </FormField>
 
@@ -1147,7 +1208,7 @@ export default function ReminderSchedulePage() {
 
                 <SectionHeader icon="🏢" title="Informasi Project" />
 
-                <FormField label="Product / Unit">
+                <FormField label="Product / Unit (Opsional)">
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
                     <input value={formData.product ?? ''} onChange={e => fd({ product: e.target.value })}
@@ -1271,7 +1332,7 @@ export default function ReminderSchedulePage() {
                           <CategoryBadge category={r.category} />
                           <PriorityBadge priority={r.priority} />
                         </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
+                        <p className="font-bold text-sm text-gray-800 truncate">{r.project_name}</p>
                         {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
@@ -1324,7 +1385,7 @@ export default function ReminderSchedulePage() {
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <CategoryBadge category={r.category} />
                         </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
+                        <p className="font-bold text-sm text-gray-800 truncate">{r.project_name}</p>
                         {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
@@ -1369,11 +1430,29 @@ export default function ReminderSchedulePage() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/80 text-white">✅ WA H-1 Terkirim</span>
                   )}
                 </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.title}</h2>
-                {detailReminder.description && <p className="text-white/80 text-sm mt-2">{detailReminder.description}</p>}
+                <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.project_name}</h2>
+                {/* Lokasi Project langsung di bawah nama project */}
+                {detailReminder.project_location && (
+                  <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">
+                    <span>📍</span>{detailReminder.project_location}
+                  </p>
+                )}
+                {detailReminder.description && <p className="text-white/70 text-xs mt-1.5">{detailReminder.description}</p>}
+                {/* Troubleshooting link ke Ticketing */}
+                {detailReminder.category === 'Troubleshooting' && (
+                  <a
+                    href="https://team-ticketing.vercel.app/ticketing"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-[1.03]"
+                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                    🎫 Lihat di Platform Ticketing →
+                  </a>
+                )}
               </div>
 
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 140px)' }}>
+              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
                 <div>
                   <SectionHeaderSmall icon="📋" title="Detail Jadwal" />
                   <div className="mt-3 grid grid-cols-2 gap-4">
@@ -1391,7 +1470,7 @@ export default function ReminderSchedulePage() {
                       </div>
                     </div>
                     <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)' }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Tenggat Waktu</p>
+                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>📅 Jadwal</p>
                       <p className="text-sm font-bold text-slate-800">{formatDate(detailReminder.due_date)}</p>
                       <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>⏰ {detailReminder.due_time}</p>
                     </div>
@@ -1401,9 +1480,8 @@ export default function ReminderSchedulePage() {
                 <div>
                   <SectionHeaderSmall icon="🏢" title="Informasi Project" />
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                    <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />
+                    {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
-                    <InfoRow icon="📍" label="Lokasi Project" value={detailReminder.project_location} />
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
                     {detailReminder.pic_phone && (
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
@@ -1838,16 +1916,15 @@ export default function ReminderSchedulePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
-                          <col style={{ width: '16%' }} />
+                          <col style={{ width: '17%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '11%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '10%' }} />
                           <col style={{ width: '8%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '8%' }} />
-                          <col style={{ width: '8%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '7%' }} />
                         </colgroup>
                         <thead>
                           <tr className="bg-gray-50 border-b-2 border-gray-100">
@@ -1858,7 +1935,6 @@ export default function ReminderSchedulePage() {
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Priority</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
                             <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
                           </tr>
@@ -1872,7 +1948,7 @@ export default function ReminderSchedulePage() {
                                 onClick={() => setDetailReminder(r)}>
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{r.title}</div>
+                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{r.project_name}</div>
                                   {r.project_location && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</div>}
                                   <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
                                 </td>
@@ -1893,6 +1969,17 @@ export default function ReminderSchedulePage() {
                                     <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
                                   </div>
+                                  {r.category === 'Troubleshooting' && (
+                                    <a
+                                      href="https://team-ticketing.vercel.app/ticketing"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded text-blue-600 hover:text-blue-800 transition-colors"
+                                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                      🎫 Ticketing →
+                                    </a>
+                                  )}
                                 </td>
                                 {/* Sales */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
@@ -1922,10 +2009,6 @@ export default function ReminderSchedulePage() {
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <StatusBadge status={r.status} />
                                   {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
-                                </td>
-                                {/* Priority */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <PriorityBadge priority={r.priority} />
                                 </td>
                                 {/* Tanggal */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
@@ -1960,7 +2043,7 @@ export default function ReminderSchedulePage() {
                                     )}
                                     {/* Hapus — admin only */}
                                     {isAdmin && (
-                                      <button onClick={() => handleDelete(r.id)} title="Hapus"
+                                      <button onClick={() => openDeleteModal(r)} title="Hapus"
                                         className="text-red-400 hover:text-red-600 transition-colors p-0.5">
                                         <span className="text-sm">🗑️</span>
                                       </button>
