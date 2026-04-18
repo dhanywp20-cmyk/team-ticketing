@@ -1912,7 +1912,7 @@ export default function TicketingSystem() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed bg-white border-collapse">
-                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "5%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "1%" }} /><col style={{ width: "1%" }} /><col style={{ width: "1%" }} /><col style={{ width: "1%" }} /></colgroup>
+                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "4%" }} /><col style={{ width: "6%" }} /><col style={{ width: "4%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /></colgroup>
                   <thead>
                     <tr className="bg-white border-b-2 border-gray-100">
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
@@ -1965,7 +1965,7 @@ export default function TicketingSystem() {
                             </div>
                            </td>
                           <td className="px-2 py-3 border-r border-gray-100 align-middle"><div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || "—"}</div>{ticket.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{ticket.sales_division}</div>}</td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>{ticket.created_by && <div className="text-xs text-indigo-500 mt-0.5">@{ticket.created_by}</div>}{ticket.created_at && <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(",")[0]}</div>}</td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>{ticket.created_at && <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(",")[0]}</div>}</td>
                           <td className="px-0 py-2 border-r border-gray-100 text-center align-middle">
                             <div className="flex flex-col items-center gap-0.5">
                               <div className="flex items-center justify-center gap-0.5 mb-0.5"><span className="text-gray-400 text-xs">🗒️</span>{ticket.activity_logs && ticket.activity_logs.length > 0 && <span className="bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none" style={{ fontSize: "10px" }}>{ticket.activity_logs.length}</span>}</div>
