@@ -393,7 +393,19 @@ function ProductDonutCard({
   );
 }
 
-export default function TicketingSystem() {
+
+// ── InfoLine — compact print-style row for detail popup ─────────────────────
+function InfoLine({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="py-2 border-b border-gray-50 last:border-0">
+      <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 block">{label}</span>
+      <span className="text-sm text-gray-800 font-medium break-words">{value}</span>
+    </div>
+  );
+}
+
+export default function TicketingSystem({ navigateToReminderSchedule }: { navigateToReminderSchedule?: () => void } = {}) {
   const ticketListRef = useRef<HTMLDivElement>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -2008,16 +2020,13 @@ export default function TicketingSystem() {
                               <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
                               {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
                               {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
-                              {ticket.status === "Onsite" && (
-                                <a
-                                  href="https://team-ticketing.vercel.app/reminder-schedule2"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={e => e.stopPropagation()}
+                              {ticket.status === "Onsite" && navigateToReminderSchedule && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); navigateToReminderSchedule?.(); }}
                                   className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors"
                                   style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
-                                  🗓️ Jadwal →
-                                </a>
+                                  🗓️ Jadwal
+                                </button>
                               )}
                             </div>
                            </td>
@@ -2101,144 +2110,313 @@ export default function TicketingSystem() {
           </div>
         )}
 
-        {/* ── TICKET DETAIL POPUP (Redesigned with red header) ── */}
+        {/* ── TICKET DETAIL POPUP — detail kiri + update panel kanan ── */}
         {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); } }}>
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-4xl my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(0,0,0,0.1)", maxHeight: "96vh" }}>
-              <div className="px-6 py-5 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
-                <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#059669", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>🎫 {selectedTicket.current_team}</span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : "#d97706", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>{selectedTicket.status}</span>
-                  {selectedTicket.services_status && <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white" style={{ background: "#7c3aed", border: "2px solid rgba(255,255,255,0.6)", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>Svc: {selectedTicket.services_status}</span>}
-                </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
-                {selectedTicket.description && <p className="text-white/80 text-sm mt-2">{selectedTicket.description}</p>}
-              </div>
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-3 overflow-y-auto"
+            onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); } }}>
+            <div className="flex items-start gap-3 w-full my-2" style={{ maxWidth: showUpdateForm ? '1120px' : '720px', transition: 'max-width 0.2s' }}>
 
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(95vh - 140px)" }}>
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>📋 Detail Ticket</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>Handler</p>
-                      <p className="text-sm font-bold text-slate-800">{selectedTicket.assigned_to || "—"}</p>
-                    </div>
-                    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: "#64748b" }}>Tanggal Dibuat</p>
-                      <p className="text-sm font-bold text-slate-800">{selectedTicket.created_at ? formatDateTime(selectedTicket.created_at) : "-"}</p>
-                    </div>
+              {/* LEFT: Detail */}
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex-1 min-w-0"
+                style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(0,0,0,0.1)", maxHeight: "94vh" }}>
+                {/* Header */}
+                <div className="px-5 py-4 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
+                  <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/20 hover:bg-black/35 text-white flex items-center justify-center font-bold text-sm">✕</button>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)' }}>🎫 {selectedTicket.current_team}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : selectedTicket.status === "Onsite" ? "#7c3aed" : selectedTicket.status === "Call" ? "#0891b2" : "#d97706" }}>{selectedTicket.status}</span>
+                    {selectedTicket.services_status && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>Svc: {selectedTicket.services_status}</span>}
                   </div>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>🏢 Informasi Project</p>
-                  <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
-                    {selectedTicket.address && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📍</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Alamat</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.address}</p></div></div>}
-                    <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">⚠️</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Issue Case</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.issue_case}</p></div></div>
-                    {selectedTicket.product && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📦</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Product</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.product}</p></div></div>}
-                    {selectedTicket.sn_unit && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">🔢</span><div><p className="text-[10px] font-bold tracking-widests uppercase" style={{ color: "#64748b" }}>SN Unit</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sn_unit}</p></div></div>}                    
-                    {selectedTicket.customer_phone && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📱</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Customer Phone</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.customer_phone}</p></div></div>}
-                    {selectedTicket.sales_name && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Sales Name</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sales_name}{selectedTicket.sales_division && <span className="text-xs text-purple-600 ml-1">({selectedTicket.sales_division})</span>}</p></div></div>}
-                    {selectedTicket.created_by && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Created By</p><p className="text-sm font-semibold text-slate-800 break-words">@{selectedTicket.created_by}</p></div></div>}
-                  </div>
-                </div>
-
-                {selectedTicket.photo_url && (
-                  <div className="rounded-2xl overflow-hidden" style={{ border: "1.5px solid rgba(220,38,38,0.35)", background: "rgba(220,38,38,0.05)" }}>
-                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: "rgba(220,38,38,0.12)", borderBottom: "1px solid rgba(220,38,38,0.2)" }}><span className="text-base">📸</span><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#dc2626" }}>Foto Awal Masalah</p></div>
-                    <div className="p-3"><img src={selectedTicket.photo_url} alt={selectedTicket.photo_name || "Foto ticket"} className="w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity" style={{ maxHeight: 220 }} onClick={() => window.open(selectedTicket.photo_url!, "_blank")} />{selectedTicket.photo_name && <p className="text-xs text-gray-500 mt-2">📎 {selectedTicket.photo_name}</p>}</div>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: "#64748b" }}>📝 Activity Log</p>
-                  <div className="space-y-2">
-                    {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0 ? selectedTicket.activity_logs.map((log) => (
-                      <div key={log.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div><div className="flex items-center gap-2"><p className="font-bold text-gray-800 text-sm">{log.handler_name}</p><span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.15)", color: "#7c3aed" }}>{log.team_type}</span></div><p className="text-xs text-gray-500 mt-0.5">{formatDateTime(log.created_at)}</p></div>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[log.new_status]}`}>{log.new_status}</span>
-                        </div>
-                        {log.action_taken && <div className="rounded-lg p-2 mb-2" style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)" }}><p className="text-xs font-bold text-blue-700">🔧 Action:</p><p className="text-sm text-gray-800">{log.action_taken}</p></div>}
-                        <p className="text-xs font-bold text-gray-600">📝 Notes:</p>
-                        <p className="text-sm text-gray-800 whitespace-pre-line">{log.notes}</p>
-                        {log.assigned_to_services && <div className="mt-2 p-2 rounded-lg" style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.25)" }}><p className="text-xs font-bold text-red-700">→ Ticket assigned to Team Services</p></div>}
-                        {log.photo_url && <div className="mt-3"><img src={log.photo_url} alt={log.photo_name || "Activity photo"} className="max-w-md w-full rounded-lg border cursor-pointer hover:scale-105 transition-transform" onClick={() => window.open(log.photo_url!, "_blank")} /></div>}
-                        {log.file_url && <a href={log.file_url} download={log.file_name} className="inline-block mt-2 text-xs font-bold text-blue-600 hover:underline">📄 {log.file_name || "Download Report"}</a>}
-                      </div>
-                    )) : <p className="text-gray-500 text-center py-4">No activities yet</p>}
-                  </div>
-                </div>
-
-                {canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-                  <div className="border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-                    <div className="flex justify-between items-center"><h3 className="font-semibold text-base text-gray-700">➕ Update Activity</h3><button onClick={() => setShowUpdateForm(!showUpdateForm)} className={`px-4 py-2 rounded-lg font-bold transition-all text-sm ${showUpdateForm ? "bg-gray-200 text-gray-700 hover:bg-gray-300" : "bg-gradient-to-r from-red-500 to-red-700 text-white hover:from-red-600 hover:to-red-800"}`}>{showUpdateForm ? "✕ Tutup Form" : "▼ Buka Form"}</button></div>
-                  </div>
-                )}
-
-                {canUpdateTicket && currentUserTeamType === "Team Services" && selectedTicket.services_status === "Waiting Approval" && (
-                  <div className="border-t pt-3" style={{ borderColor: "rgba(0,0,0,0.08)" }}><div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "rgba(219,39,119,0.1)", border: "1.5px solid rgba(219,39,119,0.3)" }}><span className="text-2xl">⏳</span><div className="flex-1"><p className="text-sm font-bold text-rose-800">Menunggu Konfirmasi Team Services</p><p className="text-xs text-rose-600 mt-0.5">Ticket dari Team PTS menunggu diterima atau ditolak.</p><button onClick={() => setShowServicesApprovalModal(true)} className="mt-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all">🔧 Buka Panel Konfirmasi</button></div></div></div>
-                )}
-
-                <div className="flex gap-3 pt-2 flex-wrap">
-                  <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", color: "white", boxShadow: "0 4px 12px rgba(22,163,74,0.3)" }}>📄 Export PDF</button>
-                  {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
-                    <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "white", boxShadow: "0 4px 12px rgba(245,158,11,0.3)" }}>🔓 Re-open</button>
+                  <h2 className="text-lg font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
+                  {selectedTicket.address && <p className="text-white/75 text-xs mt-0.5">📍 {selectedTicket.address}</p>}
+                  {selectedTicket.status === "Onsite" && navigateToReminderSchedule && (
+                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); navigateToReminderSchedule?.(); }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white"
+                      style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                      🗓️ Lihat Jadwal Reminder
+                    </button>
                   )}
-                  <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]" style={{ border: "1px solid rgba(0,0,0,0.15)", color: "#64748b", background: "rgba(255,255,255,0.55)" }}>✕ Close</button>
+                </div>
+
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(94vh - 130px)' }}>
+                  {/* Progress Flowchart */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Progress</p>
+                    <div className="flex items-center">
+                      {(["Pending","Call","Onsite","In Progress","Solved"] as const).map((step, idx, arr) => {
+                        const order = ["Pending","Call","Onsite","In Progress","Solved"];
+                        const curIdx = order.indexOf(selectedTicket.status);
+                        const stepIdx = order.indexOf(step);
+                        const done = stepIdx < curIdx;
+                        const active = stepIdx === curIdx;
+                        const icons: Record<string,string> = { Pending:'🟡', Call:'📞', Onsite:'🚗', 'In Progress':'🔵', Solved:'✅' };
+                        return (
+                          <div key={step} className="flex items-center flex-1 last:flex-none">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${active ? 'border-red-500 bg-red-50 shadow-md scale-110' : done ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                                {done ? '✓' : icons[step]}
+                              </div>
+                              <span className={`text-[7px] font-bold text-center leading-tight whitespace-nowrap ${active ? 'text-red-600' : done ? 'text-green-600' : 'text-gray-400'}`}>{step}</span>
+                            </div>
+                            {idx < arr.length - 1 && <div className={`flex-1 h-0.5 mx-0.5 mb-3 ${done ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Info grid — print style */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="grid grid-cols-2 gap-x-6">
+                      <div>
+                        <InfoLine label="Handler" value={selectedTicket.assigned_to} />
+                        <InfoLine label="Issue" value={selectedTicket.issue_case} />
+                        {selectedTicket.product && <InfoLine label="Product" value={selectedTicket.product} />}
+                        {selectedTicket.sn_unit && <InfoLine label="SN Unit" value={selectedTicket.sn_unit} />}
+                        {selectedTicket.customer_phone && <InfoLine label="Customer" value={selectedTicket.customer_phone} />}
+                      </div>
+                      <div>
+                        {selectedTicket.sales_name && <InfoLine label="Sales" value={`${selectedTicket.sales_name}${selectedTicket.sales_division ? ` (${selectedTicket.sales_division})` : ''}`} />}
+                        <InfoLine label="Dibuat" value={selectedTicket.created_at ? formatDateTime(selectedTicket.created_at) : '-'} />
+                        {selectedTicket.created_by && <InfoLine label="Oleh" value={`@${selectedTicket.created_by}`} />}
+                        {selectedTicket.description && <InfoLine label="Deskripsi" value={selectedTicket.description} />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Foto awal */}
+                  {selectedTicket.photo_url && (
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">📸 Foto Awal</p>
+                      <img src={selectedTicket.photo_url} alt="foto" className="w-full max-h-36 object-cover rounded-xl border cursor-pointer hover:opacity-90" onClick={() => window.open(selectedTicket.photo_url!, "_blank")} />
+                    </div>
+                  )}
+
+                  {/* Activity log compact */}
+                  <div className="px-4 py-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">📝 Activity Log ({selectedTicket.activity_logs?.length || 0})</p>
+                    <div className="space-y-2">
+                      {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0
+                        ? selectedTicket.activity_logs.map(log => (
+                          <div key={log.id} className="rounded-lg p-2.5 border border-gray-100 bg-gray-50/80">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-800">{log.handler_name}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-semibold">{log.team_type}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${statusColors[log.new_status] || 'bg-gray-100 text-gray-600 border-gray-300'}`}>{log.new_status}</span>
+                                <span className="text-[9px] text-gray-400">{formatDateTime(log.created_at)}</span>
+                              </div>
+                            </div>
+                            {log.action_taken && <p className="text-[10px] text-blue-700 font-semibold">🔧 {log.action_taken}</p>}
+                            <p className="text-xs text-gray-600">{log.notes}</p>
+                            {log.photo_url && <img src={log.photo_url} alt="log" className="mt-1.5 max-h-24 rounded-lg border cursor-pointer" onClick={() => window.open(log.photo_url!, "_blank")} />}
+                            {log.file_url && <a href={log.file_url} download className="inline-block mt-1 text-[10px] font-bold text-blue-600 hover:underline">📄 {log.file_name || "Download"}</a>}
+                          </div>
+                        ))
+                        : <p className="text-xs text-gray-400 text-center py-3">Belum ada aktivitas</p>
+                      }
+                    </div>
+                  </div>
+
+                  {/* Footer actions */}
+                  <div className="px-4 py-3 border-t border-gray-100 flex flex-wrap gap-2 bg-gray-50/50">
+                    <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>📄 PDF</button>
+                    {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
+                      <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>🔓 Re-open</button>
+                    )}
+                    {canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
+                      <button onClick={() => setShowUpdateForm(!showUpdateForm)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${showUpdateForm ? 'bg-gray-200 text-gray-700' : 'text-white'}`}
+                        style={showUpdateForm ? {} : { background: "linear-gradient(135deg,#dc2626,#b91c1c)" }}>
+                        {showUpdateForm ? '✕ Tutup' : '➕ Update Status'}
+                      </button>
+                    )}
+                    {canUpdateTicket && currentUserTeamType === "Team Services" && selectedTicket.services_status === "Waiting Approval" && (
+                      <button onClick={() => setShowServicesApprovalModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#db2777,#be185d)" }}>🔧 Konfirmasi</button>
+                    )}
+                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-gray-200 text-gray-600 bg-white">✕ Close</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* ── UPDATE ACTIVITY FORM (Right panel) - keep similar but adjust colors */}
-        {showUpdateForm && canUpdateTicket && selectedTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) setShowUpdateForm(false); }}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(220,38,38,0.25)" }}>
-              <div className="p-4" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
-                <div className="flex items-center justify-between"><h3 className="font-bold text-white text-base">{currentUserTeamType === "Team Services" ? "🔧 Update Status Services" : "➕ Update Activity"}</h3><button onClick={() => setShowUpdateForm(false)} className="text-white hover:bg-white/20 rounded-lg p-1.5 font-bold transition-all text-sm">✕ Tutup</button></div>
-              </div>
-              <div className="p-5 space-y-4 max-h-[calc(90vh-80px)] overflow-y-auto">
-                <div className="rounded-xl px-4 py-2.5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><span className="text-gray-500 text-sm">👤 Handler:</span><span className="font-bold text-gray-800 text-sm ml-2">{newActivity.handler_name}</span></div>
+              {/* RIGHT: Update Status Panel */}
+              {showUpdateForm && canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex-shrink-0"
+                  style={{ width: 340, animation: "scale-in 0.2s ease-out", border: "2px solid rgba(220,38,38,0.25)", maxHeight: "94vh" }}>
+                  <div className="px-4 py-3" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-white text-sm">{currentUserTeamType === "Team Services" ? "🔧 Update Services" : "➕ Update Status"}</h3>
+                        <p className="text-red-200 text-[10px]">Handler: {newActivity.handler_name}</p>
+                      </div>
+                      <button onClick={() => setShowUpdateForm(false)} className="text-white hover:bg-white/20 rounded-lg p-1 font-bold text-xs">✕</button>
+                    </div>
+                  </div>
 
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔢 No SN Unit</label><input type="text" value={newActivity.sn_unit} onChange={(e) => setNewActivity({ ...newActivity, sn_unit: e.target.value })} placeholder="Update SN Unit..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
+                  <div className="overflow-y-auto p-3 space-y-3" style={{ maxHeight: 'calc(94vh - 70px)' }}>
+                    {/* SN Unit */}
+                    <div>
+                      <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">🔢 SN Unit</label>
+                      <input type="text" value={newActivity.sn_unit} onChange={e => setNewActivity({ ...newActivity, sn_unit: e.target.value })}
+                        placeholder="Update SN Unit..." className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40"
+                        style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
 
-                {/* Status selection simplified for brevity - keeping the original logic but with red-themed buttons */}
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Pilih Status Baru *</label>
-                  <div className="flex flex-col gap-2">
-                    {currentUserTeamType === "Team Services" ? (
+                    {/* Status flowchart buttons */}
+                    <div>
+                      <label className="block text-[9px] font-bold mb-2 tracking-widest uppercase text-gray-400">Pilih Status *</label>
+                      {currentUserTeamType === "Team Services" ? (
+                        <div className="flex flex-col gap-1.5">
+                          {(["Pending","Warranty","Out Of Warranty","Waiting PO from Sales","Submit RMA","Waiting sparepart","Process Repair","Solved"] as const).map(s => (
+                            <button key={s} onClick={() => setNewActivity({ ...newActivity, new_status: s, action_taken: "", notes: "" })}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border-2 font-semibold text-xs transition-all text-left ${newActivity.new_status === s ? "bg-purple-600 text-white border-purple-600 shadow-md" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}>
+                              <span className="flex-1">{s}</span>
+                              {newActivity.new_status === s && <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {(() => {
+                            const flow = ["Pending","Call","Onsite","In Progress","Solved"] as const;
+                            const curStatus = selectedTicket.status;
+                            const curIdx = flow.indexOf(curStatus as any);
+                            const styleMap: Record<string,{icon:string;sel:string;unsel:string}> = {
+                              Pending:      { icon:'🟡', sel:'bg-amber-500 text-white border-amber-500',    unsel:'bg-white text-amber-700 border-amber-200 hover:bg-amber-50' },
+                              Call:         { icon:'📞', sel:'bg-cyan-600 text-white border-cyan-600',      unsel:'bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50' },
+                              Onsite:       { icon:'🚗', sel:'bg-purple-600 text-white border-purple-600',  unsel:'bg-white text-purple-700 border-purple-200 hover:bg-purple-50' },
+                              'In Progress':{ icon:'🔵', sel:'bg-blue-600 text-white border-blue-600',      unsel:'bg-white text-blue-700 border-blue-200 hover:bg-blue-50' },
+                              Solved:       { icon:'✅', sel:'bg-emerald-500 text-white border-emerald-500',unsel:'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50' },
+                            };
+                            return flow.map((step, idx) => {
+                              const stepIdx = flow.indexOf(step);
+                              const locked = stepIdx < curIdx;
+                              const skipLocked = step === 'Solved' && curIdx < 2;
+                              const disabled = locked || skipLocked;
+                              const st = styleMap[step];
+                              const isSelected = newActivity.new_status === step;
+                              return (
+                                <div key={step}>
+                                  <button disabled={disabled}
+                                    onClick={() => setNewActivity({ ...newActivity, new_status: step, action_taken: "", notes: "", onsite_use_schedule: false })}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border-2 font-semibold text-xs transition-all ${isSelected ? st.sel : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed' : st.unsel}`}>
+                                    <span>{st.icon}</span>
+                                    <span className="flex-1 text-left">{step}</span>
+                                    {disabled && <span className="text-[9px]">🔒</span>}
+                                    {isSelected && <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
+                                  </button>
+                                  {/* Onsite schedule */}
+                                  {step === 'Onsite' && isSelected && (
+                                    <div className="mt-1.5 p-2.5 rounded-lg border" style={{ background: 'rgba(124,58,237,0.06)', borderColor: 'rgba(124,58,237,0.25)' }}>
+                                      <div className="flex items-center gap-1.5 mb-1.5">
+                                        <input type="checkbox" id="onsite-sched-r" checked={newActivity.onsite_use_schedule}
+                                          onChange={e => setNewActivity({ ...newActivity, onsite_use_schedule: e.target.checked })}
+                                          className="w-3.5 h-3.5 accent-purple-600" />
+                                        <label htmlFor="onsite-sched-r" className="text-[10px] font-bold text-purple-700">Jadwalkan (bukan hari ini)</label>
+                                      </div>
+                                      {newActivity.onsite_use_schedule && (
+                                        <div className="space-y-1.5">
+                                          <input type="date" value={newActivity.onsite_schedule_date}
+                                            onChange={e => setNewActivity({ ...newActivity, onsite_schedule_date: e.target.value })}
+                                            className="w-full rounded-lg px-2.5 py-1.5 text-xs border border-purple-200 outline-none" style={{ background: 'white' }} />
+                                          <div className="flex gap-1.5 items-center">
+                                            <select value={newActivity.onsite_schedule_hour} onChange={e => setNewActivity({ ...newActivity, onsite_schedule_hour: e.target.value })}
+                                              className="flex-1 rounded-lg px-2 py-1.5 text-xs border border-purple-200" style={{ background: 'white' }}>
+                                              {Array.from({length:24},(_,i)=>String(i).padStart(2,'0')).map(h=><option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                            <span className="text-gray-400 text-xs font-bold">:</span>
+                                            <select value={newActivity.onsite_schedule_minute} onChange={e => setNewActivity({ ...newActivity, onsite_schedule_minute: e.target.value })}
+                                              className="flex-1 rounded-lg px-2 py-1.5 text-xs border border-purple-200" style={{ background: 'white' }}>
+                                              {["00","15","30","45"].map(m=><option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                            <span className="text-[9px] text-gray-500">WIB</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                                            <span className="text-xs">🗓️</span>
+                                            <p className="text-[9px] text-purple-700 font-semibold flex-1">Otomatis buat jadwal Troubleshooting di Reminder Schedule</p>
+                                            {navigateToReminderSchedule && (
+                                              <button onClick={() => { setShowTicketDetailPopup(false); setShowUpdateForm(false); navigateToReminderSchedule?.(); }}
+                                                className="text-[9px] font-bold px-1.5 py-0.5 rounded text-purple-700 hover:text-purple-900"
+                                                style={{ background: 'rgba(124,58,237,0.15)' }}>Buka</button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notes/Action for statuses that need detail */}
+                    {!["Call","Onsite","Warranty","Out Of Warranty","Waiting PO from Sales","Submit RMA","Waiting sparepart"].includes(newActivity.new_status) && (
                       <>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Pending", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Pending" ? "bg-yellow-500 text-white border-yellow-500 shadow-md" : "bg-white text-yellow-700 border-yellow-300 hover:bg-yellow-50"}`}><span>🟡</span><span className="flex-1 text-left">Pending Check</span>{newActivity.new_status === "Pending" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}><span>✅</span><span className="flex-1 text-left">Solved</span>{newActivity.new_status === "Solved" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Pending", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Pending" ? "bg-amber-500 text-white border-amber-500 shadow-md" : "bg-white text-amber-600 border-amber-300 hover:bg-amber-50"}`}><span>🟡</span><span className="flex-1 text-left">Pending</span>{newActivity.new_status === "Pending" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "In Progress", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "In Progress" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"}`}><span>🔵</span><span className="flex-1 text-left">In Progress</span>{newActivity.new_status === "In Progress" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
-                        <button onClick={() => setNewActivity({ ...newActivity, new_status: "Solved", action_taken: "", notes: "" })} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 font-semibold text-sm transition-all ${newActivity.new_status === "Solved" ? "bg-emerald-500 text-white border-emerald-500 shadow-md" : "bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50"}`}><span>✅</span><span className="flex-1 text-left">Solved</span>{newActivity.new_status === "Solved" && <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}</button>
+                        <div>
+                          <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">🔧 Action Taken</label>
+                          <textarea value={newActivity.action_taken} onChange={e => setNewActivity({ ...newActivity, action_taken: e.target.value })}
+                            placeholder="Cek kabel HDMI, restart sistem..." rows={2}
+                            className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40 resize-none"
+                            style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">📝 Notes *</label>
+                          <textarea value={newActivity.notes} onChange={e => setNewActivity({ ...newActivity, notes: e.target.value })}
+                            placeholder="Detail penanganan..." rows={3}
+                            className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40 resize-none"
+                            style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        </div>
                       </>
                     )}
+
+                    {/* Assign to Services */}
+                    {currentUserTeamType !== "Team Services" && newActivity.new_status === "In Progress" && (
+                      <div className="rounded-lg p-2.5" style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <input type="checkbox" id="assign-svc-r" checked={newActivity.assign_to_services}
+                            onChange={e => setNewActivity({ ...newActivity, assign_to_services: e.target.checked, services_assignee: "" })}
+                            className="w-3.5 h-3.5 accent-purple-600" />
+                          <label htmlFor="assign-svc-r" className="text-[10px] font-bold text-purple-700">Teruskan ke Team Services</label>
+                        </div>
+                        {newActivity.assign_to_services && (
+                          <select value={newActivity.services_assignee} onChange={e => setNewActivity({ ...newActivity, services_assignee: e.target.value })}
+                            className="w-full rounded-lg px-2.5 py-1.5 text-xs border border-purple-200 mt-1" style={{ background: 'white' }}>
+                            <option value="">Pilih anggota Team Services</option>
+                            {teamMembers.filter(m => m.team_type === "Team Services").map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Photo */}
+                    <div>
+                      <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">📷 Foto Bukti</label>
+                      <input type="file" accept="image/jpeg,image/jpg,image/png"
+                        onChange={e => setNewActivity({ ...newActivity, photo: e.target.files?.[0] || null })}
+                        className="w-full border rounded-lg px-2.5 py-1.5 text-xs bg-white file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-red-50 file:text-red-700"
+                        style={{ borderColor: "rgba(0,0,0,0.12)" }} />
+                    </div>
+
+                    <button onClick={addActivity}
+                      disabled={uploading || (!newActivity.notes && !["Pending","Call","Onsite","Warranty","Out Of Warranty","Waiting PO from Sales","Submit RMA","Waiting sparepart","Process Repair"].includes(newActivity.new_status))}
+                      className="w-full text-white py-2.5 rounded-xl font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>
+                      {uploading ? "⏳ Menyimpan..." : "💾 Simpan Activity"}
+                    </button>
                   </div>
                 </div>
-
-                {newActivity.new_status !== "Pending" && newActivity.new_status !== "Solved" && newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status) && (
-                  <>
-                    <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>🔧 Action Taken</label><textarea value={newActivity.action_taken} onChange={(e) => setNewActivity({ ...newActivity, action_taken: e.target.value })} placeholder="Contoh: Cek kabel HDMI, restart sistem..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" rows={3} style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-                    <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Notes *</label><textarea value={newActivity.notes} onChange={(e) => setNewActivity({ ...newActivity, notes: e.target.value })} placeholder="Jelaskan detail penanganan..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" rows={3} style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div>
-                  </>
-                )}
-
-                <div><label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📷 Upload Foto Bukti</label><input type="file" accept="image/jpeg,image/jpg,image/png" onChange={(e) => setNewActivity({ ...newActivity, photo: e.target.files?.[0] || null })} className="w-full border rounded-xl px-4 py-2.5 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-all" style={{ borderColor: "rgba(0,0,0,0.12)" }} /></div>
-
-                <button onClick={addActivity} disabled={uploading || (!newActivity.notes && newActivity.new_status !== "Pending" && newActivity.new_status !== "Solved" && newActivity.new_status !== "Call" && newActivity.new_status !== "Onsite" && !["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"].includes(newActivity.new_status))} className="w-full text-white py-3.5 rounded-xl font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>{uploading ? "⏳ Menyimpan..." : "💾 Simpan Activity"}</button>
-              </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* ── APPROVAL MODAL (Redesigned) ── */}
+                {/* ── APPROVAL MODAL (Redesigned) ── */}
         {showApprovalModal && canAccessAccountSettings && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
