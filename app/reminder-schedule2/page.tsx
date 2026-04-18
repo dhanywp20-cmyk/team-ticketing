@@ -91,7 +91,7 @@ interface Reminder {
   category: string;
   sales_name: string;
   sales_division: string;
-  project_location: string;
+  address: string;
   pic_name: string;
   pic_phone: string;
   created_by: string;
@@ -615,7 +615,7 @@ export default function ReminderSchedulePage() {
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
-    sales_name: '', sales_division: '', project_location: '', pic_name: '', pic_phone: '',
+    sales_name: '', sales_division: '', address: '', pic_name: '', pic_phone: '',
     notes: '', product: '',
   };
   const [formData, setFormData] = useState(emptyForm);
@@ -687,7 +687,7 @@ export default function ReminderSchedulePage() {
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
     if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
     if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
-    if (!formData.project_location.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
+    if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
     const assignee = teamUsers.find(u => u.username === formData.assigned_to);
     const payload = { ...formData, assigned_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
@@ -715,7 +715,7 @@ export default function ReminderSchedulePage() {
         `*Nama Project: ${formData.project_name}*\n` +
         `*Deskripsi: ${formData.description}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
-        `📍 Lokasi: ${formData.project_location || '-'}\n` +
+        `📍 Lokasi: ${formData.address || '-'}\n` +
         `👤 Sales: ${formData.sales_name}${formData.sales_division ? ' - ' + formData.sales_division : ''}\n` +
         `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
         (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}${formData.pic_phone ? ' - ' + formData.pic_phone : ''}\n\n`    : '') +
@@ -801,7 +801,7 @@ export default function ReminderSchedulePage() {
     setEditingReminder(r);
     setFormData({ project_name: r.project_name, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
-      sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', project_location: r.project_location ?? '',
+      sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
     setDetailReminder(null);
     setShowFormModal(true);
@@ -854,7 +854,7 @@ export default function ReminderSchedulePage() {
       `*Nama Project: ${formData.project_name}*\n` +
       `*Deskripsi: ${formData.description}*\n` +
       `🏷️ Kategori: ${r.category}\n` +
-      `📍 Lokasi: ${r.project_location || '-'}\n` +
+      `📍 Lokasi: ${r.address || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
       `    Divisi Sales: ${r.sales_division || '-'}\n` +
       `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
@@ -874,9 +874,9 @@ export default function ReminderSchedulePage() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
+      const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Address','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.project_name, r.product ?? '', r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
+        i + 1, r.project_name, r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -906,7 +906,7 @@ export default function ReminderSchedulePage() {
     if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
     if (filterCategory !== 'all' && r.category !== filterCategory) return false;
     if (searchProject && !r.project_name.toLowerCase().includes(searchProject.toLowerCase()) &&
-        !r.project_location?.toLowerCase().includes(searchProject.toLowerCase())) return false;
+        !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
     if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
     if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
@@ -1139,6 +1139,14 @@ export default function ReminderSchedulePage() {
                     className={inputCls} style={inputStyle} placeholder="Contoh: PT. Maju Bersama" />
                 </FormField>
 
+                <FormField label="Lokasi Project *">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
+                    <input value={formData.address} onChange={e => fd({ address: e.target.value })}
+                      className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
+                  </div>
+                </FormField>
+
                 <FormField label="Deskripsi">
                   <textarea value={formData.description} onChange={e => fd({ description: e.target.value })}
                     rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Detail pekerjaan..." />
@@ -1245,15 +1253,6 @@ export default function ReminderSchedulePage() {
 
                 <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
 
-                <div className="grid grid-cols-1 gap-4">
-                  <FormField label="Lokasi Project *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
-                      <input value={formData.project_location} onChange={e => fd({ project_location: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
-                    </div>
-                  </FormField>
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Nama PIC">
                     <div className="relative">
@@ -1335,7 +1334,7 @@ export default function ReminderSchedulePage() {
                           <PriorityBadge priority={r.priority} />
                         </div>
                         <p className="font-bold text-sm text-gray-800 truncate">{r.project_name}</p>
-                        {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <StatusBadge status={r.status} />
@@ -1388,7 +1387,7 @@ export default function ReminderSchedulePage() {
                           <CategoryBadge category={r.category} />
                         </div>
                         <p className="font-bold text-sm text-gray-800 truncate">{r.project_name}</p>
-                        {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <StatusBadge status={r.status} />
@@ -1434,9 +1433,9 @@ export default function ReminderSchedulePage() {
                 </div>
                 <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.project_name}</h2>
                 {/* Lokasi Project langsung di bawah nama project */}
-                {detailReminder.project_location && (
+                {detailReminder.address && (
                   <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">
-                    <span>📍</span>{detailReminder.project_location}
+                    <span>📍</span>{detailReminder.address}
                   </p>
                 )}
                 {detailReminder.description && <p className="text-white/70 text-xs mt-1.5">{detailReminder.description}</p>}
@@ -1492,7 +1491,7 @@ export default function ReminderSchedulePage() {
                         </div>
                       </div>
                     )}
-                    <InfoRow icon="👤" label="Created By" value={detailReminder.created_by} />
+                    {detailReminder.description && <InfoRow icon="📝" label="Deskripsi" value={detailReminder.description} />}
                   </div>
                 </div>
 
@@ -1948,7 +1947,7 @@ export default function ReminderSchedulePage() {
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{r.project_name}</div>
-                                  {r.project_location && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</div>}
+                                  {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address.split(',')[0]}</div>}
                                   <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
                                 </td>
                                 {/* Product */}
