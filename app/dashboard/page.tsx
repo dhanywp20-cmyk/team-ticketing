@@ -584,7 +584,27 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     // Sales/TeamServices: tidak dapat notif ticket
     try {
       if (isTeamServices) {
-        setTicketNotifs([]);
+        // Team Services: ticket yang di-assign ke mereka dengan services_status belum Solved
+        const { data: member } = await supabase
+          .from('team_members').select('name')
+          .eq('username', currentUser.username).maybeSingle();
+        const assignedName = member?.name ?? currentUser.full_name;
+        const { data } = await supabase
+          .from('tickets')
+          .select('id, project_name, issue_case, assigned_to, status, services_status, created_at')
+          .eq('assigned_to', assignedName)
+          .neq('services_status', 'Solved')
+          .not('services_status', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        setTicketNotifs((data ?? []).map((t: any) => ({
+          id: t.id, type: 'ticket' as const,
+          title: t.project_name,
+          subtitle: `Svc: ${t.services_status} · ${t.issue_case}`,
+          time: t.created_at,
+          url: '/ticketing', internalUrl: '/ticketing',
+          menuTitle: 'Ticket Troubleshooting',
+        })));
       } else if (isAdmin) {
         // Admin: SEMUA ticket belum Solved
         const { data } = await supabase
