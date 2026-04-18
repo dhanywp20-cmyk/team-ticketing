@@ -405,7 +405,7 @@ function InfoLine({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-export default function TicketingSystem({ navigateToReminderSchedule }: { navigateToReminderSchedule?: () => void } = {}) {
+export default function TicketingSystem({ navigateToReminderSchedule }: { navigateToReminderSchedule?: () => void }) {
   const ticketListRef = useRef<HTMLDivElement>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
