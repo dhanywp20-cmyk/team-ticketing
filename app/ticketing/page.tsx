@@ -1752,7 +1752,7 @@ export default function TicketingSystem() {
               </div>
 
               {/* ── Donut Charts ── */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                 <StatusDonutCard data={stats.statusData} total={stats.statusData.reduce((s, d) => s + d.value, 0)} onSliceClick={(name: string) => { const mapped = name === "Solved (Overdue)" ? "Solved Overdue" : name; setFilterStatus((prev) => prev === mapped ? "All" : mapped); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} title="Status Distribution" icon="🥧" />
                 <HandlerDonutCard data={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).map((h: any, i: number) => ({ name: h.name, value: h.tickets, color: ["#7c3aed", "#0ea5e9", "#10b981", "#e11d48", "#f59e0b", "#6366f1", "#14b8a6", "#f97316", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"][i % 12] }))} total={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).reduce((s, h) => s + h.tickets, 0)} teamToggle={selectedHandlerTeam} onToggle={(t: "PTS" | "Services") => setSelectedHandlerTeam(t)} onSliceClick={(name: string) => { setHandlerFilter((prev: string | null) => prev === name ? null : name); setFilterStatus("All"); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeHandler={handlerFilter} title="Team Handlers" icon="👥" />
                 <SalesDivisionDonutCard data={salesDivisionStats.data} total={salesDivisionStats.total} onSliceClick={(division: string) => { setSalesDivisionFilter((prev: string | null) => prev === division ? null : division); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeDivision={salesDivisionFilter} />
@@ -1913,12 +1913,12 @@ export default function TicketingSystem() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed bg-white border-collapse">
-                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "6%" }} /><col style={{ width: "10%" }} /><col style={{ width: "10%" }} /><col style={{ width: "9%" }} /><col style={{ width: "10%" }} /><col style={{ width: "7%" }} /><col style={{ width: "7%" }} /><col style={{ width: "4%" }} /><col style={{ width: "3%" }} /><col style={{ width: "3%" }} /><col style={{ width: "3%" }} /><col style={{ width: "3%" }} /></colgroup>
+                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "5%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "1%" }} /><col style={{ width: "1%" }} /><col style={{ width: "1%" }} /><col style={{ width: "1%" }} /></colgroup>
                   <thead>
                     <tr className="bg-white border-b-2 border-gray-100">
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">📦 Product</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Issue</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
@@ -1945,18 +1945,17 @@ export default function TicketingSystem() {
                             </div>
                             <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
-                            {isSolvedOverdue && <div className="text-xs text-purple-600 font-bold mt-0.5">⏰ SOLVED OVERDUE</div>}
                            </td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             {ticket.product ? (
                               <button
                                 onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                                className="text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors hover:opacity-80 text-left break-words max-w-full"
+                                className="text-xs font-semibold px-2 py-0.5 text-left break-words max-w-full"
                                 style={{ background: productFilter === ticket.product ? "#6366f1" : "#eef2ff", color: productFilter === ticket.product ? "white" : "#4338ca", borderColor: "#c7d2fe" }}
                               >{ticket.product}</button>
                             ) : <span className="text-gray-300 text-sm">—</span>}
                           </td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
@@ -2081,8 +2080,8 @@ export default function TicketingSystem() {
                   <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.08)" }}>
                     {selectedTicket.address && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📍</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Alamat</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.address}</p></div></div>}
                     <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">⚠️</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Issue Case</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.issue_case}</p></div></div>
-                    {selectedTicket.sn_unit && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">🔢</span><div><p className="text-[10px] font-bold tracking-widests uppercase" style={{ color: "#64748b" }}>SN Unit</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sn_unit}</p></div></div>}
                     {selectedTicket.product && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📦</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Product</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.product}</p></div></div>}
+                    {selectedTicket.sn_unit && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">🔢</span><div><p className="text-[10px] font-bold tracking-widests uppercase" style={{ color: "#64748b" }}>SN Unit</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sn_unit}</p></div></div>}                    
                     {selectedTicket.customer_phone && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">📱</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Customer Phone</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.customer_phone}</p></div></div>}
                     {selectedTicket.sales_name && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Sales Name</p><p className="text-sm font-semibold text-slate-800 break-words">{selectedTicket.sales_name}{selectedTicket.sales_division && <span className="text-xs text-purple-600 ml-1">({selectedTicket.sales_division})</span>}</p></div></div>}
                     {selectedTicket.created_by && <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}><span className="text-base flex-shrink-0">👤</span><div><p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: "#64748b" }}>Created By</p><p className="text-sm font-semibold text-slate-800 break-words">@{selectedTicket.created_by}</p></div></div>}
