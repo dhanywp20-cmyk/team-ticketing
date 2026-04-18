@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase Client: Team PTS (existing) ──────────────────────────────────────
@@ -405,7 +406,8 @@ function InfoLine({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-export default function TicketingSystem({ navigateToReminderSchedule }: { navigateToReminderSchedule?: () => void }) {
+export default function TicketingSystem() {
+  const router = useRouter();
   const ticketListRef = useRef<HTMLDivElement>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -2020,9 +2022,9 @@ export default function TicketingSystem({ navigateToReminderSchedule }: { naviga
                               <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
                               {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
                               {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
-                              {ticket.status === "Onsite" && navigateToReminderSchedule && (
+                              {ticket.status === "Onsite" && (
                                 <button
-                                  onClick={e => { e.stopPropagation(); navigateToReminderSchedule?.(); }}
+                                  onClick={e => { e.stopPropagation(); router.push('/reminder-schedule'); }}
                                   className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors"
                                   style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
                                   🗓️ Jadwal
@@ -2130,8 +2132,8 @@ export default function TicketingSystem({ navigateToReminderSchedule }: { naviga
                   </div>
                   <h2 className="text-lg font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
                   {selectedTicket.address && <p className="text-white/75 text-xs mt-0.5">📍 {selectedTicket.address}</p>}
-                  {selectedTicket.status === "Onsite" && navigateToReminderSchedule && (
-                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); navigateToReminderSchedule?.(); }}
+                  {selectedTicket.status === "Onsite" && (
+                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); router.push('/reminder-schedule'); }}
                       className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white"
                       style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
                       🗓️ Lihat Jadwal Reminder
@@ -2337,11 +2339,9 @@ export default function TicketingSystem({ navigateToReminderSchedule }: { naviga
                                           <div className="flex items-center gap-1.5 p-1.5 rounded-lg" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
                                             <span className="text-xs">🗓️</span>
                                             <p className="text-[9px] text-purple-700 font-semibold flex-1">Otomatis buat jadwal Troubleshooting di Reminder Schedule</p>
-                                            {navigateToReminderSchedule && (
-                                              <button onClick={() => { setShowTicketDetailPopup(false); setShowUpdateForm(false); navigateToReminderSchedule?.(); }}
+                                            <button onClick={() => { setShowTicketDetailPopup(false); setShowUpdateForm(false); router.push('/reminder-schedule'); }}
                                                 className="text-[9px] font-bold px-1.5 py-0.5 rounded text-purple-700 hover:text-purple-900"
                                                 style={{ background: 'rgba(124,58,237,0.15)' }}>Buka</button>
-                                            )}
                                           </div>
                                         </div>
                                       )}
