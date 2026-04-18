@@ -1758,7 +1758,17 @@ export default function TicketingSystem() {
                 <SalesDivisionDonutCard data={salesDivisionStats.data} total={salesDivisionStats.total} onSliceClick={(division: string) => { setSalesDivisionFilter((prev: string | null) => prev === division ? null : division); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeDivision={salesDivisionFilter} />
                 <ProductDonutCard data={productStats.data} total={productStats.total} onSliceClick={(prod: string) => { setProductFilter((prev) => prev === prod ? null : prod); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeProduct={productFilter} />
               </div>
+            </div>
+          )}
 
+          {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
+          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
+            {/* Header with title and actions */}
+            <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+                <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? "..." : filteredTickets.length}</span>
+              </div>
               {/* ── Active filter chips ── */}
               {(filterStatus !== "All" || handlerFilter || salesDivisionFilter || productFilter) && (
                 <div className="flex flex-wrap gap-2 items-center">
@@ -1775,20 +1785,9 @@ export default function TicketingSystem() {
                   {productFilter && (
                     <button onClick={() => { setProductFilter(null); setSearchProduct(""); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#6366f1" }}>📦 {productFilter} ✕</button>
                   )}
-                  <button onClick={() => { setFilterStatus("All"); setHandlerFilter(null); setSalesDivisionFilter(null); setProductFilter(null); setSearchProduct(""); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: "rgba(0,0,0,0.1)", color: "#374151" }}>Reset Semua</button>
+                  <button onClick={() => { setFilterStatus("All"); setHandlerFilter(null); setSalesDivisionFilter(null); setProductFilter(null); setSearchProduct(""); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: "rgba(0,0,0,0.1)", color: "#2d84dbff" }}>Reset Semua</button>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
-          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
-            {/* Header with title and actions */}
-            <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
-                <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? "..." : filteredTickets.length}</span>
-              </div>
               <div className="flex items-center gap-2 mt-2 sm:mt-0">
                 <button onClick={() => fetchData()} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: "white" }}>🔄 Refresh</button>
                 <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}>📊 Export Report</button>
