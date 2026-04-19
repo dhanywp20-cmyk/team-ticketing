@@ -962,7 +962,9 @@ export default function Dashboard() {
       if (error || !data) { alert('Username atau password salah!'); return; }
       setCurrentUser(data);
       setIsLoggedIn(true);
+      const now = Date.now();
       localStorage.setItem('currentUser', JSON.stringify(data));
+      localStorage.setItem('loginTime', now.toString());
     } catch { alert('Login gagal!'); }
   };
 
@@ -1011,7 +1013,18 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       const saved = localStorage.getItem('currentUser');
+      const savedTime = localStorage.getItem('loginTime');
       if (!saved) { setLoading(false); return; }
+      // Cek session timeout (6 jam)
+      if (savedTime) {
+        const sixHours = 6 * 60 * 60 * 1000;
+        if (Date.now() - parseInt(savedTime) > sixHours) {
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('loginTime');
+          setLoading(false);
+          return; // Akan tampilkan login form dashboard
+        }
+      }
       try {
         const parsed: User = JSON.parse(saved);
         setCurrentUser(parsed);
@@ -1026,6 +1039,18 @@ export default function Dashboard() {
       setLoading(false);
     };
     load();
+    // Cek session tiap menit
+    const interval = setInterval(() => {
+      const t = localStorage.getItem('loginTime');
+      if (!t) return;
+      if (Date.now() - parseInt(t) > 6 * 60 * 60 * 1000) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('loginTime');
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) return (
