@@ -576,20 +576,22 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const isGuest = roleLC === 'guest';
 
   const fetchAll = useCallback(async () => {
-    // ── 1. Ticket Troubleshooting ──
-    // Cari member dari team_members dulu (sama persis dengan logic ticketing getNotifications)
-    // Ini yang paling akurat — tidak bergantung pada team_type di tabel users
+    // ── Fetch member info dari team_members dulu — source of truth untuk nama & team type
+    // Sama persis dengan logic getNotifications() di ticketing, tidak bergantung users.team_type
+    let assignedName: string = currentUser.full_name;
+    let memberTeamType: string = teamType; // fallback ke users.team_type
     try {
-      // Ambil data member dari team_members berdasarkan username
       const { data: memberData } = await supabase
         .from('team_members')
         .select('name, team_type')
         .eq('username', currentUser.username)
         .maybeSingle();
+      if (memberData?.name) assignedName = memberData.name;
+      if (memberData?.team_type) memberTeamType = memberData.team_type;
+    } catch { /* pakai fallback */ }
 
-      const assignedName = memberData?.name ?? currentUser.full_name;
-      const memberTeamType = memberData?.team_type ?? teamType; // fallback ke users.team_type
-
+    // ── 1. Ticket Troubleshooting ──
+    try {
       if (isAdmin) {
         // Admin/Superadmin: SEMUA ticket belum Solved
         const { data } = await supabase
