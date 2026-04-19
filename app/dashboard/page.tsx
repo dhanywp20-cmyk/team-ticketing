@@ -576,37 +576,22 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const isGuest = roleLC === 'guest';
 
   const fetchAll = useCallback(async () => {
-    // ── FIX: Hapus debounce lastFetch — biarkan interval & realtime yang atur frekuensi
     // ── 1. Ticket Troubleshooting ──
-    // Admin/Superadmin : semua ticket belum Solved
-    // Team PTS         : ticket yang di-assign ke mereka, belum Solved
-    // Guest            : ticket yang mereka buat/mapping, belum Solved
-    // Sales/TeamServices: tidak dapat notif ticket
+    // Cari member dari team_members dulu (sama persis dengan logic ticketing getNotifications)
+    // Ini yang paling akurat — tidak bergantung pada team_type di tabel users
     try {
-      if (isTeamServices) {
-        // Team Services: ticket yang di-assign ke mereka dengan services_status belum Solved
-        const { data: member } = await supabase
-          .from('team_members').select('name')
-          .eq('username', currentUser.username).maybeSingle();
-        const assignedName = member?.name ?? currentUser.full_name;
-        const { data } = await supabase
-          .from('tickets')
-          .select('id, project_name, issue_case, assigned_to, status, services_status, created_at')
-          .eq('assigned_to', assignedName)
-          .neq('services_status', 'Solved')
-          .not('services_status', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(30);
-        setTicketNotifs((data ?? []).map((t: any) => ({
-          id: t.id, type: 'ticket' as const,
-          title: t.project_name,
-          subtitle: `Svc: ${t.services_status} · ${t.issue_case}`,
-          time: t.created_at,
-          url: '/ticketing', internalUrl: '/ticketing',
-          menuTitle: 'Ticket Troubleshooting',
-        })));
-      } else if (isAdmin) {
-        // Admin: SEMUA ticket belum Solved
+      // Ambil data member dari team_members berdasarkan username
+      const { data: memberData } = await supabase
+        .from('team_members')
+        .select('name, team_type')
+        .eq('username', currentUser.username)
+        .maybeSingle();
+
+      const assignedName = memberData?.name ?? currentUser.full_name;
+      const memberTeamType = memberData?.team_type ?? teamType; // fallback ke users.team_type
+
+      if (isAdmin) {
+        // Admin/Superadmin: SEMUA ticket belum Solved
         const { data } = await supabase
           .from('tickets')
           .select('id, project_name, issue_case, assigned_to, status, created_at')
@@ -621,28 +606,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           url: '/ticketing', internalUrl: '/ticketing',
           menuTitle: 'Ticket Troubleshooting',
         })));
-      } else if (isTeamPTS) {
-        // Team PTS: yang di-assign ke mereka, belum Solved
-        const { data: member } = await supabase
-          .from('team_members').select('name')
-          .eq('username', currentUser.username).maybeSingle();
-        const assignedName = member?.name ?? currentUser.full_name;
-        const { data } = await supabase
-          .from('tickets')
-          .select('id, project_name, issue_case, assigned_to, status, created_at')
-          .neq('status', 'Solved')
-          .eq('assigned_to', assignedName)
-          .order('created_at', { ascending: false })
-          .limit(30);
-        setTicketNotifs((data ?? []).map((t: any) => ({
-          id: t.id, type: 'ticket' as const,
-          title: t.project_name,
-          subtitle: `${t.status} · ${t.issue_case}`,
-          time: t.created_at,
-          url: '/ticketing', internalUrl: '/ticketing',
-          menuTitle: 'Ticket Troubleshooting',
-        })));
-      } else if (isGuest) {
+      } else if (roleLC === 'guest') {
         // Guest: ticket yang dibuat sendiri atau di-mapping admin
         const { data: mappings } = await supabase
           .from('guest_mappings').select('project_name')
@@ -666,6 +630,46 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           url: '/ticketing', internalUrl: '/ticketing',
           menuTitle: 'Ticket Troubleshooting',
         })));
+      } else if (roleLC === 'team' || roleLC === 'team_pts') {
+        // Team (PTS atau Services) — pakai assignedName dari team_members
+        // Sama persis dengan getNotifications() di ticketing
+        if (memberTeamType === 'Team Services') {
+          // Team Services: ticket assigned ke mereka, services_status belum Solved
+          const { data } = await supabase
+            .from('tickets')
+            .select('id, project_name, issue_case, assigned_to, status, services_status, created_at')
+            .eq('assigned_to', assignedName)
+            .neq('services_status', 'Solved')
+            .not('services_status', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(30);
+          setTicketNotifs((data ?? []).map((t: any) => ({
+            id: t.id, type: 'ticket' as const,
+            title: t.project_name,
+            subtitle: `Svc: ${t.services_status} · ${t.issue_case}`,
+            time: t.created_at,
+            url: '/ticketing', internalUrl: '/ticketing',
+            menuTitle: 'Ticket Troubleshooting',
+          })));
+        } else {
+          // Team PTS: ticket assigned ke mereka, status bukan Solved
+          // Filter sama dengan getNotifications(): Pending/In Progress/Overdue
+          const { data } = await supabase
+            .from('tickets')
+            .select('id, project_name, issue_case, assigned_to, status, created_at')
+            .eq('assigned_to', assignedName)
+            .neq('status', 'Solved')
+            .order('created_at', { ascending: false })
+            .limit(30);
+          setTicketNotifs((data ?? []).map((t: any) => ({
+            id: t.id, type: 'ticket' as const,
+            title: t.project_name,
+            subtitle: `${t.status} · ${t.issue_case}`,
+            time: t.created_at,
+            url: '/ticketing', internalUrl: '/ticketing',
+            menuTitle: 'Ticket Troubleshooting',
+          })));
+        }
       } else {
         // Sales dan role lain: tidak dapat notif ticket
         setTicketNotifs([]);
@@ -673,10 +677,13 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     } catch (e) { console.error('[notif] ticket fetch error:', e); }
 
     // ── 2. Form Require Project ──
+    // Pakai memberTeamType dari team_members (sudah di-fetch di bagian ticket di atas)
     // Admin/Team PTS  : semua request belum completed/rejected
     // Guest/Sales     : hanya milik sendiri belum selesai
     // Team Services   : tidak dapat notif require
-    if (isTeamServices) {
+    const isEffectiveTeamServices = memberTeamType === 'Team Services';
+    const isEffectiveTeamPTS = !isAdmin && (roleLC === 'team' || roleLC === 'team_pts') && memberTeamType !== 'Team Services';
+    if (isEffectiveTeamServices) {
       setRequireNotifs([]);
     } else {
       try {
@@ -685,7 +692,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           .select('id, project_name, room_name, requester_name, status, created_at, requester_id')
           .neq('status', 'completed')
           .neq('status', 'rejected');
-        if (!isAdmin && !isTeamPTS) {
+        if (!isAdmin && !isEffectiveTeamPTS) {
           // Guest / Sales: hanya milik sendiri
           q = q.eq('requester_id', currentUser.id);
         }
@@ -703,9 +710,9 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
 
     // ── 3. Reminder Schedule ──
     // Admin/Superadmin : semua reminder belum done/cancelled
-    // Team PTS         : reminder di-assign ke mereka, belum done/cancelled
+    // Team PTS         : reminder di-assign ke mereka (assigned_to = username), belum done/cancelled
     // Guest/Sales/Services: tidak dapat notif reminder
-    if (!isAdmin && !isTeamPTS) {
+    if (!isAdmin && !isEffectiveTeamPTS) {
       setReminderNotifs([]);
     } else {
       try {
@@ -714,7 +721,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           .select('id, project_name, category, due_date, due_time, assigned_to, assigned_name, status, created_at')
           .neq('status', 'done')
           .neq('status', 'cancelled');
-        if (isTeamPTS) {
+        if (isEffectiveTeamPTS) {
+          // Reminder assigned_to menyimpan username
           q = q.eq('assigned_to', currentUser.username);
         }
         const { data } = await q.order('due_date', { ascending: true }).limit(30);
@@ -737,7 +745,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         }
       } catch (e) { console.error('[notif] reminder fetch error:', e); }
     }
-  }, [currentUser, isAdmin, isTeamPTS, isGuest, isTeamServices]);
+  }, [currentUser, isAdmin, roleLC, teamType]);
 
   // Trigger fetchAll saat pertama mount dan setiap kali fetchAll berubah (= saat currentUser berubah)
   useEffect(() => {
@@ -833,8 +841,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       />
       )}
 
-      {/* Reminder Bell — hanya tampil untuk admin, superadmin, Team PTS — tidak untuk Team Services, guest, sales */}
-      {(isAdmin || isTeamPTS) && (
+      {/* Reminder Bell — tampil untuk admin/superadmin dan semua role 'team' yang bukan Team Services */}
+      {(isAdmin || (roleLC === 'team' && !isTeamServices)) && (
       <NotifBell
         icon="⏰"
         label="Reminder"
@@ -999,11 +1007,18 @@ export default function Dashboard() {
 
   // Handler for notification bar navigation
   const handleNotifNavigate = (navInternalUrl: string, title: string) => {
+    // Reset state dulu ke null agar React selalu re-render iframe meskipun URL sama
     setIframeUrl(null);
-    setShowTicketing(true);
-    setInternalUrl(navInternalUrl);
-    setIframeTitle(title);
-    setShowSidebar(true);
+    setShowTicketing(false);
+    setInternalUrl('/ticketing'); // reset sementara
+    setIframeTitle('');
+    // Setelah reset, set URL tujuan — iframe akan mount ulang & fetch data fresh
+    setTimeout(() => {
+      setShowTicketing(true);
+      setInternalUrl(navInternalUrl);
+      setIframeTitle(title);
+      setShowSidebar(true);
+    }, 50);
   };
 
   const handleBackToDashboard = () => {
