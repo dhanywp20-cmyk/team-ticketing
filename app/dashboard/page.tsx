@@ -576,19 +576,23 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const isGuest = roleLC === 'guest';
 
   const fetchAll = useCallback(async () => {
-    // ── Fetch member info dari team_members dulu — source of truth untuk nama & team type
-    // Sama persis dengan logic getNotifications() di ticketing, tidak bergantung users.team_type
+    // ── Fetch member info dari team_members — source of truth untuk nama & team type
     let assignedName: string = currentUser.full_name;
-    let memberTeamType: string = teamType; // fallback ke users.team_type
+    let memberTeamType: string = teamType;
     try {
-      const { data: memberData } = await supabase
+      // Coba match username case-insensitive
+      const { data: allMembers } = await supabase
         .from('team_members')
-        .select('name, team_type')
-        .eq('username', currentUser.username)
-        .maybeSingle();
-      if (memberData?.name) assignedName = memberData.name;
-      if (memberData?.team_type) memberTeamType = memberData.team_type;
+        .select('name, team_type, username');
+      if (allMembers && allMembers.length > 0) {
+        const found = (allMembers as any[]).find(m =>
+          (m.username ?? '').toLowerCase().trim() === currentUser.username.toLowerCase().trim()
+        );
+        if (found?.name) assignedName = found.name;
+        if (found?.team_type) memberTeamType = found.team_type;
+      }
     } catch { /* pakai fallback */ }
+    console.log('[notif] user:', currentUser.username, '| role:', roleLC, '| assignedName:', assignedName, '| memberTeamType:', memberTeamType);
 
     // ── 1. Ticket Troubleshooting ──
     try {
@@ -600,6 +604,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           .neq('status', 'Solved')
           .order('created_at', { ascending: false })
           .limit(50);
+        console.log('[notif] admin tickets:', data?.length ?? 0);
         setTicketNotifs((data ?? []).map((t: any) => ({
           id: t.id, type: 'ticket' as const,
           title: t.project_name,
@@ -655,7 +660,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           })));
         } else {
           // Team PTS: ticket assigned ke mereka, status bukan Solved
-          // Filter sama dengan getNotifications(): Pending/In Progress/Overdue
+          console.log('[notif] Team PTS query: assigned_to =', assignedName);
           const { data } = await supabase
             .from('tickets')
             .select('id, project_name, issue_case, assigned_to, status, created_at')
@@ -663,6 +668,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
             .neq('status', 'Solved')
             .order('created_at', { ascending: false })
             .limit(30);
+          console.log('[notif] Team PTS tickets found:', data?.length ?? 0, data?.map((t:any) => t.assigned_to));
           setTicketNotifs((data ?? []).map((t: any) => ({
             id: t.id, type: 'ticket' as const,
             title: t.project_name,
