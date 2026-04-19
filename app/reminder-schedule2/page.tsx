@@ -626,7 +626,6 @@ export default function ReminderSchedulePage() {
   useEffect(() => {
     const initApp = async () => {
       await fetchTeamUsers();
-      await fetchRemindersQuiet();
       // ── No session timeout on this page — auth handled by Dashboard ──
       const saved = localStorage.getItem('currentUser');
       if (saved) {
@@ -634,14 +633,58 @@ export default function ReminderSchedulePage() {
         setCurrentUser(user);
         setIsLoggedIn(true);
         setLoginTime(Date.now());
+        // Re-fetch dengan user yang sudah diketahui, lalu trigger popup
+        await fetchRemindersQuiet(user);
+        // Tampilkan popup notif reminder aktif (sama seperti handleLogin)
+        // Hanya untuk role team (handler) yang punya reminder diassign ke mereka
+        if (user.role === 'team' || user.role === 'admin') {
+          // Ambil reminder aktif yang diassign ke user ini
+          const { data: activeData } = await supabase
+            .from('reminders')
+            .select('*')
+            .eq('assigned_to', user.username)
+            .neq('status', 'done')
+            .neq('status', 'cancelled')
+            .order('due_date', { ascending: true });
+          const active = (activeData ?? []) as Reminder[];
+          if (active.length > 0) {
+            setMyReminders(active);
+            setTimeout(() => setShowNotificationPopup(true), 800);
+          }
+        }
+      } else {
+        await fetchRemindersQuiet();
       }
-      setTimeout(() => setAppReady(true), 1800);
+      setAppReady(true); // langsung ready setelah data fetched
     };
     initApp();
     const ch = supabase.channel('reminders-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => fetchRemindersQuiet())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
+        // Pakai user dari localStorage langsung agar tidak bergantung pada state yang mungkin belum set
+        const savedUser = localStorage.getItem('currentUser');
+        const u = savedUser ? JSON.parse(savedUser) as TeamUser : null;
+        fetchRemindersQuiet(u);
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  // ─── Session timeout check ───────────────────────────────────────────────
+  useEffect(() => {
+    const checkSession = () => {
+      const savedTime = localStorage.getItem('loginTime');
+      if (!savedTime) return;
+      const sixHours = 6 * 60 * 60 * 1000;
+      if (Date.now() - parseInt(savedTime) > sixHours) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('loginTime');
+        const target = window.top !== window ? window.top : window;
+        if (target) target.location.href = '/dashboard';
+      }
+    };
+    checkSession(); // cek langsung saat mount
+    const interval = setInterval(checkSession, 60000); // cek tiap menit
+    return () => clearInterval(interval);
   }, []);
 
   // ─── H-1 WA auto-send ────────────────────────────────────────────────────
@@ -655,10 +698,15 @@ export default function ReminderSchedulePage() {
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
-    const activeUser = user ?? currentUser;
+    // Fallback: kalau user param tidak ada, ambil dari state, kalau tidak ada ambil dari localStorage
+    let activeUser: TeamUser | null = user ?? currentUser;
+    if (!activeUser) {
+      const saved = localStorage.getItem('currentUser');
+      if (saved) { try { activeUser = JSON.parse(saved) as TeamUser; } catch { /* ignore */ } }
+    }
     let query = supabase.from('reminders').select('*')
-      .order('created_at', { ascending: false }); // ← Terbaru di atas
-    // role 'team' hanya lihat reminder yang diassign ke dia (sama seperti ticketing)
+      .order('created_at', { ascending: false });
+    // role 'team' hanya lihat reminder yang diassign ke dia
     if (activeUser?.role === 'team') {
       query = query.eq('assigned_to', activeUser.username);
     }
@@ -669,10 +717,16 @@ export default function ReminderSchedulePage() {
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchReminders = async () => {
     setListLoading(true);
+    // Fallback ke localStorage kalau currentUser state belum ready
+    let activeUser: TeamUser | null = currentUser;
+    if (!activeUser) {
+      const saved = localStorage.getItem('currentUser');
+      if (saved) { try { activeUser = JSON.parse(saved) as TeamUser; } catch { /* ignore */ } }
+    }
     let query = supabase.from('reminders').select('*')
-      .order('created_at', { ascending: false }); // ← Terbaru di atas
-    if (currentUser?.role === 'team') {
-      query = query.eq('assigned_to', currentUser.username);
+      .order('created_at', { ascending: false });
+    if (activeUser?.role === 'team') {
+      query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
     if (!error && data) setReminders(data as Reminder[]);
@@ -965,6 +1019,9 @@ export default function ReminderSchedulePage() {
   const handleLogout = () => {
     localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
     setCurrentUser(null); setIsLoggedIn(false); setLoginTime(null);
+    // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
+    const target = window.top !== window ? window.top : window;
+    if (target) target.location.href = '/dashboard';
   };
 
   const handleLogin = async () => {
