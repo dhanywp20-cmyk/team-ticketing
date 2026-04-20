@@ -9,63 +9,29 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ─── Fonnte WA via Supabase Edge Function (same pattern as ticketing) ────────
-// ── Fonnte token di-cache dari Supabase app_settings ─────────────────────────
-let _fonnteToken: string | null = null;
-async function getFonnteToken(): Promise<string | null> {
-  if (_fonnteToken) return _fonnteToken;
-  try {
-    const { data } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'fonnte_token')
-      .single();
-    if (data?.value) {
-      // value di JSONB bisa berupa string dengan kutip: '"token"' → strip kutip
-      const raw = data.value;
-      _fonnteToken = typeof raw === 'string' ? raw.replace(/^"|"$/g, '') : String(raw);
-      return _fonnteToken;
-    }
-  } catch { /* fallback ke env */ }
-  const envToken = process.env.NEXT_PUBLIC_FONNTE_TOKEN;
-  if (envToken) { _fonnteToken = envToken; return _fonnteToken; }
-  return null;
-}
-
+// ── WA via Supabase Edge Function notify-handler ─────────────────────────────
+// Semua WA dikirim server-side (bukan dari browser) untuk hindari CORS
 async function sendFonnteWA(
   target: string,
   message: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _meta?: Record<string, unknown>
+  meta?: Record<string, unknown>
 ): Promise<{ ok: boolean; reason?: string }> {
   try {
-    const token = await getFonnteToken();
-    if (!token) return { ok: false, reason: 'Token Fonnte tidak ditemukan. Set di app_settings (key: fonnte_token) atau env NEXT_PUBLIC_FONNTE_TOKEN.' };
-
-    const phone = target.replace(/\D/g, '').replace(/^0/, '62');
-    console.log('[Fonnte debug] token length:', token.length, '| token:', token);
-    console.log('[Fonnte debug] phone:', phone);
-
-    if (!phone) return { ok: false, reason: 'Nomor telepon kosong setelah formatting.' };
-
-    const form = new URLSearchParams();
-    form.append('target', phone);
-    form.append('message', message);
-    form.append('countryCode', '62');
-
-    const res = await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const { data, error } = await supabase.functions.invoke('notify-handler', {
+      body: {
+        type: 'reminder_wa',
+        target,
+        message,
+        ...(meta?.reminder_id ? { reminder_id: meta.reminder_id } : {}),
+        ...(meta?.mark_h1_sent ? { mark_h1_sent: meta.mark_h1_sent } : {}),
       },
-      body: form.toString(),
     });
-    const data = await res.json();
-    console.log('[Fonnte response]', data);
-
-    if (data.status === true) return { ok: true };
-    return { ok: false, reason: data.reason || data.message || JSON.stringify(data) };
+    if (error) {
+      console.error('[sendFonnteWA] Edge function error:', error);
+      return { ok: false, reason: error.message };
+    }
+    console.log('[sendFonnteWA] response:', data);
+    return { ok: data?.ok === true, reason: data?.reason };
   } catch (err) {
     return { ok: false, reason: String(err) };
   }
