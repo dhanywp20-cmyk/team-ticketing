@@ -22,9 +22,6 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    // DEBUG: tampilkan apa yang akan dikirim
-    console.log("[DEBUG WA] Calling swift-responder with:", JSON.stringify(body));
-    alert("[DEBUG WA] Sending to: " + supabaseUrl + "/functions/v1/swift-responder\ntype: " + body.type + "\ntarget: " + (body.target || "N/A"));
     const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
       method: "POST",
       headers: {
@@ -34,14 +31,10 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
       },
       body: JSON.stringify(body),
     });
-    const text = await res.text();
-    console.log("[DEBUG WA] HTTP status:", res.status, "response:", text);
-    alert("[DEBUG WA] HTTP " + res.status + " Response: " + text);
-    const data = JSON.parse(text);
+    const data = await res.json();
     console.log("[sendWANotif] response:", data);
   } catch (err: any) {
     console.error("[sendWANotif] error:", err.message);
-    alert("[DEBUG WA] ERROR: " + err.message);
   }
 }
 // ── Status list khusus Team Services ─────────────────────────────────────────
@@ -920,15 +913,16 @@ export default function TicketingSystem() {
           if (!existingMapping) await supabase.from("guest_mappings").insert([{ guest_username: approvalTicket.created_by, project_name: approvalTicket.project_name }]);
         }
       }
-      // ── WA ke handler yang di-assign (cari phone di frontend) ───────────
+      // ── WA ke handler yang di-assign ──────────────────────────────────────
       try {
-        // Cari phone number handler dari team_members berdasarkan nama
+        // Pakai ilike untuk case-insensitive match (dhany = Dhany = DHANY)
         const { data: hByName } = await supabase
           .from("users").select("phone_number, full_name")
-          .eq("full_name", approvalAssignee).maybeSingle();
-        const handlerUser = hByName?.phone_number ? hByName
-          : (await supabase.from("users").select("phone_number, full_name")
-            .eq("username", approvalAssignee).maybeSingle()).data;
+          .ilike("full_name", approvalAssignee).maybeSingle();
+        const { data: hByUser } = await supabase
+          .from("users").select("phone_number, full_name")
+          .ilike("username", approvalAssignee).maybeSingle();
+        const handlerUser = hByName?.phone_number ? hByName : hByUser;
         if (handlerUser?.phone_number) {
           const waMsg = [
             "🎫 *Ticket Assigned ke Kamu*",
@@ -985,14 +979,16 @@ export default function TicketingSystem() {
         assigned_to_services: false,
         file_url: "", file_name: "", photo_url: "", photo_name: ""
       }]);
-      // ── WA ke handler yang di-assign saat reopen ─────────────────────────
+      // ── WA ke handler saat reopen ───────────────────────────────────────────
       try {
+        // ilike = case-insensitive (dhany = Dhany)
         const { data: rhByName } = await supabase
           .from("users").select("phone_number, full_name")
-          .eq("full_name", reopenAssignee).maybeSingle();
-        const reopenHandler = rhByName?.phone_number ? rhByName
-          : (await supabase.from("users").select("phone_number, full_name")
-            .eq("username", reopenAssignee).maybeSingle()).data;
+          .ilike("full_name", reopenAssignee).maybeSingle();
+        const { data: rhByUser } = await supabase
+          .from("users").select("phone_number, full_name")
+          .ilike("username", reopenAssignee).maybeSingle();
+        const reopenHandler = rhByName?.phone_number ? rhByName : rhByUser;
         if (reopenHandler?.phone_number) {
           const waMsg = [
             "🔓 *Ticket Re-opened ke Kamu*",
