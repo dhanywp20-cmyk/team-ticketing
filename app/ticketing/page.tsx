@@ -22,6 +22,9 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    // DEBUG: tampilkan apa yang akan dikirim
+    console.log("[DEBUG WA] Calling swift-responder with:", JSON.stringify(body));
+    alert("[DEBUG WA] Sending to: " + supabaseUrl + "/functions/v1/swift-responder\ntype: " + body.type + "\ntarget: " + (body.target || "N/A"));
     const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
       method: "POST",
       headers: {
@@ -31,10 +34,14 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
       },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const text = await res.text();
+    console.log("[DEBUG WA] HTTP status:", res.status, "response:", text);
+    alert("[DEBUG WA] HTTP " + res.status + " Response: " + text);
+    const data = JSON.parse(text);
     console.log("[sendWANotif] response:", data);
   } catch (err: any) {
     console.error("[sendWANotif] error:", err.message);
+    alert("[DEBUG WA] ERROR: " + err.message);
   }
 }
 // ── Status list khusus Team Services ─────────────────────────────────────────
