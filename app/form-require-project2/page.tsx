@@ -2706,7 +2706,7 @@ Hubungi Admin untuk info lebih lanjut.
                   Layout Konten & Jaringan
                 </h3>
                 <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
-                  value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
+                  value={editFormData.layout_signage?.[0] || ''} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v ? [v] : [] }))} />
                 <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
                   value={editFormData.jaringan_cms} onChange={v => setEditFormData(p => ({ ...p, jaringan_cms: v }))} />
                 <div className="grid grid-cols-2 gap-3 mt-3">
