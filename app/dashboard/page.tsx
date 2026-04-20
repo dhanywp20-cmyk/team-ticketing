@@ -1010,7 +1010,7 @@ export default function Dashboard() {
         setShowSidebar(true); setIframeUrl(item.url);
         setIframeTitle(`${menuTitle} - ${item.name}`);
       }
-    }, 50);
+    }, 150);
   };
 
   // Handler for notification bar navigation
@@ -1026,7 +1026,7 @@ export default function Dashboard() {
       setInternalUrl(navInternalUrl);
       setIframeTitle(title);
       setShowSidebar(true);
-    }, 50);
+    }, 150);
   };
 
   const handleBackToDashboard = () => {
