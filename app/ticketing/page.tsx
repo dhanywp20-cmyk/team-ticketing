@@ -2349,7 +2349,7 @@ export default function TicketingSystem() {
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex flex-col gap-1 items-start">
                               <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
-                              {overdue && <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Overdue" : "🚨 Overdue"}</span>}
+                              {overdue && <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Overdue" : "🚨 Overdue"}</span>}
                               {ticket.services_status && <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
                               {ticket.status === "Onsite" && (
                                 <button
