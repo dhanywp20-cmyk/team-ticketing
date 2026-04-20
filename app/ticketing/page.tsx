@@ -1724,7 +1724,6 @@ export default function TicketingSystem() {
       let statusMatch = false;
       if (filterStatus === "All") statusMatch = true;
       else if (filterStatus === "Overdue") statusMatch = isTicketOverdue(t) && t.status !== "Solved";
-      else if (filterStatus === "Solved Overdue") statusMatch = isTicketOverdue(t) && t.status === "Solved";
       else if (currentUserTeamType === "Team Services") statusMatch = t.services_status === filterStatus || t.status === filterStatus;
       else statusMatch = t.status === filterStatus;
       const handlerMatch = handlerFilter === null || t.assign_name === handlerFilter;
@@ -2122,14 +2121,13 @@ export default function TicketingSystem() {
           {(currentUser?.role === "admin" || currentUser?.role === "superadmin" || (currentUser?.role === "team" && currentUserTeamType === "Team PTS" || currentUserTeamType === "Guest")) && (
             <div className="mb-4 space-y-4">
               {/* ── Stat Cards (Redesigned like ReminderSchedule) ── */}
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
                   { label: "Total Tickets", value: stats.total, sub: "Seluruh tiket", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)", onClick: () => { setFilterStatus("All"); setHandlerFilter(null); }, active: filterStatus === "All" && !handlerFilter },
                   { label: "Pending", value: stats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)", onClick: () => { setFilterStatus(filterStatus === "Pending" ? "All" : "Pending"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Pending" },
                   { label: "In Progress", value: stats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)", onClick: () => { setFilterStatus(filterStatus === "In Progress" ? "All" : "In Progress"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "In Progress" },
                   { label: "Solved", value: stats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)", onClick: () => { setFilterStatus(filterStatus === "Solved" ? "All" : "Solved"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Solved" },
                   { label: "Overdue", value: stats.overdue, sub: "Berpotensi denda", gradient: "linear-gradient(135deg,#dc2626,#b91c1c)", shadow: "rgba(220,38,38,0.35)", onClick: () => { setFilterStatus(filterStatus === "Overdue" ? "All" : "Overdue"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Overdue" },
-                  { label: "Solved Overdue", value: stats.solvedOverdue, sub: "Butuh verifikasi", gradient: "linear-gradient(135deg,#7c3aed,#6d28d9)", shadow: "rgba(124,58,237,0.35)", onClick: () => { setFilterStatus(filterStatus === "Solved Overdue" ? "All" : "Solved Overdue"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Solved Overdue" },
                 ].map((card, i) => (
                   <div key={i} onClick={card.onClick} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none" style={{ background: card.gradient, boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`, outline: card.active ? "3px solid white" : "none", transform: card.active ? "scale(1.04)" : undefined }}>
                     {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
@@ -2264,7 +2262,6 @@ export default function TicketingSystem() {
                       {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && (
                         <>
                           <option value="Overdue">🚨 Overdue</option>
-                          <option value="Solved Overdue">⚠️ Solved Overdue</option>
                         </>
                       )}
                     </select>
@@ -2351,9 +2348,9 @@ export default function TicketingSystem() {
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assign_name}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex flex-col gap-1 items-start">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
-                              {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
-                              {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
+                              <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
+                              {overdue && <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Overdue" : "🚨 Overdue"}</span>}
+                              {ticket.services_status && <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
                               {ticket.status === "Onsite" && (
                                 <button
                                   onClick={e => { e.stopPropagation(); router.push('/reminder-schedule'); }}
