@@ -1626,35 +1626,34 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Total', value: stats.total, sub: 'Semua request', gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)', onClick: () => setFilterStatus('all'), active: filterStatus === 'all' },
-            { label: 'Pending', value: stats.pending, sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)', onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'), active: filterStatus === 'pending' },
-            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)', onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
-            { label: 'Completed', value: stats.completed, sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)', onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
-            { label: 'Rejected', value: stats.rejected, sub: 'Ditolak', gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)', onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'), active: filterStatus === 'rejected' },
+            { label: 'Total', value: stats.total, sub: 'Semua request', gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', shadow: 'rgba(79,70,229,0.35)', onClick: () => setFilterStatus('all'), active: filterStatus === 'all' },
+            { label: 'Pending', value: stats.pending, sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', shadow: 'rgba(217,119,6,0.35)', onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'), active: filterStatus === 'pending' },
+            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', shadow: 'rgba(37,99,235,0.35)', onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
+            { label: 'Completed', value: stats.completed, sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', shadow: 'rgba(5,150,105,0.35)', onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
+            { label: 'Rejected', value: stats.rejected, sub: 'Ditolak', gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', shadow: 'rgba(220,38,38,0.35)', onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'), active: filterStatus === 'rejected' },
           ].map(card => (
             <div key={card.label} onClick={card.onClick}
               className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
               style={{ background: card.gradient, boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`, outline: card.active ? '3px solid white' : 'none', transform: card.active ? 'scale(1.04)' : undefined }}>
-              <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
               {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
-              <span className="text-3xl font-black text-white leading-none">{card.value}</span>
+              {card.active && <span className="absolute top-1 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
+              <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
               <div>
                 <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
                 <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
               </div>
-              {card.active && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter ✓</span>}
             </div>
           ))}
         </div>
 
-        {/* Pie Charts */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MiniPieChart data={statusPieData} title="Status Request" icon="📊"
+        {/* Charts - same structure as reference */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <MiniPieChart data={statusPieData} title="Status Distribution" icon="🥧"
             onSliceClick={label => {
               const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
               setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
             }} />
-          <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="👤"
+          <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="🥧"
             onSliceClick={label => {
               setFilterDivision(prev => prev === label ? 'all' : label);
             }} />
@@ -1662,268 +1661,277 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
         </div>
 
-        {/* Active filter chips */}
+        {/* Active filter chips — same as reference */}
         {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
-            {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>🏷️ {filterStatus} ✕</button>}
-            {filterYear !== 'all' && <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>📅 {filterYear} ✕</button>}
-            {filterMonth !== 'all' && <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>🗓️ Bln {filterMonth} ✕</button>}
-            {filterHandler !== 'all' && <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>👷 {filterHandler} ✕</button>}
-            {filterDivision !== 'all' && <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0d9488' }}>🏢 {filterDivision} ✕</button>}
-            {searchQuery && <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>🔍 {searchQuery} ✕</button>}
-            {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
-            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales(''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
+            {filterStatus !== 'all' && (
+              <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {filterStatus} ✕</button>
+            )}
+            {filterYear !== 'all' && (
+              <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>Year: {filterYear} ✕</button>
+            )}
+            {filterMonth !== 'all' && (
+              <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>Bulan: {filterMonth} ✕</button>
+            )}
+            {filterHandler !== 'all' && (
+              <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>Handler: {filterHandler} ✕</button>
+            )}
+            {filterDivision !== 'all' && (
+              <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#ec4899' }}>Division: {filterDivision} ✕</button>
+            )}
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Search: {searchQuery} ✕</button>
+            )}
+            {searchSales && (
+              <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Sales: {searchSales} ✕</button>
+            )}
+            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales(''); }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
           </div>
         )}
 
-        {/* TICKET LIST */}
+        {/* TICKET LIST — matching reference style */}
         <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
 
-          {/* Search + filter bar */}
-          <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            <div className="flex-1 min-w-[150px] relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search project / lokasi / ruangan..." />
+          {/* Header with title + actions — same as reference */}
+          <div className="flex flex-wrap items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+              <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{loading ? '…' : filteredRequests.length}</span>
             </div>
-            <div className="flex-1 min-w-[130px] relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search sales / requester..." />
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
-              <select value={filterHandler} onChange={e => setFilterHandler(e.target.value)}
-                className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 160 }}>
-                <option value="all">Semua Handler</option>
-                {ptsMembersList.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-            </div>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 140 }}>
-                <option value="all">All Status</option>
-                <option value="pending">⏳ Pending</option>
-                <option value="approved">✅ Approved</option>
-                <option value="in_progress">🔄 In Progress</option>
-                <option value="completed">🏆 Completed</option>
-                <option value="rejected">❌ Rejected</option>
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-            </div>
-            <div className="relative">
-              <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
-                <option value="all">Semua Tahun</option>
-                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-            </div>
-            <div className="relative">
-              <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-                className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
-                <option value="all">Semua Bulan</option>
-                <option value="01">Januari</option>
-                <option value="02">Februari</option>
-                <option value="03">Maret</option>
-                <option value="04">April</option>
-                <option value="05">Mei</option>
-                <option value="06">Juni</option>
-                <option value="07">Juli</option>
-                <option value="08">Agustus</option>
-                <option value="09">September</option>
-                <option value="10">Oktober</option>
-                <option value="11">November</option>
-                <option value="12">Desember</option>
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <button onClick={fetchRequests} disabled={loading}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: 'white' }}>
+                <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Refresh
+              </button>
             </div>
           </div>
 
-          {/* Sub-header */}
-          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
-              <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-bold flex items-center justify-center">{loading ? '…' : filteredRequests.length}</span>
+          {/* Search + filter grid — labeled like reference */}
+          <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Lokasi</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                  <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search project / lokasi..."
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales / Requester</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
+                  <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                    placeholder="Search sales / requester..."
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👥</span>
+                  <select value={filterHandler} onChange={e => setFilterHandler(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Handlers</option>
+                    {ptsMembersList.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
+                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Status</option>
+                    <option value="pending">⏳ Pending</option>
+                    <option value="approved">✅ Approved</option>
+                    <option value="in_progress">🔄 In Progress</option>
+                    <option value="completed">🏆 Completed</option>
+                    <option value="rejected">❌ Rejected</option>
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                  <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Years</option>
+                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Bulan</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🗓️</span>
+                  <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Months</option>
+                    <option value="01">Januari</option>
+                    <option value="02">Februari</option>
+                    <option value="03">Maret</option>
+                    <option value="04">April</option>
+                    <option value="05">Mei</option>
+                    <option value="06">Juni</option>
+                    <option value="07">Juli</option>
+                    <option value="08">Agustus</option>
+                    <option value="09">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
             </div>
-            <button onClick={fetchRequests} disabled={loading}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
-              style={{ background: 'white' }}>
-              <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Refresh
-            </button>
-          </div>
-
-          {/* Table header */}
-          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-500"
-            style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px', borderBottom: '2px solid #e5e7eb', background: '#f1f5f9', borderTop: '1px solid #e5e7eb' }}>
-            <span className="pr-3 border-r-2 border-gray-300 py-1">NAMA PROJECT</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">LOKASI</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">SALES</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">HANDLER</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">STATUS</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">DUE DATE</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">CREATED BY</span>
-            <span className="pl-3 py-1 text-center">ACTION</span>
           </div>
 
           {/* Table body */}
           {loading ? (
-            <div className="space-y-0">
+            <div className="space-y-3 py-2 p-4">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="animate-pulse hidden md:grid px-5 py-3.5 border-b border-gray-200"
-                  style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px' }}>
-                  <div className="pr-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/2 mt-1" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-16" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /></div>
-                  <div className="pl-3"><div className="h-7 bg-gray-100 rounded-lg w-16" /></div>
+                <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-2/5" />
+                    <div className="h-3 bg-gray-100 rounded w-1/4" />
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 rounded w-1/5" />
+                  <div className="h-6 bg-gray-200 rounded-full w-20" />
+                  <div className="h-8 bg-gray-200 rounded-lg w-16" />
                 </div>
               ))}
-              <div className="flex items-center justify-center gap-3 py-6 text-gray-400">
+              <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
                 <div className="w-5 h-5 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium">Memuat data...</span>
               </div>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="text-4xl mb-3">📭</div>
-              <p className="text-gray-600 font-semibold">Tidak ada request ditemukan</p>
-              <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau buat request baru</p>
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📭</div>
+              <p className="text-gray-600 font-medium">{searchQuery || searchSales || filterStatus !== 'all' ? 'Tidak ada request yang sesuai filter.' : 'Belum ada request.'}</p>
               {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
-            <div>
-              {filteredRequests.map((req) => {
-                const sc = statusConfig[req.status] || statusConfig.pending;
-                const unread = unreadMsgMap[req.id] || 0;
-                const dueStatus = getDueStatus(req.due_date, req.status);
-                const isToday = req.due_date === new Date().toISOString().split('T')[0];
-                return (
-                  <div key={req.id}>
-                    {/* Mobile row */}
-                    <div className="md:hidden px-4 py-3 transition-colors border-b border-gray-100"
-                      style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                            <p className="font-bold text-gray-800 text-sm truncate">{req.project_name}</p>
-                          </div>
-                          {req.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {req.project_location}</p>}
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
-                        <span>{req.sales_name}{req.sales_division ? ` · ${req.sales_division}` : ''}</span>
-                        <span>{dueStatus ? `🎯 ${dueStatus.label}` : new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
-                      </div>
-                      <div className="flex gap-1.5">
-                        {(isPTS && !isTeamPTS && req.status === 'pending') && (
-                          <>
-                            <button onClick={() => handleApprove(req)} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-xs font-bold">✅ Approve</button>
-                            <button onClick={() => handleReject(req)} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-1.5 rounded-lg text-xs font-bold">❌ Tolak</button>
-                          </>
-                        )}
-                        <button onClick={() => handleOpenDetail(req)} className="flex-1 bg-teal-600 text-white py-1.5 rounded-lg text-xs font-bold">Detail →</button>
-                      </div>
-                    </div>
-
-                    {/* Desktop row */}
-                    <div className="hidden md:grid px-5 py-3.5 transition-colors group hover:bg-teal-50/30"
-                      style={{
-                        gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px',
-                        borderBottom: '1px solid #e5e7eb',
-                        borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
-                      }}>
-                      <div className="pr-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                          <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
-                          {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread}</span>}
-                        </div>
-                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🛋️ {req.room_name}</p>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
-                        <p className="text-xs text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
-                        {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
-                        {req.pts_assigned ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                              {req.pts_assigned.charAt(0).toUpperCase()}
+            <div className="overflow-x-auto">
+              <table className="w-full bg-white border-collapse">
+                <thead>
+                  <tr className="bg-white border-b-2 border-gray-100">
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Nama Project</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Lokasi / Ruangan</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Due Date</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((req) => {
+                    const sc = statusConfig[req.status] || statusConfig.pending;
+                    const unread = unreadMsgMap[req.id] || 0;
+                    const dueStatus = getDueStatus(req.due_date, req.status);
+                    const isToday = req.due_date === new Date().toISOString().split('T')[0];
+                    return (
+                      <tr key={req.id}
+                        className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors"
+                        style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="flex items-start gap-1.5">
+                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse mt-1" />}
+                            <div>
+                              <div className="font-bold text-gray-800 text-sm leading-tight">{req.project_name}</div>
+                              {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
+                              <div className="text-xs text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                             </div>
-                            <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
                           </div>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                        {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 mt-1 animate-pulse">🔔 Perlu Approval</p>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        {req.due_date ? (
-                          <>
-                            <p className="text-xs font-semibold text-gray-700">{formatDueDate(req.due_date)}</p>
-                            {dueStatus && (
-                              <span className={`text-[10px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>
-                                🎯 {dueStatus.label}
-                              </span>
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
+                          {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5">🛋️ {req.room_name}</div>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="text-sm font-semibold text-gray-700 leading-tight">{req.sales_name || <span className="text-gray-300">—</span>}</div>
+                          {req.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{req.sales_division}</div>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          {req.pts_assigned ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                {req.pts_assigned.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="text-xs font-semibold text-gray-700 leading-tight">{req.pts_assigned}</div>
+                            </div>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                            {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 animate-pulse">🔔 Perlu Approval</p>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          {req.due_date ? (
+                            <>
+                              <div className="text-xs font-semibold text-gray-700">{formatDueDate(req.due_date)}</div>
+                              {dueStatus && (
+                                <div className={`text-[10px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>
+                                  🎯 {dueStatus.label}
+                                </div>
+                              )}
+                            </>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="text-sm font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
+                          <div className="text-[10px] text-indigo-500 mt-0.5">{req.requester_name}</div>
+                        </td>
+                        <td className="px-2 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {isPTS && !isTeamPTS && req.status === 'pending' && (
+                              <>
+                                <button onClick={() => handleApprove(req)} title="Approve"
+                                  className="w-7 h-7 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 rounded-lg flex items-center justify-center transition-all">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                </button>
+                                <button onClick={() => handleReject(req)} title="Tolak"
+                                  className="w-7 h-7 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 rounded-lg flex items-center justify-center transition-all">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </>
                             )}
-                          </>
-                        ) : (
-                          <span className="text-gray-300 text-xs">—</span>
-                        )}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        <p className="text-xs font-semibold text-gray-700 truncate">{req.requester_name}</p>
-                        <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                      </div>
-                      <div className="pl-3 flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-                        {isPTS && !isTeamPTS && req.status === 'pending' && (
-                          <>
-                            <button onClick={() => handleApprove(req)} title="Approve"
-                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 rounded-lg flex items-center justify-center transition-all group">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                            <button onClick={() => handleOpenDetail(req)} title="Lihat Detail"
+                              className="text-red-400 hover:text-red-600 transition-colors">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
-                            <button onClick={() => handleReject(req)} title="Tolak"
-                              className="w-7 h-7 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 rounded-lg flex items-center justify-center transition-all">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                          </>
-                        )}
-                        {(isSuperAdmin || isAdmin) && (
-                          <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus Ticket"
-                            className="w-7 h-7 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        )}
-                        <button onClick={() => handleOpenDetail(req)} title="Lihat Detail"
-                          className="h-7 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold border border-teal-600">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          Detail
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                            {(isSuperAdmin || isAdmin) && (
+                              <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus Ticket"
+                                className="text-red-400 hover:text-red-600 transition-colors">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white">
+                <span className="text-xs text-gray-400">{filteredRequests.length} request ditemukan</span>
+                <span className="text-xs text-gray-400">{filteredRequests.length > 0 ? `1–${filteredRequests.length}` : '0'} of {requests.length}</span>
+              </div>
             </div>
           )}
         </div>
@@ -2081,8 +2089,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
-                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
+                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">{selectedRequest.pts_assigned}</span>}
+				  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} text-white`}>Status : {detailSc.label}</span>
                 </div>
                 <p className="text-teal-100 text-xs mt-0.5 truncate">
                   {selectedRequest.room_name && `${selectedRequest.room_name} · `}
@@ -2492,7 +2500,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </div>
 
               {/* RIGHT: Chat */}
-              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 320 }}>
+              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 1000 }}>
                 <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
