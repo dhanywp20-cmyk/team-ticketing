@@ -96,7 +96,7 @@ interface Ticket {
   description: string;
   sn_unit?: string;
   product?: string;
-  assigned_to: string;
+  assign_name: string;
   status: string;
   date: string;
   created_at: string;
@@ -511,7 +511,7 @@ export default function TicketingSystem() {
     product: "",
     issue_case: "",
     description: "",
-    assigned_to: "",
+    assign_name: "",
     date: getJakartaDateString(),
     status: "Pending",
     current_team: "Team PTS",
@@ -705,7 +705,7 @@ export default function TicketingSystem() {
     const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
     const assignedName = member ? member.name : currentUser.full_name;
     return tickets.filter((t) => {
-      if (t.assigned_to !== assignedName) return false;
+      if (t.assign_name !== assignedName) return false;
       const overdue = isTicketOverdue(t) && t.status !== "Solved";
       const isPending = t.status === "Pending" || t.status === "In Progress";
       const isServicesAndPending = t.services_status && (t.services_status === "Pending" || t.services_status === "In Progress");
@@ -752,9 +752,22 @@ export default function TicketingSystem() {
       setTickets([]);
       setTicketsLoading(true);
       const [membersData, usersData] = await Promise.all([
-        supabase.from("team_members").select("*").order("name"),
+        // team_members tidak ada — ambil dari users dengan role team
+        supabase.from("users").select("id, username, full_name, role, team_type, phone_number").in("role", ["team", "team_pts"]).order("full_name"),
         supabase.from("users").select("id, username, full_name, role, team_type"),
       ]);
+      // Map users ke format TeamMember agar kompatibel dengan kode existing
+      if (membersData.data) {
+        membersData.data = (membersData.data as any[]).map((u: any) => ({
+          id: u.id,
+          name: u.full_name,      // name = full_name
+          username: u.username,
+          photo_url: "",
+          role: u.role,
+          team_type: u.team_type || "Team PTS",
+          phone_number: u.phone_number,
+        }));
+      }
       const activeUser = userOverride !== undefined ? userOverride : currentUser;
       if (activeUser?.role === "guest") {
         const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
@@ -806,7 +819,7 @@ export default function TicketingSystem() {
     if (!newTicket.project_name || !newTicket.issue_case) { alert("Project name and Issue case must be filled!"); return; }
     // admin & superadmin: ticket langsung masuk (tidak perlu approval), wajib assign handler
     const isElevated = currentUser?.role === "admin" || currentUser?.role === "superadmin";
-    if (isElevated && !newTicket.assigned_to) { alert("Please assign to a Team PTS member!"); return; }
+    if (isElevated && !newTicket.assign_name) { alert("Please assign to a Team PTS member!"); return; }
     try {
       setUploading(true);
       setShowLoadingPopup(true);
@@ -826,7 +839,7 @@ export default function TicketingSystem() {
       setLoadingMessage("Saving new ticket...");
       // Ticket dari guest/team → Waiting Approval; dari admin/superadmin → langsung sesuai status pilihan
       const ticketStatus = isElevated ? newTicket.status : "Waiting Approval";
-      const ticketAssignedTo = isElevated ? newTicket.assigned_to : "";
+      const ticketAssignedTo = isElevated ? newTicket.assign_name : "";
       const ticketData = {
         project_name: newTicket.project_name,
         address: newTicket.address || null,
@@ -837,7 +850,7 @@ export default function TicketingSystem() {
         product: newTicket.product || null,
         issue_case: newTicket.issue_case,
         description: newTicket.description || null,
-        assigned_to: ticketAssignedTo,
+        assign_name: ticketAssignedTo,
         date: newTicket.date,
         status: ticketStatus,
         current_team: "Team PTS",
@@ -886,10 +899,8 @@ export default function TicketingSystem() {
         // Admin/Superadmin: langsung assign ke handler → kirim WA ke handler
         setLoadingMessage("Mengirim notifikasi WA ke handler...");
         try {
-          // ticketAssignedTo = team_members.name → cari username → cari phone di users
-          const { data: eTM } = await supabase
-            .from("team_members").select("username")
-            .ilike("name", ticketAssignedTo).maybeSingle();
+          // Cari handler dari teamMembers state (sudah load dari users)
+          const eTM = teamMembers.find(m => m.name === ticketAssignedTo);
           const { data: handlerInfo } = eTM?.username ? await supabase
             .from("users").select("phone_number, full_name")
             .eq("username", eTM.username).maybeSingle() : { data: null };
@@ -918,7 +929,7 @@ export default function TicketingSystem() {
       }
 
       setNewTicket({
-        project_name: "", address: "", customer_phone: "", sales_name: "", sales_division: "", sn_unit: "", product: "", issue_case: "", description: "", assigned_to: "", date: getJakartaDateString(), status: "Pending", current_team: "Team PTS", photo: null
+        project_name: "", address: "", customer_phone: "", sales_name: "", sales_division: "", sn_unit: "", product: "", issue_case: "", description: "", assign_name: "", date: getJakartaDateString(), status: "Pending", current_team: "Team PTS", photo: null
       });
       setShowNewTicket(false);
       await fetchData();
@@ -936,7 +947,7 @@ export default function TicketingSystem() {
     if (!approvalTicket || !approvalAssignee) { alert("Please select a Team PTS member to assign!"); return; }
     try {
       setUploading(true);
-      const { error } = await supabase.from("tickets").update({ status: "Pending", assigned_to: approvalAssignee }).eq("id", approvalTicket.id);
+      const { error } = await supabase.from("tickets").update({ status: "Pending", assign_name: approvalAssignee }).eq("id", approvalTicket.id);
       if (error) throw error;
       if (approvalTicket.created_by) {
         const creatorUser = users.find((u) => u.username === approvalTicket.created_by);
@@ -947,14 +958,11 @@ export default function TicketingSystem() {
       }
       // ── WA ke handler yang di-assign ──────────────────────────────────────
       try {
-        // approvalAssignee = team_members.name
-        // Cari username dari team_members → lalu cari phone di users
-        const { data: tmData } = await supabase
-          .from("team_members").select("username")
-          .ilike("name", approvalAssignee).maybeSingle();
-        const { data: handlerUser } = tmData?.username ? await supabase
+        // Cari handler dari teamMembers state (sudah load dari users)
+        const tm = teamMembers.find(m => m.name === approvalAssignee);
+        const { data: handlerUser } = tm?.username ? await supabase
           .from("users").select("phone_number, full_name")
-          .eq("username", tmData.username).maybeSingle() : { data: null };
+          .eq("username", tm.username).maybeSingle() : { data: null };
         if (handlerUser?.phone_number) {
           const waMsg = [
             "🎫 *Ticket Assigned ke Kamu*",
@@ -998,7 +1006,7 @@ export default function TicketingSystem() {
       setUploading(true);
       setShowLoadingPopup(true);
       setLoadingMessage("Re-opening ticket...");
-      const { error: ue } = await supabase.from("tickets").update({ status: "Pending", assigned_to: reopenAssignee, current_team: "Team PTS", services_status: null }).eq("id", reopenTargetTicket.id);
+      const { error: ue } = await supabase.from("tickets").update({ status: "Pending", assign_name: reopenAssignee, current_team: "Team PTS", services_status: null }).eq("id", reopenTargetTicket.id);
       if (ue) throw ue;
       await supabase.from("activity_logs").insert([{
         ticket_id: reopenTargetTicket.id,
@@ -1013,11 +1021,8 @@ export default function TicketingSystem() {
       }]);
       // ── WA ke handler saat reopen ───────────────────────────────────────────
       try {
-        // reopenAssignee = team_members.name
-        // Cari username dari team_members → lalu cari phone di users
-        const { data: rhTM } = await supabase
-          .from("team_members").select("username")
-          .ilike("name", reopenAssignee).maybeSingle();
+        // Cari handler dari teamMembers state (sudah load dari users)
+        const rhTM = teamMembers.find(m => m.name === reopenAssignee);
         const { data: reopenHandler } = rhTM?.username ? await supabase
           .from("users").select("phone_number, full_name")
           .eq("username", rhTM.username).maybeSingle() : { data: null };
@@ -1143,7 +1148,7 @@ export default function TicketingSystem() {
         if (newActivity.assign_to_services) {
           updateData.current_team = "Team Services";
           updateData.services_status = "Waiting Approval";
-          updateData.assigned_to = newActivity.services_assignee;
+          updateData.assign_name = newActivity.services_assignee;
           supabase.functions.invoke("send-email", {
             body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: newActivity.services_assignee, snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
           }).then(({ error }) => { if (error) console.error("Email error:", error); });
@@ -1159,7 +1164,7 @@ export default function TicketingSystem() {
                 sn_unit: selectedTicket.sn_unit || null,
                 issue_case: selectedTicket.issue_case,
                 description: selectedTicket.description || null,
-                assigned_to: newActivity.services_assignee,
+                assign_name: newActivity.services_assignee,
                 date: selectedTicket.date,
                 status: "Waiting Approval",
                 services_status: "Waiting Approval",
@@ -1189,7 +1194,7 @@ export default function TicketingSystem() {
             const reminderPayload = {
               project_name: selectedTicket.project_name,   // kolom di table reminders = 'project_name'
               description: `[AUTO dari Ticketing] Issue: ${selectedTicket.issue_case}${selectedTicket.product ? ` | Product: ${selectedTicket.product}` : ""}`,
-              assigned_to: assignedUsername,
+              assign_name: assignedUsername,
               assigned_name: assignedName,
               due_date: newActivity.onsite_schedule_date,
               due_time: `${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute}`,
@@ -1252,10 +1257,7 @@ export default function TicketingSystem() {
     try {
       const { error: userError } = await supabase.from("users").insert([{ username: lowerUsername, password: newUser.password, full_name: newUser.full_name, role: newUser.role, team_type: finalTeamType }]);
       if (userError) throw userError;
-      if (newUser.role === "team") {
-        const { error: memberError } = await supabase.from("team_members").insert([{ name: newUser.full_name, username: lowerUsername, role: "Support Engineer", team_type: finalTeamType, photo_url: `https://ui-avatars.com/api/?name=${newUser.full_name}&background=random&color=fff&size=128` }]);
-        if (memberError) console.error("Error creating team member:", memberError);
-      }
+      // team_members table tidak digunakan — data handler dari tabel users langsung
       setNewUser({ username: "", password: "", full_name: "", team_member: "", role: "team", team_type: "Team PTS" });
       await fetchData();
       alert("User created successfully!");
@@ -1414,7 +1416,7 @@ export default function TicketingSystem() {
     </div>
     <div class="header-right">
       <div><b>Dicetak:</b> ${printDate}</div>
-      <div><b>Handler:</b> ${ticket.assigned_to || "—"}</div>
+      <div><b>Handler:</b> ${ticket.assign_name || "—"}</div>
       <div><b>Team:</b> ${ticket.current_team || "Team PTS"}</div>
       <div><b>Dibuat:</b> ${formatDateTime(ticket.created_at)}</div>
     </div>
@@ -1562,7 +1564,7 @@ export default function TicketingSystem() {
         });
         data.push(row(COLS));
         const handlerMap: Record<string, number> = {};
-        exportTickets.forEach((t: Ticket) => { if (t.assigned_to) handlerMap[t.assigned_to] = (handlerMap[t.assigned_to] || 0) + 1; });
+        exportTickets.forEach((t: Ticket) => { if (t.assign_name) handlerMap[t.assign_name] = (handlerMap[t.assign_name] || 0) + 1; });
         data.push([c("HANDLER", hdrStyle), c("JUMLAH TICKET", hdrStyle), c("PERSENTASE", hdrStyle), c("", hdrStyle), c("", hdrStyle)]);
         Object.entries(handlerMap).forEach(([handler, count], i) => {
           const total = exportTickets.length;
@@ -1590,7 +1592,7 @@ export default function TicketingSystem() {
           data.push([
             c(idx + 1, ctr), c(t.project_name || "-", rs), c(t.address || "-", rs), c(t.customer_phone || "-", rs),
             c(t.sales_name || "-", rs), c(t.issue_case || "-", rs), c(t.description || "-", rs), c(t.sn_unit || "-", ctr), c((t as any).product || "-", rs),
-            c(t.assigned_to || "-", rs), c(statusDisplay, statusStyles[effectiveStatus] || rs), c(t.services_status || "-", t.services_status ? statusStyles[t.services_status] || rs : rs),
+            c(t.assign_name || "-", rs), c(statusDisplay, statusStyles[effectiveStatus] || rs), c(t.services_status || "-", t.services_status ? statusStyles[t.services_status] || rs : rs),
             c(t.current_team || "-", rs), c(t.date || "-", ctr), c(t.created_by || "-", rs),
             c(t.created_at ? formatDateTime(t.created_at) : "-", ctr), c(t.activity_logs?.length || 0, ctr),
           ]);
@@ -1674,7 +1676,7 @@ export default function TicketingSystem() {
       else if (filterStatus === "Solved Overdue") statusMatch = isTicketOverdue(t) && t.status === "Solved";
       else if (currentUserTeamType === "Team Services") statusMatch = t.services_status === filterStatus || t.status === filterStatus;
       else statusMatch = t.status === filterStatus;
-      const handlerMatch = handlerFilter === null || t.assigned_to === handlerFilter;
+      const handlerMatch = handlerFilter === null || t.assign_name === handlerFilter;
       const divisionMatch = salesDivisionFilter === null || t.sales_division === salesDivisionFilter;
       const productMatch = productFilter === null || (t.product || "") === productFilter;
       const productSearchMatch = !searchProduct || (t.product || "").toLowerCase().includes(searchProduct.toLowerCase());
@@ -1703,7 +1705,7 @@ export default function TicketingSystem() {
         ...(overdue > 0 ? [{ name: "Overdue", value: overdue, color: "#EF4444" }] : []),
         ...(solvedOverdue > 0 ? [{ name: "Solved (Overdue)", value: solvedOverdue, color: "#9333ea" }] : []),
       ].filter((d) => d.value > 0),
-      handlerData: Object.entries(tickets.reduce((acc, t) => { acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([name, tickets]) => {
+      handlerData: Object.entries(tickets.reduce((acc, t) => { acc[t.assign_name] = (acc[t.assign_name] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([name, tickets]) => {
         const member = teamMembers.find((m) => m.name.trim().toLowerCase() === name.trim().toLowerCase());
         return { name, tickets, team: member?.team_type || "Team PTS" };
       }),
@@ -2279,7 +2281,7 @@ export default function TicketingSystem() {
                           </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assign_name}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex flex-col gap-1 items-start">
                               <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
@@ -2301,7 +2303,7 @@ export default function TicketingSystem() {
                             <div className="flex flex-col items-center gap-0.5">
                               <div className="flex items-center justify-center gap-0.5 mb-0.5"><span className="text-gray-400 text-xs">🗒️</span>{ticket.activity_logs && ticket.activity_logs.length > 0 && <span className="bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none" style={{ fontSize: "10px" }}>{ticket.activity_logs.length}</span>}</div>
                               <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-sm">👁</span></button>
-                              {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors" title="Re-open"><span className="text-sm">🔓</span></button>}
+                              {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assign_name || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors" title="Re-open"><span className="text-sm">🔓</span></button>}
                             </div>
                            </td>
                           <td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"><span className="text-sm">📊</span></button>{canAccessAccountSettings && ticket.status === "Waiting Approval" && <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-0.5 animate-pulse" title="Approve"><span className="text-sm">✅</span></button>}</td>
@@ -2435,7 +2437,7 @@ export default function TicketingSystem() {
                   <div className="px-4 py-3 border-b border-gray-100">
                     <div className="grid grid-cols-2 gap-x-6">
                       <div>
-                        <InfoLine label="Handler" value={selectedTicket.assigned_to} />
+                        <InfoLine label="Handler" value={selectedTicket.assign_name} />
                         <InfoLine label="Issue" value={selectedTicket.issue_case} />
                         {selectedTicket.product && <InfoLine label="Product" value={selectedTicket.product} />}
                         {selectedTicket.sn_unit && <InfoLine label="SN Unit" value={selectedTicket.sn_unit} />}
@@ -2490,7 +2492,7 @@ export default function TicketingSystem() {
                   <div className="px-4 py-3 border-t border-gray-100 flex flex-wrap gap-2 bg-gray-50/50">
                     <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>📄 PDF</button>
                     {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
-                      <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>🔓 Re-open</button>
+                      <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assign_name || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>🔓 Re-open</button>
                     )}
                     {canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
                       <button onClick={() => setShowUpdateForm(!showUpdateForm)}
@@ -2923,7 +2925,7 @@ export default function TicketingSystem() {
                       <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Assign To *</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2">👨‍💼</span>
-                        <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({ ...newTicket, assigned_to: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
+                        <select value={newTicket.assign_name} onChange={(e) => setNewTicket({ ...newTicket, assign_name: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
                           <option value="">— Pilih Handler —</option>
                           <optgroup label="Team PTS">
                             {teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}
@@ -3015,7 +3017,7 @@ export default function TicketingSystem() {
               </div>
               <div className="flex-1 overflow-y-auto p-5">
                 <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-xl text-xs" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)" }}>
-                  <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span><span className="font-bold">{summaryTicket.assigned_to || "-"}</span></span><span className="text-gray-300">|</span>
+                  <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span><span className="font-bold">{summaryTicket.assign_name || "-"}</span></span><span className="text-gray-300">|</span>
                   <span className="flex items-center gap-1"><span className="text-gray-500">📅 Dibuat:</span><span className="font-bold">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : "-"}</span></span><span className="text-gray-300">|</span>
                   <span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.status]}`}>{summaryTicket.status}</span>
                   {summaryTicket.services_status && (<><span className="text-gray-300">|</span><span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.services_status]}`}>Svc: {summaryTicket.services_status}</span></>)}
