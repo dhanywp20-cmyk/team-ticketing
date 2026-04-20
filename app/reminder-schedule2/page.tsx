@@ -290,6 +290,7 @@ function MiniPieChart({
 
   const slices = data.map((d, i) => {
     const angle = (d.value / total) * 2 * Math.PI;
+    if (data.length === 1) return { ...d, path: '', isFullCircle: true, i };
     const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
     const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
     const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
@@ -297,7 +298,7 @@ function MiniPieChart({
     const large = angle > Math.PI ? 1 : 0;
     const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
     cumAngle += angle;
-    return { ...d, path, i };
+    return { ...d, path, isFullCircle: false, i };
   });
 
   return (
@@ -306,12 +307,23 @@ function MiniPieChart({
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
+            s.isFullCircle ? (
+              <g key={s.i} style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
+                onClick={() => onSliceClick && onSliceClick(s.label)}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
+                <circle cx={60} cy={60} r={50} fill={s.color}
+                  opacity={hov === null || hov === s.i ? 1 : 0.45}
+                  style={{ filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }} />
+                <circle cx={60} cy={60} r={28} fill="white" />
+              </g>
+            ) : (
             <path key={s.i} d={s.path} fill={s.color}
               opacity={hov === null || hov === s.i ? 1 : 0.45}
               style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }}
               onMouseEnter={() => setHov(s.i)}
               onMouseLeave={() => setHov(null)}
               onClick={() => onSliceClick && onSliceClick(s.label)} />
+            )
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
@@ -696,20 +708,10 @@ export default function ReminderSchedulePage() {
     }
     let query = supabase.from('reminders').select('*')
       .order('created_at', { ascending: false });
-    if (activeUser?.role === 'team') {
-      query = query.eq('assigned_to', activeUser.username);
-    }
+    // Team PTS bisa lihat SEMUA schedule (tidak difilter per user)
+    // Filter hanya untuk popup notif, bukan untuk list utama
     const { data, error } = await query;
-    // Hanya update state kalau data valid dan tidak kosong
-    // (mencegah data kosong menimpa data yang sudah ada)
-    if (!error && data && data.length > 0) {
-      setReminders(data as Reminder[]);
-    } else if (!error && data && data.length === 0 && !activeUser) {
-      // Kalau benar-benar kosong DAN user tidak diketahui, jangan update
-      console.warn('[fetchRemindersQuiet] skip: no user context, data empty');
-    } else if (!error && data) {
-      setReminders(data as Reminder[]);
-    }
+    if (!error && data) setReminders(data as Reminder[]);
   };
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
@@ -723,9 +725,7 @@ export default function ReminderSchedulePage() {
     }
     let query = supabase.from('reminders').select('*')
       .order('created_at', { ascending: false });
-    if (activeUser?.role === 'team') {
-      query = query.eq('assigned_to', activeUser.username);
-    }
+    // Team PTS bisa lihat SEMUA schedule
     const { data, error } = await query;
     if (!error && data) setReminders(data as Reminder[]);
     setTimeout(() => setListLoading(false), 400);
