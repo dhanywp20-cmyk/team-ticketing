@@ -270,8 +270,8 @@ function SalesDivisionDonutCard({
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📊 Sales Division</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-          {slices.map((s) => (
-            {s.isFullCircle ? (
+          {slices.map((s) =>
+            s.isFullCircle ? (
               <g key={s.i} style={{ cursor: "pointer" }} onClick={() => onSliceClick(s.name)}
                 onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
                 <circle cx={60} cy={60} r={50} fill={s.color}
@@ -280,10 +280,11 @@ function SalesDivisionDonutCard({
                 <circle cx={60} cy={60} r={28} fill="white" />
               </g>
             ) : (
-            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeDivision === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-            )}
+              <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
+                style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeDivision === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+            )
+          )}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
@@ -353,8 +354,8 @@ function HandlerDonutCard({
       ) : (
         <div className="flex items-center gap-3">
           <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-            {slices.map((s) => (
-              {s.isFullCircle ? (
+            {slices.map((s) =>
+              s.isFullCircle ? (
                 <g key={s.i} style={{ cursor: "pointer" }} onClick={() => onSliceClick(s.name)}
                   onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
                   <circle cx={60} cy={60} r={50} fill={s.color}
@@ -363,12 +364,12 @@ function HandlerDonutCard({
                   <circle cx={60} cy={60} r={28} fill="white" />
                 </g>
               ) : (
-              <path key={s.i} d={s.path} fill={activeHandler === s.name ? s.color : s.color}
-                opacity={hov === null || hov === s.i ? 1 : 0.45}
-                style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeHandler === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-              )}
-            ))}
+                <path key={s.i} d={s.path} fill={activeHandler === s.name ? s.color : s.color}
+                  opacity={hov === null || hov === s.i ? 1 : 0.45}
+                  style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeHandler === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+                  onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+              )
+            )}
             <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
             <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
           </svg>
@@ -429,8 +430,8 @@ function ProductDonutCard({
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📦 Product</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-          {slices.map((s) => (
-            {s.isFullCircle ? (
+          {slices.map((s) =>
+            s.isFullCircle ? (
               <g key={s.i} style={{ cursor: "pointer" }} onClick={() => onSliceClick(s.name)}
                 onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
                 <circle cx={60} cy={60} r={50} fill={s.color}
@@ -439,12 +440,12 @@ function ProductDonutCard({
                 <circle cx={60} cy={60} r={28} fill="white" />
               </g>
             ) : (
-            <path key={s.i} d={s.path} fill={s.color}
-              opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeProduct === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-            )}
-          ))}
+              <path key={s.i} d={s.path} fill={s.color}
+                opacity={hov === null || hov === s.i ? 1 : 0.45}
+                style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeProduct === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+            )
+          )}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
