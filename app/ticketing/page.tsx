@@ -16,6 +16,28 @@ const supabaseServices = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY!,
 );
 
+// ── Debug: test WA dari browser console → window.testWA('08xxx') ──────────────
+if (typeof window !== 'undefined') {
+  (window as any).testWA = async (phone: string) => {
+    const supabaseTest = (await import('@supabase/supabase-js')).createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    // Test 1: cek Edge Function bisa dipanggil
+    const { data: testData, error: testErr } = await supabaseTest.functions.invoke('notify-handler', {
+      body: { type: 'test' }
+    });
+    console.log('[testWA] Edge Function test:', testData, testErr);
+    // Test 2: kirim WA test
+    const { data, error } = await supabaseTest.functions.invoke('notify-handler', {
+      body: { type: 'reminder_wa', target: phone, message: '🧪 Test WA dari PTS Portal — jika menerima ini, WA berfungsi!' }
+    });
+    console.log('[testWA] WA result:', data, error);
+    return { testData, data, testErr, error };
+  };
+  console.log('[PTS] Debug: jalankan window.testWA("08xx") di console untuk test WA');
+}
+
 // ── Status list khusus Team Services ─────────────────────────────────────────
 const SERVICES_STATUSES = [
   "Waiting Approval",
@@ -549,8 +571,11 @@ export default function TicketingSystem() {
       const now = Date.now();
       const sixHours = 6 * 60 * 60 * 1000;
       if (now - loginTime > sixHours) {
-        handleLogout();
-        alert("Your session has expired. Please login again.");
+        // Clear storage & redirect ke dashboard login
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("loginTime");
+        const target = window.top !== window ? window.top : window;
+        if (target) target.location.href = "/dashboard";
       }
     }
   };
@@ -710,6 +735,9 @@ export default function TicketingSystem() {
     setSelectedTicket(null);
     localStorage.removeItem("currentUser");
     localStorage.removeItem("loginTime");
+    // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
+    const target = window.top !== window ? window.top : window;
+    if (target) target.location.href = "/dashboard";
   };
 
   const fetchGuestMappings = async () => {
@@ -1083,7 +1111,7 @@ export default function TicketingSystem() {
               category: "Troubleshooting",
               sales_name: selectedTicket.sales_name || "",
               sales_division: selectedTicket.sales_division || "",
-              project_location: selectedTicket.address || "",
+              address: selectedTicket.address || "",
               pic_name: selectedTicket.customer_phone || "",
               pic_phone: "",
               product: selectedTicket.product || selectedTicket.sn_unit || "",
@@ -1636,7 +1664,12 @@ export default function TicketingSystem() {
       const time = parseInt(savedTime);
       const now = Date.now();
       const sixHours = 6 * 60 * 60 * 1000;
-      if (now - time > sixHours) { handleLogout(); alert("Your session has expired. Please login again."); }
+      if (now - time > sixHours) {
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("loginTime");
+        const target = window.top !== window ? window.top : window;
+        if (target) { target.location.href = "/dashboard"; return; }
+      }
       else { setCurrentUser(user); setIsLoggedIn(true); setLoginTime(time); fetchData(user); return; }
     }
     fetchData(null);
