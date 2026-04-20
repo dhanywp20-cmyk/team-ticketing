@@ -79,7 +79,8 @@ type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface Reminder {
   id: string;
-  project_name: string;
+  title?: string;       // kolom lama di DB (beberapa row pakai 'title')
+  project_name: string; // kolom baru (fallback dari title)
   description: string;
   assigned_to: string;
   assigned_name: string;
@@ -437,7 +438,7 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
                 style={{ background: 'white', borderColor: 'rgba(0,0,0,0.08)' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800 truncate">{r.project_name}</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assigned_name}</p>
                   </div>
                   <CategoryBadge category={r.category} />
@@ -496,7 +497,7 @@ function RescheduleModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">📅 Re-Schedule Jadwal</h3>
-              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.project_name}</p>
+              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.project_name || (reminder as any).title || '—'}</p>
             </div>
             <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">✕</button>
           </div>
@@ -624,48 +625,71 @@ export default function ReminderSchedulePage() {
   // ─── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    // Flag untuk block realtime trigger sampai initApp selesai
+    let initDone = false;
+    let pendingRealtimeFetch = false;
+
     const initApp = async () => {
-      await fetchTeamUsers();
-      // ── No session timeout on this page — auth handled by Dashboard ──
+      // Baca user dari localStorage DULU sebelum fetch apapun
       const saved = localStorage.getItem('currentUser');
-      if (saved) {
-        const user = JSON.parse(saved);
+      const user = saved ? JSON.parse(saved) as TeamUser : null;
+
+      // Set state user segera agar komponen lain bisa pakai
+      if (user) {
         setCurrentUser(user);
         setIsLoggedIn(true);
         setLoginTime(Date.now());
-        // Re-fetch dengan user yang sudah diketahui, lalu trigger popup
-        await fetchRemindersQuiet(user);
-        // Tampilkan popup notif reminder aktif (sama seperti handleLogin)
-        // Hanya untuk role team (handler) yang punya reminder diassign ke mereka
-        if (user.role === 'team' || user.role === 'admin') {
-          // Ambil reminder aktif yang diassign ke user ini
-          const { data: activeData } = await supabase
-            .from('reminders')
-            .select('*')
-            .eq('assigned_to', user.username)
-            .neq('status', 'done')
-            .neq('status', 'cancelled')
-            .order('due_date', { ascending: true });
-          const active = (activeData ?? []) as Reminder[];
-          if (active.length > 0) {
-            setMyReminders(active);
-            setTimeout(() => setShowNotificationPopup(true), 800);
-          }
-        }
-      } else {
-        await fetchRemindersQuiet();
       }
-      setAppReady(true); // langsung ready setelah data fetched
+
+      // Fetch team users dan reminders secara parallel untuk lebih cepat
+      await Promise.all([
+        fetchTeamUsers(),
+        fetchRemindersQuiet(user),
+      ]);
+
+      // Popup notif untuk team/admin
+      if (user && (user.role === 'team' || user.role === 'admin')) {
+        const { data: activeData } = await supabase
+          .from('reminders')
+          .select('*')
+          .eq('assigned_to', user.username)
+          .neq('status', 'done')
+          .neq('status', 'cancelled')
+          .order('due_date', { ascending: true });
+        const active = (activeData ?? []) as Reminder[];
+        if (active.length > 0) {
+          setMyReminders(active);
+          setTimeout(() => setShowNotificationPopup(true), 800);
+        }
+      }
+
+      setAppReady(true);
+      initDone = true;
+
+      // Kalau ada realtime yang masuk saat init, jalankan sekarang
+      if (pendingRealtimeFetch) {
+        pendingRealtimeFetch = false;
+        const s = localStorage.getItem('currentUser');
+        const u = s ? JSON.parse(s) as TeamUser : null;
+        fetchRemindersQuiet(u);
+      }
     };
+
     initApp();
+
     const ch = supabase.channel('reminders-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
-        // Pakai user dari localStorage langsung agar tidak bergantung pada state yang mungkin belum set
+        if (!initDone) {
+          // Tandai untuk di-fetch setelah init selesai — jangan interrupt init
+          pendingRealtimeFetch = true;
+          return;
+        }
         const savedUser = localStorage.getItem('currentUser');
         const u = savedUser ? JSON.parse(savedUser) as TeamUser : null;
         fetchRemindersQuiet(u);
       })
       .subscribe();
+
     return () => { supabase.removeChannel(ch); };
   }, []);
 
@@ -698,7 +722,7 @@ export default function ReminderSchedulePage() {
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
-    // Fallback: kalau user param tidak ada, ambil dari state, kalau tidak ada ambil dari localStorage
+    // Tentukan user: dari param → state → localStorage
     let activeUser: TeamUser | null = user ?? currentUser;
     if (!activeUser) {
       const saved = localStorage.getItem('currentUser');
@@ -706,12 +730,20 @@ export default function ReminderSchedulePage() {
     }
     let query = supabase.from('reminders').select('*')
       .order('created_at', { ascending: false });
-    // role 'team' hanya lihat reminder yang diassign ke dia
     if (activeUser?.role === 'team') {
       query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
-    if (!error && data) setReminders(data as Reminder[]);
+    // Hanya update state kalau data valid dan tidak kosong
+    // (mencegah data kosong menimpa data yang sudah ada)
+    if (!error && data && data.length > 0) {
+      setReminders(data as Reminder[]);
+    } else if (!error && data && data.length === 0 && !activeUser) {
+      // Kalau benar-benar kosong DAN user tidak diketahui, jangan update
+      console.warn('[fetchRemindersQuiet] skip: no user context, data empty');
+    } else if (!error && data) {
+      setReminders(data as Reminder[]);
+    }
   };
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
@@ -853,7 +885,7 @@ export default function ReminderSchedulePage() {
 
   const openEdit = (r: Reminder) => {
     setEditingReminder(r);
-    setFormData({ project_name: r.project_name, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
+    setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
@@ -930,7 +962,7 @@ export default function ReminderSchedulePage() {
     try {
       const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Address','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.project_name, r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assigned_name,
+        i + 1, r.project_name || (r as any).title || '', r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -959,7 +991,8 @@ export default function ReminderSchedulePage() {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
     if (filterCategory !== 'all' && r.category !== filterCategory) return false;
-    if (searchProject && !r.project_name.toLowerCase().includes(searchProject.toLowerCase()) &&
+    const rName = ((r.project_name || '').trim() || ((r as any).title || '').trim()).toLowerCase();
+    if (searchProject && !rName.includes(searchProject.toLowerCase()) &&
         !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
     if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
@@ -1390,7 +1423,7 @@ export default function ReminderSchedulePage() {
                           <CategoryBadge category={r.category} />
                           <PriorityBadge priority={r.priority} />
                         </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{r.project_name}</p>
+                        <p className="font-bold text-sm text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
                         {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
@@ -1443,7 +1476,7 @@ export default function ReminderSchedulePage() {
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <CategoryBadge category={r.category} />
                         </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{r.project_name}</p>
+                        <p className="font-bold text-sm text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
                         {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
@@ -1488,7 +1521,7 @@ export default function ReminderSchedulePage() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/80 text-white">✅ WA H-1 Terkirim</span>
                   )}
                 </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.project_name}</h2>
+                <h2 className="text-2xl font-bold text-white leading-tight">{(detailReminder.project_name || '').trim() || ((detailReminder as any).title || '').trim() || '—'}</h2>
                 {/* Lokasi Project langsung di bawah nama project */}
                 {detailReminder.address && (
                   <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">
@@ -2003,7 +2036,7 @@ export default function ReminderSchedulePage() {
                                 onClick={() => setDetailReminder(r)}>
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{r.project_name}</div>
+                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
                                   {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address.split(',')[0]}</div>}
                                   <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
                                 </td>
