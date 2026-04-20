@@ -244,18 +244,17 @@ function AssignPTSModal({
       const selectedMember = teamMembers.find(m => m.full_name === selected);
       if (selectedMember?.phone_number) {
         await sendWANotif({
-                      type: 'form_require_assigned',
-            handlerName: selectedMember.full_name,
-            handlerPhone: selectedMember.phone_number,
-            projectName: req.project_name,
-            salesName: req.sales_name || '',
-            salesDivision: req.sales_division || '',
-            requesterName: req.requester_name,
-            dueDate: req.due_date
-              ? new Date(req.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-              : null,
-            approvedBy: currentUser.full_name,
-          },
+          type: 'form_require_assigned',
+          handlerName: selectedMember.full_name,
+          handlerPhone: selectedMember.phone_number,
+          projectName: req.project_name,
+          salesName: req.sales_name || '',
+          salesDivision: req.sales_division || '',
+          requesterName: req.requester_name,
+          dueDate: req.due_date
+            ? new Date(req.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+            : null,
+          approvedBy: currentUser.full_name,
         });
       }
       onAssigned();
@@ -1099,14 +1098,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           }
         }
         await sendWANotif({
-                      type: 'form_require_approval',
-            projectName: form.project_name.trim(),
-            room_name: form.room_name.trim() || '',
-            requesterName: currentUser.full_name,
-            salesName: form.sales_name.trim() || '',
-            salesDivision: form.sales_division || '',
-            submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          },
+          type: 'form_require_approval',
+          projectName: form.project_name.trim(),
+          room_name: form.room_name.trim() || '',
+          requesterName: currentUser.full_name,
+          salesName: form.sales_name.trim() || '',
+          salesDivision: form.sales_division || '',
+          submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
         });
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
@@ -3728,14 +3726,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           }
         }
         await sendWANotif({
-                      type: 'form_require_approval',
-            projectName: form.project_name.trim(),
-            room_name: form.room_name.trim() || '',
-            requesterName: currentUser.full_name,
-            salesName: form.sales_name.trim() || '',
-            salesDivision: form.sales_division || '',
-            submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          },
+          type: 'form_require_approval',
+          projectName: form.project_name.trim(),
+          room_name: form.room_name.trim() || '',
+          requesterName: currentUser.full_name,
+          salesName: form.sales_name.trim() || '',
+          salesDivision: form.sales_division || '',
+          submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
         });
       }
       }
