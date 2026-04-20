@@ -600,7 +600,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         // Admin/Superadmin: SEMUA ticket belum Solved
         const { data } = await supabase
           .from('tickets')
-          .select('id, project_name, issue_case, assigned_to, status, created_at')
+          .select('id, project_name, issue_case, assign_name, status, created_at')
           .neq('status', 'Solved')
           .order('created_at', { ascending: false })
           .limit(50);
@@ -621,7 +621,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         const mapped = (mappings ?? []).map((m: any) => m.project_name as string);
         let q = supabase
           .from('tickets')
-          .select('id, project_name, issue_case, assigned_to, status, created_at')
+          .select('id, project_name, issue_case, assign_name, status, created_at')
           .neq('status', 'Solved');
         if (mapped.length > 0) {
           q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mapped.map((p: string) => `"${p}"`).join(',')})`);
@@ -644,8 +644,8 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           // Team Services: ticket assigned ke mereka, services_status belum Solved
           const { data } = await supabase
             .from('tickets')
-            .select('id, project_name, issue_case, assigned_to, status, services_status, created_at')
-            .eq('assigned_to', assignedName)
+            .select('id, project_name, issue_case, assign_name, status, services_status, created_at')
+            .eq('assign_name', assignedName)
             .neq('services_status', 'Solved')
             .not('services_status', 'is', null)
             .order('created_at', { ascending: false })
@@ -660,15 +660,15 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           })));
         } else {
           // Team PTS: ticket assigned ke mereka, status bukan Solved
-          console.log('[notif] Team PTS query: assigned_to =', assignedName);
+          console.log('[notif] Team PTS query: assign_name =', assignedName);
           const { data } = await supabase
             .from('tickets')
-            .select('id, project_name, issue_case, assigned_to, status, created_at')
-            .eq('assigned_to', assignedName)
+            .select('id, project_name, issue_case, assign_name, status, created_at')
+            .eq('assign_name', assignedName)
             .neq('status', 'Solved')
             .order('created_at', { ascending: false })
             .limit(30);
-          console.log('[notif] Team PTS tickets found:', data?.length ?? 0, data?.map((t:any) => t.assigned_to));
+          console.log('[notif] Team PTS tickets found:', data?.length ?? 0, data?.map((t:any) => t.assign_name));
           setTicketNotifs((data ?? []).map((t: any) => ({
             id: t.id, type: 'ticket' as const,
             title: t.project_name,
@@ -726,7 +726,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
       try {
         let q = supabase
           .from('reminders')
-          .select('id, project_name, category, due_date, due_time, assigned_to, assigned_name, status, created_at')
+          .select('id, project_name, category, due_date, due_time, assigned_to, assign_name, status, created_at')
           .neq('status', 'done')
           .neq('status', 'cancelled');
         if (isEffectiveTeamPTS) {
@@ -745,7 +745,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           setReminderNotifs(prioritized.map((r: any) => ({
             id: r.id, type: 'reminder' as const,
             title: r.project_name,
-            subtitle: `${r.category} · ${r.due_date === today ? '📅 Hari ini' : r.due_date === tomorrow ? '⏰ Besok' : r.due_date} ${r.due_time} · ${r.assigned_name}`,
+            subtitle: `${r.category} · ${r.due_date === today ? '📅 Hari ini' : r.due_date === tomorrow ? '⏰ Besok' : r.due_date} ${r.due_time} · ${r.assign_name}`,
             time: r.created_at,
             url: '/reminder-schedule', internalUrl: '/reminder-schedule',
             menuTitle: 'Reminder Schedule',
