@@ -855,17 +855,17 @@ export default function TicketingSystem() {
         setLoadingMessage("Mengirim notifikasi WA ke admin...");
         try {
           await sendWANotif({
-              type: "approval_request",
-              ticketId: insertedTicket?.id || "",
-              projectName: newTicket.project_name,
-              issueCase: newTicket.issue_case,
-              requesterName: currentUser?.full_name || "",
-              requesterUsername: currentUser?.username || "",
-              date: newTicket.date,
-              description: newTicket.description || "-",
-              snUnit: newTicket.sn_unit || "-",
-              customerPhone: newTicket.customer_phone || "-",
-              salesName: newTicket.sales_name || "-",
+            type: "approval_request",
+            ticketId: insertedTicket?.id || "",
+            projectName: newTicket.project_name,
+            issueCase: newTicket.issue_case,
+            requesterName: currentUser?.full_name || "",
+            requesterUsername: currentUser?.username || "",
+            date: newTicket.date,
+            description: newTicket.description || "-",
+            snUnit: newTicket.sn_unit || "-",
+            customerPhone: newTicket.customer_phone || "-",
+            salesName: newTicket.sales_name || "-",
           });
         } catch (waEx: any) {
           // Jangan throw — ticket sudah berhasil disimpan
@@ -904,16 +904,16 @@ export default function TicketingSystem() {
       // ── WA ke handler yang di-assign ──────────────────────────────────────
       try {
         await sendWANotif({
-            record: {
-              assigned_to: approvalAssignee,
-              project_name: approvalTicket.project_name,
-              issue_case: approvalTicket.issue_case,
-              description: approvalTicket.description || "-",
-              sn_unit: approvalTicket.sn_unit || "-",
-              customer_phone: approvalTicket.customer_phone || "-",
-              sales_name: approvalTicket.sales_name || "-",
-              date: approvalTicket.date || "-",
-            }
+          record: {
+            assigned_to: approvalAssignee,
+            project_name: approvalTicket.project_name,
+            issue_case: approvalTicket.issue_case,
+            description: approvalTicket.description || "-",
+            sn_unit: approvalTicket.sn_unit || "-",
+            customer_phone: approvalTicket.customer_phone || "-",
+            sales_name: approvalTicket.sales_name || "-",
+            date: approvalTicket.date || "-",
+          },
         });
       } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
@@ -959,16 +959,16 @@ export default function TicketingSystem() {
       // ── WA ke handler yang di-assign saat reopen ─────────────────────────
       try {
         await sendWANotif({
-            record: {
-              assigned_to: reopenAssignee,
-              project_name: reopenTargetTicket.project_name,
-              issue_case: reopenTargetTicket.issue_case,
-              description: `[Re-open] ${reopenNotes || 'Ticket dibuka kembali'}`,
-              sn_unit: reopenTargetTicket.sn_unit || "-",
-              customer_phone: reopenTargetTicket.customer_phone || "-",
-              sales_name: reopenTargetTicket.sales_name || "-",
-              date: reopenTargetTicket.date || "-",
-            }
+          record: {
+            assigned_to: reopenAssignee,
+            project_name: reopenTargetTicket.project_name,
+            issue_case: reopenTargetTicket.issue_case,
+            description: `[Re-open] ${reopenNotes || 'Ticket dibuka kembali'}`,
+            sn_unit: reopenTargetTicket.sn_unit || "-",
+            customer_phone: reopenTargetTicket.customer_phone || "-",
+            sales_name: reopenTargetTicket.sales_name || "-",
+            date: reopenTargetTicket.date || "-",
+          },
         });
       } catch (waEx: any) { console.warn("[reopenTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
