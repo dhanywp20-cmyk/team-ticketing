@@ -195,7 +195,7 @@ function StatusDonutCard({
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-          {slices.map((s) => (
+          {slices.map((s) =>
             s.isFullCircle ? (
               <g key={s.i} style={{ cursor: "pointer" }} onClick={() => onSliceClick(s.name)}
                 onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
@@ -204,11 +204,11 @@ function StatusDonutCard({
                 <circle cx={cx} cy={cy} r={ir} fill="white" />
               </g>
             ) : (
-            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
-            )}
-          ))}
+              <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
+                style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+            )
+          )}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
