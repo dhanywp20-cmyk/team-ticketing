@@ -19,16 +19,6 @@ interface User {
   allowed_menus?: string[];
 }
 
-interface PendingRegistration {
-  id: string;
-  full_name: string;
-  username: string;
-  password: string;
-  phone_number?: string;
-  created_at: string;
-  status: 'pending' | 'approved' | 'rejected';
-}
-
 interface MenuItem {
   title: string;
   icon: string;
@@ -70,49 +60,6 @@ const ALL_MENU_KEYS = [
   'reminder-schedule',
 ];
 
-const MENU_LABELS: Record<string, { label: string; icon: string; gradient: string }> = {
-  'form-bast': { label: 'Form BAST & Demo', icon: '📋', gradient: 'from-slate-600 to-slate-500' },
-  'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
-  'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
-  'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
-  'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
-  'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
-  'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
-};
-
-interface MenuPermissionSelectorProps {
-  selected: string[];
-  onToggle: (key: string) => void;
-  colorScheme?: 'rose' | 'emerald';
-}
-
-function MenuPermissionSelector({ selected, onToggle, colorScheme = 'rose' }: MenuPermissionSelectorProps) {
-  const active = colorScheme === 'emerald'
-    ? { border: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-700', cbBorder: 'border-emerald-500', cbBg: 'bg-emerald-500' }
-    : { border: 'border-rose-400', bg: 'bg-rose-50', text: 'text-rose-700', cbBorder: 'border-rose-500', cbBg: 'bg-rose-500' };
-  return (
-    <div>
-      <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</label>
-      <div className="grid grid-cols-1 gap-2">
-        {ALL_MENU_KEYS.map(key => {
-          const m = MENU_LABELS[key];
-          const checked = selected.includes(key);
-          return (
-            <button key={key} type="button" onClick={() => onToggle(key)}
-              className={'flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ' + (checked ? active.border + ' ' + active.bg + ' ' + active.text : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300')}>
-              <div className={'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ' + (checked ? active.cbBorder + ' ' + active.cbBg : 'border-slate-300 bg-white')}>
-                {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-              </div>
-              <span className="text-lg">{m.icon}</span>
-              <span className="font-semibold text-sm">{m.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 interface AccountSettingsModalProps {
   onClose: () => void;
 }
@@ -133,62 +80,23 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     allowed_menus: ALL_MENU_KEYS,
   });
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [pendingRegs, setPendingRegs] = useState<PendingRegistration[]>([]);
-  const [loadingPending, setLoadingPending] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [approvingReg, setApprovingReg] = useState<{ reg: PendingRegistration; selectedMenus: string[] } | null>(null);
+
+  const menuLabels: Record<string, { label: string; icon: string; gradient: string }> = {
+    'form-bast': { label: 'Form BAST & Demo', icon: '📋', gradient: 'from-slate-600 to-slate-500' },
+    'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
+    'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
+    'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
+    'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
+    'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
+    'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
+  };
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 3000);
   };
 
-  useEffect(() => { fetchUsers(); fetchPendingRegs(); }, []);
-
-  const fetchPendingRegs = async () => {
-    setLoadingPending(true);
-    const { data, error } = await supabase
-      .from('pending_registrations')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      setPendingRegs(data);
-      setPendingCount(data.length);
-    }
-    setLoadingPending(false);
-  };
-
-  const handleApproveRegistration = async () => {
-    if (!approvingReg) return;
-    const { reg, selectedMenus } = approvingReg;
-    const { data: existing } = await supabase.from('users').select('id').eq('username', reg.username).single();
-    if (existing) { notify('error', 'Username sudah ada di sistem!'); return; }
-    setSaving(true);
-    const { error: insertErr } = await supabase.from('users').insert([{
-      username: reg.username,
-      password: reg.password,
-      full_name: reg.full_name,
-      role: 'guest',
-      team_type: 'Guest',
-      phone_number: reg.phone_number ?? null,
-      allowed_menus: selectedMenus,
-    }]);
-    setSaving(false);
-    if (insertErr) { notify('error', 'Gagal approve: ' + insertErr.message); return; }
-    await supabase.from('pending_registrations').update({ status: 'approved' }).eq('id', reg.id);
-    notify('success', `Akun ${reg.full_name} berhasil disetujui!`);
-    setApprovingReg(null);
-    fetchPendingRegs();
-    fetchUsers();
-  };
-
-  const handleRejectRegistration = async (reg: PendingRegistration) => {
-    if (!confirm(`Tolak pendaftaran dari ${reg.full_name}?`)) return;
-    await supabase.from('pending_registrations').update({ status: 'rejected' }).eq('id', reg.id);
-    notify('success', `Pendaftaran ${reg.full_name} ditolak.`);
-    fetchPendingRegs();
-  };
+  useEffect(() => { fetchUsers(); }, []);
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -259,6 +167,28 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     }
   };
 
+  const MenuPermissionSelector = ({ selected, target }: { selected: string[]; target: 'new' | 'edit' }) => (
+    <div>
+      <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</label>
+      <div className="grid grid-cols-1 gap-2">
+        {ALL_MENU_KEYS.map(key => {
+          const m = menuLabels[key];
+          const checked = selected.includes(key);
+          return (
+            <button key={key} type="button" onClick={() => toggleMenu(key, target)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${checked ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-rose-500 bg-rose-500' : 'border-slate-300 bg-white'}`}>
+                {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+              </div>
+              <span className="text-lg">{m.icon}</span>
+              <span className="font-semibold text-sm">{m.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
@@ -294,15 +224,6 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
           <button onClick={() => { setActiveTab('add'); setEditingUser(null); }}
             className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all ${activeTab === 'add' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             ➕ Tambah Akun
-          </button>
-          <button onClick={() => { setActiveTab('pending' as any); setEditingUser(null); fetchPendingRegs(); }}
-            className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition-all relative ${(activeTab as string) === 'pending' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            ⏳ Approval
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
-                {pendingCount}
-              </span>
-            )}
           </button>
         </div>
 
@@ -359,7 +280,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                       </div>
                     </div>
                   )}
-                  <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} onToggle={(key) => toggleMenu(key, 'edit')} />
+                  <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
                   <div className="flex gap-3 pt-2">
                     <button onClick={() => setEditingUser(null)} className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-lg font-semibold hover:bg-slate-50 transition-all text-sm">Batal</button>
                     <button onClick={handleSaveEdit} disabled={saving}
@@ -432,7 +353,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {user.allowed_menus.map(key => (
                             <span key={key} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 text-slate-600">
-                              {MENU_LABELS[key]?.icon} {MENU_LABELS[key]?.label ?? key}
+                              {menuLabels[key]?.icon} {menuLabels[key]?.label ?? key}
                             </span>
                           ))}
                         </div>
@@ -455,6 +376,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
           )}
 
           {activeTab === 'add' && (
+            <div className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Full Name *</label>
@@ -493,136 +415,12 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   </div>
                 </div>
               )}
-              <MenuPermissionSelector selected={newUser.allowed_menus} onToggle={(key) => toggleMenu(key, 'new')} />
+              <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
               <button onClick={handleAddUser} disabled={saving}
                 className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
                 {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                 ➕ Tambah Akun
               </button>
-            </div>
-          )}
-
-          {(activeTab as string) === 'pending' && (
-            <div className="space-y-4">
-              {/* ── Approve modal overlay ── */}
-              {approvingReg && (
-                <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
-                    <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 px-6 py-5 flex items-center justify-between flex-shrink-0">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center"><span className="text-lg">✅</span></div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">Approve Pendaftaran</h3>
-                          <p className="text-white/70 text-xs">Pilih menu yang dapat diakses</p>
-                        </div>
-                      </div>
-                      <button onClick={() => setApprovingReg(null)} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                    </div>
-                    <div className="px-6 py-4 bg-emerald-50 border-b border-emerald-100 flex-shrink-0">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-base border-2 border-emerald-300">
-                          {approvingReg.reg.full_name?.charAt(0)?.toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800">{approvingReg.reg.full_name}</p>
-                          <p className="text-xs text-slate-500">@{approvingReg.reg.username}</p>
-                          {approvingReg.reg.phone_number && <p className="text-xs text-slate-400">📞 {approvingReg.reg.phone_number}</p>}
-                        </div>
-                        <div className="ml-auto flex gap-1.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600 uppercase tracking-widest">guest</span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-widest">Guest</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto px-6 py-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</span>
-                        <div className="flex gap-2">
-                          <button onClick={() => setApprovingReg({ ...approvingReg, selectedMenus: ALL_MENU_KEYS })}
-                            className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all">Pilih Semua</button>
-                          <button onClick={() => setApprovingReg({ ...approvingReg, selectedMenus: [] })}
-                            className="text-[10px] font-bold px-2 py-1 rounded bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all">Hapus Semua</button>
-                        </div>
-                      </div>
-                      <MenuPermissionSelector
-                        selected={approvingReg.selectedMenus}
-                        colorScheme="emerald"
-                        onToggle={(key) => setApprovingReg({
-                          ...approvingReg,
-                          selectedMenus: approvingReg.selectedMenus.includes(key)
-                            ? approvingReg.selectedMenus.filter(k => k !== key)
-                            : [...approvingReg.selectedMenus, key],
-                        })}
-                      />
-                    </div>
-                    <div className="px-6 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
-                      <button onClick={() => setApprovingReg(null)} className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-lg font-semibold hover:bg-slate-50 transition-all text-sm">Batal</button>
-                      <button onClick={handleApproveRegistration} disabled={saving || approvingReg.selectedMenus.length === 0}
-                        className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-3 rounded-lg font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
-                        {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                        ✅ Approve & Buat Akun
-                        {approvingReg.selectedMenus.length > 0 && (
-                          <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-black">{approvingReg.selectedMenus.length}</span>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {loadingPending ? (
-                <div className="flex items-center justify-center py-16">
-                  <div className="w-10 h-10 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin"></div>
-                </div>
-              ) : pendingRegs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <div className="text-5xl">✅</div>
-                  <p className="text-slate-500 font-semibold">Tidak ada permintaan pendaftaran</p>
-                  <p className="text-slate-400 text-xs">Semua pendaftaran telah diproses</p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <span className="text-amber-600 text-lg">⚠️</span>
-                    <p className="text-amber-700 text-sm font-semibold">{pendingRegs.length} pendaftaran menunggu persetujuan</p>
-                  </div>
-                  {pendingRegs.map(reg => (
-                    <div key={reg.id} className="bg-amber-50/60 border border-amber-200 rounded-xl p-4 hover:border-amber-300 transition-all">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm bg-amber-100 text-amber-700 border-2 border-amber-300">
-                            {reg.full_name?.charAt(0)?.toUpperCase() ?? '?'}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-800 text-sm">{reg.full_name}</p>
-                            <p className="text-xs text-slate-500">@{reg.username}</p>
-                            {reg.phone_number && <p className="text-xs text-slate-400">📞 {reg.phone_number}</p>}
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              Daftar: {new Date(reg.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                            <div className="flex gap-1.5 mt-1 flex-wrap">
-                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-amber-200 text-amber-700">guest</span>
-                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">team: Guest</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2 flex-shrink-0">
-                          <button onClick={() => setApprovingReg({ reg, selectedMenus: ALL_MENU_KEYS })}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition-all flex items-center gap-1">
-                            ✅ Approve
-                          </button>
-                          <button onClick={() => handleRejectRegistration(reg)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all flex items-center gap-1">
-                            ❌ Tolak
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
             </div>
           )}
         </div>
@@ -1078,10 +876,6 @@ export default function Dashboard() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(true);
   const [menuLoading, setMenuLoading] = useState(false);
-  const [loginMode, setLoginMode] = useState<'login' | 'register'>('login');
-  const [registerForm, setRegisterForm] = useState({ full_name: '', username: '', password: '', confirmPassword: '', phone_number: '' });
-  const [registerLoading, setRegisterLoading] = useState(false);
-  const [registerDone, setRegisterDone] = useState(false);
 
   const [showSidebar, setShowSidebar] = useState(false);
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
@@ -1190,35 +984,6 @@ export default function Dashboard() {
     } catch { alert('Login gagal!'); }
   };
 
-  const handleRegister = async () => {
-    if (!registerForm.full_name.trim() || !registerForm.username.trim() || !registerForm.password.trim() || !registerForm.phone_number.trim()) {
-      alert('Semua field wajib diisi!'); return;
-    }
-    if (registerForm.password !== registerForm.confirmPassword) {
-      alert('Password dan konfirmasi password tidak sama!'); return;
-    }
-    if (registerForm.password.length < 6) {
-      alert('Password minimal 6 karakter!'); return;
-    }
-    setRegisterLoading(true);
-    try {
-      const { data: existingUser } = await supabase.from('users').select('id').eq('username', registerForm.username).single();
-      if (existingUser) { alert('Username sudah digunakan, coba username lain.'); setRegisterLoading(false); return; }
-      const { data: existingPending } = await supabase.from('pending_registrations').select('id').eq('username', registerForm.username).eq('status', 'pending').single();
-      if (existingPending) { alert('Username ini sudah memiliki permintaan pendaftaran yang sedang menunggu approval.'); setRegisterLoading(false); return; }
-      const { error } = await supabase.from('pending_registrations').insert([{
-        full_name: registerForm.full_name.trim(),
-        username: registerForm.username.trim(),
-        password: registerForm.password,
-        phone_number: registerForm.phone_number.trim(),
-        status: 'pending',
-      }]);
-      if (error) { alert('Gagal mendaftar: ' + error.message); setRegisterLoading(false); return; }
-      setRegisterDone(true);
-    } catch { alert('Terjadi kesalahan, coba lagi.'); }
-    setRegisterLoading(false);
-  };
-
   const handleLogout = () => {
     setIsLoggedIn(false); setCurrentUser(null);
     localStorage.removeItem('currentUser');
@@ -1322,6 +1087,39 @@ export default function Dashboard() {
     </div>
   );
 
+  if (!isLoggedIn) return (
+    <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed p-4" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
+      <div className="bg-white/75 backdrop-blur-sm rounded-lg shadow-2xl p-10 w-full max-w-md border border-slate-200">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-rose-600 to-rose-700 rounded-full mb-4 shadow-lg">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">Work Management</h1>
+          <p className="text-slate-600 font-medium">Support System - IndoVisual</p>
+        </div>
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">USERNAME</label>
+            <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+              className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
+              placeholder="Enter your username" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">PASSWORD</label>
+            <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+              className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
+              placeholder="Enter your password" onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
+          </div>
+          <button onClick={handleLogin} className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-4 rounded-md hover:from-rose-700 hover:to-rose-800 font-semibold shadow-lg hover:shadow-xl transition-all tracking-wide">
+            Sign In to Portal
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const MenuLoadingOverlay = () => (
     <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
       <div className="w-12 h-12 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin"></div>
@@ -1381,125 +1179,6 @@ export default function Dashboard() {
             </div>
           </button>
         ))}
-      </div>
-    </div>
-  );
-
-  if (!isLoggedIn) return (
-    <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed p-4" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      <div className="bg-white/75 backdrop-blur-sm rounded-lg shadow-2xl p-10 w-full max-w-md border border-slate-200">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-rose-600 to-rose-700 rounded-full mb-4 shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">Work Management</h1>
-          <p className="text-slate-600 font-medium">Support System - IndoVisual</p>
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex rounded-lg overflow-hidden border border-slate-200 mb-6">
-          <button
-            onClick={() => { setLoginMode('login'); setRegisterDone(false); }}
-            className={`flex-1 py-2.5 text-sm font-semibold transition-all ${loginMode === 'login' ? 'bg-rose-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
-            🔐 Sign In
-          </button>
-          <button
-            onClick={() => { setLoginMode('register'); setRegisterDone(false); }}
-            className={`flex-1 py-2.5 text-sm font-semibold transition-all ${loginMode === 'register' ? 'bg-rose-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
-            📝 Daftar (Guest)
-          </button>
-        </div>
-
-        {/* LOGIN FORM */}
-        {loginMode === 'login' && (
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">USERNAME</label>
-              <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Enter your username" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">PASSWORD</label>
-              <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Enter your password" onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
-            </div>
-            <button onClick={handleLogin} className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-4 rounded-md hover:from-rose-700 hover:to-rose-800 font-semibold shadow-lg hover:shadow-xl transition-all tracking-wide">
-              Sign In to Portal
-            </button>
-          </div>
-        )}
-
-        {/* REGISTER FORM */}
-        {loginMode === 'register' && !registerDone && (
-          <div className="space-y-4">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-700 text-xs font-semibold flex items-start gap-2">
-                <span className="text-base leading-none">ℹ️</span>
-                Pendaftaran Guest memerlukan persetujuan Admin sebelum akun dapat digunakan.
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">FULL NAME <span className="text-rose-500">*</span></label>
-              <input type="text" value={registerForm.full_name} onChange={e => setRegisterForm({ ...registerForm, full_name: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Nama lengkap Anda" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">USERNAME <span className="text-rose-500">*</span></label>
-              <input type="text" value={registerForm.username} onChange={e => setRegisterForm({ ...registerForm, username: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Pilih username unik" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">NO. TELEPON / WA <span className="text-rose-500">*</span></label>
-              <input type="tel" value={registerForm.phone_number} onChange={e => setRegisterForm({ ...registerForm, phone_number: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Contoh: 08123456789" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">PASSWORD <span className="text-rose-500">*</span></label>
-              <input type="password" value={registerForm.password} onChange={e => setRegisterForm({ ...registerForm, password: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Minimal 6 karakter" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">KONFIRMASI PASSWORD <span className="text-rose-500">*</span></label>
-              <input type="password" value={registerForm.confirmPassword} onChange={e => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
-                className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-                placeholder="Ulangi password" onKeyDown={e => e.key === 'Enter' && handleRegister()} />
-            </div>
-            <button onClick={handleRegister} disabled={registerLoading}
-              className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-4 rounded-md hover:from-rose-700 hover:to-rose-800 font-semibold shadow-lg hover:shadow-xl transition-all tracking-wide disabled:opacity-60 flex items-center justify-center gap-2">
-              {registerLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-              📝 Kirim Permintaan Daftar
-            </button>
-          </div>
-        )}
-
-        {/* REGISTER SUCCESS */}
-        {loginMode === 'register' && registerDone && (
-          <div className="text-center space-y-5">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-              <span className="text-4xl">✅</span>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Permintaan Terkirim!</h3>
-              <p className="text-slate-600 text-sm leading-relaxed">
-                Pendaftaran akun <span className="font-bold text-rose-600">@{registerForm.username}</span> telah dikirim.<br />
-                Silakan tunggu persetujuan dari Admin. Anda akan dapat login setelah akun disetujui.
-              </p>
-            </div>
-            <button
-              onClick={() => { setLoginMode('login'); setRegisterDone(false); setRegisterForm({ full_name: '', username: '', password: '', confirmPassword: '', phone_number: '' }); }}
-              className="w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white py-3 rounded-md font-semibold transition-all hover:from-slate-800 hover:to-slate-900 tracking-wide">
-              🔐 Kembali ke Sign In
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
