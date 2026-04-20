@@ -134,11 +134,12 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
 // ─── MiniPieChart ─────────────────────────────────────────────────────────────
 
 function MiniPieChart({
-  data, title, icon, onSliceClick,
+  data, title, icon, onSliceClick, activeFilter,
 }: {
   data: { label: string; value: number; color: string }[];
   title: string; icon: string;
   onSliceClick?: (label: string) => void;
+  activeFilter?: string;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -162,9 +163,13 @@ function MiniPieChart({
     cumulativeAngle += angle;
     return { ...d, path, isFullCircle: false, i };
   });
+  const hasActiveFilter = !!activeFilter;
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
-      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: hasActiveFilter ? '2px solid rgba(13,148,136,0.4)' : '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)', boxShadow: hasActiveFilter ? '0 0 0 3px rgba(13,148,136,0.08)' : 'none' }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+        {hasActiveFilter && <span className="text-[9px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-full">Filter Aktif ✓</span>}
+      </div>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
@@ -173,14 +178,14 @@ function MiniPieChart({
                 onClick={() => onSliceClick?.(s.label)}
                 onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}>
                 <circle cx={cx} cy={cy} r={r} fill={s.color}
-                  opacity={hovered === null || hovered === s.i ? 1 : 0.45}
-                  style={{ filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }} />
+                  opacity={activeFilter === s.label ? 1 : hovered === null || hovered === s.i ? 1 : 0.45}
+                  style={{ filter: activeFilter === s.label ? `drop-shadow(0 0 6px ${s.color}) drop-shadow(0 0 2px ${s.color})` : hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }} />
                 <circle cx={cx} cy={cy} r={innerR} fill="white" />
               </g>
             ) : (
             <path key={s.i} d={s.path} fill={s.color}
-              opacity={hovered === null || hovered === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+              opacity={activeFilter === s.label ? 1 : hovered === null || hovered === s.i ? 1 : 0.45}
+              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: activeFilter === s.label ? `drop-shadow(0 0 6px ${s.color}) drop-shadow(0 0 2px ${s.color})` : hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
               onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
               onClick={() => onSliceClick?.(s.label)} />
             )
@@ -189,16 +194,20 @@ function MiniPieChart({
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {slices.map((s) => (
+          {slices.map((s) => {
+            const isActive = activeFilter === s.label;
+            return (
             <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-              style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
+              style={{ background: isActive ? `${s.color}22` : hovered === s.i ? `${s.color}15` : 'transparent', outline: isActive ? `1.5px solid ${s.color}55` : 'none' }}
               onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
               onClick={() => onSliceClick?.(s.label)}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+              <span className="text-[10px] font-semibold truncate flex-1" style={{ color: isActive ? s.color : '#4b5563' }}>{s.label}</span>
               <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+              {isActive && <span className="text-[9px] font-bold flex-shrink-0" style={{ color: s.color }}>✓</span>}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -437,34 +446,36 @@ function NewFormModal({
                   placeholder="Nama ruangan / area"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
-                <input value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
-                  placeholder="Contoh: Gedung Wisma 46 Lt.12, Jakarta"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
-                  placeholder="Nama Sales / Account Manager"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Divisi Sales</label>
-                <select
-                  value={form.sales_division || ''}
-                  onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none appearance-none"
-                >
-                  <option value="">— Pilih Divisi Sales —</option>
-                  {SALES_DIVISIONS.map(div => (
-                    <option key={div} value={div}>{div}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
+                <textarea value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
+                  placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat"
+                  rows={4}
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">& divisi</span></label>
+                <div className="flex gap-2 items-center">
+                  <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
+                    placeholder="Nama Sales / Account Manager"
+                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+                  <select
+                    value={form.sales_division || ''}
+                    onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
+                    className="w-32 border-2 border-gray-200 rounded-xl px-2 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-xs text-gray-400 bg-white outline-none appearance-none cursor-pointer"
+                    style={{ color: '#9ca3af' }}
+                  >
+                    <option value="" style={{ color: '#9ca3af' }}>Pilih divisi...</option>
+                    {SALES_DIVISIONS.map(div => (
+                      <option key={div} value={div} style={{ color: '#9ca3af' }}>{div}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
+                  required
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
             </div>
@@ -483,7 +494,7 @@ function NewFormModal({
               <input value={form.kebutuhan_other} onChange={e => setForm(prev => ({ ...prev, kebutuhan_other: e.target.value }))}
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
-            <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
+            <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP']}
               value={form.solution_product[0] || ''} onChange={v => setForm(prev => ({ ...prev, solution_product: v ? [v] : [] }))} />
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
@@ -751,16 +762,39 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterYear, setFilterYear] = useState<string>('all');
-  const [filterMonth, setFilterMonth] = useState<string>('all');
-  const [filterHandler, setFilterHandler] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchSales, setSearchSales] = useState('');
-  const [filterDivision, setFilterDivision] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterStatus') || 'all'; } catch { return 'all'; }
+  });
+  const [filterYear, setFilterYear] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterYear') || 'all'; } catch { return 'all'; }
+  });
+  const [filterMonth, setFilterMonth] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterMonth') || 'all'; } catch { return 'all'; }
+  });
+  const [filterHandler, setFilterHandler] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterHandler') || 'all'; } catch { return 'all'; }
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    try { return sessionStorage.getItem('frp_searchQuery') || ''; } catch { return ''; }
+  });
+  const [searchSales, setSearchSales] = useState(() => {
+    try { return sessionStorage.getItem('frp_searchSales') || ''; } catch { return ''; }
+  });
+  const [filterDivision, setFilterDivision] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterDivision') || 'all'; } catch { return 'all'; }
+  });
   const [ptsMembersList, setPtsMembersList] = useState<string[]>([]);
   const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
+  // Persist filters to sessionStorage
+  useEffect(() => { try { sessionStorage.setItem('frp_filterStatus', filterStatus); } catch {} }, [filterStatus]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterYear', filterYear); } catch {} }, [filterYear]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterMonth', filterMonth); } catch {} }, [filterMonth]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterHandler', filterHandler); } catch {} }, [filterHandler]);
+  useEffect(() => { try { sessionStorage.setItem('frp_searchQuery', searchQuery); } catch {} }, [searchQuery]);
+  useEffect(() => { try { sessionStorage.setItem('frp_searchSales', searchSales); } catch {} }, [searchSales]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterDivision', filterDivision); } catch {} }, [filterDivision]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
@@ -781,7 +815,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [editFormData, setEditFormData] = useState({
-    project_name: '', room_name: '', project_location: '', sales_name: '',
+    project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
     kebutuhan: [] as string[], kebutuhan_other: '',
     solution_product: [] as string[], solution_other: '',
     layout_signage: [] as string[], jaringan_cms: [] as string[],
@@ -1002,6 +1036,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   for (const r of requests) { const a = r.assign_name || 'Unassigned'; assignedCounts[a] = (assignedCounts[a] || 0) + 1; }
   const assignedPieData = Object.entries(assignedCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
+  const productCounts: Record<string, number> = {};
+  for (const r of requests) {
+    const prods = r.solution_product?.length ? r.solution_product : (r.solution_other ? [r.solution_other] : ['Lainnya']);
+    for (const p of prods) { productCounts[p] = (productCounts[p] || 0) + 1; }
+  }
+  const productPieData = Object.entries(productCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+
   // CheckGroup & RadioGroup for edit modal
   const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
     <div className="mb-4">
@@ -1059,6 +1100,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (!form.project_name.trim()) { notify('error', 'Nama Project wajib diisi!'); return; }
     if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
     if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    if (!dueDateForm) { notify('error', 'Target Selesai wajib diisi!'); return; }
     setSubmitting(true);
     try {
       const payload = {
@@ -1234,7 +1276,7 @@ Hubungi Admin untuk info lebih lanjut.
     setEditFormData({
       project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
       project_location: selectedRequest.project_location || '',
-      sales_name: selectedRequest.sales_name || '', kebutuhan: selectedRequest.kebutuhan || [],
+      sales_name: selectedRequest.sales_name || '', sales_division: selectedRequest.sales_division || '', kebutuhan: selectedRequest.kebutuhan || [],
       kebutuhan_other: selectedRequest.kebutuhan_other || '', solution_product: selectedRequest.solution_product || [],
       solution_other: selectedRequest.solution_other || '', layout_signage: selectedRequest.layout_signage || [],
       jaringan_cms: selectedRequest.jaringan_cms || [], jumlah_input: selectedRequest.jumlah_input || '',
@@ -1254,7 +1296,7 @@ Hubungi Admin untuk info lebih lanjut.
 
   const handleEditFormSubmit = async () => {
     if (!selectedRequest) return;
-    const { error } = await supabase.from('project_requests').update({ ...editFormData }).eq('id', selectedRequest.id);
+    const { error } = await supabase.from('project_requests').update({ ...editFormData, sales_division: editFormData.sales_division || '' }).eq('id', selectedRequest.id);
     if (error) { notify('error', 'Gagal menyimpan perubahan.'); return; }
     notify('success', 'Perubahan disimpan!');
     setEditFormModal(false);
@@ -1366,7 +1408,7 @@ Hubungi Admin untuk info lebih lanjut.
   .info-value { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.5; }
   .full-col { grid-column: span 2; }
   .footer { margin-top: 20px; padding-top: 12px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
-  .assign-box { margin-top: 40px; page-break-inside: avoid; border-top: 1.5px solid #334155; padding-top: 12px; text-align: center; max-width: 240px; margin-left: auto; margin-right: auto; }
+  .assign-box { margin-top: 40px; page-break-inside: avoid; border-top: 1.5px solid #334155; padding-top: 12px; text-align: left; max-width: 240px; margin-left: 0; margin-right: auto; }
   .assign-label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
   .assign-name { margin-top: 8px; font-size: 13px; font-weight: 800; color: #065f46; }
   @media print {
@@ -1435,13 +1477,16 @@ Hubungi Admin untuk info lebih lanjut.
     <div class="grid2">
       <div>
         ${infoBox('Kebutuhan', [...(selectedRequest.kebutuhan||[]), selectedRequest.kebutuhan_other].filter(Boolean).join(', ') || '—')}
-        ${infoBox('Layout Signage', selectedRequest.layout_signage?.join(', ') || '—')}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Layout Signage', selectedRequest.layout_signage?.join(', ') || '—') : ''}
       </div>
       <div>
         ${infoBox('Solution / Product', [...(selectedRequest.solution_product||[]), selectedRequest.solution_other].filter(Boolean).join(', ') || '—')}
-        ${infoBox('Jaringan CMS', selectedRequest.jaringan_cms?.join(', ') || '—')}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jaringan CMS', selectedRequest.jaringan_cms?.join(', ') || '—') : ''}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Input', selectedRequest.jumlah_input || '—') : ''}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Output', selectedRequest.jumlah_output || '—') : ''}
       </div>
     </div>
+    ${!(selectedRequest.kebutuhan||[]).includes('Signage') ? '' : ''}
   </div>
 
   <!-- PERANGKAT & KONEKSI -->
@@ -1449,13 +1494,13 @@ Hubungi Admin untuk info lebih lanjut.
     <div class="section-title green">🔌 Perangkat & Koneksi</div>
     <div class="grid2">
       <div>
-        ${infoBox('Jumlah Input', selectedRequest.jumlah_input || '—')}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Input', selectedRequest.jumlah_input || '—') : ''}
         ${infoBox('Source', [...(selectedRequest.source||[]), selectedRequest.source_other].filter(Boolean).join(', ') || '—')}
         ${infoBox('Wallplate Input', selectedRequest.wallplate_input === 'Yes' ? `Ya — ${selectedRequest.wallplate_jumlah} unit` : 'Tidak')}
         ${infoBox('Tabletop Input', selectedRequest.tabletop_input === 'Yes' ? `Ya — ${selectedRequest.tabletop_jumlah} unit` : 'Tidak')}
       </div>
       <div>
-        ${infoBox('Jumlah Output', selectedRequest.jumlah_output || '—')}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Output', selectedRequest.jumlah_output || '—') : ''}
         ${infoBox('Camera Conference', selectedRequest.camera_conference === 'Yes' ? `Ya — ${selectedRequest.camera_jumlah} unit, ${selectedRequest.camera_tracking?.join(', ')||''}` : 'Tidak')}
         ${infoBox('Audio System', selectedRequest.audio_system === 'Yes' ? `Ya — ${selectedRequest.audio_mixer}, ${selectedRequest.audio_detail?.join(', ')||''}` : 'Tidak')}
         ${infoBox('Wireless Presentation', selectedRequest.wireless_presentation === 'Yes' ? `Ya — ${selectedRequest.wireless_mode?.join(', ')}, Dongle: ${selectedRequest.wireless_dongle}` : 'Tidak')}
@@ -1659,6 +1704,7 @@ Hubungi Admin untuk info lebih lanjut.
     ${[...(selectedRequest.kebutuhan||[]),selectedRequest.kebutuhan_other].filter(Boolean).map(i=>`<span class="chip">${i}</span>`).join('')||'<span class="chip no">—</span>'}
     ${[...(selectedRequest.solution_product||[]),selectedRequest.solution_other].filter(Boolean).map(i=>`<span class="chip">${i}</span>`).join('')||''}
   </div>
+  ${(selectedRequest.kebutuhan||[]).includes('Signage') ? `
   <div class="chips" style="padding-top:0">
     ${(selectedRequest.layout_signage||[]).map(i=>`<span class="chip" style="background:#eff6ff;color:#1e40af;border-color:#93c5fd">${i}</span>`).join('')}
     ${(selectedRequest.jaringan_cms||[]).map(i=>`<span class="chip" style="background:#f0fdfa;color:#0f766e;border-color:#5eead4">${i}</span>`).join('')}
@@ -1666,7 +1712,7 @@ Hubungi Admin untuk info lebih lanjut.
   <div class="grid grid-2" style="padding-top:0">
     <div class="field"><label>Jumlah Input</label><p>${selectedRequest.jumlah_input||'—'}</p></div>
     <div class="field"><label>Jumlah Output</label><p>${selectedRequest.jumlah_output||'—'}</p></div>
-  </div>
+  </div>` : ''}
 </div>
 
 <div class="section">
@@ -1849,50 +1895,35 @@ Hubungi Admin untuk info lebih lanjut.
           ))}
         </div>
 
-        {/* Charts - same structure as reference */}
+        {/* Charts - guest sees handler + product, PTS sees all 3 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <MiniPieChart data={statusPieData} title="Status Distribution" icon="🥧"
-            onSliceClick={label => {
-              const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
-              setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
-            }} />
-          <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="🥧"
-            onSliceClick={label => {
-              setFilterDivision(prev => prev === label ? 'all' : label);
-            }} />
-          <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
-            onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
+          {isPTS ? (
+            <>
+              <MiniPieChart data={statusPieData} title="Status Distribution" icon="🥧"
+                activeFilter={filterStatus !== 'all' ? (() => { const rev: Record<string,string> = { pending:'Pending', approved:'Approved', in_progress:'In Progress', completed:'Completed', rejected:'Rejected' }; return rev[filterStatus]; })() : undefined}
+                onSliceClick={label => {
+                  const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
+                  setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
+                }} />
+              <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="🥧"
+                activeFilter={filterDivision !== 'all' ? filterDivision : undefined}
+                onSliceClick={label => { setFilterDivision(prev => prev === label ? 'all' : label); }} />
+              <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
+                activeFilter={filterHandler !== 'all' ? filterHandler : undefined}
+                onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
+            </>
+          ) : (
+            <>
+              <MiniPieChart data={statusPieData} title="Status Request Saya" icon="🥧" />
+              <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
+                activeFilter={filterHandler !== 'all' ? filterHandler : undefined}
+                onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
+              <MiniPieChart data={productPieData} title="Product" icon="📦" />
+            </>
+          )}
         </div>
 
-        {/* Active filter chips — same as reference */}
-        {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
-            {filterStatus !== 'all' && (
-              <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {filterStatus} ✕</button>
-            )}
-            {filterYear !== 'all' && (
-              <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>Year: {filterYear} ✕</button>
-            )}
-            {filterMonth !== 'all' && (
-              <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>Bulan: {filterMonth} ✕</button>
-            )}
-            {filterHandler !== 'all' && (
-              <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>Handler: {filterHandler} ✕</button>
-            )}
-            {filterDivision !== 'all' && (
-              <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#ec4899' }}>Division: {filterDivision} ✕</button>
-            )}
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Search: {searchQuery} ✕</button>
-            )}
-            {searchSales && (
-              <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Sales: {searchSales} ✕</button>
-            )}
-            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales(''); }}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
-          </div>
-        )}
+        
 
         {/* TICKET LIST — matching reference style */}
         <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
@@ -1999,7 +2030,39 @@ Hubungi Admin untuk info lebih lanjut.
             </div>
           </div>
 
-          {/* Table body */}
+          {/* Active filter chips — inside table */}
+          {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
+            <div className="px-6 py-2.5 bg-teal-50/60 border-b border-teal-100 flex flex-wrap gap-2 items-center">
+              <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Filter Aktif:</span>
+              {filterStatus !== 'all' && (
+                <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {filterStatus} ✕</button>
+              )}
+              {filterYear !== 'all' && (
+                <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>Year: {filterYear} ✕</button>
+              )}
+              {filterMonth !== 'all' && (
+                <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>Bulan: {filterMonth} ✕</button>
+              )}
+              {filterHandler !== 'all' && (
+                <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>Handler: {filterHandler} ✕</button>
+              )}
+              {filterDivision !== 'all' && (
+                <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#ec4899' }}>Division: {filterDivision} ✕</button>
+              )}
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Search: {searchQuery} ✕</button>
+              )}
+              {searchSales && (
+                <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Sales: {searchSales} ✕</button>
+              )}
+              <button onClick={() => { 
+                setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); 
+                setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales('');
+                try { ['frp_filterStatus','frp_filterYear','frp_filterMonth','frp_filterHandler','frp_filterDivision','frp_searchQuery','frp_searchSales'].forEach(k => sessionStorage.removeItem(k)); } catch {}
+              }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:bg-red-100 border border-red-200" style={{ background: 'rgba(220,38,38,0.08)', color: '#dc2626' }}>🗑️ Reset Semua</button>
+            </div>
+          )}
           {loading ? (
             <div className="space-y-3 py-2 p-4">
               {[...Array(5)].map((_, i) => (
@@ -2792,22 +2855,31 @@ Hubungi Admin untuk info lebih lanjut.
                     <input value={editFormData.project_name} onChange={e => setEditFormData(p => ({ ...p, project_name: e.target.value }))}
                       placeholder="Nama project..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none bg-white" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
-                      <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
-                        placeholder="Nama ruangan / area" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
-                      <input value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
-                        placeholder="Gedung / Alamat..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                    <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
+                      placeholder="Nama ruangan / area" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                    <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
-                      placeholder="Nama Sales / Account Manager" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
+                    <textarea value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
+                      placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat" rows={4}
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">& divisi</span></label>
+                    <div className="flex gap-2 items-center">
+                      <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
+                        placeholder="Nama Sales / Account Manager" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                      <select value={editFormData.sales_division || ''} onChange={e => setEditFormData(p => ({ ...p, sales_division: e.target.value }))}
+                        className="w-32 border-2 border-gray-200 rounded-xl px-2 py-2.5 focus:border-amber-400 transition-all text-xs text-gray-400 bg-white outline-none appearance-none cursor-pointer"
+                        style={{ color: '#9ca3af' }}>
+                        <option value="" style={{ color: '#9ca3af' }}>Pilih divisi...</option>
+                        {SALES_DIVISIONS.map(div => (
+                          <option key={div} value={div} style={{ color: '#9ca3af' }}>{div}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2824,7 +2896,7 @@ Hubungi Admin untuk info lebih lanjut.
                   <input value={editFormData.kebutuhan_other} onChange={e => setEditFormData(p => ({ ...p, kebutuhan_other: e.target.value }))}
                     placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
                 </div>
-                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Videotron', 'Kiosk', 'IFP']}
+                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP']}
                   value={editFormData.solution_product} onChange={v => setEditFormData(p => ({ ...p, solution_product: v }))} />
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
@@ -2833,6 +2905,7 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               </div>
 
+              {editFormData.kebutuhan.includes('Signage') && (
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
@@ -2855,6 +2928,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
                 </div>
               </div>
+              )}
 
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
