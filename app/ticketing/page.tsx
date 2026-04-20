@@ -922,7 +922,6 @@ export default function TicketingSystem() {
         const handlerUser = hByName?.phone_number ? hByName
           : (await supabase.from("users").select("phone_number, full_name")
             .eq("username", approvalAssignee).maybeSingle()).data;
-          .maybeSingle();
         if (handlerUser?.phone_number) {
           const waMsg = [
             "🎫 *Ticket Assigned ke Kamu*",
@@ -987,7 +986,6 @@ export default function TicketingSystem() {
         const reopenHandler = rhByName?.phone_number ? rhByName
           : (await supabase.from("users").select("phone_number, full_name")
             .eq("username", reopenAssignee).maybeSingle()).data;
-          .maybeSingle();
         if (reopenHandler?.phone_number) {
           const waMsg = [
             "🔓 *Ticket Re-opened ke Kamu*",
