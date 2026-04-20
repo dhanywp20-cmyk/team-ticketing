@@ -857,25 +857,27 @@ export default function TicketingSystem() {
           // Ambil phone semua admin dari frontend, kirim ke Edge Function
           const { data: adminUsers } = await supabase
             .from("users")
-            .select("phone_number")
+            .select("phone_number, full_name")
             .in("role", ["admin", "superadmin"])
             .not("phone_number", "is", null)
             .neq("phone_number", "");
-          const adminPhones = (adminUsers || []).map((u: any) => u.phone_number).filter(Boolean);
-          if (adminPhones.length > 0) {
-            await sendWANotif({
-              type: "approval_request",
-              adminPhones,
-              projectName: newTicket.project_name,
-              issueCase: newTicket.issue_case,
-              requesterName: currentUser?.full_name || "",
-              requesterUsername: currentUser?.username || "",
-              date: newTicket.date,
-              description: newTicket.description || "-",
-              snUnit: newTicket.sn_unit || "-",
-              customerPhone: newTicket.customer_phone || "-",
-              salesName: newTicket.sales_name || "-",
-            });
+          if (adminUsers && adminUsers.length > 0) {
+            const waMsg = [
+              "🔔 *Request Ticket Baru \u2014 Menunggu Approval*",
+              "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+              `📌 *Project  :* ${newTicket.project_name}`,
+              `⚠️ *Issue    :* ${newTicket.issue_case}`,
+              `👤 *Requester:* ${currentUser?.full_name || "-"} (@${currentUser?.username || "-"})`,
+              `📅 *Tanggal  :* ${newTicket.date || "-"}`,
+              "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+              "Silakan buka dashboard untuk *Approve / Reject*.",
+              "🔗 https://team-ticketing.vercel.app/dashboard",
+            ].join("\n");
+            await Promise.allSettled(
+              (adminUsers as any[]).map((a: any) =>
+                sendWANotif({ type: "reminder_wa", target: a.phone_number, message: waMsg })
+              )
+            );
           }
         } catch (waEx: any) {
           // Jangan throw — ticket sudah berhasil disimpan
@@ -914,36 +916,27 @@ export default function TicketingSystem() {
       // ── WA ke handler yang di-assign (cari phone di frontend) ───────────
       try {
         // Cari phone number handler dari team_members berdasarkan nama
-        // Cari handler: coba full_name dulu, fallback ke username
-        let handlerUser: any = null;
-        const { data: byName } = await supabase
-          .from("users")
-          .select("phone_number, full_name")
-          .eq("full_name", approvalAssignee)
+        const { data: hByName } = await supabase
+          .from("users").select("phone_number, full_name")
+          .eq("full_name", approvalAssignee).maybeSingle();
+        const handlerUser = hByName?.phone_number ? hByName
+          : (await supabase.from("users").select("phone_number, full_name")
+            .eq("username", approvalAssignee).maybeSingle()).data;
           .maybeSingle();
-        if (byName?.phone_number) {
-          handlerUser = byName;
-        } else {
-          const { data: byUsername } = await supabase
-            .from("users")
-            .select("phone_number, full_name")
-            .eq("username", approvalAssignee)
-            .maybeSingle();
-          if (byUsername?.phone_number) handlerUser = byUsername;
-        }
         if (handlerUser?.phone_number) {
-          await sendWANotif({
-            type: "ticket_assigned",
-            handlerName: handlerUser.full_name,
-            handlerPhone: handlerUser.phone_number,
-            projectName: approvalTicket.project_name,
-            issueCase: approvalTicket.issue_case,
-            description: approvalTicket.description || "-",
-            snUnit: approvalTicket.sn_unit || "-",
-            customerPhone: approvalTicket.customer_phone || "-",
-            salesName: approvalTicket.sales_name || "-",
-            date: approvalTicket.date || "-",
-          });
+          const waMsg = [
+            "🎫 *Ticket Assigned ke Kamu*",
+            "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+            `Halo *${handlerUser?.full_name || "Handler"}*, ada ticket untukmu:`,
+            "",
+            `📌 *Project :* ${approvalTicket.project_name}`,
+            `⚠️ *Issue   :* ${approvalTicket.issue_case}`,
+            `📅 *Tanggal :* ${approvalTicket.date || "-"}`,
+            "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+            "Mohon segera ditangani. Semangat! 💪",
+            "🔗 https://team-ticketing.vercel.app/dashboard",
+          ].join("\n");
+          await sendWANotif({ type: "reminder_wa", target: handlerUser.phone_number, message: waMsg });
         }
       } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
@@ -988,37 +981,26 @@ export default function TicketingSystem() {
       }]);
       // ── WA ke handler yang di-assign saat reopen ─────────────────────────
       try {
-        // Cari handler: coba full_name dulu, fallback ke username
-        let reopenHandler: any = null;
-        const { data: reopenByName } = await supabase
-          .from("users")
-          .select("phone_number, full_name")
-          .eq("full_name", reopenAssignee)
+        const { data: rhByName } = await supabase
+          .from("users").select("phone_number, full_name")
+          .eq("full_name", reopenAssignee).maybeSingle();
+        const reopenHandler = rhByName?.phone_number ? rhByName
+          : (await supabase.from("users").select("phone_number, full_name")
+            .eq("username", reopenAssignee).maybeSingle()).data;
           .maybeSingle();
-        if (reopenByName?.phone_number) {
-          reopenHandler = reopenByName;
-        } else {
-          const { data: reopenByUser } = await supabase
-            .from("users")
-            .select("phone_number, full_name")
-            .eq("username", reopenAssignee)
-            .maybeSingle();
-          if (reopenByUser?.phone_number) reopenHandler = reopenByUser;
-        }
         if (reopenHandler?.phone_number) {
-          await sendWANotif({
-            type: "ticket_assigned",
-            handlerName: reopenHandler.full_name,
-            handlerPhone: reopenHandler.phone_number,
-            projectName: reopenTargetTicket.project_name,
-            issueCase: reopenTargetTicket.issue_case,
-            description: `[Re-open] ${reopenNotes || 'Ticket dibuka kembali'}`,
-            snUnit: reopenTargetTicket.sn_unit || "-",
-            customerPhone: reopenTargetTicket.customer_phone || "-",
-            salesName: reopenTargetTicket.sales_name || "-",
-            date: reopenTargetTicket.date || "-",
-            isReopen: true,
-          });
+          const waMsg = [
+            "🔓 *Ticket Re-opened ke Kamu*",
+            "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+            `Halo *${reopenHandler?.full_name || "Handler"}*, ticket dibuka kembali:`,
+            "",
+            `📌 *Project :* ${reopenTargetTicket.project_name}`,
+            `⚠️ *Issue   :* ${reopenTargetTicket.issue_case}`,
+            "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+            "Mohon segera ditangani. Semangat! 💪",
+            "🔗 https://team-ticketing.vercel.app/dashboard",
+          ].join("\n");
+          await sendWANotif({ type: "reminder_wa", target: reopenHandler.phone_number, message: waMsg });
         }
       } catch (waEx: any) { console.warn("[reopenTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
