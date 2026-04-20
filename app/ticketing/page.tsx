@@ -16,28 +16,6 @@ const supabaseServices = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY!,
 );
 
-// ── Debug: test WA dari browser console → window.testWA('08xxx') ──────────────
-if (typeof window !== 'undefined') {
-  (window as any).testWA = async (phone: string) => {
-    const supabaseTest = (await import('@supabase/supabase-js')).createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    // Test 1: cek Edge Function bisa dipanggil
-    const { data: testData, error: testErr } = await supabaseTest.functions.invoke('notify-handler', {
-      body: { type: 'test' }
-    });
-    console.log('[testWA] Edge Function test:', testData, testErr);
-    // Test 2: kirim WA test
-    const { data, error } = await supabaseTest.functions.invoke('notify-handler', {
-      body: { type: 'reminder_wa', target: phone, message: '🧪 Test WA dari PTS Portal — jika menerima ini, WA berfungsi!' }
-    });
-    console.log('[testWA] WA result:', data, error);
-    return { testData, data, testErr, error };
-  };
-  console.log('[PTS] Debug: jalankan window.testWA("08xx") di console untuk test WA');
-}
-
 // ── Status list khusus Team Services ─────────────────────────────────────────
 const SERVICES_STATUSES = [
   "Waiting Approval",
@@ -910,6 +888,24 @@ export default function TicketingSystem() {
           if (!existingMapping) await supabase.from("guest_mappings").insert([{ guest_username: approvalTicket.created_by, project_name: approvalTicket.project_name }]);
         }
       }
+      // ── WA ke handler yang di-assign ──────────────────────────────────────
+      try {
+        await supabase.functions.invoke("notify-handler", {
+          body: {
+            record: {
+              assigned_to: approvalAssignee,
+              project_name: approvalTicket.project_name,
+              issue_case: approvalTicket.issue_case,
+              description: approvalTicket.description || "-",
+              sn_unit: approvalTicket.sn_unit || "-",
+              customer_phone: approvalTicket.customer_phone || "-",
+              sales_name: approvalTicket.sales_name || "-",
+              date: approvalTicket.date || "-",
+            }
+          }
+        });
+      } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
+      // ─────────────────────────────────────────────────────────────────────
       setShowApprovalModal(false);
       setApprovalTicket(null);
       setApprovalAssignee("");
@@ -949,6 +945,24 @@ export default function TicketingSystem() {
         assigned_to_services: false,
         file_url: "", file_name: "", photo_url: "", photo_name: ""
       }]);
+      // ── WA ke handler yang di-assign saat reopen ─────────────────────────
+      try {
+        await supabase.functions.invoke("notify-handler", {
+          body: {
+            record: {
+              assigned_to: reopenAssignee,
+              project_name: reopenTargetTicket.project_name,
+              issue_case: reopenTargetTicket.issue_case,
+              description: `[Re-open] ${reopenNotes || 'Ticket dibuka kembali'}`,
+              sn_unit: reopenTargetTicket.sn_unit || "-",
+              customer_phone: reopenTargetTicket.customer_phone || "-",
+              sales_name: reopenTargetTicket.sales_name || "-",
+              date: reopenTargetTicket.date || "-",
+            }
+          }
+        });
+      } catch (waEx: any) { console.warn("[reopenTicket] WA failed:", waEx?.message); }
+      // ─────────────────────────────────────────────────────────────────────
       await fetchData();
       setLoadingMessage("✅ Ticket berhasil dibuka kembali!");
       setTimeout(() => {
