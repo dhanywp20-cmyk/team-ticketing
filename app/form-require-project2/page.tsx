@@ -2800,7 +2800,7 @@ Hubungi Admin untuk info lebih lanjut.
                 {editFormData.controller_automation === 'Yes' && (
                   <div className="ml-4 mb-4 border-l-2 border-amber-200 pl-4">
                     <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
-                      value={editFormData.controller_type} onChange={v => setEditFormData(p => ({ ...p, controller_type: v }))} />
+                      value={editFormData.controller_type?.[0] || ''} onChange={v => setEditFormData(p => ({ ...p, controller_type: v ? [v] : [] }))} />
                   </div>
                 )}
               </div>
