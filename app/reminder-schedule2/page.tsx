@@ -1,293 +1,180 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
+// ── Supabase Client: Team PTS (existing) ──────────────────────────────────────
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-// ─── Fonnte WA via Supabase Edge Function (same pattern as ticketing) ────────
-// ── Fonnte token di-cache dari Supabase app_settings ─────────────────────────
-let _fonnteToken: string | null = null;
-async function getFonnteToken(): Promise<string | null> {
-  if (_fonnteToken) return _fonnteToken;
-  try {
-    const { data } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'fonnte_token')
-      .single();
-    if (data?.value) {
-      // value di JSONB bisa berupa string dengan kutip: '"token"' → strip kutip
-      const raw = data.value;
-      _fonnteToken = typeof raw === 'string' ? raw.replace(/^"|"$/g, '') : String(raw);
-      return _fonnteToken;
-    }
-  } catch { /* fallback ke env */ }
-  const envToken = process.env.NEXT_PUBLIC_FONNTE_TOKEN;
-  if (envToken) { _fonnteToken = envToken; return _fonnteToken; }
-  return null;
-}
+// ── Supabase Client: Team Services ─────────────────────────────────────────
+const supabaseServices = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICES_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY!,
+);
 
-// ── WA via direct fetch ke Edge Function (custom auth, tanpa Supabase session) ─
-async function sendFonnteWA(
-  target: string,
-  message: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _meta?: Record<string, unknown>
-): Promise<{ ok: boolean; reason?: string }> {
+
+// ── WA via direct fetch ke Edge Function (sama seperti reminder-schedule) ─────
+async function sendWANotif(body: Record<string, unknown>): Promise<void> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${anonKey}`,
-        'apikey': anonKey,
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${anonKey}`,
+        "apikey": anonKey,
       },
-      body: JSON.stringify({ type: 'reminder_wa', target, message }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
-    console.log('[sendFonnteWA] response:', data);
-    return { ok: data?.ok === true, reason: data?.reason };
+    console.log("[sendWANotif] response:", data);
   } catch (err: any) {
-    console.error('[sendFonnteWA] error:', err.message);
-    return { ok: false, reason: err.message };
+    console.error("[sendWANotif] error:", err.message);
   }
 }
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ── Status list khusus Team Services ─────────────────────────────────────────
+const SERVICES_STATUSES = [
+  "Waiting Approval",
+  "Pending",
+  "Warranty",
+  "Out Of Warranty",
+  "Waiting PO from Sales",
+  "Submit RMA",
+  "Waiting sparepart",
+  "Process Repair",
+  "Solved",
+] as const;
+type ServicesStatus = (typeof SERVICES_STATUSES)[number];
 
-type Priority = 'low' | 'medium' | 'high' | 'urgent';
-type Status = 'pending' | 'done' | 'cancelled';
-type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
-
-interface Reminder {
-  id: string;
-  title?: string;       // kolom lama di DB (beberapa row pakai 'title')
-  project_name: string; // kolom baru (fallback dari title)
-  description: string;
-  assigned_to: string;
-  assigned_name: string;
-  due_date: string;
-  due_time: string;
-  priority: Priority;
-  status: Status;
-  repeat: RepeatType;
-  category: string;
-  sales_name: string;
-  sales_division: string;
-  address: string;
-  pic_name: string;
-  pic_phone: string;
-  created_by: string;
-  created_at: string;
-  notes?: string;
-  wa_sent_h1?: boolean;
-  completion_photo_url?: string;
-  product?: string;
-}
-
-interface TeamUser {
+interface User {
   id: string;
   username: string;
+  password: string;
   full_name: string;
   role: string;
   team_type?: string;
-  phone_number?: string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+interface TeamMember {
+  id: string;
+  name: string;
+  username: string;
+  photo_url: string;
+  role: string;
+  team_type: string;
+}
 
-const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: string; border: string; dot: string }> = {
-  low:    { label: 'Low',    color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.4)', dot: '#94a3b8' },
-  medium: { label: 'Medium', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.4)',  dot: '#f59e0b' },
-  high:   { label: 'High',   color: '#f97316', bg: 'rgba(249,115,22,0.15)',  border: 'rgba(249,115,22,0.4)',  dot: '#f97316' },
-  urgent: { label: 'Urgent', color: '#f43f5e', bg: 'rgba(244,63,94,0.2)',    border: 'rgba(244,63,94,0.5)',   dot: '#f43f5e' },
-};
+interface ActivityLog {
+  id: string;
+  ticket_id?: string;
+  handler_name: string;
+  handler_username: string;
+  action_taken: string;
+  notes: string;
+  file_url: string;
+  file_name: string;
+  photo_url?: string;
+  photo_name?: string;
+  new_status: string;
+  team_type: string;
+  assigned_to_services?: boolean;
+  created_at: string;
+}
 
-const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string; border: string; icon: string }> = {
-  pending:     { label: 'Pending',    color: '#92400e', bg: '#fef3c7', border: '#f59e0b', icon: '⏳' },
-  done:        { label: 'Completed',  color: '#065f46', bg: '#d1fae5', border: '#10b981', icon: '✅' },
-  cancelled:   { label: 'Cancelled', color: '#374151', bg: '#f3f4f6', border: '#6b7280', icon: '❌' },
-};
+interface Ticket {
+  id: string;
+  project_name: string;
+  address?: string;
+  customer_phone: string;
+  sales_name: string;
+  issue_case: string;
+  description: string;
+  sn_unit?: string;
+  product?: string;
+  assigned_to: string;
+  status: string;
+  date: string;
+  created_at: string;
+  created_by?: string;
+  current_team: string;
+  services_status?: string;
+  sales_division?: string;
+  photo_url?: string;
+  photo_name?: string;
+  activity_logs?: ActivityLog[];
+}
 
-const CATEGORIES = ['Demo Product', 'Meeting & Survey', 'Konfigurasi', 'Konfigurasi & Training', 'Troubleshooting', 'Training', 'Internal'];
+interface GuestMapping {
+  id: string;
+  guest_username: string;
+  project_name: string;
+  created_at: string;
+}
 
-const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string; accent: string }> = {
-  'Demo Product':     { icon: '🖥️', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.4)', accent: '#7c3aed' },
-  'Meeting & Survey': { icon: '🤝', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)',   border: 'rgba(56,189,248,0.4)',   accent: '#0ea5e9' },
-  'Konfigurasi':      { icon: '⚙️', color: '#34d399', bg: 'rgba(52,211,153,0.15)',   border: 'rgba(52,211,153,0.4)',   accent: '#10b981' },
-  'Konfigurasi & Training':      { icon: '📌', color: '#34d399', bg: 'rgba(52,211,153,0.15)',   border: 'rgba(52,211,153,0.4)',   accent: '#10b981' },
-  'Troubleshooting':  { icon: '🔧', color: '#fb7185', bg: 'rgba(251,113,133,0.15)',   border: 'rgba(251,113,133,0.4)',  accent: '#e11d48' },
-  'Training':         { icon: '🎓', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)',    border: 'rgba(251,191,36,0.4)',   accent: '#d97706' },
-  'Internal':         { icon: '🕵🏻', color: '#11eb2eff', bg: 'rgba(251,191,36,0.15)',    border: 'rgba(251,191,36,0.4)',   accent: '#19d628ff' },
-};
-
-const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
-  { value: 'none',    label: 'Tidak Berulang' },
-  { value: 'daily',   label: 'Setiap Hari' },
-  { value: 'weekly',  label: 'Setiap Minggu' },
-  { value: 'monthly', label: 'Setiap Bulan' },
-];
+interface OverdueSetting {
+  id: string;
+  ticket_id: string;
+  due_date: string | null;
+  due_hours: number | null;
+  set_by: string;
+  created_at: string;
+}
 
 const SALES_DIVISIONS = [
-  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
-  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
-  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
-  'IOCBali', 'SGP', 'OSS'
+  "IVP", "MLDS", "HAVS", "Enterprise", "DEC", "ICS", "POJ", "VOJ", "LOCOS",
+  "VISIONMEDIA", "UMP", "BISOL", "KIMS", "IDC", "IOCMEDAN", "IOCPekanbaru",
+  "IOCBandung", "IOCJATENG", "MVISEMARANG", "POSSurabaya", "IOCSurabaya",
+  "IOCBali", "SGP", "OSS",
 ] as const;
 
-const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr: string) {
-  if (!dateStr) return '';
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function formatDatetime(createdAt: string) {
-  if (!createdAt) return '';
-  const d = new Date(createdAt);
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' +
-    d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-}
-
-function isDueToday(due_date: string) {
-  return due_date === new Date().toISOString().split('T')[0];
-}
-
-// isH1Before: dipindah ke daily-reminder edge function
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function PriorityBadge({ priority, onHeader }: { priority: Priority; onHeader?: boolean }) {
-  const c = PRIORITY_CONFIG[priority];
-  if (onHeader) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-        style={{ color: '#fff', background: c.dot, border: '2px solid rgba(255,255,255,0.6)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
-        <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
-        {c.label}
-      </span>
-    );
+// ── Helper Functions ─────────────────────────────────────────────────────────
+function formatDateTime(dateString: string) {
+  if (!dateString) return "-";
+  let normalized = dateString;
+  if (!dateString.endsWith("Z") && !dateString.includes("+") && !(dateString.indexOf("-", 10) > -1)) {
+    normalized = dateString + "Z";
   }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-      style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
-      {c.label}
-    </span>
-  );
+  const utcDate = new Date(normalized);
+  if (isNaN(utcDate.getTime())) return dateString;
+  const jakartaTime = new Date(utcDate.getTime() + 7 * 60 * 60 * 1000);
+  const day = String(jakartaTime.getUTCDate()).padStart(2, "0");
+  const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, "0");
+  const year = jakartaTime.getUTCFullYear();
+  const hours = String(jakartaTime.getUTCHours()).padStart(2, "0");
+  const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, "0");
+  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
 }
 
-function StatusBadge({ status, onHeader }: { status: Status; onHeader?: boolean }) {
-  const c = STATUS_CONFIG[status];
-  const solidBg: Record<Status, string> = {
-    pending: '#d97706',
-    done: '#059669',
-    cancelled: '#4b5563',
-  };
-  if (onHeader) {
-    return (
-      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold"
-        style={{ color: '#fff', background: solidBg[status], border: '2px solid rgba(255,255,255,0.6)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
-        {c.icon} {c.label}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold"
-      style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
-      {c.label}
-    </span>
-  );
-}
-
-function CategoryBadge({ category, onHeader }: { category: string; onHeader?: boolean }) {
-  const c = CATEGORY_CONFIG[category] ?? { icon: '📁', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.3)', accent: '#64748b' };
-  if (onHeader) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-        style={{ color: '#fff', background: c.accent, border: '2px solid rgba(255,255,255,0.6)', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
-        {c.icon} {category}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-      style={{ color: c.color, background: c.bg, border: `1px solid ${c.border}` }}>
-      {c.icon} {category}
-    </span>
-  );
-}
-
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function SectionHeader({ icon, title }: { icon: string; title: string }) {
-  return (
-    <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
-      <span className="text-lg">{icon}</span>
-      <span className="text-sm font-bold tracking-wide text-slate-700">{title}</span>
-    </div>
-  );
-}
-
-function SectionHeaderSmall({ icon, title }: { icon: string; title: string }) {
-  return (
-    <p className="text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5" style={{ color: '#94a3b8' }}>
-      <span>{icon}</span>{title}
-    </p>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: string; label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-      <span className="text-base flex-shrink-0">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#64748b' }}>{label}</p>
-        <p className="text-sm font-semibold text-slate-800 break-words">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Pie Chart Component ─────────────────────────────────────────────────────
-
-function MiniPieChart({
-  data, title, icon, activeFilter,
+// ── Status Donut Card (same style as ReminderSchedule) ──────────────────────────────────
+function StatusDonutCard({
+  data,
+  total,
   onSliceClick,
+  title,
+  icon,
 }: {
-  data: { label: string; value: number; color: string }[];
-  title: string; icon: string;
-  activeFilter?: string | null;
-  onSliceClick?: (label: string) => void;
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  onSliceClick: (name: string) => void;
+  title: string;
+  icon: string;
 }) {
   const [hov, setHov] = useState<number | null>(null);
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return (
-    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
-      <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
-    </div>
-  );
-
+  if (total === 0)
+    return (
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
+        <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
+      </div>
+    );
   let cumAngle = -Math.PI / 2;
   const cx = 60, cy = 60, r = 50, ir = 28;
-
   const slices = data.map((d, i) => {
     const angle = (d.value / total) * 2 * Math.PI;
     const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
@@ -299,836 +186,1682 @@ function MiniPieChart({
     cumAngle += angle;
     return { ...d, path, i };
   });
-
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+      <div className="flex items-center gap-3">
+        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+          {slices.map((s) => (
+            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
+              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+          ))}
+          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+        </svg>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          {slices.map((s) => (
+            <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{ background: hov === s.i ? `${s.color}15` : "transparent" }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sales Division Donut Card ─────────────────────────────────────────────────
+function SalesDivisionDonutCard({
+  data,
+  total,
+  onSliceClick,
+  activeDivision,
+}: {
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  onSliceClick: (name: string) => void;
+  activeDivision: string | null;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  if (total === 0)
+    return (
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📊 Sales Division</p>
+        <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
+      </div>
+    );
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
+  });
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📊 Sales Division</p>
+      <div className="flex items-center gap-3">
+        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+          {slices.map((s) => (
+            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
+              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeDivision === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+          ))}
+          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+        </svg>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
+          {slices.map((s) => (
+            <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{ background: hov === s.i || activeDivision === s.name ? `${s.color}20` : "transparent", outline: activeDivision === s.name ? `1px solid ${s.color}` : "none" }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+              {activeDivision === s.name && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Handler Donut Card ─────────────────────────────────────────────────
+function HandlerDonutCard({
+  data,
+  total,
+  teamToggle,
+  onToggle,
+  onSliceClick,
+  activeHandler,
+  title,
+  icon,
+}: {
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  teamToggle: "PTS" | "Services";
+  onToggle: (t: "PTS" | "Services") => void;
+  onSliceClick: (name: string) => void;
+  activeHandler: string | null;
+  title: string;
+  icon: string;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
+  const slices = total > 0 ? data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
+  }) : [];
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          {(["PTS", "Services"] as const).map((t) => (
+            <button key={t} onClick={() => onToggle(t)} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${teamToggle === t ? "bg-white shadow text-purple-600" : "text-gray-500 hover:text-gray-700"}`}>{t}</button>
+          ))}
+        </div>
+      </div>
+      {total === 0 ? (
+        <p className="text-gray-400 text-sm text-center py-4">Belum ada data handler</p>
+      ) : (
+        <div className="flex items-center gap-3">
+          <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+            {slices.map((s) => (
+              <path key={s.i} d={s.path} fill={activeHandler === s.name ? s.color : s.color}
+                opacity={hov === null || hov === s.i ? 1 : 0.45}
+                style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeHandler === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
+            ))}
+            <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
+            <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+          </svg>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            {slices.map((s) => (
+              <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+                style={{ background: hov === s.i || activeHandler === s.name ? `${s.color}20` : "transparent", outline: activeHandler === s.name ? `1px solid ${s.color}` : "none" }}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+                {activeHandler === s.name && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Product Donut Card ─────────────────────────────────────────────────────
+function ProductDonutCard({
+  data, total, onSliceClick, activeProduct,
+}: {
+  data: { name: string; value: number; color: string }[];
+  total: number;
+  onSliceClick: (name: string) => void;
+  activeProduct: string | null;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  if (total === 0)
+    return (
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📦 Product</p>
+        <p className="text-gray-400 text-sm text-center py-4">Belum ada data product</p>
+      </div>
+    );
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
+  const slices = data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
+    const large = angle > Math.PI ? 1 : 0;
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
+  });
+  return (
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📦 Product</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
             <path key={s.i} d={s.path} fill={s.color}
               opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }}
-              onMouseEnter={() => setHov(s.i)}
-              onMouseLeave={() => setHov(null)}
-              onClick={() => onSliceClick && onSliceClick(s.label)} />
+              style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeProduct === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
-        <div className="flex flex-col gap-1 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
-          {slices.map((s) => {
-            const isActive = activeFilter === s.label;
-            return (
-              <div key={s.i}
-                className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-                style={{
-                  background: hov === s.i || isActive ? `${s.color}20` : 'transparent',
-                  outline: isActive ? `1.5px solid ${s.color}` : 'none',
-                }}
-                onMouseEnter={() => setHov(s.i)}
-                onMouseLeave={() => setHov(null)}
-                onClick={() => onSliceClick && onSliceClick(s.label)}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
-                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
-                {isActive && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Mini Calendar ────────────────────────────────────────────────────────────
-
-function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalDay, setSelectedCalDay }: {
-  reminders: Reminder[];
-  calendarMonth: Date;
-  setCalendarMonth: (d: Date) => void;
-  selectedCalDay: string | null;
-  setSelectedCalDay: (s: string | null) => void;
-}) {
-  const y = calendarMonth.getFullYear(), m = calendarMonth.getMonth();
-  const firstDay = new Date(y, m, 1).getDay();
-  const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const today = new Date().toISOString().split('T')[0];
-
-  const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
-
-  const getCount = (day: number) => {
-    const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    return reminders.filter(r => r.due_date === ds).length;
-  };
-
-  const totalThisMonth = reminders.filter(r => r.due_date.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
-
-  return (
-    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 380 }}>
-      <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
-        <button onClick={() => setCalendarMonth(new Date(y, m-1, 1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
-        <div className="text-center">
-          <p className="text-white font-bold text-sm">{monthNames[m]} {y}</p>
-          <p className="text-white/70 text-[10px] mt-0.5">{totalThisMonth} jadwal bulan ini</p>
-        </div>
-        <button onClick={() => setCalendarMonth(new Date(y, m+1, 1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">›</button>
-      </div>
-
-      <div className="p-3">
-        <div className="grid grid-cols-7 mb-1.5">
-          {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i) => (
-            <div key={i} className="text-center text-[10px] font-bold py-1" style={{ color: '#94a3b8' }}>{d}</div>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
+          {slices.map((s) => (
+            <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+              style={{ background: hov === s.i || activeProduct === s.name ? `${s.color}20` : "transparent", outline: activeProduct === s.name ? `1px solid ${s.color}` : "none" }}
+              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.name}</span>
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+              {activeProduct === s.name && <span className="text-[9px] font-bold text-indigo-600 flex-shrink-0">✓</span>}
+            </div>
           ))}
         </div>
-
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: (firstDay === 0 ? 6 : firstDay - 1) }).map((_, i) => <div key={`e-${i}`} />)}
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-            const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            const cnt = getCount(day);
-            const isSel = selectedCalDay === ds;
-            const isToday = ds === today;
-            return (
-              <button key={day} onClick={() => setSelectedCalDay(isSel ? null : ds)}
-                className="relative flex flex-col items-center justify-center rounded-lg transition-all hover:scale-105"
-                style={{
-                  width: '100%', aspectRatio: '1',
-                  background: isSel ? '#dc2626' : isToday ? 'rgba(220,38,38,0.12)' : cnt > 0 ? 'rgba(99,102,241,0.08)' : 'transparent',
-                  border: isToday && !isSel ? '2px solid rgba(220,38,38,0.5)' : isSel ? '2px solid #b91c1c' : cnt > 0 ? '1.5px solid rgba(99,102,241,0.22)' : '2px solid transparent',
-                  boxShadow: isSel ? '0 2px 8px rgba(220,38,38,0.35)' : 'none',
-                }}>
-                <span className={`leading-none font-${cnt > 0 ? 'black' : 'semibold'} text-xs`}
-                  style={{ color: isSel ? 'white' : isToday ? '#dc2626' : cnt > 0 ? '#4f46e5' : '#374151' }}>{day}</span>
-                {cnt > 0 && (
-                  <span className="text-[8px] font-bold leading-none mt-0.5 px-1.5 rounded-full"
-                    style={{ background: isSel ? 'rgba(255,255,255,0.35)' : '#4f46e5', color: 'white' }}>
-                    {cnt}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
       </div>
-
-      {/* Selected day events */}
-      {selectedCalDay && (() => {
-        const dayRems = reminders.filter(r => r.due_date === selectedCalDay);
-        return dayRems.length > 0 ? (
-          <div className="border-t p-3 space-y-2" style={{ borderColor: 'rgba(0,0,0,0.08)', background: 'rgba(249,250,251,0.8)' }}>
-            <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500 px-1">
-              📅 {formatDate(selectedCalDay)} — {dayRems.length} jadwal
-            </p>
-            {dayRems.map(r => (
-              <div key={r.id} className="rounded-xl p-3 border"
-                style={{ background: 'white', borderColor: 'rgba(0,0,0,0.08)' }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assigned_name}</p>
-                  </div>
-                  <CategoryBadge category={r.category} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null;
-      })()}
     </div>
   );
 }
 
-// ─── Loading screen ────────────────────────────────────────────────────────────
 
-function LoadingScreen() {
+// ── InfoLine — compact print-style row for detail popup ─────────────────────
+function InfoLine({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[9999]"
-      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <div className="flex flex-col items-center gap-3 px-10 py-8 rounded-2xl"
-        style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
-        <svg className="w-12 h-12 animate-spin" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="25" cy="25" r="20" stroke="#f1f1f1" strokeWidth="5" />
-          <path d="M25 5 A20 20 0 0 1 45 25" stroke="#dc2626" strokeWidth="5" strokeLinecap="round" />
-        </svg>
-        <p className="text-gray-700 font-semibold text-sm tracking-wide">Loading...</p>
-      </div>
+    <div className="py-2 border-b border-gray-50 last:border-0">
+      <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 block">{label}</span>
+      <span className="text-sm text-gray-800 font-medium break-words">{value}</span>
     </div>
   );
 }
 
-// ─── Reschedule Modal ─────────────────────────────────────────────────────────
-
-function RescheduleModal({
-  reminder,
-  onClose,
-  onSave,
-}: {
-  reminder: Reminder;
-  onClose: () => void;
-  onSave: (newDate: string, newTime: string, reason: string) => void;
-}) {
-  const [newDate, setNewDate] = useState(reminder.due_date);
-  const [newTime, setNewTime] = useState(reminder.due_time);
-  const [reason, setReason] = useState('');
-  const inputStyle = { background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.15)' };
-  const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(245,158,11,0.5)' }}>
-        {/* Header */}
-        <div className="px-6 py-5" style={{ background: 'linear-gradient(135deg,#d97706,#b45309)' }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-white">📅 Re-Schedule Jadwal</h3>
-              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.project_name || (reminder as any).title || '—'}</p>
-            </div>
-            <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">✕</button>
-          </div>
-        </div>
-        <div className="p-6 space-y-4">
-          {/* Current date info */}
-          <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <span className="text-xl">📌</span>
-            <div>
-              <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Jadwal Sekarang</p>
-              <p className="text-sm font-bold text-gray-800">{formatDate(reminder.due_date)} · {reminder.due_time}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Tanggal Baru *</label>
-              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-                className={inputCls} style={inputStyle} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Waktu Baru</label>
-              <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)}
-                className={inputCls} style={inputStyle} />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Alasan Re-Schedule</label>
-            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
-              className={`${inputCls} resize-none`} style={inputStyle}
-              placeholder="Contoh: Permintaan klien untuk mengundur jadwal..." />
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button onClick={onClose}
-              className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
-              style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
-              Batal
-            </button>
-            <button onClick={() => { if (newDate) onSave(newDate, newTime, reason); }}
-              disabled={!newDate}
-              className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', boxShadow: '0 4px 14px rgba(217,119,6,0.35)' }}>
-              📅 Simpan Re-Schedule
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-
-export default function ReminderSchedulePage() {
+export default function TicketingSystem() {
   const router = useRouter();
-  const [appReady, setAppReady]             = useState(true);
-  const [dashLoading, setDashLoading]       = useState(false);
-  const [isLoggedIn, setIsLoggedIn]         = useState(false);
-  const [loginForm, setLoginForm]           = useState({ username: '', password: '' });
-  const [loginTime, setLoginTime]           = useState<number | null>(null);
-  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
-  const [showBellPopup, setShowBellPopup]   = useState(false);
-  const [myReminders, setMyReminders]       = useState<Reminder[]>([]);
-  const [currentUser, setCurrentUser]       = useState<TeamUser | null>(null);
-  const [teamUsers, setTeamUsers]           = useState<TeamUser[]>([]);
-  const [reminders, setReminders]           = useState<Reminder[]>([]);
-  const [listLoading, setListLoading]       = useState(false);
-  const [saving, setSaving]                 = useState(false);
-  const [rescheduleTarget, setRescheduleTarget] = useState<Reminder | null>(null);
+  const ticketListRef = useRef<HTMLDivElement>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [loginTime, setLoginTime] = useState<number | null>(null);
 
-  const [view, setView]                     = useState<'list' | 'form'>('list');
-  const [showFormModal, setShowFormModal]   = useState(false);
-  const [detailReminder, setDetailReminder] = useState<Reminder | null>(null);
-  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
-
-  // Filters — extended with team handler & category
-  const [filterStatus, setFilterStatus]     = useState<Status | 'all'>('all');
-  const [filterYear, setFilterYear]         = useState<string>('all');
-  const [searchProject, setSearchProject]   = useState('');
-  const [searchSales, setSearchSales]       = useState('');
-  const [searchDivisionSales, setSearchDivisionSales]       = useState('');
-  const [searchTeamHandler, setSearchTeamHandler] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [searchProduct, setSearchProduct] = useState('');
-  const [productFilter, setProductFilter] = useState<string | null>(null);
-
-  const [calendarMonth, setCalendarMonth]   = useState(new Date());
-  const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
-  // Kalender-only selection — tidak mempengaruhi filter list/chart/summary
-  const [calOnlyDay, setCalOnlyDay]         = useState<string | null>(null);
-  const [exportLoading, setExportLoading]   = useState(false);
-  const [sendingWA, setSendingWA]           = useState<string | null>(null);
-
-  // ─── Delete Modal State ───────────────────────────────────────────────────
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
+  const [overdueSettings, setOverdueSettings] = useState<OverdueSetting[]>([]);
+  const [showOverdueSetting, setShowOverdueSetting] = useState(false);
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const [reopenTargetTicket, setReopenTargetTicket] = useState<Ticket | null>(null);
+  const [reopenAssignee, setReopenAssignee] = useState("");
+  const [reopenNotes, setReopenNotes] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTarget, setDeleteTarget]       = useState<Reminder | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteTargetTicket, setDeleteTargetTicket] = useState<Ticket | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [overdueTargetTicket, setOverdueTargetTicket] = useState<Ticket | null>(null);
+  const [overdueForm, setOverdueForm] = useState({ due_hours: "48" });
+  const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
+  const [salesDivisionFilter, setSalesDivisionFilter] = useState<string | null>(null);
+  const [productFilter, setProductFilter] = useState<string | null>(null);
+  const [searchProduct, setSearchProduct] = useState("");
+  const [showReminderSchedule, setShowReminderSchedule] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalTicket, setApprovalTicket] = useState<Ticket | null>(null);
+  const [approvalAssignee, setApprovalAssignee] = useState("");
+  const [showServicesApprovalModal, setShowServicesApprovalModal] = useState(false);
+  const [servicesApprovalTicket, setServicesApprovalTicket] = useState<Ticket | null>(null);
+  const [reminderSchedule, setReminderSchedule] = useState({
+    hour_wib: "8",
+    minute: "0",
+    frequency: "daily" as "daily" | "weekdays" | "custom",
+    custom_days: [] as number[],
+    active: true,
+  });
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [showNewTicket, setShowNewTicket] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showGuestMapping, setShowGuestMapping] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [showTicketDetailPopup, setShowTicketDetailPopup] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [showLoadingPopup, setShowLoadingPopup] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [searchProject, setSearchProject] = useState("");
+  const [searchSalesName, setSearchSalesName] = useState("");
+  const [filterYear, setFilterYear] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [selectedHandlerTeam, setSelectedHandlerTeam] = useState<"PTS" | "Services">("PTS");
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Ticket[]>([]);
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [showActivitySummary, setShowActivitySummary] = useState(false);
+  const [summaryTicket, setSummaryTicket] = useState<Ticket | null>(null);
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState("");
+  const [newMapping, setNewMapping] = useState({ guestUsername: "", projectName: "" });
 
-  // ─── Update Status with photo ──────────────────────────────────────────────
-  const [pendingStatus, setPendingStatus]   = useState<Status | null>(null);
-  const [statusPhoto, setStatusPhoto]       = useState<File | null>(null);
-  const [statusPhotoPreview, setStatusPhotoPreview] = useState<string | null>(null);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const statusPhotoRef = useRef<HTMLInputElement>(null);
-
-  const notify = (type: 'success' | 'error', msg: string) => {
-    setToast({ type, msg });
-    setTimeout(() => setToast(null), 3500);
+  const getJakartaDateString = () => {
+    const now = new Date();
+    const jakartaDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+    const y = jakartaDate.getFullYear();
+    const m = String(jakartaDate.getMonth() + 1).padStart(2, "0");
+    const d = String(jakartaDate.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   };
 
-  const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'assigned_name' | 'created_by' | 'wa_sent_h1'> = {
-    project_name: '', description: '', assigned_to: '',
-    due_date: new Date().toISOString().split('T')[0],
-    due_time: '09:00', priority: 'medium', status: 'pending',
-    repeat: 'none', category: 'Demo Product',
-    sales_name: '', sales_division: '', address: '', pic_name: '', pic_phone: '',
-    notes: '', product: '',
-  };
-  const [formData, setFormData] = useState(emptyForm);
-  const fd = (patch: Partial<typeof emptyForm>) => setFormData(prev => ({ ...prev, ...patch }));
-
-  // ─── Init ──────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    // Sama persis dengan ticketing: baca localStorage → set user → fetch data
-    const saved = localStorage.getItem('currentUser');
-    const user = saved ? (JSON.parse(saved) as TeamUser) : null;
-
-    if (user) {
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      setLoginTime(Date.now());
-    }
-
-    // Fetch parallel — tidak tunggu satu selesai dulu
-    Promise.all([
-      fetchTeamUsers(),
-      fetchRemindersQuiet(user),
-    ]).then(() => {
-      // Popup notif setelah data loaded
-      if (user && (user.role === 'team' || user.role === 'admin')) {
-        supabase
-          .from('reminders')
-          .select('*')
-          .eq('assigned_to', user.username)
-          .neq('status', 'done')
-          .neq('status', 'cancelled')
-          .order('due_date', { ascending: true })
-          .then(({ data: activeData }: { data: any[] | null }) => {
-            const active = (activeData ?? []) as Reminder[];
-            if (active.length > 0) {
-              setMyReminders(active);
-              setTimeout(() => setShowNotificationPopup(true), 800);
-            }
-          });
-      }
-    });
-
-    // Realtime — subscribe setelah user di-set
-    const ch = supabase.channel('reminders-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
-        const s = localStorage.getItem('currentUser');
-        const u = s ? (JSON.parse(s) as TeamUser) : user;
-        fetchRemindersQuiet(u);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(ch); };
-  }, []);
-
-  // ─── Session timeout check ───────────────────────────────────────────────
-  useEffect(() => {
-    const checkSession = () => {
-      const savedTime = localStorage.getItem('loginTime');
-      if (!savedTime) return;
-      const sixHours = 6 * 60 * 60 * 1000;
-      if (Date.now() - parseInt(savedTime) > sixHours) {
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('loginTime');
-        const target = window.top !== window ? window.top : window;
-        if (target) target.location.href = '/dashboard';
-      }
-    };
-    checkSession(); // cek langsung saat mount
-    const interval = setInterval(checkSession, 60000); // cek tiap menit
-    return () => clearInterval(interval);
-  }, []);
-
-  // ─── H-1 WA auto-send ────────────────────────────────────────────────────
-  // Ditangani oleh Supabase Edge Function: daily-reminder (pg_cron)
-  // Berjalan otomatis setiap hari tanpa perlu buka halaman
-
-  const fetchTeamUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
-    if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
-  };
-
-  // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
-  const fetchRemindersQuiet = async (user?: TeamUser | null) => {
-    // Tentukan user: dari param → state → localStorage
-    let activeUser: TeamUser | null = user ?? currentUser;
-    if (!activeUser) {
-      const saved = localStorage.getItem('currentUser');
-      if (saved) { try { activeUser = JSON.parse(saved) as TeamUser; } catch { /* ignore */ } }
-    }
-    let query = supabase.from('reminders').select('*')
-      .order('created_at', { ascending: false });
-    if (activeUser?.role === 'team') {
-      query = query.eq('assigned_to', activeUser.username);
-    }
-    const { data, error } = await query;
-    // Hanya update state kalau data valid dan tidak kosong
-    // (mencegah data kosong menimpa data yang sudah ada)
-    if (!error && data && data.length > 0) {
-      setReminders(data as Reminder[]);
-    } else if (!error && data && data.length === 0 && !activeUser) {
-      // Kalau benar-benar kosong DAN user tidak diketahui, jangan update
-      console.warn('[fetchRemindersQuiet] skip: no user context, data empty');
-    } else if (!error && data) {
-      setReminders(data as Reminder[]);
-    }
-  };
-
-  // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
-  const fetchReminders = async () => {
-    setListLoading(true);
-    // Fallback ke localStorage kalau currentUser state belum ready
-    let activeUser: TeamUser | null = currentUser;
-    if (!activeUser) {
-      const saved = localStorage.getItem('currentUser');
-      if (saved) { try { activeUser = JSON.parse(saved) as TeamUser; } catch { /* ignore */ } }
-    }
-    let query = supabase.from('reminders').select('*')
-      .order('created_at', { ascending: false });
-    if (activeUser?.role === 'team') {
-      query = query.eq('assigned_to', activeUser.username);
-    }
-    const { data, error } = await query;
-    if (!error && data) setReminders(data as Reminder[]);
-    setTimeout(() => setListLoading(false), 400);
-  };
-
-  // ─── CRUD ──────────────────────────────────────────────────────────────────
-
-  const handleSave = async () => {
-    if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
-    if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
-    if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
-    if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
-    if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
-    if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
-
-    const assignee = teamUsers.find(u => u.username === formData.assigned_to);
-    const payload = { ...formData, assigned_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
-
-    setSaving(true);
-    const { error } = editingReminder
-      ? await supabase.from('reminders').update(payload).eq('id', editingReminder.id)
-      : await supabase.from('reminders').insert([payload]);
-
-    if (error) {
-      notify('error', 'Gagal menyimpan: ' + error.message);
-      setSaving(false);
-      return;
-    }
-
-    notify('success', editingReminder ? 'Reminder diperbarui!' : 'Reminder ditambahkan!');
-
-    // ── Kirim WA notifikasi ke assignee saat reminder BARU dibuat ────────────
-    if (!editingReminder && assignee?.phone_number) {
-      const assigneeName = assignee.full_name ?? formData.assigned_to;
-      const createdBy = currentUser?.username ?? 'system';
-      const msg =
-        `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
-        `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
-        `*Nama Project: ${formData.project_name}*\n` +
-        `*Deskripsi: ${formData.description}*\n` +
-        `🏷️ Kategori: ${formData.category}\n` +
-        `📍 Lokasi: ${formData.address || '-'}\n` +
-        `👤 Sales: ${formData.sales_name}${formData.sales_division ? ' - ' + formData.sales_division : ''}\n` +
-        `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
-        (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}${formData.pic_phone ? ' - ' + formData.pic_phone : ''}\n\n`    : '') +
-        (formData.notes     ? `📝 Catatan: ${formData.notes}\n\n`    : '') +
-        `-\n` +
-       `Link Dashboard: https://team-ticketing.vercel.app/dashboard\n` +
-        `jangan lupa peralatan & Semangat💪🏼`;
-
-      const waResult = await sendFonnteWA(assignee.phone_number, msg, { reminderType: 'new_schedule' });
-      if (!waResult.ok) console.warn('[WA new schedule] Gagal kirim:', waResult.reason);
-      else notify('success', `WA notifikasi terkirim ke ${assigneeName}!`);
-    } else if (!editingReminder && !assignee?.phone_number) {
-      console.warn('[WA new schedule] Nomor WA assignee tidak tersedia:', formData.assigned_to);
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
-    setSaving(false);
-    setShowFormModal(false);
-    setView('list');
-    setEditingReminder(null);
-    setFormData(emptyForm);
-    fetchRemindersQuiet();
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    const { error } = await supabase.from('reminders').delete().eq('id', deleteTarget.id);
-    if (error) { notify('error', 'Gagal menghapus.'); return; }
-    notify('success', 'Reminder dihapus.');
-    setDetailReminder(null);
-    setShowDeleteModal(false);
-    setDeleteTarget(null);
-    setDeleteConfirmText('');
-    fetchRemindersQuiet();
-  };
-
-  const openDeleteModal = (r: Reminder) => {
-    setDeleteTarget(r);
-    setDeleteConfirmText('');
-    setShowDeleteModal(true);
-  };
-
-  const handleStatusChange = async (id: string, status: Status, photoUrl?: string) => {
-    const updatePayload: Record<string, unknown> = { status };
-    if (photoUrl) updatePayload['completion_photo_url'] = photoUrl;
-    const { error } = await supabase.from('reminders').update(updatePayload).eq('id', id);
-    if (error) { notify('error', 'Gagal update status.'); return; }
-    notify('success', 'Status diperbarui!');
-    // ── WA ke handler saat status Done ───────────────────────────────────
-    if (status === 'done') {
-      try {
-        const reminder = reminders.find(r => r.id === id);
-        if (reminder) {
-          const { data: handlerUser } = await supabase
-            .from('users').select('phone_number, full_name')
-            .eq('username', reminder.assigned_to)
-            .eq('team_type', 'Team PTS').single();
-          if (handlerUser?.phone_number) {
-            const msg =
-              `✅ *JADWAL SELESAI — PTS IVP*\n\n` +
-              `Terima kasih *${handlerUser.full_name}*!\n` +
-              `Jadwal *${reminder.project_name}* telah ditandai *Completed*.\n` +
-              `🏷️ ${reminder.category} · ${formatDate(reminder.due_date)}\n` +
-              `\nTetap semangat! 💪`;
-            await sendFonnteWA(handlerUser.phone_number, msg);
-          }
-        }
-      } catch (waEx) { console.warn('[status done] WA failed:', waEx); }
-    }
-    // ─────────────────────────────────────────────────────────────────────
-    fetchRemindersQuiet();
-    if (detailReminder?.id === id) setDetailReminder(prev => prev ? { ...prev, status } : null);
-  };
-
-  const handleConfirmStatusUpdate = async () => {
-    if (!detailReminder || !pendingStatus) return;
-    if (pendingStatus === 'done' && !statusPhoto) {
-      notify('error', 'Foto wajib diupload untuk status Completed!');
-      return;
-    }
-    setUpdatingStatus(true);
-    let photoUrl: string | undefined;
-    if (statusPhoto) {
-      const ext = statusPhoto.name.split('.').pop();
-      const fileName = `completion_${detailReminder.id}_${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('reminder-photos')
-        .upload(fileName, statusPhoto, { upsert: true });
-      if (upErr) {
-        notify('error', 'Gagal upload foto: ' + upErr.message);
-        setUpdatingStatus(false);
-        return;
-      }
-      const { data: urlData } = supabase.storage.from('reminder-photos').getPublicUrl(fileName);
-      photoUrl = urlData?.publicUrl;
-    }
-    await handleStatusChange(detailReminder.id, pendingStatus, photoUrl);
-    setPendingStatus(null);
-    setStatusPhoto(null);
-    setStatusPhotoPreview(null);
-    setUpdatingStatus(false);
-  };
-
-  const openEdit = (r: Reminder) => {
-    setEditingReminder(r);
-    setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
-      due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
-      sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
-      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
-    setDetailReminder(null);
-    setShowFormModal(true);
-  };
-
-  // ─── Re-Schedule ───────────────────────────────────────────────────────────
-
-  const handleReschedule = async (newDate: string, newTime: string, reason: string) => {
-    if (!rescheduleTarget) return;
-    const noteAdd = reason ? `\n[Re-Schedule ${formatDate(newDate)}: ${reason}]` : '';
-    const { error } = await supabase.from('reminders').update({
-      due_date: newDate,
-      due_time: newTime,
-      notes: (rescheduleTarget.notes ?? '') + noteAdd,
-    }).eq('id', rescheduleTarget.id);
-    if (error) {
-      console.error('[Reschedule error]', error);
-      notify('error', `Gagal re-schedule: ${error.message}`);
-      return;
-    }
-    notify('success', `Jadwal berhasil dipindah ke ${formatDate(newDate)}!`);
-    // ── WA ke handler tentang reschedule ──────────────────────────────────
-    try {
-      const { data: handlerUser } = await supabase
-        .from('users').select('phone_number, full_name')
-        .eq('username', rescheduleTarget.assigned_to)
-        .eq('team_type', 'Team PTS').single();
-      if (handlerUser?.phone_number) {
-        const msg =
-          `📅 *JADWAL DIUBAH — PTS IVP*\n\n` +
-          `Halo *${handlerUser.full_name}*, jadwal kamu telah di-reschedule:\n\n` +
-          `*Project: ${rescheduleTarget.project_name}*\n` +
-          `📌 Jadwal Lama: ${formatDate(rescheduleTarget.due_date)} ${rescheduleTarget.due_time}\n` +
-          `📅 Jadwal Baru: *${formatDate(newDate)} ${newTime}*\n` +
-          (reason ? `📝 Alasan: ${reason}\n` : '') +
-          `\n🔗 https://team-ticketing.vercel.app/dashboard`;
-        await sendFonnteWA(handlerUser.phone_number, msg);
-      }
-    } catch (waEx) { console.warn('[reschedule] WA failed:', waEx); }
-    // ─────────────────────────────────────────────────────────────────────
-    setRescheduleTarget(null);
-    setDetailReminder(null);
-    fetchRemindersQuiet();
-  };
-
-  // ─── Manual WA send ────────────────────────────────────────────────────────
-
-  const handleSendWA = async (r: Reminder) => {
-    if (!r.assigned_to) { notify('error', 'Reminder belum di-assign ke handler.'); return; }
-    setSendingWA(r.id);
-
-    // Ambil phone_number handler dari tabel users
-    const { data: handlerData, error: handlerErr } = await supabase
-      .from('users')
-      .select('phone_number, full_name')
-      .eq('username', r.assigned_to)
-      .eq('team_type', 'Team PTS')
-      .single();
-
-    if (handlerErr || !handlerData?.phone_number) {
-      setSendingWA(null);
-      notify('error', `Nomor WA handler (${r.assigned_name || r.assigned_to}) tidak tersedia di database.`);
-      return;
-    }
-
-    const msg =
-      `📋 *REMINDER JADWAL PTS IVP*\n\n` +
-      `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
-      `*Nama Project: ${formData.project_name}*\n` +
-      `*Deskripsi: ${formData.description}*\n` +
-      `🏷️ Kategori: ${r.category}\n` +
-      `📍 Lokasi: ${r.address || '-'}\n` +
-      `👤 Sales: ${r.sales_name || '-'}\n` +
-      `    Divisi Sales: ${r.sales_division || '-'}\n` +
-      `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
-      (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
-      (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
-      (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
-      `\n_Pesan dari Reminder Schedule PTS IVP_`;
-
-    const result = await sendFonnteWA(handlerData.phone_number, msg, { reminderType: 'manual', reminderId: r.id });
-    setSendingWA(null);
-    if (result.ok) notify('success', `WA berhasil dikirim ke ${handlerData.full_name}!`);
-    else notify('error', `Gagal kirim WA: ${result.reason ?? 'Unknown error'}`);
-  };
-
-  // ─── Export Excel ──────────────────────────────────────────────────────────
-
-  const handleExportExcel = async () => {
-    setExportLoading(true);
-    try {
-      const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Address','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
-      const rows = filteredReminders.map((r, i) => [
-        i + 1, r.project_name || (r as any).title || '', r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assigned_name,
-        STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
-        r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
-        r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
-      ]);
-      const csvContent = [headers, ...rows]
-        .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
-        .join('\n');
-      const BOM = '\uFEFF';
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Reminder_Schedule_PTS_IVP_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      notify('success', 'Export berhasil!');
-    } catch { notify('error', 'Gagal export.'); }
-    setExportLoading(false);
-  };
-
-  // ─── Filters ───────────────────────────────────────────────────────────────
-
-  const availableYears = Array.from(new Set(reminders.map(r => r.due_date.substring(0, 4)))).sort((a, b) => b.localeCompare(a));
-
-  const filteredReminders = reminders.filter(r => {
-    if (filterStatus !== 'all' && r.status !== filterStatus) return false;
-    if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
-    if (filterCategory !== 'all' && r.category !== filterCategory) return false;
-    const rName = ((r.project_name || '').trim() || ((r as any).title || '').trim()).toLowerCase();
-    if (searchProject && !rName.includes(searchProject.toLowerCase()) &&
-        !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
-    if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
-    if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
-    if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
-        !r.assigned_to?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
-    if (productFilter && r.product !== productFilter) return false;
-    if (searchProduct && !r.product?.toLowerCase().includes(searchProduct.toLowerCase())) return false;
-    if (selectedCalDay && r.due_date !== selectedCalDay) return false;
-    return true;
+  const [newTicket, setNewTicket] = useState({
+    project_name: "",
+    address: "",
+    customer_phone: "",
+    sales_name: "",
+    sales_division: "",
+    sn_unit: "",
+    product: "",
+    issue_case: "",
+    description: "",
+    assigned_to: "",
+    date: getJakartaDateString(),
+    status: "Pending",
+    current_team: "Team PTS",
+    photo: null as File | null,
   });
 
-  const todayCount      = reminders.filter(r => isDueToday(r.due_date) && r.status !== 'done' && r.status !== 'cancelled').length;
-  const pendingCount    = reminders.filter(r => r.status === 'pending').length;
-  const doneCount       = reminders.filter(r => r.status === 'done').length;
-  const totalCount      = reminders.length;
+  const [newActivity, setNewActivity] = useState({
+    handler_name: "",
+    action_taken: "",
+    notes: "",
+    new_status: "Pending",
+    sn_unit: "",
+    file: null as File | null,
+    photo: null as File | null,
+    assign_to_services: false,
+    services_assignee: "",
+    onsite_use_schedule: false,
+    onsite_schedule_date: "",
+    onsite_schedule_hour: "08",
+    onsite_schedule_minute: "00",
+  });
 
-  // ─── Pie chart data ────────────────────────────────────────────────────────
+  const [newUser, setNewUser] = useState({
+    username: "",
+    password: "",
+    full_name: "",
+    team_member: "",
+    role: "team",
+    team_type: "Team PTS",
+  });
 
-  const sourceReminders = filterYear === 'all' ? reminders : reminders.filter(r => r.due_date.startsWith(filterYear));
+  const [changePassword, setChangePassword] = useState({
+    current: "",
+    new: "",
+    confirm: "",
+  });
 
-  const projectPieData = (() => {
-    const map: Record<string, number> = {};
-    sourceReminders.forEach(r => { const k = r.category; map[k] = (map[k] || 0) + 1; });
-    return Object.entries(map).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  })();
+  const statusColors: Record<string, string> = {
+    "Waiting Approval": "bg-orange-50 text-orange-600 border-orange-200",
+    Pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    Call: "bg-sky-50 text-sky-600 border-sky-200",
+    Onsite: "bg-purple-50 text-purple-600 border-purple-200",
+    "In Progress": "bg-blue-50 text-blue-600 border-blue-200",
+    Solved: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    Overdue: "bg-red-50 text-red-600 border-red-200",
+    Warranty: "bg-green-50 text-green-700 border-green-300",
+    "Out Of Warranty": "bg-red-50 text-red-700 border-red-300",
+    "Waiting PO from Sales": "bg-amber-50 text-amber-700 border-amber-300",
+    "Submit RMA": "bg-orange-50 text-orange-700 border-orange-300",
+    "Waiting sparepart": "bg-rose-50 text-rose-700 border-rose-300",
+    "Process Repair": "bg-blue-50 text-blue-700 border-blue-300",
+  };
 
-  const salesPieData = (() => {
-    const map: Record<string, number> = {};
-    sourceReminders.forEach(r => { if (r.sales_division) { map[r.sales_division] = (map[r.sales_division] || 0) + 1; } });
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  })();
+  const checkSessionTimeout = () => {
+    if (loginTime) {
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000;
+      if (now - loginTime > sixHours) {
+        // Clear storage & redirect ke dashboard login
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("loginTime");
+        const target = window.top !== window ? window.top : window;
+        if (target) target.location.href = "/dashboard";
+      }
+    }
+  };
 
-  const teamPtsPieData = (() => {
-    const map: Record<string, number> = {};
-    sourceReminders.forEach(r => { if (r.assigned_name) { map[r.assigned_name] = (map[r.assigned_name] || 0) + 1; } });
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  })();
+  const DEFAULT_OVERDUE_HOURS = 48;
+  const getDeadline = (ticket: Ticket): Date | null => {
+    const setting = overdueSettings.find((o) => o.ticket_id === ticket.id);
+    if (setting) {
+      if (setting.due_date) return new Date(setting.due_date);
+      if (setting.due_hours && ticket.created_at)
+        return new Date(new Date(ticket.created_at).getTime() + setting.due_hours * 3600000);
+    }
+    if (ticket.created_at)
+      return new Date(new Date(ticket.created_at).getTime() + DEFAULT_OVERDUE_HOURS * 3600000);
+    return null;
+  };
 
-  const productPieData = (() => {
-    const map: Record<string, number> = {};
-    sourceReminders.forEach(r => { if (r.product) { map[r.product] = (map[r.product] || 0) + 1; } });
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  })();
+  const isTicketOverdue = (ticket: Ticket): boolean => {
+    const deadline = getDeadline(ticket);
+    if (!deadline) return false;
+    if (ticket.status === "Solved") {
+      const solvedLog = ticket.activity_logs?.filter((l) => l.new_status === "Solved").sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      if (solvedLog) return new Date(solvedLog.created_at) > deadline;
+      return false;
+    }
+    return new Date() > deadline;
+  };
 
-  const isAdmin = currentUser?.role === 'admin';
-  const canAddReminder = currentUser?.role === 'admin' || currentUser?.role === 'team';
+  const getOverdueSetting = (ticketId: string) => overdueSettings.find((o) => o.ticket_id === ticketId);
 
-  const myActiveReminders = reminders.filter(r =>
-    currentUser && r.assigned_to === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
-  );
+  const loadReminderSchedule = async () => {
+    try {
+      const { data } = await supabase.from("app_settings").select("value").eq("key", "reminder_schedule").single();
+      if (data?.value) setReminderSchedule(data.value);
+    } catch (e) {}
+  };
 
-  // ─── Style helpers ─────────────────────────────────────────────────────────
-  const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
-  const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
+  const getCronDisplay = () => {
+    const h = reminderSchedule.hour_wib.padStart(2, "0");
+    const m = reminderSchedule.minute.padStart(2, "0");
+    const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    let freq = "Setiap hari";
+    if (reminderSchedule.frequency === "weekdays") freq = "Senin–Jumat";
+    else if (reminderSchedule.frequency === "custom" && reminderSchedule.custom_days.length > 0) {
+      freq = reminderSchedule.custom_days.map((d) => days[d]).join(", ");
+    }
+    return `${freq}, jam ${h}:${m} WIB`;
+  };
 
-  // ─── Login handler ─────────────────────────────────────────────────────────
-  const handleLogout = () => {
-    localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
-    setCurrentUser(null); setIsLoggedIn(false); setLoginTime(null);
-    // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
-    const target = window.top !== window ? window.top : window;
-    if (target) target.location.href = '/dashboard';
+  const saveCronSchedule = async () => {
+    setReminderSaving(true);
+    try {
+      const hour = parseInt(reminderSchedule.hour_wib);
+      const minute = parseInt(reminderSchedule.minute) || 0;
+      let dayOfWeek = "*";
+      if (reminderSchedule.frequency === "weekdays") dayOfWeek = "1-5";
+      else if (reminderSchedule.frequency === "custom" && reminderSchedule.custom_days.length > 0) dayOfWeek = reminderSchedule.custom_days.join(",");
+      const { error } = await supabase.rpc("update_reminder_cron", { p_hour_wib: hour, p_minute: minute, p_day_of_week: dayOfWeek, p_active: reminderSchedule.active });
+      await supabase.from("app_settings").upsert({ key: "reminder_schedule", value: reminderSchedule }, { onConflict: "key" });
+      if (error) {
+        const utcHour = (hour - 7 + 24) % 24;
+        const cronExpr = `${minute} ${utcHour} * * ${dayOfWeek}`;
+        alert(`Setting disimpan! ✅\n\nJalankan SQL ini di SQL Editor untuk mengaktifkan:\n\nSELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'daily-reminder';\n\nSELECT cron.schedule('daily-reminder', '${cronExpr}', $$\n  SELECT net.http_post(\n    url := 'https://frxdbqcojaiosjoghdqk.supabase.co/functions/v1/daily-reminder',\n    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyeGRicWNvamFpb3Nqb2doZHFrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDgwOTM3NiwiZXhwIjoyMDc2Mzg1Mzc2fQ.WVSlMIhVVwE3GNCwpg-ys223DbRyOeZDmOqjjgHxYZk"}'::jsonb,\n    body := '{}'::jsonb\n  );\n$$);`);
+      } else alert(`✅ Jadwal reminder berhasil diubah!\n${getCronDisplay()}`);
+      setShowReminderSchedule(false);
+    } catch (e: any) { alert("Error: " + e.message); } finally { setReminderSaving(false); }
+  };
+
+  const fetchOverdueSettings = async () => {
+    try { const { data } = await supabase.from("overdue_settings").select("*"); if (data) setOverdueSettings(data); } catch (e) { console.error(e); }
+  };
+
+  const saveOverdueSetting = async () => {
+    if (!overdueTargetTicket) return;
+    if (!overdueForm.due_hours || parseInt(overdueForm.due_hours) < 1) { alert("Isi jumlah jam overdue (minimal 1 jam)!"); return; }
+    try {
+      const existing = getOverdueSetting(overdueTargetTicket.id);
+      const payload: any = { ticket_id: overdueTargetTicket.id, set_by: currentUser?.username || "", due_date: null, due_hours: parseInt(overdueForm.due_hours) };
+      if (existing) await supabase.from("overdue_settings").update(payload).eq("id", existing.id);
+      else await supabase.from("overdue_settings").insert([payload]);
+      await fetchOverdueSettings();
+      setShowOverdueSetting(false);
+      setOverdueForm({ due_hours: "48" });
+      setOverdueTargetTicket(null);
+    } catch (e: any) { alert("Error: " + e.message); }
+  };
+
+  const deleteOverdueSetting = async (ticketId: string) => {
+    const existing = getOverdueSetting(ticketId);
+    if (!existing) return;
+    await supabase.from("overdue_settings").delete().eq("id", existing.id);
+    await fetchOverdueSettings();
+  };
+
+  const deleteTicket = async () => {
+    if (!deleteTargetTicket) return;
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Menghapus activity logs...");
+      // Delete activity logs dari kedua DB
+      await supabase.from("activity_logs").delete().eq("ticket_id", deleteTargetTicket.id);
+      try { await supabaseServices.from("activity_logs").delete().eq("ticket_id", deleteTargetTicket.id); } catch (e) { console.warn("Services DB activity logs delete failed:", e); }
+      // Delete overdue setting jika ada
+      const existingOverdue = getOverdueSetting(deleteTargetTicket.id);
+      if (existingOverdue) await supabase.from("overdue_settings").delete().eq("id", existingOverdue.id);
+      setLoadingMessage("Menghapus ticket...");
+      await supabase.from("tickets").delete().eq("id", deleteTargetTicket.id);
+      await fetchData();
+      await fetchOverdueSettings();
+      setLoadingMessage("✅ Ticket berhasil dihapus!");
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+        setShowDeleteModal(false);
+        setDeleteTargetTicket(null);
+        setDeleteConfirmText("");
+      }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert("Error saat menghapus ticket: " + err.message);
+    }
+  };
+
+  const getNotifications = () => {
+    if (!currentUser) return [];
+    const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
+    const assignedName = member ? member.name : currentUser.full_name;
+    return tickets.filter((t) => {
+      if (t.assigned_to !== assignedName) return false;
+      const overdue = isTicketOverdue(t) && t.status !== "Solved";
+      const isPending = t.status === "Pending" || t.status === "In Progress";
+      const isServicesAndPending = t.services_status && (t.services_status === "Pending" || t.services_status === "In Progress");
+      if (member?.team_type === "Team Services") return isServicesAndPending || overdue;
+      else return isPending || overdue;
+    });
   };
 
   const handleLogin = async () => {
     try {
-      const { data, error } = await supabase.from('users').select('*')
-        .eq('username', loginForm.username).eq('password', loginForm.password).single();
-      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
+      const { data, error } = await supabase.from("users").select("*").eq("username", loginForm.username).eq("password", loginForm.password).single();
+      if (error || !data) { alert("Incorrect username or password!"); return; }
       const now = Date.now();
-      setDashLoading(true);
       setCurrentUser(data);
       setIsLoggedIn(true);
       setLoginTime(now);
-      localStorage.setItem('currentUser', JSON.stringify(data));
-      localStorage.setItem('loginTime', now.toString());
-      await fetchRemindersQuiet(data); // re-fetch dengan filter role yang baru login
-
-      const active = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
-      setMyReminders(active);
-      if (active.length > 0) setTimeout(() => setShowNotificationPopup(true), 600);
-      setTimeout(() => setDashLoading(false), 2200);
-    } catch { notify('error', 'Terjadi kesalahan.'); }
+      localStorage.setItem("currentUser", JSON.stringify(data));
+      localStorage.setItem("loginTime", now.toString());
+    } catch (err) { alert("Login failed!"); }
   };
 
-  // ─── Not ready ─────────────────────────────────────────────────────────────
-  // Render langsung tanpa loading gate (sama seperti ticketing)
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setLoginTime(null);
+    setSelectedTicket(null);
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("loginTime");
+    // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
+    const target = window.top !== window ? window.top : window;
+    if (target) target.location.href = "/dashboard";
+  };
 
-  // ─── Login page ────────────────────────────────────────────────────────────
+  const fetchGuestMappings = async () => {
+    try {
+      const { data, error } = await supabase.from("guest_mappings").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      setGuestMappings(data || []);
+    } catch (err: any) { console.error("Error fetching guest mappings:", err); }
+  };
+
+  const fetchData = async (userOverride?: User | null) => {
+    try {
+      setTickets([]);
+      setTicketsLoading(true);
+      const [membersData, usersData] = await Promise.all([
+        supabase.from("team_members").select("*").order("name"),
+        supabase.from("users").select("id, username, full_name, role, team_type"),
+      ]);
+      const activeUser = userOverride !== undefined ? userOverride : currentUser;
+      if (activeUser?.role === "guest") {
+        const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
+        const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
+        let guestTickets: Ticket[] = [];
+        if (allowedProjectNames.length > 0) {
+          const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjectNames).order("created_at", { ascending: false });
+          if (projectTickets) guestTickets = [...projectTickets];
+        }
+        const { data: ownWaiting } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).eq("status", "Waiting Approval").order("created_at", { ascending: false });
+        if (ownWaiting) {
+          for (const t of ownWaiting) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
+        }
+        setTickets(guestTickets);
+        if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
+      } else {
+        const { data: ticketsData } = await supabase.from("tickets").select("*, activity_logs(*)").order("created_at", { ascending: false });
+        let mergedTickets: Ticket[] = ticketsData || [];
+        try {
+          const { data: svcLogs } = await supabaseServices.from("activity_logs").select("*").order("created_at", { ascending: false });
+          if (svcLogs && svcLogs.length > 0) {
+            mergedTickets = mergedTickets.map((ticket: Ticket) => {
+              const svcTicketLogs = svcLogs.filter((l: ActivityLog) => l.ticket_id === ticket.id);
+              if (svcTicketLogs.length === 0) return ticket;
+              const existingLogs = ticket.activity_logs || [];
+              const allLogs = [...existingLogs, ...svcTicketLogs].reduce((acc: ActivityLog[], log: ActivityLog) => {
+                if (!acc.find((l) => l.id === log.id)) acc.push(log);
+                return acc;
+              }, []);
+              allLogs.sort((a: ActivityLog, b: ActivityLog) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+              return { ...ticket, activity_logs: allLogs };
+            });
+          }
+        } catch (svcErr) { console.warn("Could not fetch Services DB activity logs:", svcErr); }
+        setTickets(mergedTickets);
+      }
+      if (membersData.data) setTeamMembers(membersData.data);
+      if (usersData.data) setUsers(usersData.data);
+      setLoading(false);
+      setTicketsLoading(false);
+    } catch (err: any) {
+      console.error("Error:", err);
+      setLoading(false);
+      setTicketsLoading(false);
+    }
+  };
+
+  const createTicket = async () => {
+    if (!newTicket.project_name || !newTicket.issue_case) { alert("Project name and Issue case must be filled!"); return; }
+    // admin & superadmin: ticket langsung masuk (tidak perlu approval), wajib assign handler
+    const isElevated = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+    if (isElevated && !newTicket.assigned_to) { alert("Please assign to a Team PTS member!"); return; }
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Saving new ticket...");
+      let photoUrl = "", photoName = "";
+      if (newTicket.photo) {
+        setLoadingMessage("Uploading photo...");
+        try {
+          const fileName = `${Date.now()}_${newTicket.photo.name}`;
+          const { error } = await supabase.storage.from("ticket-photos").upload(`photos/${fileName}`, newTicket.photo);
+          if (error) throw error;
+          const { data } = supabase.storage.from("ticket-photos").getPublicUrl(`photos/${fileName}`);
+          photoUrl = data.publicUrl;
+          photoName = newTicket.photo.name;
+        } catch (uploadErr: any) { throw new Error(`Failed to upload photo: ${uploadErr.message}`); }
+      }
+      setLoadingMessage("Saving new ticket...");
+      // Ticket dari guest/team → Waiting Approval; dari admin/superadmin → langsung sesuai status pilihan
+      const ticketStatus = isElevated ? newTicket.status : "Waiting Approval";
+      const ticketAssignedTo = isElevated ? newTicket.assigned_to : "";
+      const ticketData = {
+        project_name: newTicket.project_name,
+        address: newTicket.address || null,
+        customer_phone: newTicket.customer_phone || null,
+        sales_name: newTicket.sales_name || null,
+        sales_division: newTicket.sales_division || null,
+        sn_unit: newTicket.sn_unit || null,
+        product: newTicket.product || null,
+        issue_case: newTicket.issue_case,
+        description: newTicket.description || null,
+        assigned_to: ticketAssignedTo,
+        date: newTicket.date,
+        status: ticketStatus,
+        current_team: "Team PTS",
+        services_status: null,
+        created_by: currentUser?.username || null,
+        photo_url: photoUrl || null,
+        photo_name: photoName || null,
+      };
+      const { data: insertedTicket, error } = await supabase.from("tickets").insert([ticketData]).select("id").single();
+      if (error) throw error;
+
+      // ── Kirim WA notifikasi ke semua admin & superadmin jika butuh approval ──
+      // Hanya role guest dan team yang butuh approval → trigger WA
+      if (!isElevated) {
+        setLoadingMessage("Mengirim notifikasi WA ke admin...");
+        try {
+          // Ambil phone semua admin dari frontend, kirim ke Edge Function
+          const { data: adminUsers } = await supabase
+            .from("users")
+            .select("phone_number")
+            .in("role", ["admin", "superadmin"])
+            .not("phone_number", "is", null)
+            .neq("phone_number", "");
+          const adminPhones = (adminUsers || []).map((u: any) => u.phone_number).filter(Boolean);
+          if (adminPhones.length > 0) {
+            await sendWANotif({
+              type: "approval_request",
+              adminPhones,
+              projectName: newTicket.project_name,
+              issueCase: newTicket.issue_case,
+              requesterName: currentUser?.full_name || "",
+              requesterUsername: currentUser?.username || "",
+              date: newTicket.date,
+              description: newTicket.description || "-",
+              snUnit: newTicket.sn_unit || "-",
+              customerPhone: newTicket.customer_phone || "-",
+              salesName: newTicket.sales_name || "-",
+            });
+          }
+        } catch (waEx: any) {
+          // Jangan throw — ticket sudah berhasil disimpan
+          console.error("[notify-handler] approval_request exception:", waEx?.message);
+        }
+      }
+
+      setNewTicket({
+        project_name: "", address: "", customer_phone: "", sales_name: "", sales_division: "", sn_unit: "", product: "", issue_case: "", description: "", assigned_to: "", date: getJakartaDateString(), status: "Pending", current_team: "Team PTS", photo: null
+      });
+      setShowNewTicket(false);
+      await fetchData();
+      const successMsg = isElevated ? "✅ Ticket saved successfully!" : "✅ Ticket submitted! Waiting for Admin approval.";
+      setLoadingMessage(successMsg);
+      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert("Error: " + err.message);
+    }
+  };
+
+  const approveTicket = async () => {
+    if (!approvalTicket || !approvalAssignee) { alert("Please select a Team PTS member to assign!"); return; }
+    try {
+      setUploading(true);
+      const { error } = await supabase.from("tickets").update({ status: "Pending", assigned_to: approvalAssignee }).eq("id", approvalTicket.id);
+      if (error) throw error;
+      if (approvalTicket.created_by) {
+        const creatorUser = users.find((u) => u.username === approvalTicket.created_by);
+        if (creatorUser && creatorUser.role === "guest") {
+          const { data: existingMapping } = await supabase.from("guest_mappings").select("id").eq("guest_username", approvalTicket.created_by).eq("project_name", approvalTicket.project_name).maybeSingle();
+          if (!existingMapping) await supabase.from("guest_mappings").insert([{ guest_username: approvalTicket.created_by, project_name: approvalTicket.project_name }]);
+        }
+      }
+      // ── WA ke handler yang di-assign (cari phone di frontend) ───────────
+      try {
+        // Cari phone number handler dari team_members berdasarkan nama
+        const { data: handlerUser } = await supabase
+          .from("users")
+          .select("phone_number, full_name")
+          .or(`full_name.eq.${approvalAssignee},username.eq.${approvalAssignee}`)
+          .maybeSingle();
+        if (handlerUser?.phone_number) {
+          await sendWANotif({
+            type: "ticket_assigned",
+            handlerName: handlerUser.full_name,
+            handlerPhone: handlerUser.phone_number,
+            projectName: approvalTicket.project_name,
+            issueCase: approvalTicket.issue_case,
+            description: approvalTicket.description || "-",
+            snUnit: approvalTicket.sn_unit || "-",
+            customerPhone: approvalTicket.customer_phone || "-",
+            salesName: approvalTicket.sales_name || "-",
+            date: approvalTicket.date || "-",
+          });
+        }
+      } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
+      // ─────────────────────────────────────────────────────────────────────
+      setShowApprovalModal(false);
+      setApprovalTicket(null);
+      setApprovalAssignee("");
+      await fetchData();
+      alert(`✅ Ticket approved & assigned to ${approvalAssignee}`);
+    } catch (err: any) { alert("Error: " + err.message); } finally { setUploading(false); }
+  };
+
+  const rejectTicket = async (ticket: Ticket) => {
+    if (!confirm(`Reject ticket "${ticket.project_name} - ${ticket.issue_case}"? Ticket will be deleted.`)) return;
+    try {
+      setUploading(true);
+      await supabase.from("activity_logs").delete().eq("ticket_id", ticket.id);
+      const { error } = await supabase.from("tickets").delete().eq("id", ticket.id);
+      if (error) throw error;
+      await fetchData();
+      alert("Ticket rejected and removed.");
+    } catch (err: any) { alert("Error: " + err.message); } finally { setUploading(false); }
+  };
+
+  const reopenTicket = async () => {
+    if (!reopenTargetTicket || !reopenAssignee) return;
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Re-opening ticket...");
+      const { error: ue } = await supabase.from("tickets").update({ status: "Pending", assigned_to: reopenAssignee, current_team: "Team PTS", services_status: null }).eq("id", reopenTargetTicket.id);
+      if (ue) throw ue;
+      await supabase.from("activity_logs").insert([{
+        ticket_id: reopenTargetTicket.id,
+        handler_name: currentUser?.full_name || "",
+        handler_username: currentUser?.username || "",
+        action_taken: "Re-open Ticket",
+        notes: reopenNotes ? `Dibuka kembali: ${reopenNotes}` : `Ticket dibuka kembali oleh ${currentUser?.full_name}`,
+        new_status: "Pending",
+        team_type: "Team PTS",
+        assigned_to_services: false,
+        file_url: "", file_name: "", photo_url: "", photo_name: ""
+      }]);
+      // ── WA ke handler yang di-assign saat reopen ─────────────────────────
+      try {
+        const { data: reopenHandler } = await supabase
+          .from("users")
+          .select("phone_number, full_name")
+          .or(`full_name.eq.${reopenAssignee},username.eq.${reopenAssignee}`)
+          .maybeSingle();
+        if (reopenHandler?.phone_number) {
+          await sendWANotif({
+            type: "ticket_assigned",
+            handlerName: reopenHandler.full_name,
+            handlerPhone: reopenHandler.phone_number,
+            projectName: reopenTargetTicket.project_name,
+            issueCase: reopenTargetTicket.issue_case,
+            description: `[Re-open] ${reopenNotes || 'Ticket dibuka kembali'}`,
+            snUnit: reopenTargetTicket.sn_unit || "-",
+            customerPhone: reopenTargetTicket.customer_phone || "-",
+            salesName: reopenTargetTicket.sales_name || "-",
+            date: reopenTargetTicket.date || "-",
+            isReopen: true,
+          });
+        }
+      } catch (waEx: any) { console.warn("[reopenTicket] WA failed:", waEx?.message); }
+      // ─────────────────────────────────────────────────────────────────────
+      await fetchData();
+      setLoadingMessage("✅ Ticket berhasil dibuka kembali!");
+      setTimeout(() => {
+        setShowLoadingPopup(false);
+        setUploading(false);
+        setShowReopenModal(false);
+        setReopenTargetTicket(null);
+        setReopenAssignee("");
+        setReopenNotes("");
+        setShowTicketDetailPopup(false);
+        setSelectedTicket(null);
+      }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert("Error: " + err.message);
+    }
+  };
+
+  const addActivity = async () => {
+    const SERVICES_SIMPLE = ["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"];
+    const isSimpleStatus = newActivity.new_status === "Call" || newActivity.new_status === "Onsite";
+    const isSvcSimple = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase())?.team_type === "Team Services" && SERVICES_SIMPLE.includes(newActivity.new_status);
+    if (!isSimpleStatus && !isSvcSimple && !newActivity.notes) { alert("Notes must be filled!"); return; }
+    if (!selectedTicket) { alert("No ticket selected!"); return; }
+    const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase());
+    const teamType = member?.team_type || "Team PTS";
+    const isServicesTeam = teamType === "Team Services";
+    const validStatusesPTS = ["Waiting Approval", "Pending", "Call", "Onsite", "In Progress", "Solved"];
+    if (isServicesTeam) {
+      if (!(SERVICES_STATUSES as readonly string[]).includes(newActivity.new_status)) { alert("Status tidak valid untuk Team Services!"); return; }
+    } else {
+      if (!validStatusesPTS.includes(newActivity.new_status)) { alert("Invalid status! Use: Pending, In Progress, or Solved"); return; }
+    }
+    if (newActivity.assign_to_services && !newActivity.services_assignee) { alert("Select assignee from Team Services!"); return; }
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Updating ticket status...");
+      let fileUrl = "", fileName = "", photoUrl = "", photoName = "";
+      const uploadFileToBucket = async (file: File, folder: string, useServicesDb: boolean = false) => {
+        const client = useServicesDb ? supabaseServices : supabase;
+        const filePath = `${folder}/${Date.now()}_${file.name}`;
+        const { error } = await client.storage.from("ticket-photos").upload(filePath, file);
+        if (error) throw error;
+        const { data } = client.storage.from("ticket-photos").getPublicUrl(filePath);
+        return { url: data.publicUrl, name: file.name };
+      };
+      if (newActivity.file) {
+        setLoadingMessage("Uploading PDF file...");
+        try { const result = await uploadFileToBucket(newActivity.file, "reports", isServicesTeam); fileUrl = result.url; fileName = result.name; } catch (uploadErr: any) { throw new Error(`Failed to upload PDF: ${uploadErr.message}`); }
+      }
+      if (newActivity.photo) {
+        setLoadingMessage("Uploading photo...");
+        try { const result = await uploadFileToBucket(newActivity.photo, "photos", isServicesTeam); photoUrl = result.url; photoName = result.name; } catch (uploadErr: any) { throw new Error(`Failed to upload photo: ${uploadErr.message}`); }
+      }
+      setLoadingMessage("Saving activity log...");
+      const SVCSS = ["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"];
+      const isSimpleStatusCalc = newActivity.new_status === "Call" || newActivity.new_status === "Onsite";
+      const isSvcSimpleCalc = isServicesTeam && SVCSS.includes(newActivity.new_status);
+      const onsiteHasSchedule = newActivity.new_status === "Onsite" && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date;
+      const svcSimpleNotes: Record<string, string> = {
+        Warranty: "Unit masih dalam masa garansi.",
+        "Out Of Warranty": "Unit sudah di luar masa garansi.",
+        "Waiting PO from Sales": "Menunggu Purchase Order dari Sales.",
+        "Submit RMA": "RMA telah disubmit ke vendor.",
+        "Waiting sparepart": "Menunggu kedatangan sparepart.",
+      };
+      let autoNotes = "";
+      if (newActivity.new_status === "Call") autoNotes = "Sedang melakukan Call ke customer.";
+      else if (newActivity.new_status === "Onsite") {
+        if (onsiteHasSchedule) autoNotes = `Dijadwalkan Onsite pada ${newActivity.onsite_schedule_date} pukul ${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute} WIB.`;
+        else autoNotes = "Tim sedang Onsite ke lokasi customer.";
+      } else if (isSvcSimpleCalc) autoNotes = svcSimpleNotes[newActivity.new_status] || newActivity.new_status;
+      const effectiveStatus = onsiteHasSchedule ? "Pending" : newActivity.new_status;
+      const useAutoNotes = isSimpleStatusCalc || isSvcSimpleCalc;
+      const activityData: any = {
+        ticket_id: selectedTicket.id,
+        handler_name: newActivity.handler_name,
+        handler_username: currentUser?.username || "",
+        action_taken: useAutoNotes ? "" : newActivity.action_taken || "",
+        notes: useAutoNotes ? autoNotes : newActivity.notes,
+        new_status: effectiveStatus,
+        team_type: teamType,
+        assigned_to_services: newActivity.assign_to_services || false,
+        file_url: fileUrl || "",
+        file_name: fileName || "",
+        photo_url: photoUrl || "",
+        photo_name: photoName || "",
+      };
+      const activeClient = isServicesTeam ? supabaseServices : supabase;
+      const { error: activityError } = await activeClient.from("activity_logs").insert([activityData]).select();
+      if (activityError) throw new Error(`Database error: ${activityError.message}`);
+      setLoadingMessage("Updating ticket status...");
+      const updateData: any = {};
+      if (newActivity.sn_unit) updateData.sn_unit = newActivity.sn_unit;
+      if (isServicesTeam) {
+        updateData.services_status = effectiveStatus;
+        const { error: svcErr } = await supabaseServices.from("tickets").update(updateData).eq("id", selectedTicket.id);
+        if (svcErr) console.warn("Services DB ticket update failed:", svcErr.message);
+        await supabase.from("tickets").update({ services_status: effectiveStatus }).eq("id", selectedTicket.id);
+      } else {
+        updateData.status = effectiveStatus;
+        if (newActivity.assign_to_services) {
+          updateData.current_team = "Team Services";
+          updateData.services_status = "Waiting Approval";
+          updateData.assigned_to = newActivity.services_assignee;
+          supabase.functions.invoke("send-email", {
+            body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: newActivity.services_assignee, snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
+          }).then(({ error }) => { if (error) console.error("Email error:", error); });
+          try {
+            const { data: existSvc } = await supabaseServices.from("tickets").select("id").eq("id", selectedTicket.id).maybeSingle();
+            if (!existSvc) {
+              await supabaseServices.from("tickets").insert([{
+                id: selectedTicket.id,
+                project_name: selectedTicket.project_name,
+                address: selectedTicket.address || null,
+                customer_phone: selectedTicket.customer_phone || null,
+                sales_name: selectedTicket.sales_name || null,
+                sn_unit: selectedTicket.sn_unit || null,
+                issue_case: selectedTicket.issue_case,
+                description: selectedTicket.description || null,
+                assigned_to: newActivity.services_assignee,
+                date: selectedTicket.date,
+                status: "Waiting Approval",
+                services_status: "Waiting Approval",
+                current_team: "Team Services",
+                created_by: selectedTicket.created_by || null,
+              }]);
+            }
+          } catch (svcInsertErr) { console.warn("Could not mirror ticket to Services DB:", svcInsertErr); }
+        }
+        const { error: updateError } = await supabase.from("tickets").update(updateData).eq("id", selectedTicket.id);
+        if (updateError) throw new Error(`Failed to update ticket: ${updateError.message}`);
+
+        // ── AUTO-CREATE REMINDER saat status Onsite ──────────────────────────
+        // Jika team update status ke Onsite (dengan jadwal), otomatis buat
+        // reminder di tabel reminders sebagai kategori Troubleshooting
+        if (newActivity.new_status === "Onsite" && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date) {
+          try {
+            const assignedUsername = currentUser?.username || "";
+            // Cari full_name user
+            const { data: userData } = await supabase
+              .from("users")
+              .select("full_name, username")
+              .eq("username", assignedUsername)
+              .single();
+            const assignedName = userData?.full_name || assignedUsername;
+
+            const reminderPayload = {
+              project_name: selectedTicket.project_name,   // kolom di table reminders = 'project_name'
+              description: `[AUTO dari Ticketing] Issue: ${selectedTicket.issue_case}${selectedTicket.product ? ` | Product: ${selectedTicket.product}` : ""}`,
+              assigned_to: assignedUsername,
+              assigned_name: assignedName,
+              due_date: newActivity.onsite_schedule_date,
+              due_time: `${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute}`,
+              priority: "high",
+              status: "pending",
+              repeat: "none",
+              category: "Troubleshooting",
+              sales_name: selectedTicket.sales_name || "",
+              sales_division: selectedTicket.sales_division || "",
+              address: selectedTicket.address || "",
+              pic_name: selectedTicket.customer_phone || "",
+              pic_phone: "",
+              product: selectedTicket.product || selectedTicket.sn_unit || "",
+              created_by: assignedUsername,
+              notes: `Ticket ID: ${selectedTicket.id} | Dibuat otomatis dari Platform Ticketing saat status Onsite`,
+            };
+            const { error: reminderErr } = await supabase.from("reminders").insert([reminderPayload]);
+            if (reminderErr) {
+              console.warn("[Auto Reminder] Gagal buat reminder otomatis:", reminderErr.message);
+            } else {
+              console.log("[Auto Reminder] ✅ Reminder Troubleshooting otomatis dibuat untuk:", selectedTicket.project_name);
+            }
+          } catch (reminderEx) {
+            console.warn("[Auto Reminder] Exception:", reminderEx);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
+      }
+      setNewActivity({
+        handler_name: newActivity.handler_name,
+        action_taken: "",
+        notes: "",
+        new_status: isServicesTeam ? "Pending" : "Pending",
+        sn_unit: "",
+        file: null,
+        photo: null,
+        assign_to_services: false,
+        services_assignee: "",
+        onsite_use_schedule: false,
+        onsite_schedule_date: "",
+        onsite_schedule_hour: "08",
+        onsite_schedule_minute: "00",
+      });
+      await fetchData();
+      setLoadingMessage("✅ Status updated successfully!");
+      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); setShowUpdateForm(false); }, 1500);
+    } catch (err: any) {
+      setShowLoadingPopup(false);
+      setUploading(false);
+      alert("Error: " + err.message);
+    }
+  };
+
+  const createUser = async () => {
+    if (!newUser.username || !newUser.password || !newUser.full_name) { alert("All fields must be filled!"); return; }
+    const lowerUsername = newUser.username.toLowerCase();
+    let finalTeamType = newUser.team_type;
+    if (newUser.role === "guest") finalTeamType = "Guest";
+    else if (newUser.role === "admin") finalTeamType = "Team PTS";
+    try {
+      const { error: userError } = await supabase.from("users").insert([{ username: lowerUsername, password: newUser.password, full_name: newUser.full_name, role: newUser.role, team_type: finalTeamType }]);
+      if (userError) throw userError;
+      if (newUser.role === "team") {
+        const { error: memberError } = await supabase.from("team_members").insert([{ name: newUser.full_name, username: lowerUsername, role: "Support Engineer", team_type: finalTeamType, photo_url: `https://ui-avatars.com/api/?name=${newUser.full_name}&background=random&color=fff&size=128` }]);
+        if (memberError) console.error("Error creating team member:", memberError);
+      }
+      setNewUser({ username: "", password: "", full_name: "", team_member: "", role: "team", team_type: "Team PTS" });
+      await fetchData();
+      alert("User created successfully!");
+    } catch (err: any) { alert("Error: " + err.message); }
+  };
+
+  const addGuestMapping = async () => {
+    if (!newMapping.guestUsername || !newMapping.projectName) { alert("All fields must be filled!"); return; }
+    const guestUser = users.find((u) => u.username === newMapping.guestUsername && u.role === "guest");
+    if (!guestUser) { alert("Guest username not found or not a guest role!"); return; }
+    const projectExists = tickets.some((t) => t.project_name === newMapping.projectName);
+    if (!projectExists) { alert("Project name not found!"); return; }
+    try {
+      setUploading(true);
+      const { error } = await supabase.from("guest_mappings").insert([{ guest_username: newMapping.guestUsername, project_name: newMapping.projectName }]);
+      if (error) throw error;
+      setNewMapping({ guestUsername: "", projectName: "" });
+      await fetchGuestMappings();
+      setUploading(false);
+      alert("Guest mapping added successfully!");
+    } catch (err: any) { alert("Error: " + err.message); setUploading(false); }
+  };
+
+  const deleteGuestMapping = async (mappingId: string) => {
+    try {
+      setUploading(true);
+      const { error } = await supabase.from("guest_mappings").delete().eq("id", mappingId);
+      if (error) throw error;
+      await fetchGuestMappings();
+      setUploading(false);
+      alert("Guest mapping deleted successfully!");
+    } catch (err: any) { alert("Error: " + err.message); setUploading(false); }
+  };
+
+  const updatePassword = async () => {
+    if (!selectedUserForPassword) { alert("Select user first!"); return; }
+    if (!changePassword.current || !changePassword.new || !changePassword.confirm) { alert("All fields must be filled!"); return; }
+    if (changePassword.new !== changePassword.confirm) { alert("New password does not match!"); return; }
+    try {
+      const selectedUser = users.find((u) => u.id === selectedUserForPassword);
+      if (!selectedUser) { alert("User not found!"); return; }
+      const { data: userData } = await supabase.from("users").select("password").eq("id", selectedUserForPassword).single();
+      if (!userData || userData.password !== changePassword.current) { alert("Old password is incorrect!"); return; }
+      await supabase.from("users").update({ password: changePassword.new }).eq("id", selectedUserForPassword);
+      if (currentUser?.id === selectedUserForPassword) {
+        const updatedUser = { ...currentUser, password: changePassword.new };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      }
+      alert("Password changed successfully!");
+      setChangePassword({ current: "", new: "", confirm: "" });
+      setSelectedUserForPassword("");
+    } catch (err: any) { alert("Error: " + err.message); }
+  };
+
+  const exportToPDF = async (ticket: Ticket) => {
+    const printDate = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+
+    const statusLabel = ticket.status;
+    const statusColor = ticket.status === "Solved" ? "#059669"
+      : ticket.status === "In Progress" ? "#2563eb"
+      : ticket.status === "Pending" ? "#d97706"
+      : ticket.status === "Onsite" ? "#7c3aed"
+      : ticket.status === "Call" ? "#0891b2"
+      : ticket.status === "Waiting Approval" ? "#ea580c"
+      : "#64748b";
+
+    const row = (label: string, value: string | null | undefined) =>
+      value ? `<tr>
+        <td style="font-weight:600;color:#475569;width:160px;padding:7px 12px;border:1px solid #e2e8f0;font-size:12px;background:#f8fafc">${label}</td>
+        <td style="padding:7px 12px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${value}</td>
+      </tr>` : "";
+
+    const badge = (text: string, bg = "#fef3c7", color = "#92400e") =>
+      `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:${bg};color:${color};font-size:11px;font-weight:700;margin:2px 2px 2px 0">${text}</span>`;
+
+    // Activity log rows
+    const activityRows = (ticket.activity_logs || [])
+      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map((log: any, idx: number) => {
+        const ts = formatDateTime(log.created_at);
+        const teamBg = log.team_type === "Team Services" ? "#fef3c7" : "#eff6ff";
+        const teamColor = log.team_type === "Team Services" ? "#92400e" : "#1d4ed8";
+        const statusBg = log.new_status === "Solved" ? "#d1fae5"
+          : log.new_status === "In Progress" ? "#dbeafe"
+          : log.new_status === "Pending" ? "#fef3c7"
+          : "#f1f5f9";
+        const statusCol = log.new_status === "Solved" ? "#065f46"
+          : log.new_status === "In Progress" ? "#1d4ed8"
+          : log.new_status === "Pending" ? "#92400e"
+          : "#475569";
+        return `<tr style="background:${idx % 2 === 0 ? "#fff" : "#f8fafc"}">
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;width:120px;white-space:nowrap;vertical-align:top">
+            <div style="font-size:11px;color:#64748b">${ts}</div>
+            <div style="margin-top:3px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;display:inline-block;background:${teamBg};color:${teamColor}">${log.team_type || "PTS"}</div>
+          </td>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;width:130px;vertical-align:top">
+            <div style="font-weight:700;font-size:12px;color:#1e293b">${log.handler_name || "-"}</div>
+            <div style="margin-top:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;display:inline-block;background:${statusBg};color:${statusCol}">${log.new_status}</div>
+            ${log.assigned_to_services ? `<div style="margin-top:4px;font-size:10px;font-weight:700;color:#dc2626">🔄 → Team Services</div>` : ""}
+          </td>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;vertical-align:top">
+            ${log.action_taken ? `<div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:4px">🔧 ${log.action_taken}</div>` : ""}
+            ${log.notes ? `<div style="font-size:12px;color:#1e293b;line-height:1.6;white-space:pre-line">${log.notes}</div>` : "<div style=\"color:#94a3b8;font-size:11px;font-style:italic\">—</div>"}
+            ${log.file_url ? `<div style="margin-top:6px"><a href="${log.file_url}" style="font-size:11px;color:#2563eb;font-weight:600">📎 ${log.file_name || "Download"}</a></div>` : ""}
+            ${log.photo_url ? `<div style="margin-top:6px"><img src="${log.photo_url}" style="max-height:100px;border-radius:6px;border:1px solid #e2e8f0" alt="bukti"/></div>` : ""}
+          </td>
+        </tr>`;
+      }).join("");
+
+    const printContent = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8">
+<title>Ticket Report — ${ticket.project_name}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; }
+  .page { padding: 28px 32px; max-width: 940px; margin: 0 auto; }
+  .header { background: linear-gradient(135deg,#dc2626,#991b1b); color: white; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-left h1 { font-size: 17px; font-weight: 800; margin-bottom: 3px; }
+  .header-left p { font-size: 11px; opacity: 0.85; }
+  .header-right { text-align: right; font-size: 11px; opacity: 0.85; line-height: 1.8; }
+  .status-pill { display: inline-block; padding: 3px 14px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.5); color: white; margin-top: 6px; }
+  .section { border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; overflow: hidden; page-break-inside: avoid; }
+  .section-title { background: #f1f5f9; padding: 8px 14px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em; color: #475569; border-bottom: 1px solid #e2e8f0; }
+  .log-section .section-title { background: #fff1f2; color: #9f1239; border-color: #fecdd3; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; }
+  .grid2 > * { border-right: 1px solid #e2e8f0; }
+  .grid2 > *:last-child { border-right: none; }
+  .info-box { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+  .info-box:last-child { border-bottom: none; }
+  .info-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 3px; }
+  .info-value { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.5; }
+  table.log { width: 100%; border-collapse: collapse; }
+  .footer { margin-top: 20px; padding-top: 12px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+  .sign-grid { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; page-break-inside: avoid; }
+  .sign-box { border-top: 1.5px solid #334155; padding-top: 8px; text-align: center; }
+  .sign-label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+  .sign-space { margin-top: 32px; font-size: 11px; color: #94a3b8; }
+  @media print {
+    .page { padding: 16px 20px; }
+    .section, .log-section { page-break-inside: avoid; }
+    button { display: none !important; }
+  }
+</style>
+</head>
+<body><div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <h1>🎫 Report Troubleshooting — IVP</h1>
+      <p>Ticket ID: ${ticket.id?.substring(0,8).toUpperCase()}</p>
+      <div class="status-pill">PTS: ${statusLabel}${ticket.services_status ? " &nbsp;|&nbsp; Svc: " + ticket.services_status : ""}</div>
+    </div>
+    <div class="header-right">
+      <div><b>Dicetak:</b> ${printDate}</div>
+      <div><b>Handler:</b> ${ticket.assigned_to || "—"}</div>
+      <div><b>Team:</b> ${ticket.current_team || "Team PTS"}</div>
+      <div><b>Dibuat:</b> ${formatDateTime(ticket.created_at)}</div>
+    </div>
+  </div>
+
+  <!-- INFORMASI TICKET -->
+  <div class="section">
+    <div class="section-title">🎫 Informasi Ticket</div>
+    <div class="grid2">
+      <div>
+        <div class="info-box"><div class="info-label">Nama Project</div><div class="info-value" style="font-size:14px;font-weight:800;color:#dc2626">${ticket.project_name}</div></div>
+        <div class="info-box"><div class="info-label">Issue Case</div><div class="info-value">${ticket.issue_case}</div></div>
+        <div class="info-box"><div class="info-label">Deskripsi</div><div class="info-value" style="font-weight:400;color:#475569">${ticket.description || "—"}</div></div>
+      </div>
+      <div>
+        <div class="info-box"><div class="info-label">Address / Lokasi</div><div class="info-value">${ticket.address || "—"}</div></div>
+        <div class="info-box"><div class="info-label">Product / Unit</div><div class="info-value">${ticket.product || "—"}</div></div>
+        <div class="info-box"><div class="info-label">SN Unit</div><div class="info-value">${ticket.sn_unit || "—"}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INFORMASI SALES & STATUS -->
+  <div class="section">
+    <div class="section-title">🏢 Sales & Status</div>
+    <div class="grid2">
+      <div>
+        <div class="info-box"><div class="info-label">Sales / Account</div><div class="info-value">${ticket.sales_name || "—"}</div></div>
+        <div class="info-box"><div class="info-label">Divisi Sales</div><div class="info-value">${ticket.sales_division || "—"}</div></div>
+        <div class="info-box"><div class="info-label">Customer / User</div><div class="info-value">${ticket.customer_phone || "—"}</div></div>
+      </div>
+      <div>
+        <div class="info-box"><div class="info-label">Status Team PTS</div>
+          <div><span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor}22;color:${statusColor};border:1.5px solid ${statusColor}66">${ticket.status}</span></div>
+        </div>
+        ${ticket.services_status ? `<div class="info-box"><div class="info-label">Status Team Services</div>
+          <div><span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:#fef3c722;color:#92400e;border:1.5px solid #f59e0b66">${ticket.services_status}</span></div>
+        </div>` : ""}
+        <div class="info-box"><div class="info-label">Tanggal Dibuat</div><div class="info-value">${formatDateTime(ticket.created_at)}</div></div>
+        <div class="info-box"><div class="info-label">Created By</div><div class="info-value">${ticket.created_by || "—"}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY LOG -->
+  <div class="section log-section">
+    <div class="section-title">📋 Activity Log — Riwayat Penanganan</div>
+    ${activityRows ? `
+    <table class="log">
+      <thead>
+        <tr style="background:#fff1f2">
+          <th style="padding:8px 12px;font-size:10px;font-weight:700;text-align:left;color:#9f1239;border-bottom:1.5px solid #fecdd3;width:130px">Waktu</th>
+          <th style="padding:8px 12px;font-size:10px;font-weight:700;text-align:left;color:#9f1239;border-bottom:1.5px solid #fecdd3;width:140px">Handler & Status</th>
+          <th style="padding:8px 12px;font-size:10px;font-weight:700;text-align:left;color:#9f1239;border-bottom:1.5px solid #fecdd3">Action & Notes</th>
+        </tr>
+      </thead>
+      <tbody>${activityRows}</tbody>
+    </table>` : `<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">Belum ada activity log</div>`}
+  </div>
+
+  <!-- FOTO TICKET -->
+  ${ticket.photo_url ? `
+  <div class="section" style="page-break-inside:avoid">
+    <div class="section-title">📸 Foto Ticket</div>
+    <div style="padding:12px;text-align:center">
+      <img src="${ticket.photo_url}" style="max-height:220px;max-width:100%;border-radius:8px;border:1.5px solid #e2e8f0" alt="foto ticket"/>
+    </div>
+  </div>` : ""}
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>🎫 IndoVisual Professional Tools — Ticket Troubleshooting System</div>
+    <div>Dicetak: ${printDate} | Status: ${ticket.status}</div>
+  </div>
+
+  <!-- TANDA TANGAN -->
+  <div class="sign-grid">
+    ${["Handler / Teknisi", "Supervisor / Admin", "Customer / User"].map(r =>
+      `<div class="sign-box"><div class="sign-label">${r}</div><div class="sign-space">Tanda Tangan</div></div>`
+    ).join("")}
+  </div>
+
+</div></body></html>`;
+
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(printContent); win.document.close(); setTimeout(() => win.print(), 300); }
+  };
+
+  const exportToExcel = () => {
+    const runExport = (XLSX: any) => {
+      const exportTickets = currentUserTeamType === "Team Services" ? filteredTickets : tickets;
+      const isServicesExport = currentUserTeamType === "Team Services";
+      const border = { top: { style: "thin", color: { rgb: "D1D5DB" } }, bottom: { style: "thin", color: { rgb: "D1D5DB" } }, left: { style: "thin", color: { rgb: "D1D5DB" } }, right: { style: "thin", color: { rgb: "D1D5DB" } } };
+      const boldBorder = { top: { style: "thin", color: { rgb: "000000" } }, bottom: { style: "thin", color: { rgb: "000000" } }, left: { style: "thin", color: { rgb: "000000" } }, right: { style: "thin", color: { rgb: "000000" } } };
+      const hdrStyle = { font: { name: "Arial", bold: true, sz: 11, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E3A5F" }, patternType: "solid" }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: boldBorder };
+      const secHdrStyle = { font: { name: "Arial", bold: true, sz: 10, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "2563EB" }, patternType: "solid" }, alignment: { horizontal: "center", vertical: "center" }, border: boldBorder };
+      const cellStyle = { font: { name: "Arial", sz: 10 }, alignment: { vertical: "center", wrapText: true }, border };
+      const altStyle = { ...cellStyle, fill: { fgColor: { rgb: "EFF6FF" }, patternType: "solid" } };
+      const titleStyle = { font: { name: "Arial", bold: true, sz: 15, color: { rgb: "1E3A5F" } }, alignment: { horizontal: "left", vertical: "center" } };
+      const statusStyles: Record<string, object> = {
+        Solved: { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "166534" } }, fill: { fgColor: { rgb: "DCFCE7" }, patternType: "solid" } },
+        "In Progress": { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" }, patternType: "solid" } },
+        Pending: { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" }, patternType: "solid" } },
+        Overdue: { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "991B1B" } }, fill: { fgColor: { rgb: "FEE2E2" }, patternType: "solid" } },
+        "Waiting Approval": { ...cellStyle, font: { name: "Arial", sz: 10, bold: true, color: { rgb: "9A3412" } }, fill: { fgColor: { rgb: "FFEDD5" }, patternType: "solid" } },
+      };
+      const c = (v: any, s: object) => ({ v, s, t: typeof v === "number" ? "n" : "s" });
+      const empty = () => ({ v: "", s: cellStyle, t: "s" });
+      const row = (cells: number) => Array(cells).fill(empty());
+      const wb = XLSX.utils.book_new();
+      const exportDate = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+      // Dashboard sheet
+      {
+        const COLS = 5;
+        const dashTitle = isServicesExport ? "📊 TICKET REPORT — TEAM SERVICES" : "📊 TICKET REPORT — DASHBOARD ANALYTICS";
+        const data: any[][] = [
+          [c(dashTitle, titleStyle), ...row(COLS - 1)],
+          [c(`Tanggal Export: ${exportDate}`, { font: { name: "Arial", sz: 10, color: { rgb: "6B7280" } } }), ...row(COLS - 1)],
+          row(COLS),
+          [c("RINGKASAN STATISTIK", secHdrStyle), ...row(COLS - 1)],
+          [c("Kategori", hdrStyle), c("Jumlah", hdrStyle), c("Persentase", hdrStyle), c("", hdrStyle), c("", hdrStyle)],
+        ];
+        const totalExport = exportTickets.length;
+        const statItems = isServicesExport ? [
+          { label: "Total Tickets (Services)", value: totalExport, color: "1E3A5F" },
+          { label: "Pending Check", value: exportTickets.filter((t: Ticket) => t.services_status === "Pending").length, color: "92400E" },
+          { label: "Process Repair", value: exportTickets.filter((t: Ticket) => t.services_status === "Process Repair").length, color: "1E40AF" },
+          { label: "Solved", value: exportTickets.filter((t: Ticket) => t.services_status === "Solved").length, color: "166534" },
+        ] : [
+          { label: "Total Tickets", value: stats.total, color: "1E3A5F" },
+          { label: "Pending", value: stats.pending, color: "92400E" },
+          { label: "In Progress", value: stats.processing, color: "1E40AF" },
+          { label: "Solved", value: stats.solved, color: "166534" },
+        ];
+        statItems.forEach((item, i) => {
+          const total = isServicesExport ? totalExport : stats.total;
+          const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) + "%" : "0%";
+          const rs = { ...cellStyle, ...(i % 2 ? { fill: { fgColor: { rgb: "EFF6FF" }, patternType: "solid" } } : {}) };
+          data.push([
+            c(item.label, { ...rs, font: { name: "Arial", sz: 10, bold: true, color: { rgb: item.color } } }),
+            c(item.value, { ...rs, alignment: { horizontal: "center", vertical: "center" } }),
+            c(pct, { ...rs, alignment: { horizontal: "center", vertical: "center" } }),
+            empty(), empty(),
+          ]);
+        });
+        data.push(row(COLS));
+        const handlerMap: Record<string, number> = {};
+        exportTickets.forEach((t: Ticket) => { if (t.assigned_to) handlerMap[t.assigned_to] = (handlerMap[t.assigned_to] || 0) + 1; });
+        data.push([c("HANDLER", hdrStyle), c("JUMLAH TICKET", hdrStyle), c("PERSENTASE", hdrStyle), c("", hdrStyle), c("", hdrStyle)]);
+        Object.entries(handlerMap).forEach(([handler, count], i) => {
+          const total = exportTickets.length;
+          const pct = total > 0 ? ((count / total) * 100).toFixed(1) + "%" : "0%";
+          const rs = i % 2 === 0 ? cellStyle : altStyle;
+          data.push([c(handler, rs), c(count, { ...rs, alignment: { horizontal: "center", vertical: "center" } }), c(pct, { ...rs, alignment: { horizontal: "center", vertical: "center" } }), empty(), empty()]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } }, { s: { r: 3, c: 0 }, e: { r: 3, c: COLS - 1 } }];
+        ws["!cols"] = [{ wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+        ws["!rows"] = [{ hpt: 30 }, { hpt: 18 }, { hpt: 8 }];
+        XLSX.utils.book_append_sheet(wb, ws, "📊 Dashboard");
+      }
+      // Tickets sheet
+      {
+        const headers = ["No.", "Project Name", "Alamat", "Nama & Telepon Customer", "Sales", "Issue / Masalah", "Deskripsi", "SN Unit", "Product", "Handler (Assigned To)", "Status PTS", "Status Services", "Current Team", "Tgl Ticket", "Dibuat Oleh", "Dibuat Pada", "Jumlah Activity Log"];
+        const COLS = headers.length;
+        const data: any[][] = [[c(isServicesExport ? "📋 DATA TICKET — TEAM SERVICES" : "📋 DATA SEMUA TICKET", { ...titleStyle, font: { name: "Arial", bold: true, sz: 14, color: { rgb: "1E3A5F" } } }), ...row(COLS - 1)], row(COLS), headers.map((h) => c(h, hdrStyle))];
+        exportTickets.forEach((t: Ticket, idx: number) => {
+          const rs = idx % 2 === 0 ? cellStyle : altStyle;
+          const overdue = isTicketOverdue(t);
+          const effectiveStatus = overdue && t.status !== "Solved" ? "Overdue" : t.status;
+          const statusDisplay = overdue && t.status !== "Solved" ? `${t.status} (OVERDUE)` : t.status;
+          const ctr = { ...rs, alignment: { horizontal: "center", vertical: "center" } };
+          data.push([
+            c(idx + 1, ctr), c(t.project_name || "-", rs), c(t.address || "-", rs), c(t.customer_phone || "-", rs),
+            c(t.sales_name || "-", rs), c(t.issue_case || "-", rs), c(t.description || "-", rs), c(t.sn_unit || "-", ctr), c((t as any).product || "-", rs),
+            c(t.assigned_to || "-", rs), c(statusDisplay, statusStyles[effectiveStatus] || rs), c(t.services_status || "-", t.services_status ? statusStyles[t.services_status] || rs : rs),
+            c(t.current_team || "-", rs), c(t.date || "-", ctr), c(t.created_by || "-", rs),
+            c(t.created_at ? formatDateTime(t.created_at) : "-", ctr), c(t.activity_logs?.length || 0, ctr),
+          ]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }];
+        ws["!cols"] = [{ wch: 5 }, { wch: 28 }, { wch: 30 }, { wch: 28 }, { wch: 22 }, { wch: 28 }, { wch: 38 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 10 }];
+        ws["!rows"] = [{ hpt: 28 }, { hpt: 6 }, { hpt: 32 }];
+        XLSX.utils.book_append_sheet(wb, ws, "📋 Semua Ticket");
+      }
+      // Activity Logs sheet
+      {
+        const headers = ["No.", "Project Name", "Issue", "Status Ticket", "Handler", "Team", "Action Taken", "Notes", "Status Baru", "Ke Services?", "File Lampiran", "Waktu Activity"];
+        const COLS = headers.length;
+        const data: any[][] = [[c(isServicesExport ? "📝 ACTIVITY LOG — TEAM SERVICES" : "📝 DETAIL ACTIVITY LOG", { ...titleStyle, font: { name: "Arial", bold: true, sz: 14, color: { rgb: "1E3A5F" } } }), ...row(COLS - 1)], row(COLS), headers.map((h) => c(h, hdrStyle))];
+        let rowIdx = 0;
+        exportTickets.forEach((ticket: Ticket) => {
+          if (!ticket.activity_logs || ticket.activity_logs.length === 0) {
+            const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
+            data.push([
+              c(rowIdx + 1, { ...rs, alignment: { horizontal: "center", vertical: "center" } }),
+              c(ticket.project_name || "-", rs), c(ticket.issue_case || "-", rs), c(ticket.status || "-", statusStyles[ticket.status] || rs),
+              c("-", rs), c("-", rs), c("-", rs), c("(Belum ada activity log)", { ...rs, font: { name: "Arial", sz: 10, color: { rgb: "9CA3AF" } } }),
+              c("-", rs), c("-", rs), c("-", rs), c("-", rs),
+            ]);
+            rowIdx++;
+            return;
+          }
+          [...ticket.activity_logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).forEach((log) => {
+            const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
+            const ctr = { ...rs, alignment: { horizontal: "center", vertical: "center" } };
+            data.push([
+              c(rowIdx + 1, ctr), c(ticket.project_name || "-", rs), c(ticket.issue_case || "-", rs), c(ticket.status || "-", statusStyles[ticket.status] || rs),
+              c(log.handler_name || "-", rs), c(log.team_type || "-", rs), c(log.action_taken || "-", rs),
+              c(log.notes || "-", { ...rs, alignment: { horizontal: "left", vertical: "center", wrapText: true } }),
+              c(log.new_status || "-", statusStyles[log.new_status] || rs),
+              c(log.assigned_to_services ? "✅ Ya" : "Tidak", { ...ctr, font: { name: "Arial", sz: 10, bold: !!log.assigned_to_services, color: { rgb: log.assigned_to_services ? "166534" : "374151" } } }),
+              c(log.file_name || "-", rs), c(log.created_at ? formatDateTime(log.created_at) : "-", ctr),
+            ]);
+            rowIdx++;
+          });
+        });
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }];
+        ws["!cols"] = [{ wch: 5 }, { wch: 26 }, { wch: 24 }, { wch: 18 }, { wch: 22 }, { wch: 16 }, { wch: 28 }, { wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 24 }, { wch: 22 }];
+        ws["!rows"] = [{ hpt: 28 }, { hpt: 6 }, { hpt: 32 }];
+        XLSX.utils.book_append_sheet(wb, ws, "📝 Activity Logs");
+      }
+      const teamLabel = isServicesExport ? "Services" : "PTS";
+      const fileName = `Ticket_Report_${teamLabel}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName, { bookType: "xlsx", type: "binary", cellStyles: true });
+    };
+    if ((window as any).XLSX) runExport((window as any).XLSX);
+    else {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      script.onload = () => runExport((window as any).XLSX);
+      script.onerror = () => alert("Gagal memuat library Excel. Coba lagi atau periksa koneksi internet.");
+      document.head.appendChild(script);
+    }
+  };
+
+  const currentUserTeamType = useMemo(() => {
+    if (!currentUser) return "Team PTS";
+    const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
+    return member?.team_type || "Team PTS";
+  }, [currentUser, teamMembers]);
+
+  const filteredTickets = useMemo(() => {
+    return tickets.filter((t) => {
+      const projectName = t.project_name || "";
+      const issueCase = t.issue_case || "";
+      const salesName = t.sales_name || "";
+      const match = projectName.toLowerCase().includes(searchProject.toLowerCase()) || issueCase.toLowerCase().includes(searchProject.toLowerCase());
+      const salesNameMatch = salesName.toLowerCase().includes(searchSalesName.toLowerCase());
+      const ticketYear = t.created_at ? new Date(t.created_at).getFullYear().toString() : "";
+      const yearMatch = filterYear === "all" || ticketYear === filterYear;
+      let statusMatch = false;
+      if (filterStatus === "All") statusMatch = true;
+      else if (filterStatus === "Overdue") statusMatch = isTicketOverdue(t) && t.status !== "Solved";
+      else if (filterStatus === "Solved Overdue") statusMatch = isTicketOverdue(t) && t.status === "Solved";
+      else if (currentUserTeamType === "Team Services") statusMatch = t.services_status === filterStatus || t.status === filterStatus;
+      else statusMatch = t.status === filterStatus;
+      const handlerMatch = handlerFilter === null || t.assigned_to === handlerFilter;
+      const divisionMatch = salesDivisionFilter === null || t.sales_division === salesDivisionFilter;
+      const productMatch = productFilter === null || (t.product || "") === productFilter;
+      const productSearchMatch = !searchProduct || (t.product || "").toLowerCase().includes(searchProduct.toLowerCase());
+      let teamVisibility = true;
+      if (currentUserTeamType === "Team Services") teamVisibility = t.current_team === "Team Services" || !!t.services_status;
+      if (t.status === "Waiting Approval" && currentUser?.role !== "admin" && currentUser?.role !== "superadmin" && currentUserTeamType !== "Team Services") {
+        teamVisibility = teamVisibility && t.created_by === currentUser?.username;
+      }
+      return match && salesNameMatch && yearMatch && statusMatch && teamVisibility && handlerMatch && divisionMatch && productMatch && productSearchMatch;
+    });
+  }, [tickets, searchProject, searchSalesName, filterYear, filterStatus, currentUserTeamType, overdueSettings, handlerFilter, salesDivisionFilter, productFilter, searchProduct]);
+
+  const stats = useMemo(() => {
+    const total = tickets.length;
+    const processing = tickets.filter((t) => t.status === "In Progress").length;
+    const pending = tickets.filter((t) => t.status === "Pending").length;
+    const solved = tickets.filter((t) => t.status === "Solved").length;
+    const overdue = tickets.filter((t) => isTicketOverdue(t) && t.status !== "Solved").length;
+    const solvedOverdue = tickets.filter((t) => isTicketOverdue(t) && t.status === "Solved").length;
+    return {
+      total, pending, processing, solved, overdue, solvedOverdue,
+      statusData: [
+        { name: "Pending", value: pending, color: "#FCD34D" },
+        { name: "In Progress", value: processing, color: "#60A5FA" },
+        { name: "Solved", value: solved, color: "#34D399" },
+        ...(overdue > 0 ? [{ name: "Overdue", value: overdue, color: "#EF4444" }] : []),
+        ...(solvedOverdue > 0 ? [{ name: "Solved (Overdue)", value: solvedOverdue, color: "#9333ea" }] : []),
+      ].filter((d) => d.value > 0),
+      handlerData: Object.entries(tickets.reduce((acc, t) => { acc[t.assigned_to] = (acc[t.assigned_to] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([name, tickets]) => {
+        const member = teamMembers.find((m) => m.name.trim().toLowerCase() === name.trim().toLowerCase());
+        return { name, tickets, team: member?.team_type || "Team PTS" };
+      }),
+    };
+  }, [tickets, overdueSettings]);
+
+  const salesDivisionStats = useMemo(() => {
+    const divisionCounts: Record<string, number> = {};
+    tickets.forEach((t) => { if (t.sales_division) divisionCounts[t.sales_division] = (divisionCounts[t.sales_division] || 0) + 1; });
+    const colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6366F1", "#14B8A6", "#F43F5E", "#A855F7", "#22D3EE", "#EAB308"];
+    const divisionData = Object.entries(divisionCounts).map(([name, value], i) => ({ name, value, color: colors[i % colors.length] })).sort((a, b) => b.value - a.value).slice(0, 10);
+    return { data: divisionData, total: divisionData.reduce((sum, d) => sum + d.value, 0) };
+  }, [tickets]);
+
+  // ── Product stats untuk mini donut chart ──────────────────────────
+  const productStats = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tickets.forEach((t) => { if (t.product) counts[t.product] = (counts[t.product] || 0) + 1; });
+    const colors = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16","#F97316","#6366F1","#14B8A6","#F43F5E","#A855F7","#22D3EE","#EAB308"];
+    const data = Object.entries(counts)
+      .map(([name, value], i) => ({ name, value, color: colors[i % colors.length] }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 12);
+    return { data, total: data.reduce((s, d) => s + d.value, 0) };
+  }, [tickets]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    tickets.forEach((t) => { if (t.created_at) years.add(new Date(t.created_at).getFullYear().toString()); });
+    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  }, [tickets]);
+
+  const uniqueProjectNames = useMemo(() => {
+    const names = tickets.map((t) => t.project_name);
+    return Array.from(new Set(names)).sort();
+  }, [tickets]);
+
+  const teamPTSMembers = useMemo(() => teamMembers.filter((m) => m.team_type === "Team PTS"), [teamMembers]);
+  const teamServicesMembers = useMemo(() => teamMembers.filter((m) => m.team_type === "Team Services"), [teamMembers]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("currentUser");
+    const savedTime = localStorage.getItem("loginTime");
+    if (saved && savedTime) {
+      const user = JSON.parse(saved);
+      const time = parseInt(savedTime);
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000;
+      if (now - time > sixHours) {
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("loginTime");
+        const target = window.top !== window ? window.top : window;
+        if (target) { target.location.href = "/dashboard"; return; }
+      }
+      else { setCurrentUser(user); setIsLoggedIn(true); setLoginTime(time); fetchData(user); return; }
+    }
+    fetchData(null);
+  }, []);
+
+  useEffect(() => {
+    if (currentUser && teamMembers.length > 0) {
+      const member = teamMembers.find((m) => m.username === currentUser.username);
+      const isServices = member?.team_type === "Team Services";
+      if (member) setNewActivity((prev) => ({ ...prev, handler_name: member.name, new_status: isServices ? "Pending" : prev.new_status }));
+      else setNewActivity((prev) => ({ ...prev, handler_name: currentUser.full_name }));
+    }
+  }, [currentUser, teamMembers]);
+
+  useEffect(() => {
+    if (isLoggedIn && tickets.length > 0 && currentUser?.role !== "guest") {
+      const notifs = getNotifications();
+      setNotifications(notifs);
+      if (notifs.length > 0 && !showNotificationPopup) setShowNotificationPopup(true);
+    }
+  }, [tickets, isLoggedIn, currentUser]);
+
+  useEffect(() => {
+    const interval = setInterval(() => checkSessionTimeout(), 60000);
+    return () => clearInterval(interval);
+  }, [loginTime]);
+
+  useEffect(() => {
+    if (currentUser?.role === "admin" || currentUser?.role === "superadmin") { fetchGuestMappings(); loadReminderSchedule(); }
+    if (currentUser) fetchOverdueSettings();
+  }, [currentUser]);
+
+  useEffect(() => { if (currentUser) fetchData(); }, [currentUser]);
+
+  const canCreateTicket = true;
+  const canUpdateTicket = currentUser?.role !== "guest";
+  const canAccessAccountSettings = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+
+  const pendingApprovalTickets = useMemo(() => {
+    if (currentUser?.role !== "admin" && currentUser?.role !== "superadmin") return [];
+    return tickets.filter((t) => t.status === "Waiting Approval");
+  }, [tickets, currentUser]);
+
+  const pendingServicesApprovalTickets = useMemo(() => {
+    if (currentUserTeamType !== "Team Services") return [];
+    return tickets.filter((t) => t.services_status === "Waiting Approval" && t.current_team === "Team Services");
+  }, [tickets, currentUserTeamType]);
+
+  const approveServicesTicket = async (ticket: Ticket) => {
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Approving ticket untuk Team Services...");
+      await supabase.from("tickets").update({ services_status: "Pending" }).eq("id", ticket.id);
+      try { await supabaseServices.from("tickets").update({ services_status: "Pending", status: "Pending" }).eq("id", ticket.id); } catch (e) { console.warn("Services DB update failed:", e); }
+      await supabaseServices.from("activity_logs").insert([{
+        ticket_id: ticket.id,
+        handler_name: currentUser?.full_name || "",
+        handler_username: currentUser?.username || "",
+        action_taken: "Ticket Diterima oleh Team Services",
+        notes: `Ticket diterima dan akan segera diproses oleh Team Services.`,
+        new_status: "Pending",
+        team_type: "Team Services",
+        assigned_to_services: false,
+        file_url: "", file_name: "", photo_url: "", photo_name: ""
+      }]);
+      await fetchData();
+      setLoadingMessage("✅ Ticket diterima oleh Team Services!");
+      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); setShowServicesApprovalModal(false); setServicesApprovalTicket(null); }, 1500);
+    } catch (err: any) { setShowLoadingPopup(false); setUploading(false); alert("Error: " + err.message); }
+  };
+
+  const rejectServicesTicket = async (ticket: Ticket) => {
+    if (!confirm(`Tolak ticket "${ticket.project_name} - ${ticket.issue_case}"?\nTicket akan dikembalikan ke Team PTS.`)) return;
+    try {
+      setUploading(true);
+      setShowLoadingPopup(true);
+      setLoadingMessage("Mengembalikan ticket ke Team PTS...");
+      await supabase.from("tickets").update({ current_team: "Team PTS", services_status: null, status: "In Progress" }).eq("id", ticket.id);
+      await supabase.from("activity_logs").insert([{
+        ticket_id: ticket.id,
+        handler_name: currentUser?.full_name || "",
+        handler_username: currentUser?.username || "",
+        action_taken: "Ticket Dikembalikan ke Team PTS",
+        notes: `Ticket dikembalikan ke Team PTS oleh Team Services karena tidak dapat ditangani.`,
+        new_status: "In Progress",
+        team_type: "Team Services",
+        assigned_to_services: false,
+        file_url: "", file_name: "", photo_url: "", photo_name: ""
+      }]);
+      try {
+        await supabaseServices.from("tickets").update({ services_status: "Returned to PTS", current_team: "Team PTS" }).eq("id", ticket.id);
+        await supabaseServices.from("activity_logs").insert([{
+          ticket_id: ticket.id,
+          handler_name: currentUser?.full_name || "",
+          handler_username: currentUser?.username || "",
+          action_taken: "Ticket Dikembalikan ke Team PTS",
+          notes: `Ticket dikembalikan ke Team PTS. History Services tetap tersimpan.`,
+          new_status: "Returned to PTS",
+          team_type: "Team Services",
+          assigned_to_services: false,
+          file_url: "", file_name: "", photo_url: "", photo_name: ""
+        }]);
+      } catch (e) { console.warn("Services DB update failed:", e); }
+      await fetchData();
+      setLoadingMessage("✅ Ticket dikembalikan ke Team PTS.");
+      setTimeout(() => { setShowLoadingPopup(false); setUploading(false); setShowServicesApprovalModal(false); }, 1500);
+    } catch (err: any) { setShowLoadingPopup(false); setUploading(false); alert("Error: " + err.message); }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed" style={{ backgroundImage: "url(/IVP_Background.png)" }}>
+        <div className="bg-white/75 p-8 rounded-2xl shadow-2xl">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <p className="mt-4 font-bold">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center relative"
-        style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
-        {toast && (
-          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
-            {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
-          </div>
-        )}
-        <div className="relative z-10 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md" style={{ border: '2px solid rgba(220,38,38,0.3)' }}>
+      <div className="min-h-screen flex items-center justify-center relative" style={{ backgroundImage: "url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center" }}>
+        <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)" }} />
+        <div className="relative z-10 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md" style={{ border: "2px solid rgba(220,38,38,0.3)" }}>
           <div className="flex justify-center mb-5">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
-              style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 6px 24px rgba(220,38,38,0.4)' }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)", boxShadow: "0 6px 24px rgba(220,38,38,0.4)" }}>
               <span className="text-3xl">🗓️</span>
             </div>
           </div>
           <h1 className="text-3xl font-black text-center mb-1 text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Login</h1>
-          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Reminder Schedule<br/><span className="text-red-600 font-bold">PTS IVP — Team Work Planner</span></p>
+          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Ticket Troubleshooting<br/><span className="text-red-600 font-bold">IVP Product — Team Support</span></p>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-bold mb-2 text-gray-700">Username</label>
-              <input type="text" value={loginForm.username}
-                onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white"
-                placeholder="Masukkan username"
-                onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+              <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white" placeholder="Masukkan username" onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
             </div>
             <div>
               <label className="block text-sm font-bold mb-2 text-gray-700">Password</label>
-              <input type="password" value={loginForm.password}
-                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white"
-                placeholder="Masukkan password"
-                onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+              <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-red-600 focus:ring-4 focus:ring-red-200 transition-all font-medium bg-white" placeholder="Masukkan password" onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
             </div>
-            <button onClick={handleLogin}
-              className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all">
-              🔐 Login
-            </button>
+            <button onClick={handleLogin} className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl hover:from-red-700 hover:to-red-900 font-bold shadow-xl transition-all">🔐 Login</button>
           </div>
         </div>
       </div>
@@ -1136,1061 +1869,1189 @@ export default function ReminderSchedulePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col relative" style={{
-      backgroundImage: `url('/IVP_Background.png')`,
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
-    }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
+    <div className="min-h-screen flex flex-col relative" style={{ backgroundImage: "url(/IVP_Background.png)", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "rgba(255,255,255,0.08)" }} />
       <div className="relative z-10 flex flex-col min-h-screen">
 
-        {/* Toast */}
-        {toast && (
-          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}
-            style={{ boxShadow: toast.type === 'success' ? '0 4px 20px rgba(16,185,129,0.4)' : '0 4px 20px rgba(220,38,38,0.4)' }}>
-            {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
-          </div>
-        )}
-
-        {/* ── RESCHEDULE MODAL ── */}
-        {rescheduleTarget && (
-          <RescheduleModal
-            reminder={rescheduleTarget}
-            onClose={() => setRescheduleTarget(null)}
-            onSave={handleReschedule}
-          />
-        )}
-
-        {/* ── DELETE MODAL ── */}
-        {showDeleteModal && deleteTarget && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6"
-              style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(220,38,38,0.5)' }}>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">🗑️</span>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800">Hapus Reminder</h3>
-                  <p className="text-xs font-medium text-gray-500">{deleteTarget.project_name}</p>
-                  <p className="text-xs text-gray-400">{deleteTarget.category}</p>
-                </div>
-              </div>
-              <div className="rounded-xl p-3 mb-4 text-xs"
-                style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#b91c1c' }}>
-                ⚠️ <strong>Tindakan ini tidak dapat dibatalkan.</strong> Reminder ini akan dihapus permanen dari database.
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-bold mb-1 text-gray-700">
-                  Ketik <span className="font-mono bg-red-100 text-red-700 px-1.5 py-0.5 rounded">HAPUS</span> untuk konfirmasi
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={e => setDeleteConfirmText(e.target.value)}
-                  placeholder="Ketik HAPUS di sini..."
-                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none"
-                  style={{ border: '2px solid rgba(220,38,38,0.3)', background: 'white' }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleDelete}
-                  disabled={deleteConfirmText !== 'HAPUS'}
-                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-900">
-                  🗑️ Hapus Permanen
-                </button>
-                <button
-                  onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); setDeleteConfirmText(''); }}
-                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
-                  ✕ Batal
-                </button>
+        {/* ── LOADING POPUP (Redesigned) ── */}
+        {showLoadingPopup && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000]">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(220,38,38,0.3)" }}>
+              <div className="flex flex-col items-center">
+                {loadingMessage.includes("✅") ? (
+                  <div className="text-6xl mb-4 animate-bounce">✅</div>
+                ) : (
+                  <div className="relative w-16 h-16 mb-4">
+                    <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+                    <div className="absolute inset-0 rounded-full border-4 border-red-600 border-t-transparent animate-spin"></div>
+                  </div>
+                )}
+                <p className="text-xl font-bold text-gray-800 text-center">{loadingMessage}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── FORM MODAL (Tambah / Edit Reminder) ── */}
-        {showFormModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
-            onClick={e => { if (e.target === e.currentTarget) { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); } }}>
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4"
-              style={{ animation: 'scale-in 0.25s ease-out', border: '1.5px solid rgba(220,38,38,0.25)' }}>
-              {/* Header */}
-              <div className="px-8 py-6 rounded-t-2xl" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">{editingReminder ? '✏️ Edit Reminder' : '➕ Tambah Reminder'}</h2>
-                    <p className="text-red-200/80 text-xs mt-1">Isi detail jadwal & informasi project</p>
-                  </div>
-                  <button onClick={() => { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); }}
-                    className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
-                <SectionHeader icon="📋" title="Informasi Jadwal" />
-
-                <FormField label="Nama Project*">
-                  <input value={formData.project_name} onChange={e => fd({ project_name: e.target.value })}
-                    className={inputCls} style={inputStyle} placeholder="Contoh: PT. Maju Bersama" />
-                </FormField>
-
-                <FormField label="Lokasi Project *">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
-                    <input value={formData.address} onChange={e => fd({ address: e.target.value })}
-                      className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
-                  </div>
-                </FormField>
-
-                <FormField label="Deskripsi">
-                  <textarea value={formData.description} onChange={e => fd({ description: e.target.value })}
-                    rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Detail pekerjaan..." />
-                </FormField>
-
-                {/* Category picker */}
-                <div>
-                  <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{ color: '#94a3b8' }}>Kategori *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CATEGORIES.map(cat => {
-                      const c = CATEGORY_CONFIG[cat];
-                      const sel = formData.category === cat;
-                      return (
-                        <button key={cat} type="button" onClick={() => fd({ category: cat })}
-                          className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 text-left transition-all"
-                          style={sel
-                            ? { borderColor: c.accent, background: c.bg, color: c.color }
-                            : { borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)', color: '#64748b' }}>
-                          <span className="text-2xl">{c.icon}</span>
-                          <span className="text-base font-bold leading-tight flex-1">{cat}</span>
-                          {sel && <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Assign To *">
-                    <select value={formData.assigned_to} onChange={e => fd({ assigned_to: e.target.value })}
-                      className={inputCls} style={inputStyle}>
-                      <option value="">-- Pilih Team PTS --</option>
-                      {teamUsers.map(u => <option key={u.id} value={u.username}>{u.full_name}</option>)}
-                    </select>
-                  </FormField>
-                  <FormField label="Pengulangan">
-                    <select value={formData.repeat} onChange={e => fd({ repeat: e.target.value as RepeatType })}
-                      className={inputCls} style={inputStyle}>
-                      {REPEAT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                    </select>
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField label="Tanggal *">
-                    <input type="date" value={formData.due_date} onChange={e => fd({ due_date: e.target.value })}
-                      className={inputCls} style={inputStyle} />
-                  </FormField>
-                  <FormField label="Waktu">
-                    <input type="time" value={formData.due_time} onChange={e => fd({ due_time: e.target.value })}
-                      className={inputCls} style={inputStyle} />
-                  </FormField>
-                  <FormField label="Prioritas">
-                    <select value={formData.priority} onChange={e => fd({ priority: e.target.value as Priority })}
-                      className={inputCls} style={inputStyle}>
-                      {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
-                  </FormField>
-                </div>
-
-                {editingReminder && (
-                  <FormField label="Status">
-                    <select value={formData.status} onChange={e => fd({ status: e.target.value as Status })}
-                      className={inputCls} style={inputStyle}>
-                      {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
-                  </FormField>
-                )}
-
-                <SectionHeader icon="🏢" title="Informasi Project" />
-
-                <FormField label="Product / Unit (Opsional)">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
-                    <input value={formData.product ?? ''} onChange={e => fd({ product: e.target.value })}
-                      className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Sony VPL-FHZ85, Crestron DMPS3..." />
-                  </div>
-                </FormField>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Nama Sales *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                      <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
-                    </div>
-                  </FormField>
-                  <FormField label="Divisi *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2"></span>
-                      <select
-                        value={formData.sales_division}
-                        onChange={e => fd({ sales_division: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle}
-                      >
-                        <option value=""> Pilih Divisi..</option>
-                        {SALES_DIVISIONS.map(div => (
-                          <option key={div} value={div}>{div}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </FormField>
-                </div>
-
-                <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Nama PIC">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🙋</span>
-                      <input value={formData.pic_name} onChange={e => fd({ pic_name: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Nama PIC di lokasi" />
-                    </div>
-                  </FormField>
-                  <FormField label="No. PIC">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
-                      <input type="tel" value={formData.pic_phone} onChange={e => fd({ pic_phone: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="08xxx" />
-                    </div>
-                  </FormField>
-                </div>
-
-                {formData.assigned_to && (
-                  <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
-                    <span className="text-green-500 text-lg">💬</span>
-                    <div>
-                      <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
-                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.assigned_to}</strong> sehari sebelum jadwal.</p>
-                    </div>
-                  </div>
-                )}
-
-                <SectionHeader icon="📝" title="Catatan Tambahan" />
-
-                <FormField label="Catatan">
-                  <textarea value={formData.notes} onChange={e => fd({ notes: e.target.value })}
-                    rows={2} className={`${inputCls} resize-none`} style={inputStyle} placeholder="Informasi tambahan untuk team..." />
-                </FormField>
-
-                <div className="flex gap-3 pt-2">
-                  <button onClick={() => { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); }}
-                    className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
-                    style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
-                    Batal
-                  </button>
-                  <button onClick={handleSave} disabled={saving}
-                    className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02]"
-                    style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.35)' }}>
-                    {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                    {editingReminder ? 'Simpan Perubahan' : '➕ Tambah Reminder'}
-                  </button>
-                </div>
-              </div>
-            </div>
+        {/* ── UPLOAD PROGRESS BAR ── */}
+        {uploading && !showLoadingPopup && (
+          <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-200">
+            <div className="h-full bg-gradient-to-r from-red-500 to-red-700 animate-pulse" style={{ width: "100%", transition: "width 0.3s" }}></div>
           </div>
         )}
 
-        {/* ── NOTIFICATION POPUP ── */}
-        {showNotificationPopup && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
-              style={{ animation: 'scale-in 0.3s ease-out' }}>
-              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl animate-bounce">🔔</span>
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Reminder Kamu</h3>
-                      <p className="text-sm text-white/90">{myReminders.length} reminder aktif yang diassign ke kamu</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
-                </div>
-              </div>
-              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
-                {myReminders.map(r => (
-                  <div key={r.id} onClick={() => { setDetailReminder(r); setShowNotificationPopup(false); }}
-                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
-                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                          <CategoryBadge category={r.category} />
-                          <PriorityBadge priority={r.priority} />
-                        </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
-                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
-                      </div>
-                      <div className="flex-shrink-0 text-right">
-                        <StatusBadge status={r.status} />
-                        <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
-                <button onClick={() => setShowNotificationPopup(false)}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold transition-all">
-                  ✕ Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── BELL POPUP ── */}
-        {showBellPopup && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
-              style={{ animation: 'scale-in 0.3s ease-out' }}>
-              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">🔔</span>
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Reminder Aktif Kamu</h3>
-                      <p className="text-sm text-white/90">{myActiveReminders.length} aktif</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
-                </div>
-              </div>
-              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
-                {myActiveReminders.length === 0 ? (
-                  <div className="text-center py-10 text-gray-500">
-                    <div className="text-5xl mb-3">✅</div>
-                    <p className="font-semibold">Tidak ada reminder aktif</p>
-                  </div>
-                ) : myActiveReminders.map(r => (
-                  <div key={r.id} onClick={() => { setDetailReminder(r); setShowBellPopup(false); }}
-                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
-                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                          <CategoryBadge category={r.category} />
-                        </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
-                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
-                      </div>
-                      <div className="flex-shrink-0 text-right">
-                        <StatusBadge status={r.status} />
-                        <p className="text-[10px] text-gray-500 mt-1">{formatDate(r.due_date)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
-                <button onClick={() => setShowBellPopup(false)}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold transition-all">
-                  ✕ Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── DETAIL POPUP ── */}
-        {detailReminder && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto"
-            onClick={e => { if (e.target === e.currentTarget) { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); } }}>
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
-              style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)', maxHeight: '96vh' }}>
-              <div className="px-6 py-5 relative" style={{
-                background: (() => { const c = CATEGORY_CONFIG[detailReminder.category]; return c ? `linear-gradient(135deg,${c.accent}dd,${c.accent}88)` : 'linear-gradient(135deg,#1d4ed8,#1e40af)'; })()
-              }}>
-                <button onClick={() => { setDetailReminder(null); setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); }}
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <PriorityBadge priority={detailReminder.priority} onHeader />
-                  <StatusBadge status={detailReminder.status} onHeader />
-                  <CategoryBadge category={detailReminder.category} onHeader />
-                  {detailReminder.repeat !== 'none' && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">
-                      🔁 {REPEAT_OPTIONS.find(r => r.value === detailReminder.repeat)?.label}
-                    </span>
-                  )}
-                  {detailReminder.wa_sent_h1 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/80 text-white">✅ WA H-1 Terkirim</span>
-                  )}
-                </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{(detailReminder.project_name || '').trim() || ((detailReminder as any).title || '').trim() || '—'}</h2>
-                {/* Lokasi Project langsung di bawah nama project */}
-                {detailReminder.address && (
-                  <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">
-                    <span>📍</span>{detailReminder.address}
-                  </p>
-                )}
-                {detailReminder.description && <p className="text-white/70 text-xs mt-1.5">{detailReminder.description}</p>}
-                {/* Troubleshooting link ke Ticketing — navigasi internal */}
-                {detailReminder.category === 'Troubleshooting' && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setDetailReminder(null); router.push('/ticketing'); }}
-                    className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-[1.03]"
-                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
-                    🎫 Buka Platform Ticketing
-                  </button>
-                )}
-              </div>
-
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
-                <div>
-                  <SectionHeaderSmall icon="📋" title="Detail Jadwal" />
-                  <div className="mt-3 grid grid-cols-2 gap-4">
-                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)' }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Assign To</p>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                          style={{ background: 'rgba(220,38,38,0.2)', color: '#dc2626' }}>
-                          {detailReminder.assigned_name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{detailReminder.assigned_name}</p>
-                          <p className="text-xs" style={{ color: '#64748b' }}>@{detailReminder.assigned_to}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)' }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>📅 Jadwal</p>
-                      <p className="text-sm font-bold text-slate-800">{formatDate(detailReminder.due_date)}</p>
-                      <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>⏰ {detailReminder.due_time}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <SectionHeaderSmall icon="🏢" title="Informasi Project" />
-                  <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                    {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
-                    <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
-                    {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
-                    {detailReminder.pic_phone && (
-                      <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                        <span className="text-base flex-shrink-0">📱</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#64748b' }}>No. Telepon PIC</p>
-                          <a href={`tel:${detailReminder.pic_phone}`} className="text-sm font-semibold hover:underline" style={{ color: '#60a5fa' }}
-                            onClick={e => e.stopPropagation()}>{detailReminder.pic_phone}</a>
-                        </div>
-                      </div>
-                    )}
-                    {detailReminder.description && <InfoRow icon="📝" label="Deskripsi" value={detailReminder.description} />}
-                  </div>
-                </div>
-
-                {detailReminder.notes && (
-                  <div className="rounded-xl p-4" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                    <p className="text-[10px] font-bold tracking-widest uppercase mb-1" style={{ color: '#f59e0b' }}>📝 Catatan</p>
-                    <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-line">{detailReminder.notes}</p>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase mb-3" style={{ color: '#64748b' }}>Update Status</p>
-                  {detailReminder.status === 'done' ? (
-                    <div className="rounded-xl px-4 py-3 flex items-center gap-2 mb-3" style={{ background: 'rgba(16,185,129,0.1)', border: '1.5px solid rgba(16,185,129,0.35)' }}>
-                      <span className="text-lg">✅</span>
-                      <div>
-                        <p className="text-xs font-bold text-emerald-700">Jadwal Selesai</p>
-                        <p className="text-[10px] text-emerald-600">Status completed tidak dapat diubah kembali.</p>
-                      </div>
-                    </div>
-                  ) : (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {(Object.keys(STATUS_CONFIG) as Status[]).filter(s => s !== 'done' || detailReminder.status !== 'done').map(s => {
-                      const c = STATUS_CONFIG[s];
-                      const isActive = (pendingStatus ?? detailReminder.status) === s;
-                      return (
-                        <button key={s}
-                          onClick={() => {
-                            setPendingStatus(s);
-                            if (s !== 'done') { setStatusPhoto(null); setStatusPhotoPreview(null); }
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive ? 'ring-2 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
-                          style={{ background: c.bg, color: c.color, border: `2px solid ${c.border}`, '--tw-ring-color': c.border } as React.CSSProperties}>
-                          {c.icon} {c.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  )}
-
-                  {/* Photo upload - wajib jika status Completed, sembunyikan jika sudah done */}
-                  {detailReminder.status !== 'done' && (pendingStatus ?? detailReminder.status) === 'done' && (
-                    <div className="rounded-xl p-3 mb-3" style={{ background: 'rgba(16,185,129,0.07)', border: '1.5px solid rgba(16,185,129,0.3)' }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#059669' }}>
-                        📸 Foto Bukti Selesai <span className="text-red-500">*Wajib</span>
-                      </p>
-                      <input
-                        ref={statusPhotoRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setStatusPhoto(file);
-                            const reader = new FileReader();
-                            reader.onload = ev => setStatusPhotoPreview(ev.target?.result as string);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                      {statusPhotoPreview ? (
-                        <div className="relative">
-                          <img src={statusPhotoPreview} alt="preview" className="w-full max-h-40 object-cover rounded-lg" />
-                          <button
-                            onClick={() => { setStatusPhoto(null); setStatusPhotoPreview(null); if (statusPhotoRef.current) statusPhotoRef.current.value = ''; }}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600">
-                            ✕
-                          </button>
-                          <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">✅ {statusPhoto?.name}</p>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => statusPhotoRef.current?.click()}
-                          className="w-full border-2 border-dashed rounded-xl py-6 flex flex-col items-center gap-2 transition-all hover:bg-emerald-50"
-                          style={{ borderColor: 'rgba(16,185,129,0.5)' }}>
-                          <span className="text-2xl">📷</span>
-                          <span className="text-xs font-bold text-emerald-700">Klik untuk upload foto</span>
-                          <span className="text-[10px] text-gray-400">JPG, PNG, WEBP — maks. 10MB</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tombol Update Status */}
-                  {pendingStatus && pendingStatus !== detailReminder.status && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setPendingStatus(null); setStatusPhoto(null); setStatusPhotoPreview(null); }}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
-                        style={{ background: 'rgba(0,0,0,0.06)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
-                        Batal
-                      </button>
-                      <button
-                        onClick={handleConfirmStatusUpdate}
-                        disabled={updatingStatus || (pendingStatus === 'done' && !statusPhoto)}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: 'linear-gradient(135deg,#059669,#047857)', boxShadow: '0 3px 12px rgba(5,150,105,0.35)' }}>
-                        {updatingStatus
-                          ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                        }
-                        {updatingStatus ? 'Menyimpan...' : 'Konfirmasi Update'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Foto Bukti Selesai - tampil jika status done dan ada foto */}
-                {detailReminder.status === 'done' && detailReminder.completion_photo_url && (
-                  <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.05)' }}>
-                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(16,185,129,0.12)', borderBottom: '1px solid rgba(16,185,129,0.2)' }}>
-                      <span className="text-base">📸</span>
-                      <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#059669' }}>Foto Bukti Selesai</p>
-                    </div>
-                    <div className="p-3">
-                      <img
-                        src={detailReminder.completion_photo_url}
-                        alt="Foto bukti selesai"
-                        className="w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                        style={{ maxHeight: 220 }}
-                        onClick={() => window.open(detailReminder.completion_photo_url, '_blank')}
-                      />
-                      <a
-                        href={detailReminder.completion_photo_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 transition-colors">
-                        🔗 Buka foto di tab baru
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action buttons di detail popup */}
-                {(isAdmin || currentUser?.role === 'team') && (
-                  <div className="flex gap-3 pt-2 flex-wrap">
-                    {/* Re-Schedule — admin + team PTS bisa */}
-                    {detailReminder.status !== 'done' && (
-                      <button onClick={() => { setRescheduleTarget(detailReminder); }}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                        style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
-                        📅 Re-Schedule
-                      </button>
-                    )}
-                    {/* Send WA — admin only */}
-                    {isAdmin && (
-                      <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
-                        style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
-                        {sendingWA === detailReminder.id
-                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : '💬'}
-                        Kirim WA
-                      </button>
-                    )}
-                    {/* Edit — admin only */}
-                    {isAdmin && (
-                      <button onClick={() => openEdit(detailReminder)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                        style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
-                        ✏️ Edit
-                      </button>
-                    )}
-                    {/* TIDAK ADA tombol Hapus di detail popup — hapus hanya dari ACT di tabel */}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── HEADER ── */}
-        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
+        {/* ── HEADER ── (Redesigned like ReminderSchedule) */}
+        <header className="sticky top-0 z-50" style={{ background: "rgba(255,255,255,0.9)", borderBottom: "3px solid #dc2626", backdropFilter: "blur(16px)" }}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
-                <span className="text-lg">🗓️</span>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)", boxShadow: "0 3px 12px rgba(220,38,38,0.4)" }}>
+                <span className="text-lg">🎫</span>
               </div>
               <div>
-                <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Reminder Schedule</h1>
+                <h1 className="text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800">Ticket Troubleshooting</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowBellPopup(true)}
-                className="relative p-2 rounded-xl transition-all hover:bg-red-50 border-2 border-transparent hover:border-red-200">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                {myActiveReminders.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                    style={{ background: '#f59e0b' }}>
-                    {myActiveReminders.length}
-                  </span>
-                )}
-              </button>
-
-              {canAddReminder && view === 'list' && (
-                <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setShowFormModal(true); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                  Tambah Reminder
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Bell notif */}
+              {currentUser?.role !== "guest" && (
+                <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-xl transition-all hover:bg-red-50 border-2 border-transparent hover:border-red-200" title="Notifications">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "#f59e0b" }}>
+                      {notifications.length}
+                    </span>
+                  )}
                 </button>
               )}
 
+              {/* Approval button - Redesigned */}
+              {canAccessAccountSettings && pendingApprovalTickets.length > 0 && (
+                <button onClick={() => setShowApprovalModal(true)} className="relative flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#ea580c,#c2410c)", boxShadow: "0 2px 8px rgba(234,88,12,0.35)" }}>
+                  ⏳ Approval
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{pendingApprovalTickets.length}</span>
+                </button>
+              )}
+
+              {/* Services Approval button - Redesigned */}
+              {currentUserTeamType === "Team Services" && pendingServicesApprovalTickets.length > 0 && (
+                <button onClick={() => setShowServicesApprovalModal(true)} className="relative flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#db2777,#be185d)", boxShadow: "0 2px 8px rgba(219,39,119,0.35)" }}>
+                  🔧 Ticket Masuk
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{pendingServicesApprovalTickets.length}</span>
+                </button>
+              )}
+
+              {/* Guest Mapping button - Redesigned */}
+              {canAccessAccountSettings && (
+                <button onClick={() => { setShowGuestMapping(!showGuestMapping); setShowAccountSettings(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", boxShadow: "0 2px 8px rgba(13,148,136,0.3)" }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="hidden sm:inline">Guest Mapping</span>
+                </button>
+              )}
+
+              {/* Reminder button - Redesigned */}
+              {canAccessAccountSettings && (
+                <button onClick={() => { setShowReminderSchedule(true); setShowAccountSettings(false); setShowGuestMapping(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#7c3aed,#6d28d9)", boxShadow: "0 2px 8px rgba(124,58,237,0.3)" }} title={`Reminder: ${getCronDisplay()}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="hidden sm:inline">Reminder</span>
+                </button>
+              )}
+
+              {/* New Ticket button - Redesigned */}
+              {canCreateTicket && (
+                <button onClick={() => { setShowNewTicket(!showNewTicket); setShowAccountSettings(false); setShowGuestMapping(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.4)" }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Ticket
+                </button>
+              )}
             </div>
           </div>
         </header>
 
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
-          {/* ─── LIST VIEW ── */}
-          {view === 'list' && (
-            <>
-              {/* ── Stat cards (clickable filter) ── */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* ── GUEST SUMMARY SECTION (same style as admin) ── */}
+          {currentUser?.role === "guest" && (
+            <div className="mb-4 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  {
-                    label: 'Total Jadwal', value: totalCount, sub: 'Semua reminder',
-                    gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)',
-                    onClick: () => { setFilterStatus('all'); setSelectedCalDay(null); },
-                    active: filterStatus === 'all' && !selectedCalDay,
-                  },
-                  {
-                    label: 'Pending', value: pendingCount, sub: 'Menunggu tindakan',
-                    gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',
-                    onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'),
-                    active: filterStatus === 'pending',
-                  },
-                  {
-                    label: 'Selesai', value: doneCount, sub: 'Terselesaikan',
-                    gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '✅', shadow: 'rgba(5,150,105,0.35)',
-                    onClick: () => setFilterStatus(filterStatus === 'done' ? 'all' : 'done'),
-                    active: filterStatus === 'done',
-                  },
-                  {
-                    label: 'Hari Ini', value: todayCount, sub: 'Jadwal hari ini',
-                    gradient: 'linear-gradient(135deg,#0891b2,#0e7490)', icon: '📅', shadow: 'rgba(8,145,178,0.35)',
-                    onClick: () => setSelectedCalDay(selectedCalDay === new Date().toISOString().split('T')[0] ? null : new Date().toISOString().split('T')[0]),
-                    active: selectedCalDay === new Date().toISOString().split('T')[0],
-                  },
-                ].map(card => (
-                  <div key={card.label}
-                    onClick={card.onClick}
-                    className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
-                    style={{
-                      background: card.gradient,
-                      boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
-                      outline: card.active ? '3px solid white' : 'none',
-                      transform: card.active ? 'scale(1.04)' : undefined,
-                    }}>
-                    <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
-                    {card.active && (
-                      <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />
-                    )}
-                    <span className="text-3xl font-black text-white leading-none">{card.value}</span>
+                  { label: "Total Tickets", value: stats.total, sub: "Seluruh tiket saya", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)" },
+                  { label: "Waiting Approval", value: tickets.filter((t) => t.status === "Waiting Approval").length, sub: "Menunggu persetujuan", gradient: "linear-gradient(135deg,#ea580c,#c2410c)", shadow: "rgba(234,88,12,0.35)" },
+                  { label: "Pending", value: stats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)" },
+                  { label: "In Progress", value: stats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)" },
+                  { label: "Solved", value: stats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)" },
+                ].map((card, i) => (
+                  <div key={i} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2" style={{ background: card.gradient, boxShadow: `0 4px 16px ${card.shadow}` }}>
+                    <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
                     <div>
                       <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
-                      <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
+                      <p className="text-[10px] font-medium leading-tight" style={{ color: "rgba(255,255,255,0.75)" }}>{card.sub}</p>
                     </div>
-                    {card.active && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <StatusDonutCard
+                  data={[
+                    { name: "Waiting Approval", value: tickets.filter((t) => t.status === "Waiting Approval").length, color: "#FB923C" },
+                    ...stats.statusData,
+                  ].filter((d) => d.value > 0)}
+                  total={stats.total}
+                  onSliceClick={() => {}}
+                  title="Status Distribution"
+                  icon="🥧"
+                />
+              </div>
+            </div>
+          )}
+
+          {(currentUser?.role === "admin" || currentUser?.role === "superadmin" || (currentUser?.role === "team" && currentUserTeamType === "Team PTS" || currentUserTeamType === "Guest")) && (
+            <div className="mb-4 space-y-4">
+              {/* ── Stat Cards (Redesigned like ReminderSchedule) ── */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                {[
+                  { label: "Total Tickets", value: stats.total, sub: "Seluruh tiket", gradient: "linear-gradient(135deg,#4f46e5,#6d28d9)", shadow: "rgba(79,70,229,0.35)", onClick: () => { setFilterStatus("All"); setHandlerFilter(null); }, active: filterStatus === "All" && !handlerFilter },
+                  { label: "Pending", value: stats.pending, sub: "Menunggu tindakan", gradient: "linear-gradient(135deg,#d97706,#b45309)", shadow: "rgba(217,119,6,0.35)", onClick: () => { setFilterStatus(filterStatus === "Pending" ? "All" : "Pending"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Pending" },
+                  { label: "In Progress", value: stats.processing, sub: "Sedang ditangani", gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)", shadow: "rgba(37,99,235,0.35)", onClick: () => { setFilterStatus(filterStatus === "In Progress" ? "All" : "In Progress"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "In Progress" },
+                  { label: "Solved", value: stats.solved, sub: "Terselesaikan", gradient: "linear-gradient(135deg,#059669,#047857)", shadow: "rgba(5,150,105,0.35)", onClick: () => { setFilterStatus(filterStatus === "Solved" ? "All" : "Solved"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Solved" },
+                  { label: "Overdue", value: stats.overdue, sub: "Berpotensi denda", gradient: "linear-gradient(135deg,#dc2626,#b91c1c)", shadow: "rgba(220,38,38,0.35)", onClick: () => { setFilterStatus(filterStatus === "Overdue" ? "All" : "Overdue"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Overdue" },
+                  { label: "Solved Overdue", value: stats.solvedOverdue, sub: "Butuh verifikasi", gradient: "linear-gradient(135deg,#7c3aed,#6d28d9)", shadow: "rgba(124,58,237,0.35)", onClick: () => { setFilterStatus(filterStatus === "Solved Overdue" ? "All" : "Solved Overdue"); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }, active: filterStatus === "Solved Overdue" },
+                ].map((card, i) => (
+                  <div key={i} onClick={card.onClick} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none" style={{ background: card.gradient, boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`, outline: card.active ? "3px solid white" : "none", transform: card.active ? "scale(1.04)" : undefined }}>
+                    {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
+                    {card.active && <span className="absolute top-1 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
+                    <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
+                    <div>
+                      <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
+                      <p className="text-[10px] font-medium leading-tight" style={{ color: "rgba(255,255,255,0.75)" }}>{card.sub}</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              {/* ── Pie Charts — klick untuk filter ── */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <MiniPieChart
-                  data={projectPieData} title="Kegiatan / Kategori" icon="🖥️"
-                  activeFilter={filterCategory !== 'all' ? filterCategory : null}
-                  onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
-                />
-                <MiniPieChart
-                  data={salesPieData} title="Divisi Sales" icon="👤"
-                  activeFilter={searchDivisionSales || null}
-                  onSliceClick={label => setSearchDivisionSales(searchDivisionSales === label ? '' : label)}
-                />
-                <MiniPieChart
-                  data={teamPtsPieData} title="Team PTS" icon="👥"
-                  activeFilter={searchTeamHandler || null}
-                  onSliceClick={label => setSearchTeamHandler(searchTeamHandler === label ? '' : label)}
-                />
-                <MiniPieChart
-                  data={productPieData} title="Product / Unit" icon="📦"
-                  activeFilter={productFilter}
-                  onSliceClick={label => setProductFilter(productFilter === label ? null : label)}
-                />
+              {/* ── Donut Charts ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <StatusDonutCard data={stats.statusData} total={stats.statusData.reduce((s, d) => s + d.value, 0)} onSliceClick={(name: string) => { const mapped = name === "Solved (Overdue)" ? "Solved Overdue" : name; setFilterStatus((prev) => prev === mapped ? "All" : mapped); setHandlerFilter(null); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} title="Status Distribution" icon="🥧" />
+                <HandlerDonutCard data={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).map((h: any, i: number) => ({ name: h.name, value: h.tickets, color: ["#7c3aed", "#0ea5e9", "#10b981", "#e11d48", "#f59e0b", "#6366f1", "#14b8a6", "#f97316", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"][i % 12] }))} total={stats.handlerData.filter((h: any) => h.team === `Team ${selectedHandlerTeam}`).reduce((s, h) => s + h.tickets, 0)} teamToggle={selectedHandlerTeam} onToggle={(t: "PTS" | "Services") => setSelectedHandlerTeam(t)} onSliceClick={(name: string) => { setHandlerFilter((prev: string | null) => prev === name ? null : name); setFilterStatus("All"); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeHandler={handlerFilter} title="Team Handlers" icon="👥" />
+                <SalesDivisionDonutCard data={salesDivisionStats.data} total={salesDivisionStats.total} onSliceClick={(division: string) => { setSalesDivisionFilter((prev: string | null) => prev === division ? null : division); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeDivision={salesDivisionFilter} />
+                <ProductDonutCard data={productStats.data} total={productStats.total} onSliceClick={(prod: string) => { setProductFilter((prev) => prev === prod ? null : prod); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }} activeProduct={productFilter} />
+              </div>
+            </div>
+          )}
+
+          {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
+          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
+            {/* Header with title and actions */}
+            <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+                <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? "..." : filteredTickets.length}</span>
+              </div>
+              {/* ── Active filter chips ── */}
+              {(filterStatus !== "All" || handlerFilter || salesDivisionFilter || productFilter) && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Filter:</span>
+                  {filterStatus !== "All" && (
+                    <button onClick={() => setFilterStatus("All")} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#d97706" }}>Status: {filterStatus} ✕</button>
+                  )}
+                  {handlerFilter && (
+                    <button onClick={() => setHandlerFilter(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#7c3aed" }}>Handler: {handlerFilter} ✕</button>
+                  )}
+                  {salesDivisionFilter && (
+                    <button onClick={() => setSalesDivisionFilter(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#ec4899" }}>Division: {salesDivisionFilter} ✕</button>
+                  )}
+                  {productFilter && (
+                    <button onClick={() => { setProductFilter(null); setSearchProduct(""); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: "#6366f1" }}>📦 {productFilter} ✕</button>
+                  )}
+                  <button onClick={() => { setFilterStatus("All"); setHandlerFilter(null); setSalesDivisionFilter(null); setProductFilter(null); setSearchProduct(""); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: "rgba(0,0,0,0.1)", color: "#2d84dbff" }}>Reset Semua</button>
+                </div>
+              )}
+              <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                <button onClick={() => fetchData()} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: "white" }}>🔄 Refresh</button>
+                <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}>📊 Export Report</button>
+              </div>
+            </div>
+
+            {/* Integrated search filters row - like the image */}
+            <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                    <input 
+                      type="text" 
+                      value={searchProject} 
+                      onChange={(e) => setSearchProject(e.target.value)} 
+                      placeholder="Search project / lokasi..." 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
+                    <input 
+                      type="text" 
+                      value={searchSalesName} 
+                      onChange={(e) => setSearchSalesName(e.target.value)} 
+                      placeholder="Search sales name..." 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">📦 Product</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📦</span>
+                    <input
+                      type="text"
+                      value={searchProduct}
+                      onChange={(e) => { setSearchProduct(e.target.value); setProductFilter(null); }}
+                      placeholder="Cari product..."
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👥</span>
+                    <select 
+                      value={handlerFilter || ""} 
+                      onChange={(e) => setHandlerFilter(e.target.value || null)} 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
+                    >
+                      <option value="">All Handlers</option>
+                      {teamMembers.filter(m => m.team_type === `Team ${selectedHandlerTeam}`).map((m) => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
+                    <select 
+                      value={filterStatus} 
+                      onChange={(e) => setFilterStatus(e.target.value)} 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
+                    >
+                      <option value="All">All Status</option>
+                      <option value="Waiting Approval">⏳ Waiting Approval</option>
+                      <option value="Pending">🟡 Pending</option>
+                      <option value="Call">📞 Call</option>
+                      <option value="Onsite">🚗 Onsite</option>
+                      <option value="In Progress">🔵 In Progress</option>
+                      <option value="Solved">✅ Solved</option>
+                      {(currentUser?.role === "admin" || currentUser?.role === "superadmin") && (
+                        <>
+                          <option value="Overdue">🚨 Overdue</option>
+                          <option value="Solved Overdue">⚠️ Solved Overdue</option>
+                        </>
+                      )}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                    <select 
+                      value={filterYear} 
+                      onChange={(e) => setFilterYear(e.target.value)} 
+                      className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer"
+                    >
+                      <option value="all">All Years</option>
+                      {availableYears.map((year) => (<option key={year} value={year}>{year}</option>))}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {ticketsLoading ? (
+              <div className="space-y-3 py-2 p-4">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
+                    <div className="flex-1 space-y-2"><div className="h-4 bg-gray-200 rounded w-2/5"></div><div className="h-3 bg-gray-100 rounded w-1/4"></div></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/6"></div><div className="h-4 bg-gray-200 rounded w-1/5"></div><div className="h-6 bg-gray-200 rounded-full w-20"></div><div className="h-8 bg-gray-200 rounded-lg w-16"></div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-center gap-3 py-4 text-gray-500"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div><span className="text-sm font-medium">Memuat daftar ticket...</span></div>
+              </div>
+            ) : filteredTickets.length === 0 ? (
+              <div className="text-center py-12"><div className="text-6xl mb-4">📭</div><p className="text-gray-600 font-medium">{searchProject || filterStatus !== "All" ? "No tickets match the search." : "No tickets yet. Create your first ticket!"}</p></div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed bg-white border-collapse">
+                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "4%" }} /><col style={{ width: "6%" }} /><col style={{ width: "4%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /></colgroup>
+                  <thead>
+                    <tr className="bg-white border-b-2 border-gray-100">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Issue</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
+                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 5 : 3}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTickets.map((ticket, index) => {
+                      const overdue = isTicketOverdue(ticket);
+                      const overdueSetting = getOverdueSetting(ticket.id);
+                      const creatorUser = users.find((u) => u.username === ticket.created_by);
+                      const creatorLabel = creatorUser ? creatorUser.full_name : ticket.created_by || "-";
+                      const isSolvedOverdue = overdue && ticket.status === "Solved";
+                      const isActiveOverdue = overdue && ticket.status !== "Solved";
+                      return (
+                        <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white"}`}>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                            <div className="flex items-start gap-1">
+                              {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
+                              {isSolvedOverdue && <span className="text-purple-500 text-xs mt-0.5 shrink-0" title="Solved tapi overdue">⚠️</span>}
+                              <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
+                            {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
+                           </td>
+                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                            {ticket.product ? (
+                              <button
+                                onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                                className="text-xs font-semibold px-2 py-0.5 text-left break-words max-w-full"
+                                style={{ background: productFilter === ticket.product ? "#6366f1" : "#eef2ff", color: productFilter === ticket.product ? "white" : "#4338ca", borderColor: "#c7d2fe" }}
+                              >{ticket.product}</button>
+                            ) : <span className="text-gray-300 text-sm">—</span>}
+                          </td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-800 break-all leading-tight">{ticket.sn_unit || "—"}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{ticket.assigned_to}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
+                              {overdue && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${ticket.status === "Solved" ? "bg-purple-100 text-purple-800 border-purple-400" : statusColors["Overdue"]}`}>{ticket.status === "Solved" ? "⚠️ Solved Overdue" : "🚨 Overdue"}</span>}
+                              {ticket.services_status && <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${statusColors[ticket.services_status]}`}>Svc: {ticket.services_status}</span>}
+                              {ticket.status === "Onsite" && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); router.push('/reminder-schedule'); }}
+                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                                  style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                                  🗓️ Jadwal
+                                </button>
+                              )}
+                            </div>
+                           </td>
+                          <td className="px-2 py-3 border-r border-gray-100 align-middle"><div className="text-xs text-gray-700 break-words leading-tight">{ticket.sales_name || "—"}</div>{ticket.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{ticket.sales_division}</div>}</td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm font-semibold text-gray-800 break-words leading-tight">{creatorLabel}</div>{ticket.created_at && <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(ticket.created_at).split(",")[0]}</div>}</td>
+                          <td className="px-0 py-2 border-r border-gray-100 text-center align-middle">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <div className="flex items-center justify-center gap-0.5 mb-0.5"><span className="text-gray-400 text-xs">🗒️</span>{ticket.activity_logs && ticket.activity_logs.length > 0 && <span className="bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none" style={{ fontSize: "10px" }}>{ticket.activity_logs.length}</span>}</div>
+                              <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-sm">👁</span></button>
+                              {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors" title="Re-open"><span className="text-sm">🔓</span></button>}
+                            </div>
+                           </td>
+                          <td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"><span className="text-sm">📊</span></button>{canAccessAccountSettings && ticket.status === "Waiting Approval" && <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-0.5 animate-pulse" title="Approve"><span className="text-sm">✅</span></button>}</td>
+                          <td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => exportToPDF(ticket)} className="text-green-600 hover:text-green-800 transition-colors mx-auto block" title="Print PDF"><span className="text-sm">🖨️</span></button></td>
+                          {canAccessAccountSettings && (<td className="px-0 py-2 border-r border-gray-100 align-middle text-center"><button onClick={() => { setDeleteTargetTicket(ticket); setDeleteConfirmText(""); setShowDeleteModal(true); }} className="text-red-500 hover:text-red-700 transition-colors mx-auto block" title="Hapus Ticket"><span className="text-sm">🗑️</span></button></td>)}
+                          {canAccessAccountSettings && (<td className="px-0 py-2 align-middle text-center"><button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors mx-auto block ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-sm">⏰</span></button></td>)}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white"><span className="text-xs text-gray-400">{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} ditemukan</span><span className="text-xs text-gray-400">{filteredTickets.length > 0 ? `1–${filteredTickets.length}` : "0"} of {tickets.length}</span></div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── All modals remain the same as original (notifications, detail popup, etc.) ── */}
+        {/* ... (all other modals - notification popup, ticket detail, update form, approval modals, etc. remain unchanged) ... */}
+
+        {/* ── NOTIFICATION POPUP (Redesigned) ── */}
+        {showNotificationPopup && notifications.length > 0 && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
+              <div className="p-5" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3"><span className="text-3xl animate-bounce">🔔</span><div><h3 className="text-lg font-bold text-white">Ticket Notifications</h3><p className="text-sm text-white/90">{notifications.length} tickets need attention</p></div></div>
+                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
+                </div>
+              </div>
+              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
+                {notifications.map((ticket) => {
+                  const overdueFlag = isTicketOverdue(ticket);
+                  return (
+                    <div key={ticket.id} onClick={() => { setSelectedTicket(ticket); setShowNotificationPopup(false); setShowTicketDetailPopup(true); }} className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all" style={{ background: "rgba(249,250,251,0.9)", borderColor: overdueFlag ? "#dc2626" : "#e5e7eb" }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0"><div className="flex items-center gap-1.5 mb-1 flex-wrap">{overdueFlag && <span className="text-red-500">🚨</span>}<p className="font-bold text-sm text-gray-800 truncate">{ticket.project_name}</p></div><p className="text-xs text-gray-500">{ticket.issue_case}</p>{overdueFlag && <p className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE - Segera tangani!</p>}</div>
+                        <div className="flex-shrink-0 text-right"><span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${overdueFlag ? statusColors["Overdue"] : statusColors[currentUserTeamType === "Team Services" ? ticket.services_status || "Pending" : ticket.status]}`}>{overdueFlag ? "🚨 Overdue" : (currentUserTeamType === "Team Services" ? (ticket.services_status || "Pending") : ticket.status)}</span></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="p-4 border-t" style={{ borderColor: "rgba(0,0,0,0.08)", background: "rgba(249,250,251,0.8)" }}><button onClick={() => setShowNotificationPopup(false)} className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white py-3 rounded-xl font-bold transition-all">✕ Tutup</button></div>
+            </div>
+          </div>
+        )}
+
+        {/* ── NOTIFICATIONS MODAL (Redesigned) ── */}
+        {showNotifications && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
+              <div className="p-5" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3"><span className="text-3xl">🔔</span><div><h3 className="text-lg font-bold text-white">Ticket Notifications</h3>{notifications.length > 0 && <p className="text-sm text-white/90">{notifications.length} tickets need attention</p>}</div></div>
+                  <button onClick={() => setShowNotifications(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
+                </div>
+              </div>
+              {notifications.length === 0 ? (
+                <div className="p-12 text-center text-gray-500"><div className="text-6xl mb-4">✅</div><p className="text-lg font-medium">No notifications</p><p className="text-sm mt-2">All tickets have been handled</p></div>
+              ) : (
+                <div className="max-h-[calc(80vh-120px)] overflow-y-auto p-4"><div className="space-y-3">{notifications.map((ticket) => { const overdueFlag = isTicketOverdue(ticket); return (
+                  <div key={ticket.id} onClick={() => { setSelectedTicket(ticket); setShowNotifications(false); setShowTicketDetailPopup(true); }} className={`rounded-xl p-4 border-2 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all ${overdueFlag ? "bg-red-50 border-red-400" : "bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300"}`}>
+                    <div className="flex justify-between items-start mb-3"><div className="flex-1"><div className="flex items-center gap-2 mb-2">{overdueFlag && <span className="text-red-500">🚨</span>}<p className="font-bold text-lg text-gray-800">{ticket.project_name}</p><span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-800 font-bold">{ticket.current_team}</span></div><p className="text-sm text-gray-600 mt-1">{ticket.issue_case}</p>{overdueFlag && <p className="text-xs text-red-600 font-bold mt-1">⏰ OVERDUE - Segera tangani!</p>}</div><div className="ml-3"><span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${overdueFlag ? statusColors["Overdue"] : statusColors[currentUserTeamType === "Team Services" ? ticket.services_status || "Pending" : ticket.status]}`}>{overdueFlag ? "🚨 Overdue" : (currentUserTeamType === "Team Services" ? (ticket.services_status || "Pending") : ticket.status)}</span></div></div>
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-300"><span className="text-xs text-gray-500">📅 {ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</span><span className="text-sm text-blue-600 font-semibold">Click to view details →</span></div>
+                  </div>
+                )})}</div></div>
+              )}
+              <div className="p-4 border-t" style={{ borderColor: "rgba(0,0,0,0.08)", background: "rgba(249,250,251,0.8)" }}><button onClick={() => setShowNotifications(false)} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold transition-all">Close</button></div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TICKET DETAIL POPUP — detail kiri + update panel kanan ── */}
+        {showTicketDetailPopup && selectedTicket && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-3 overflow-y-auto"
+            onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); } }}>
+            <div className="flex items-start gap-3 w-full my-2" style={{ maxWidth: showUpdateForm ? '1120px' : '720px', transition: 'max-width 0.2s' }}>
+
+              {/* LEFT: Detail */}
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex-1 min-w-0"
+                style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(0,0,0,0.1)", maxHeight: "94vh" }}>
+                {/* Header */}
+                <div className="px-5 py-4 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
+                  <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/20 hover:bg-black/35 text-white flex items-center justify-center font-bold text-sm">✕</button>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)' }}>🎫 {selectedTicket.current_team}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : selectedTicket.status === "Onsite" ? "#7c3aed" : selectedTicket.status === "Call" ? "#0891b2" : "#d97706" }}>{selectedTicket.status}</span>
+                    {selectedTicket.services_status && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>Svc: {selectedTicket.services_status}</span>}
+                  </div>
+                  <h2 className="text-lg font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
+                  {selectedTicket.address && <p className="text-white/75 text-xs mt-0.5">📍 {selectedTicket.address}</p>}
+                  {selectedTicket.status === "Onsite" && (
+                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); router.push('/reminder-schedule'); }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white"
+                      style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                      🗓️ Lihat Jadwal Reminder
+                    </button>
+                  )}
+                </div>
+
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(94vh - 130px)' }}>
+                  {/* Progress Flowchart */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Progress</p>
+                    <div className="flex items-center">
+                      {(["Pending","Call","Onsite","In Progress","Solved"] as const).map((step, idx, arr) => {
+                        const order = ["Pending","Call","Onsite","In Progress","Solved"];
+                        const curIdx = order.indexOf(selectedTicket.status);
+                        const stepIdx = order.indexOf(step);
+                        const done = stepIdx < curIdx;
+                        const active = stepIdx === curIdx;
+                        const icons: Record<string,string> = { Pending:'🟡', Call:'📞', Onsite:'🚗', 'In Progress':'🔵', Solved:'✅' };
+                        return (
+                          <div key={step} className="flex items-center flex-1 last:flex-none">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${active ? 'border-red-500 bg-red-50 shadow-md scale-110' : done ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                                {done ? '✓' : icons[step]}
+                              </div>
+                              <span className={`text-[7px] font-bold text-center leading-tight whitespace-nowrap ${active ? 'text-red-600' : done ? 'text-green-600' : 'text-gray-400'}`}>{step}</span>
+                            </div>
+                            {idx < arr.length - 1 && <div className={`flex-1 h-0.5 mx-0.5 mb-3 ${done ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Info grid — print style */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="grid grid-cols-2 gap-x-6">
+                      <div>
+                        <InfoLine label="Handler" value={selectedTicket.assigned_to} />
+                        <InfoLine label="Issue" value={selectedTicket.issue_case} />
+                        {selectedTicket.product && <InfoLine label="Product" value={selectedTicket.product} />}
+                        {selectedTicket.sn_unit && <InfoLine label="SN Unit" value={selectedTicket.sn_unit} />}
+                        {selectedTicket.customer_phone && <InfoLine label="Customer" value={selectedTicket.customer_phone} />}
+                      </div>
+                      <div>
+                        {selectedTicket.sales_name && <InfoLine label="Sales" value={`${selectedTicket.sales_name}${selectedTicket.sales_division ? ` (${selectedTicket.sales_division})` : ''}`} />}
+                        <InfoLine label="Dibuat" value={selectedTicket.created_at ? formatDateTime(selectedTicket.created_at) : '-'} />
+                        {selectedTicket.created_by && <InfoLine label="Oleh" value={`@${selectedTicket.created_by}`} />}
+                        {selectedTicket.description && <InfoLine label="Deskripsi" value={selectedTicket.description} />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Foto awal */}
+                  {selectedTicket.photo_url && (
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">📸 Foto Awal</p>
+                      <img src={selectedTicket.photo_url} alt="foto" className="w-full max-h-36 object-cover rounded-xl border cursor-pointer hover:opacity-90" onClick={() => window.open(selectedTicket.photo_url!, "_blank")} />
+                    </div>
+                  )}
+
+                  {/* Activity log compact */}
+                  <div className="px-4 py-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">📝 Activity Log ({selectedTicket.activity_logs?.length || 0})</p>
+                    <div className="space-y-2">
+                      {selectedTicket.activity_logs && selectedTicket.activity_logs.length > 0
+                        ? selectedTicket.activity_logs.map(log => (
+                          <div key={log.id} className="rounded-lg p-2.5 border border-gray-100 bg-gray-50/80">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-800">{log.handler_name}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-semibold">{log.team_type}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${statusColors[log.new_status] || 'bg-gray-100 text-gray-600 border-gray-300'}`}>{log.new_status}</span>
+                                <span className="text-[9px] text-gray-400">{formatDateTime(log.created_at)}</span>
+                              </div>
+                            </div>
+                            {log.action_taken && <p className="text-[10px] text-blue-700 font-semibold">🔧 {log.action_taken}</p>}
+                            <p className="text-xs text-gray-600">{log.notes}</p>
+                            {log.photo_url && <img src={log.photo_url} alt="log" className="mt-1.5 max-h-24 rounded-lg border cursor-pointer" onClick={() => window.open(log.photo_url!, "_blank")} />}
+                            {log.file_url && <a href={log.file_url} download className="inline-block mt-1 text-[10px] font-bold text-blue-600 hover:underline">📄 {log.file_name || "Download"}</a>}
+                          </div>
+                        ))
+                        : <p className="text-xs text-gray-400 text-center py-3">Belum ada aktivitas</p>
+                      }
+                    </div>
+                  </div>
+
+                  {/* Footer actions */}
+                  <div className="px-4 py-3 border-t border-gray-100 flex flex-wrap gap-2 bg-gray-50/50">
+                    <button onClick={() => exportToPDF(selectedTicket)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#16a34a,#15803d)" }}>📄 PDF</button>
+                    {selectedTicket.status === "Solved" && canUpdateTicket && currentUserTeamType !== "Team Services" && (
+                      <button onClick={() => { setReopenTargetTicket(selectedTicket); setReopenAssignee(selectedTicket.assigned_to || ""); setReopenNotes(""); setShowReopenModal(true); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>🔓 Re-open</button>
+                    )}
+                    {canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
+                      <button onClick={() => setShowUpdateForm(!showUpdateForm)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${showUpdateForm ? 'bg-gray-200 text-gray-700' : 'text-white'}`}
+                        style={showUpdateForm ? {} : { background: "linear-gradient(135deg,#dc2626,#b91c1c)" }}>
+                        {showUpdateForm ? '✕ Tutup' : '➕ Update Status'}
+                      </button>
+                    )}
+                    {canUpdateTicket && currentUserTeamType === "Team Services" && selectedTicket.services_status === "Waiting Approval" && (
+                      <button onClick={() => setShowServicesApprovalModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#db2777,#be185d)" }}>🔧 Konfirmasi</button>
+                    )}
+                    <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-gray-200 text-gray-600 bg-white">✕ Close</button>
+                  </div>
+                </div>
               </div>
 
-              {/* Active filter chips */}
-              {/* Main area: list + calendar */}
-              <div className="flex gap-4 items-start">
-
-                {/* ── TICKET LIST ── */}
-                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
-
-                  {/* ── TICKET LIST header + filter chips + refresh/export ── */}
-                  <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule List</span>
-                      <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
+              {/* RIGHT: Update Status Panel */}
+              {showUpdateForm && canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex-shrink-0"
+                  style={{ width: 340, animation: "scale-in 0.2s ease-out", border: "2px solid rgba(220,38,38,0.25)", maxHeight: "94vh" }}>
+                  <div className="px-4 py-3" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-white text-sm">{currentUserTeamType === "Team Services" ? "🔧 Update Services" : "➕ Update Status"}</h3>
+                        <p className="text-red-200 text-[10px]">Handler: {newActivity.handler_name}</p>
+                      </div>
+                      <button onClick={() => setShowUpdateForm(false)} className="text-white hover:bg-white/20 rounded-lg p-1 font-bold text-xs">✕</button>
                     </div>
-                    {/* Active filter chips */}
-                    {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
-                      <div className="flex flex-wrap gap-1.5 items-center my-1">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
-                        {filterCategory !== 'all' && <button onClick={() => setFilterCategory('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>🏷️ {filterCategory} ✕</button>}
-                        {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#d97706' }}>Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕</button>}
-                        {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
-                        {searchDivisionSales && <button onClick={() => setSearchDivisionSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#ec4899' }}>Division: {searchDivisionSales} ✕</button>}
-                        {searchTeamHandler && <button onClick={() => setSearchTeamHandler('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>👷 {searchTeamHandler} ✕</button>}
-                        {searchProject && <button onClick={() => setSearchProject('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>🔍 {searchProject} ✕</button>}
-                        {productFilter && <button onClick={() => { setProductFilter(null); setSearchProduct(''); }} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#6366f1' }}>📦 {productFilter} ✕</button>}
-                        {selectedCalDay && <button onClick={() => setSelectedCalDay(null)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#0891b2' }}>📅 {formatDate(selectedCalDay)} ✕</button>}
-                        <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-gray-600 border border-gray-300 hover:bg-gray-50">Reset Semua</button>
+                  </div>
+
+                  <div className="overflow-y-auto p-3 space-y-3" style={{ maxHeight: 'calc(94vh - 70px)' }}>
+                    {/* SN Unit */}
+                    <div>
+                      <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">🔢 SN Unit</label>
+                      <input type="text" value={newActivity.sn_unit} onChange={e => setNewActivity({ ...newActivity, sn_unit: e.target.value })}
+                        placeholder="Update SN Unit..." className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40"
+                        style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+
+                    {/* Status flowchart buttons */}
+                    <div>
+                      <label className="block text-[9px] font-bold mb-2 tracking-widest uppercase text-gray-400">Pilih Status *</label>
+                      {currentUserTeamType === "Team Services" ? (
+                        <div className="flex flex-col gap-1.5">
+                          {(["Pending","Warranty","Out Of Warranty","Waiting PO from Sales","Submit RMA","Waiting sparepart","Process Repair","Solved"] as const).map(s => (
+                            <button key={s} onClick={() => setNewActivity({ ...newActivity, new_status: s, action_taken: "", notes: "" })}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border-2 font-semibold text-xs transition-all text-left ${newActivity.new_status === s ? "bg-purple-600 text-white border-purple-600 shadow-md" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}>
+                              <span className="flex-1">{s}</span>
+                              {newActivity.new_status === s && <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {(() => {
+                            const flow = ["Pending","Call","Onsite","In Progress","Solved"] as const;
+                            const curStatus = selectedTicket.status;
+                            const curIdx = flow.indexOf(curStatus as any);
+                            const styleMap: Record<string,{icon:string;sel:string;unsel:string}> = {
+                              Pending:      { icon:'🟡', sel:'bg-amber-500 text-white border-amber-500',    unsel:'bg-white text-amber-700 border-amber-200 hover:bg-amber-50' },
+                              Call:         { icon:'📞', sel:'bg-cyan-600 text-white border-cyan-600',      unsel:'bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50' },
+                              Onsite:       { icon:'🚗', sel:'bg-purple-600 text-white border-purple-600',  unsel:'bg-white text-purple-700 border-purple-200 hover:bg-purple-50' },
+                              'In Progress':{ icon:'🔵', sel:'bg-blue-600 text-white border-blue-600',      unsel:'bg-white text-blue-700 border-blue-200 hover:bg-blue-50' },
+                              Solved:       { icon:'✅', sel:'bg-emerald-500 text-white border-emerald-500',unsel:'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50' },
+                            };
+                            return flow.map((step, idx) => {
+                              const stepIdx = flow.indexOf(step);
+                              const locked = stepIdx < curIdx;
+                              const skipLocked = step === 'Solved' && curIdx < 2;
+                              const disabled = locked || skipLocked;
+                              const st = styleMap[step];
+                              const isSelected = newActivity.new_status === step;
+                              return (
+                                <div key={step}>
+                                  <button disabled={disabled}
+                                    onClick={() => setNewActivity({ ...newActivity, new_status: step, action_taken: "", notes: "", onsite_use_schedule: false })}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border-2 font-semibold text-xs transition-all ${isSelected ? st.sel : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed' : st.unsel}`}>
+                                    <span>{st.icon}</span>
+                                    <span className="flex-1 text-left">{step}</span>
+                                    {disabled && <span className="text-[9px]">🔒</span>}
+                                    {isSelected && <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
+                                  </button>
+                                  {/* Onsite schedule */}
+                                  {step === 'Onsite' && isSelected && (
+                                    <div className="mt-1.5 p-2.5 rounded-lg border" style={{ background: 'rgba(124,58,237,0.06)', borderColor: 'rgba(124,58,237,0.25)' }}>
+                                      <div className="flex items-center gap-1.5 mb-1.5">
+                                        <input type="checkbox" id="onsite-sched-r" checked={newActivity.onsite_use_schedule}
+                                          onChange={e => setNewActivity({ ...newActivity, onsite_use_schedule: e.target.checked })}
+                                          className="w-3.5 h-3.5 accent-purple-600" />
+                                        <label htmlFor="onsite-sched-r" className="text-[10px] font-bold text-purple-700">Jadwalkan (bukan hari ini)</label>
+                                      </div>
+                                      {newActivity.onsite_use_schedule && (
+                                        <div className="space-y-1.5">
+                                          <input type="date" value={newActivity.onsite_schedule_date}
+                                            onChange={e => setNewActivity({ ...newActivity, onsite_schedule_date: e.target.value })}
+                                            className="w-full rounded-lg px-2.5 py-1.5 text-xs border border-purple-200 outline-none" style={{ background: 'white' }} />
+                                          <div className="flex gap-1.5 items-center">
+                                            <select value={newActivity.onsite_schedule_hour} onChange={e => setNewActivity({ ...newActivity, onsite_schedule_hour: e.target.value })}
+                                              className="flex-1 rounded-lg px-2 py-1.5 text-xs border border-purple-200" style={{ background: 'white' }}>
+                                              {Array.from({length:24},(_,i)=>String(i).padStart(2,'0')).map(h=><option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                            <span className="text-gray-400 text-xs font-bold">:</span>
+                                            <select value={newActivity.onsite_schedule_minute} onChange={e => setNewActivity({ ...newActivity, onsite_schedule_minute: e.target.value })}
+                                              className="flex-1 rounded-lg px-2 py-1.5 text-xs border border-purple-200" style={{ background: 'white' }}>
+                                              {["00","15","30","45"].map(m=><option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                            <span className="text-[9px] text-gray-500">WIB</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                                            <span className="text-xs">🗓️</span>
+                                            <p className="text-[9px] text-purple-700 font-semibold flex-1">Otomatis buat jadwal Troubleshooting di Reminder Schedule</p>
+                                            <button onClick={() => { setShowTicketDetailPopup(false); setShowUpdateForm(false); router.push('/reminder-schedule'); }}
+                                                className="text-[9px] font-bold px-1.5 py-0.5 rounded text-purple-700 hover:text-purple-900"
+                                                style={{ background: 'rgba(124,58,237,0.15)' }}>Buka</button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notes/Action for statuses that need detail */}
+                    {!["Call","Onsite","Warranty","Out Of Warranty","Waiting PO from Sales","Submit RMA","Waiting sparepart"].includes(newActivity.new_status) && (
+                      <>
+                        <div>
+                          <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">🔧 Action Taken</label>
+                          <textarea value={newActivity.action_taken} onChange={e => setNewActivity({ ...newActivity, action_taken: e.target.value })}
+                            placeholder="Cek kabel HDMI, restart sistem..." rows={2}
+                            className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40 resize-none"
+                            style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">📝 Notes *</label>
+                          <textarea value={newActivity.notes} onChange={e => setNewActivity({ ...newActivity, notes: e.target.value })}
+                            placeholder="Detail penanganan..." rows={3}
+                            className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40 resize-none"
+                            style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Assign to Services */}
+                    {currentUserTeamType !== "Team Services" && newActivity.new_status === "In Progress" && (
+                      <div className="rounded-lg p-2.5" style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <input type="checkbox" id="assign-svc-r" checked={newActivity.assign_to_services}
+                            onChange={e => setNewActivity({ ...newActivity, assign_to_services: e.target.checked, services_assignee: "" })}
+                            className="w-3.5 h-3.5 accent-purple-600" />
+                          <label htmlFor="assign-svc-r" className="text-[10px] font-bold text-purple-700">Teruskan ke Team Services</label>
+                        </div>
+                        {newActivity.assign_to_services && (
+                          <select value={newActivity.services_assignee} onChange={e => setNewActivity({ ...newActivity, services_assignee: e.target.value })}
+                            className="w-full rounded-lg px-2.5 py-1.5 text-xs border border-purple-200 mt-1" style={{ background: 'white' }}>
+                            <option value="">Pilih anggota Team Services</option>
+                            {teamMembers.filter(m => m.team_type === "Team Services").map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                          </select>
+                        )}
                       </div>
                     )}
-                    <div className="flex items-center gap-2">
-                      <button onClick={fetchReminders} disabled={listLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60 bg-white">
-                        <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        Refresh
-                      </button>
-                      <button onClick={handleExportExcel} disabled={exportLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105"
-                        style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 2px 8px rgba(220,38,38,0.3)' }}>
-                        {exportLoading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '📊'}
-                        Export
-                      </button>
+
+                    {/* Photo */}
+                    <div>
+                      <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">📷 Foto Bukti</label>
+                      <input type="file" accept="image/jpeg,image/jpg,image/png"
+                        onChange={e => setNewActivity({ ...newActivity, photo: e.target.files?.[0] || null })}
+                        className="w-full border rounded-lg px-2.5 py-1.5 text-xs bg-white file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-red-50 file:text-red-700"
+                        style={{ borderColor: "rgba(0,0,0,0.12)" }} />
+                    </div>
+
+                    <button onClick={addActivity}
+                      disabled={uploading || (!newActivity.notes && !["Pending","Call","Onsite","Warranty","Out Of Warranty","Waiting PO from Sales","Submit RMA","Waiting sparepart","Process Repair"].includes(newActivity.new_status))}
+                      className="w-full text-white py-2.5 rounded-xl font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>
+                      {uploading ? "⏳ Menyimpan..." : "💾 Simpan Activity"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+                {/* ── APPROVAL MODAL (Redesigned) ── */}
+        {showApprovalModal && canAccessAccountSettings && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
+              <div className="p-6" style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
+                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="text-3xl">⏳</span><div><h3 className="text-xl font-bold text-white">Ticket Approval</h3><p className="text-sm text-white/90">{pendingApprovalTickets.length} ticket menunggu persetujuan</p></div></div><button onClick={() => setShowApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button></div>
+              </div>
+              <div className="max-h-[calc(85vh-80px)] overflow-y-auto p-4 space-y-4">
+                {pendingApprovalTickets.length === 0 ? (<div className="text-center py-12"><div className="text-5xl mb-3">✅</div><p className="text-gray-500 font-medium">Tidak ada ticket yang menunggu approval</p></div>) : pendingApprovalTickets.map((ticket) => (
+                  <div key={ticket.id} className="rounded-xl p-4" style={{ background: "rgba(245,158,11,0.1)", border: "2px solid rgba(245,158,11,0.3)" }}>
+                    <div className="flex justify-between items-start mb-3"><div><p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p><p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>{ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}<div className="flex gap-2 mt-2 flex-wrap text-xs text-gray-500">{ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}{ticket.sales_name && <span>💼 {ticket.sales_name}</span>}{ticket.sn_unit && <span>🔢 {ticket.sn_unit}</span>}</div><p className="text-xs text-orange-700 font-semibold mt-2">Dibuat oleh: @{ticket.created_by || "-"} • {ticket.date}</p></div><span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-orange-100 text-orange-800 border-orange-400 whitespace-nowrap ml-2">⏳ Waiting Approval</span></div>
+                    <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(245,158,11,0.3)" }}><label className="block text-sm font-bold text-gray-700 mb-2">👨‍💼 Assign ke Team PTS:</label><div className="flex gap-2"><select className="flex-1 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-orange-500" style={{ border: "2px solid rgba(245,158,11,0.3)", background: "white" }} value={approvalTicket?.id === ticket.id ? approvalAssignee : ""} onChange={(e) => { setApprovalTicket(ticket); setApprovalAssignee(e.target.value); }}><option value="">Pilih anggota Team PTS</option>{teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}</select><button onClick={async () => { if (!approvalAssignee || approvalTicket?.id !== ticket.id) { alert("Pilih anggota Team PTS terlebih dahulu!"); return; } await approveTicket(); }} disabled={uploading || !(approvalTicket?.id === ticket.id && approvalAssignee)} className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">✅ Approve</button><button onClick={() => rejectTicket(ticket)} disabled={uploading} className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm">❌ Reject</button></div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SERVICES APPROVAL MODAL (Redesigned) ── */}
+        {showServicesApprovalModal && currentUserTeamType === "Team Services" && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(219,39,119,0.5)" }}>
+              <div className="p-6" style={{ background: "linear-gradient(135deg,#db2777,#be185d)" }}>
+                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="text-3xl">🔧</span><div><h3 className="text-xl font-bold text-white">Ticket Masuk — Team Services</h3><p className="text-sm text-white/90">{pendingServicesApprovalTickets.length} ticket menunggu konfirmasi</p></div></div><button onClick={() => setShowServicesApprovalModal(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all">✕</button></div>
+              </div>
+              <div className="max-h-[calc(85vh-80px)] overflow-y-auto p-4 space-y-4">
+                {pendingServicesApprovalTickets.length === 0 ? (<div className="text-center py-12"><div className="text-5xl mb-3">✅</div><p className="text-gray-500 font-medium">Tidak ada ticket yang menunggu konfirmasi</p></div>) : pendingServicesApprovalTickets.map((ticket) => (
+                  <div key={ticket.id} className="rounded-xl p-4" style={{ background: "rgba(219,39,119,0.1)", border: "2px solid rgba(219,39,119,0.3)" }}>
+                    <div className="flex justify-between items-start mb-3"><div className="flex-1"><p className="font-bold text-lg text-gray-800">🏢 {ticket.project_name}</p><p className="text-sm text-gray-600 mt-0.5">⚠️ {ticket.issue_case}</p>{ticket.description && <p className="text-xs text-gray-500 mt-1">{ticket.description}</p>}<div className="flex gap-3 mt-2 flex-wrap text-xs text-gray-500">{ticket.customer_phone && <span>👤 {ticket.customer_phone}</span>}{ticket.sales_name && <span>💼 {ticket.sales_name}</span>}{ticket.sn_unit && <span>🔢 SN: {ticket.sn_unit}</span>}{ticket.address && <span>📍 {ticket.address}</span>}</div><p className="text-xs text-rose-700 font-semibold mt-2">Dikirim oleh Team PTS • {ticket.date}</p></div><span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-rose-100 text-rose-800 border-rose-400 whitespace-nowrap ml-3">⏳ Menunggu Konfirmasi</span></div>
+                    <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(219,39,119,0.3)" }}><p className="text-xs text-gray-600 mb-3 rounded-lg px-3 py-2" style={{ background: "rgba(219,39,119,0.05)", border: "1px solid rgba(219,39,119,0.2)" }}>💡 Terima ticket untuk mulai proses penanganan, atau tolak untuk mengembalikan ke Team PTS.</p><div className="flex gap-2"><button onClick={() => approveServicesTicket(ticket)} disabled={uploading} className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2.5 rounded-lg font-bold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">✅ Terima & Mulai Proses</button><button onClick={() => rejectServicesTicket(ticket)} disabled={uploading} className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2.5 rounded-lg font-bold hover:from-red-600 hover:to-red-700 transition-all disabled:opacity-40 text-sm">❌ Tolak (Kembalikan ke PTS)</button></div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── REMINDER SCHEDULE MODAL (Redesigned) ── */}
+        {showReminderSchedule && canAccessAccountSettings && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(124,58,237,0.5)" }}>
+              <div className="flex items-center justify-between mb-5"><div className="flex items-center gap-3"><span className="text-3xl">⏰</span><div><h3 className="text-lg font-bold text-gray-800">Jadwal WA Reminder</h3><p className="text-xs text-gray-500">Kirim reminder otomatis ke semua handler</p></div></div><button onClick={() => setShowReminderSchedule(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button></div>
+              <div className="flex items-center justify-between rounded-xl p-3 mb-4" style={{ background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.2)" }}><div><p className="text-sm font-bold text-violet-800">Status Reminder</p><p className="text-xs text-violet-600">{reminderSchedule.active ? "Aktif — akan kirim WA otomatis" : "Nonaktif — tidak ada WA dikirim"}</p></div><button onClick={() => setReminderSchedule((prev) => ({ ...prev, active: !prev.active }))} className={`relative w-12 h-6 rounded-full transition-colors ${reminderSchedule.active ? "bg-violet-600" : "bg-gray-300"}`}><span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${reminderSchedule.active ? "translate-x-6" : "translate-x-0.5"}`} /></button></div>
+              <div className="mb-4"><label className="block text-sm font-bold text-gray-700 mb-2">🕐 Jam Pengiriman (WIB)</label><div className="flex items-center gap-2"><select value={reminderSchedule.hour_wib} onChange={(e) => setReminderSchedule((prev) => ({ ...prev, hour_wib: e.target.value }))} className="flex-1 rounded-lg px-3 py-2.5 font-bold text-center text-lg focus:ring-2 focus:ring-violet-500" style={{ border: "2px solid rgba(124,58,237,0.3)", background: "white" }}>{Array.from({ length: 24 }, (_, i) => (<option key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</option>))}</select><span className="text-gray-500 font-semibold">:</span><select value={reminderSchedule.minute} onChange={(e) => setReminderSchedule((prev) => ({ ...prev, minute: e.target.value }))} className="w-24 rounded-lg px-3 py-2.5 font-bold text-center text-lg focus:ring-2 focus:ring-violet-500" style={{ border: "2px solid rgba(124,58,237,0.3)", background: "white" }}>{["00", "15", "30", "45"].map((m) => (<option key={m} value={m}>{m}</option>))}</select><span className="text-sm font-bold text-gray-600">WIB</span></div><div className="flex gap-2 mt-2 flex-wrap">{[{ label: "07:00", h: "7", m: "0" }, { label: "08:00", h: "8", m: "0" }, { label: "09:00", h: "9", m: "0" }, { label: "13:00", h: "13", m: "0" }].map((t) => (<button key={t.label} onClick={() => setReminderSchedule((prev) => ({ ...prev, hour_wib: t.h, minute: t.m }))} className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.hour_wib === t.h && reminderSchedule.minute === t.m ? "bg-violet-600 text-white border-violet-600" : "bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100"}`}>{t.label}</button>))}</div></div>
+              <div className="mb-5"><label className="block text-sm font-bold text-gray-700 mb-2">📅 Frekuensi</label><div className="grid grid-cols-3 gap-2"><button onClick={() => setReminderSchedule((prev) => ({ ...prev, frequency: "daily" }))} className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.frequency === "daily" ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"}`}>📆 Setiap Hari</button><button onClick={() => setReminderSchedule((prev) => ({ ...prev, frequency: "weekdays" }))} className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.frequency === "weekdays" ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"}`}>💼 Senin–Jumat</button><button onClick={() => setReminderSchedule((prev) => ({ ...prev, frequency: "custom" }))} className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${reminderSchedule.frequency === "custom" ? "bg-violet-600 text-white border-violet-600" : "bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100"}`}>✏️ Pilih Hari</button></div>{reminderSchedule.frequency === "custom" && (<div className="mt-3 flex gap-1.5 flex-wrap">{["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((day, idx) => (<button key={idx} onClick={() => { const days = reminderSchedule.custom_days.includes(idx) ? reminderSchedule.custom_days.filter((d) => d !== idx) : [...reminderSchedule.custom_days, idx].sort(); setReminderSchedule((prev) => ({ ...prev, custom_days: days })); }} className={`w-10 h-10 rounded-full text-xs font-bold border-2 transition-all ${reminderSchedule.custom_days.includes(idx) ? "bg-violet-600 text-white border-violet-600" : "bg-white text-gray-600 border-gray-300 hover:border-violet-400"}`}>{day}</button>))}</div>)}</div>
+              <div className="rounded-xl p-3 mb-5" style={{ background: "rgba(0,0,0,0.05)", border: "1px solid rgba(0,0,0,0.08)" }}><p className="text-xs text-gray-500 mb-1">Preview jadwal:</p><p className="text-sm font-bold text-gray-800">📬 {getCronDisplay()}</p><p className="text-xs text-gray-400 mt-1">Reminder dikirim ke WA semua handler dengan ticket Pending/In Progress</p></div>
+              <div className="grid grid-cols-2 gap-3"><button onClick={saveCronSchedule} disabled={reminderSaving} className="bg-gradient-to-r from-violet-600 to-violet-800 text-white py-3 rounded-xl font-bold hover:from-violet-700 hover:to-violet-900 transition-all disabled:opacity-50">{reminderSaving ? "⏳ Menyimpan..." : "💾 Simpan"}</button><button onClick={() => setShowReminderSchedule(false)} className="bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all">✕ Batal</button></div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ACCOUNT SETTINGS MODAL (Redesigned) ── */}
+        {showAccountSettings && canAccessAccountSettings && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(75,85,99,0.3)" }}>
+              <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">⚙️ Account Management</h2><button onClick={() => setShowAccountSettings(false)} className="text-gray-500 hover:text-gray-700 text-xl font-bold">✕</button></div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-blue-900">➕ Create New Account</h3><div className="space-y-3"><input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="admin">Administrator</option><option value="team">Team</option><option value="guest">Guest</option></select>{newUser.role === "team" && (<select value={newUser.team_type} onChange={(e) => setNewUser({ ...newUser, team_type: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="Team PTS">Team PTS</option><option value="Team Services">Team Services</option></select>)}<button onClick={createUser} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all">➕ Create Account</button></div></div>
+                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-orange-900">🔒 Change Password</h3><div className="space-y-3"><select value={selectedUserForPassword} onChange={(e) => { setSelectedUserForPassword(e.target.value); setChangePassword({ current: "", new: "", confirm: "" }); }} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">Select User</option>{users.map((u) => (<option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>))}</select>{selectedUserForPassword && (<><input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({ ...changePassword, current: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({ ...changePassword, new: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({ ...changePassword, confirm: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /><button onClick={updatePassword} className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all">🔒 Change Password</button></>)}</div></div>
+              </div>
+              <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-gray-800">👥 User List</h3><div className="max-h-[400px] overflow-y-auto"><div className="space-y-2">{users.map((u) => (<div key={u.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex justify-between items-center"><div><p className="font-bold text-sm">{u.full_name}</p><p className="text-xs text-gray-600">@{u.username}</p></div><div className="flex gap-2"><span className={`text-xs px-2 py-1 rounded ${u.role === "admin" ? "bg-red-100 text-red-800" : u.role === "team" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}`}>{u.role === "admin" ? "Admin" : u.role === "team" ? "Team" : "Guest"}</span>{u.team_type && <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">{u.team_type}</span>}</div></div>))}</div></div></div>
+            </div>
+          </div>
+        )}
+
+        {/* ── GUEST MAPPING MODAL (Redesigned) ── */}
+        {showGuestMapping && canAccessAccountSettings && (() => {
+          const guestUsers = users.filter((u) => u.role === "guest");
+          const selectedGuestForMapping = newMapping.guestUsername;
+          const guestMappingsForSelected = guestMappings.filter((m) => m.guest_username === selectedGuestForMapping);
+          const mappedProjects = guestMappingsForSelected.map((m) => m.project_name);
+          const handleToggleProjectMapping = async (projectName: string) => {
+            if (!selectedGuestForMapping) return;
+            const isAlreadyMapped = mappedProjects.includes(projectName);
+            if (isAlreadyMapped) {
+              const mapping = guestMappings.find((m) => m.guest_username === selectedGuestForMapping && m.project_name === projectName);
+              if (mapping) await supabase.from("guest_mappings").delete().eq("id", mapping.id);
+            } else await supabase.from("guest_mappings").insert([{ guest_username: selectedGuestForMapping, project_name: projectName }]);
+            await fetchGuestMappings();
+          };
+          return (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(13,148,136,0.5)" }}>
+                <div className="p-5 border-b" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", borderColor: "rgba(13,148,136,0.3)" }}>
+                  <div className="flex justify-between items-center"><div><h2 className="text-xl font-bold text-white">👥 Guest Project Mapping</h2><p className="text-teal-100 text-sm mt-0.5">Pilih user guest → centang project yang boleh diakses</p></div><button onClick={() => setShowGuestMapping(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button></div>
+                </div>
+                <div className="flex flex-1 overflow-hidden min-h-0">
+                  <div className="w-56 border-r flex flex-col flex-shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}><div className="px-4 py-2.5" style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}><p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">User Guest</p></div><div className="flex-1 overflow-y-auto">{guestUsers.length === 0 ? (<div className="p-4 text-center text-gray-400 text-xs py-10"><div className="text-3xl mb-2">🙅</div><p>Belum ada user guest</p></div>) : guestUsers.map((u) => { const mappingCount = guestMappings.filter((m) => m.guest_username === u.username).length; const isSelected = selectedGuestForMapping === u.username; return (<button key={u.id} onClick={() => setNewMapping({ ...newMapping, guestUsername: u.username })} className={`w-full text-left px-4 py-3 border-b transition-all ${isSelected ? "bg-teal-50 border-l-4 border-l-teal-500" : "hover:bg-gray-50 border-l-4 border-l-transparent"}`} style={{ borderColor: "rgba(0,0,0,0.05)" }}><p className={`text-sm font-bold truncate ${isSelected ? "text-teal-700" : "text-gray-700"}`}>{u.full_name}</p><p className="text-xs text-gray-400">@{u.username}</p>{mappingCount > 0 && <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{mappingCount} project</span>}</button>); })}</div></div>
+                  <div className="flex-1 flex flex-col overflow-hidden min-h-0"><div className="px-4 py-2.5 flex items-center justify-between flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}><p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{selectedGuestForMapping ? `Project untuk @${selectedGuestForMapping}` : "Pilih guest terlebih dahulu"}</p>{selectedGuestForMapping && uniqueProjectNames.length > 0 && <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full">{mappedProjects.length}/{uniqueProjectNames.length}</span>}</div><div className="flex-1 overflow-y-auto p-3">{!selectedGuestForMapping ? (<div className="flex flex-col items-center justify-center h-full text-gray-400 py-12"><div className="text-5xl mb-3">👈</div><p className="text-sm font-medium">Pilih user guest di sebelah kiri</p></div>) : uniqueProjectNames.length === 0 ? (<div className="text-center text-gray-400 py-8 text-sm"><div className="text-3xl mb-2">📭</div><p>Belum ada project ticket tersedia</p></div>) : (<div className="space-y-1.5">{uniqueProjectNames.map((projectName) => { const isMapped = mappedProjects.includes(projectName); return (<button key={projectName} onClick={() => handleToggleProjectMapping(projectName)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${isMapped ? "border-teal-400 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:bg-teal-50/50"}`}><div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${isMapped ? "border-teal-500 bg-teal-500" : "border-gray-300 bg-white"}`}>{isMapped && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><span className="text-sm font-medium truncate flex-1">{projectName}</span>{isMapped && <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Aktif</span>}</button>); })}</div>)}</div></div>
+                </div>
+                <div className="p-4 border-t flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderColor: "rgba(0,0,0,0.05)" }}><button onClick={() => setShowGuestMapping(false)} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-lg">✓ Selesai</button></div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── NEW TICKET MODAL  ── */}
+        {showNewTicket && canCreateTicket && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) setShowNewTicket(false); }}>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden" style={{ animation: "scale-in 0.25s ease-out", border: "1.5px solid rgba(220,38,38,0.25)" }}>
+              {/* Header - Red gradient like ReminderSchedule */}
+              <div className="px-8 py-6 rounded-t-2xl" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">🎫 Create New Ticket</h2>
+                    <p className="text-red-200/80 text-xs mt-1">Isi detail ticket & informasi troubleshooting</p>
+                  </div>
+                  <button onClick={() => setShowNewTicket(false)} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+                {/* Informasi Ticket Section */}
+                <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
+                  <span className="text-lg">🎫</span>
+                  <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Ticket</span>
+                </div>
+
+                {/* Row 1: Project Name | Address Detail */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Project Name *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📌</span>
+                      <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({ ...newTicket, project_name: e.target.value })} placeholder="Example: BCA Cibitung Project" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-3">📍</span>
+                      <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+                  </div>
+                </div>
 
-                  {/* ── Search / Filter bar — tepat di bawah TICKET LIST ── */}
-                  <div className="px-5 py-3 bg-white/60 border-b border-gray-100">
-                    <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🔍</span>
-                          <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
-                            placeholder="Search project / lokasi..." />
-                        </div>
+                {/* Row 2: Product | SN Unit */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📦 Product / Brand</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
+                      <input type="text" value={newTicket.product} onChange={(e) => setNewTicket({ ...newTicket, product: e.target.value })} placeholder="Panasonic PT-MZ682, LG 75UL3Q, dll" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit <span className="text-gray-400 normal-case font-normal text-[10px]">(opsional)</span></label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
+                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="SN12345678 (opsional)" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Customer Phone | Date (auto) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Customer Phone</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
+                      <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({ ...newTicket, customer_phone: e.target.value })} placeholder="Adi - 08xx-xxxx-xxxx" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📅 Date <span className="text-gray-400 normal-case font-normal text-[10px]">(otomatis saat ticket dibuat)</span></label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">📅</span>
+                      <input type="text" value={new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })} disabled className="w-full rounded-xl pl-9 pr-4 py-3 text-sm text-slate-400 cursor-not-allowed" style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)" }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Issue Case - full width */}
+                <div>
+                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Issue Case *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-3">⚠️</span>
+                    <input type="text" value={newTicket.issue_case} onChange={(e) => { const val = e.target.value; const words = val.trim().split(/\s+/).filter(Boolean); if (words.length < 4 || (words.length === 4 && !val.endsWith(" "))) setNewTicket({ ...newTicket, issue_case: val }); }} placeholder="Maks. 4 kata, contoh: Videowall Not Working" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                  </div>
+                  <div className="flex justify-between items-center mt-1.5 px-1">
+                    <span className="text-xs text-gray-500">Maksimal 4 kata</span>
+                    <span className={`text-xs font-bold ${newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length >= 4 ? "text-red-500" : "text-gray-400"}`}>
+                      {newTicket.issue_case.trim().split(/\s+/).filter(Boolean).length}/4 kata
+                    </span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Detailed Description</label>
+                  <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} rows={3} placeholder="Explain the problem details..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                </div>
+
+                {/* Informasi Sales Section */}
+                <div className="flex items-center gap-2 pb-2 border-b pt-2" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
+                  <span className="text-lg">🏢</span>
+                  <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Sales</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Name</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
+                      <input type="text" value={newTicket.sales_name} onChange={(e) => setNewTicket({ ...newTicket, sales_name: e.target.value })} placeholder="Dhany - IVP" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Division</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">🏢</span>
+                      <select value={newTicket.sales_division} onChange={(e) => setNewTicket({ ...newTicket, sales_division: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
+                        <option value="">— Pilih Division —</option>
+                        {SALES_DIVISIONS.map((div) => (<option key={div} value={div}>{div}</option>))}
+                      </select>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status & Assign - khusus admin */}
+                {currentUser?.role === "admin" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Status</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🏷️</span>
+                        <select value={newTicket.status} onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
+                          <option value="Pending">🟡 Pending</option>
+                          <option value="Call">📞 Call</option>
+                          <option value="Onsite">🚗 Onsite</option>
+                          <option value="In Progress">🔵 In Progress</option>
+                          <option value="Solved">✅ Solved</option>
+                        </select>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
                       </div>
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👤</span>
-                          <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
-                            placeholder="Search sales..." />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">📦 Product</label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📦</span>
-                          <input value={searchProduct} onChange={e => { setSearchProduct(e.target.value); setProductFilter(null); }}
-                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
-                            placeholder="Cari product..." />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👷</span>
-                          <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
-                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-purple-300 transition-all"
-                            placeholder="Search handler..." />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🏷️</span>
-                          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
-                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer transition-all">
-                            <option value="all">All Status</option>
-                            {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                          </select>
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📅</span>
-                          <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer transition-all">
-                            <option value="all">All Years</option>
-                            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                          </select>
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
-                        </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Assign To *</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👨‍💼</span>
+                        <select value={newTicket.assigned_to} onChange={(e) => setNewTicket({ ...newTicket, assigned_to: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}>
+                          <option value="">— Pilih Handler —</option>
+                          <optgroup label="Team PTS">
+                            {teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}
+                          </optgroup>
+                        </select>
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
                       </div>
                     </div>
                   </div>
+                )}
 
-                  {/* ── TABLE ── */}
-                  {listLoading ? (
-                    <div className="space-y-2 p-4">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-3 border border-gray-200">
-                          <div className="flex-1 space-y-2"><div className="h-3 bg-gray-200 rounded w-2/5"></div><div className="h-2 bg-gray-100 rounded w-1/4"></div></div>
-                          <div className="h-3 bg-gray-200 rounded w-1/6"></div><div className="h-3 bg-gray-200 rounded w-1/5"></div>
-                          <div className="h-5 bg-gray-200 rounded-full w-16"></div><div className="h-6 bg-gray-200 rounded-lg w-14"></div>
-                        </div>
-                      ))}
+                {/* Non-admin: info bahwa perlu approval */}
+                {currentUser?.role !== "admin" && (
+                  <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "rgba(245,158,11,0.1)", border: "1.5px solid rgba(245,158,11,0.3)" }}>
+                    <span className="text-2xl">⏳</span>
+                    <div>
+                      <p className="text-sm font-bold text-orange-800">Perlu Persetujuan Superadmin</p>
+                      <p className="text-xs text-orange-700 mt-0.5">Ticket yang Anda buat akan masuk ke antrian approval Superadmin terlebih dahulu. Setelah disetujui, Superadmin akan assign ticket ke Tim PTS yang tersedia.</p>
                     </div>
-                  ) : filteredReminders.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="text-5xl mb-3">📭</div>
-                      <p className="text-gray-600 font-semibold text-sm">Tidak ada reminder ditemukan</p>
-                      <p className="text-xs text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
-                        <colgroup>
-                          <col style={{ width: '17%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '11%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '8%' }} />
-                        </colgroup>
-                        <thead>
-                          <tr className="bg-gray-50 border-b-2 border-gray-100">
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Kegiatan</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
-                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredReminders.map((r) => {
-                            const today = isDueToday(r.due_date);
-                            return (
-                              <tr key={r.id}
-                                className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
-                                onClick={() => setDetailReminder(r)}>
-                                {/* Project */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
-                                  {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address.split(',')[0]}</div>}
-                                  <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
-                                </td>
-                                {/* Product */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  {r.product ? (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
-                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-left break-words leading-tight transition-all"
-                                      style={{ background: productFilter === r.product ? '#6366f1' : '#eef2ff', color: productFilter === r.product ? 'white' : '#4338ca' }}>
-                                      {r.product}
-                                    </button>
-                                  ) : <span className="text-gray-300 text-xs">—</span>}
-                                </td>
-                                {/* Kegiatan */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
-                                    <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
-                                  </div>
-                                  {r.category === 'Troubleshooting' && (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); router.push('/ticketing'); }}
-                                      className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded text-blue-600 hover:text-blue-800 transition-colors"
-                                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                                      🎫 Ticketing
-                                    </button>
-                                  )}
-                                </td>
-                                {/* Sales */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
-                                  {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
-                                </td>
-                                {/* Handler */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
-                                      style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
-                                      {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
-                                    </div>
-                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assigned_name}</span>
-                                  </div>
-                                </td>
-                                {/* PIC */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  {r.pic_name ? (
-                                    <>
-                                      <div className="text-[10px] font-semibold text-gray-700 truncate">{r.pic_name}</div>
-                                      {r.pic_phone && <div className="text-[10px] text-gray-400 truncate">📱{r.pic_phone}</div>}
-                                    </>
-                                  ) : <span className="text-gray-300 text-xs">—</span>}
-                                </td>
-                                {/* Status */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <StatusBadge status={r.status} />
-                                  {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
-                                </td>
-                                {/* Tanggal */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                                  <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-center"
-                                    style={{
-                                      background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
-                                      border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
-                                    }}>
-                                    <span className="text-base font-black leading-none" style={{ color: today ? '#dc2626' : '#4f46e5' }}>
-                                      {new Date(r.due_date + 'T00:00:00').getDate()}
-                                    </span>
-                                    <span className="text-[8px] font-bold uppercase leading-tight" style={{ color: today ? '#dc2626' : '#6366f1' }}>
-                                      {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                                    </span>
-                                    {r.due_time && <span className="text-[8px] text-gray-400 leading-tight">{r.due_time}</span>}
-                                  </div>
-                                </td>
-                                {/* ACT */}
-                                <td className="px-1 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    {/* Detail */}
-                                    <button onClick={() => setDetailReminder(r)} title="Detail"
-                                      className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
-                                      <span className="text-sm">👁</span>
-                                    </button>
-                                    {/* Re-Schedule — semua team PTS & admin bisa lihat */}
-                                    {(isAdmin || currentUser?.role === 'team') && r.status !== 'done' && (
-                                      <button onClick={() => setRescheduleTarget(r)} title="Re-Schedule"
-                                        className="text-amber-500 hover:text-amber-700 transition-colors p-0.5">
-                                        <span className="text-sm">📅</span>
-                                      </button>
-                                    )}
-                                    {/* Hapus — admin only */}
-                                    {isAdmin && (
-                                      <button onClick={() => openDeleteModal(r)} title="Hapus"
-                                        className="text-red-400 hover:text-red-600 transition-colors p-0.5">
-                                        <span className="text-sm">🗑️</span>
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 bg-white">
-                        <span className="text-[10px] text-gray-400">{filteredReminders.length} jadwal ditemukan</span>
-                        <span className="text-[10px] text-gray-400">{filteredReminders.length > 0 ? `1–${filteredReminders.length}` : '0'} of {reminders.length}</span>
+                  </div>
+                )}
+
+                {/* Upload Foto Section */}
+                <div className="flex items-center gap-2 pb-2 border-b pt-2" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
+                  <span className="text-lg">📸</span>
+                  <span className="text-sm font-bold tracking-wide text-slate-700">Foto Pendukung</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Upload Foto <span className="text-gray-400 font-normal">(Optional)</span></label>
+                  <p className="text-xs text-gray-500 mb-3">Foto pendukung kondisi awal / bukti masalah</p>
+                  <input type="file" accept="image/*" onChange={(e) => setNewTicket({ ...newTicket, photo: e.target.files?.[0] || null })} className="w-full border rounded-xl px-4 py-2.5 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 transition-all text-sm" style={{ borderColor: "rgba(0,0,0,0.12)" }} />
+                  {newTicket.photo && (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center gap-2 p-2 bg-white rounded-lg border" style={{ borderColor: "rgba(220,38,38,0.2)" }}>
+                        <span className="text-red-600">✓</span>
+                        <span className="text-sm font-semibold text-gray-700 flex-1 truncate">{newTicket.photo.name}</span>
+                        <span className="text-xs text-gray-400">({(newTicket.photo.size / 1024).toFixed(1)} KB)</span>
+                        <button type="button" onClick={() => setNewTicket({ ...newTicket, photo: null })} className="text-red-400 hover:text-red-600 font-bold text-xs ml-1">✕</button>
                       </div>
+                      <img src={URL.createObjectURL(newTicket.photo)} alt="Preview" className="w-full max-h-48 object-cover rounded-lg border-2 shadow-sm" style={{ borderColor: "rgba(220,38,38,0.3)" }} />
                     </div>
                   )}
                 </div>
 
-                {/* ── MINI CALENDAR SIDEBAR ── */}
-                <MiniCalendar
-                  reminders={reminders}
-                  calendarMonth={calendarMonth}
-                  setCalendarMonth={setCalendarMonth}
-                  selectedCalDay={calOnlyDay}
-                  setSelectedCalDay={setCalOnlyDay}
+                {/* Action Buttons - Red gradient like ReminderSchedule */}
+                <div className="flex gap-3 pt-4">
+                  <button onClick={() => setShowNewTicket(false)} className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all" style={{ background: "rgba(255,255,255,0.55)", color: "#64748b", border: "1px solid rgba(0,0,0,0.12)" }}>
+                    Batal
+                  </button>
+                  <button onClick={createTicket} disabled={uploading} className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>
+                    {uploading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                    {uploading ? "⏳ Menyimpan..." : "💾 Save Ticket"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── OVERDUE SETTING MODAL (Redesigned) ── */}
+        {showOverdueSetting && overdueTargetTicket && canAccessAccountSettings && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
+              <div className="flex items-center gap-3 mb-4"><span className="text-3xl">⏰</span><div><h3 className="text-lg font-bold text-gray-800">Overdue Setting</h3><p className="text-xs text-gray-500 font-medium">{overdueTargetTicket.project_name}</p><p className="text-xs text-gray-400">{overdueTargetTicket.issue_case}</p></div></div>
+              <p className="text-xs text-orange-700 rounded-lg p-2 mb-4" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>⚠️ Setting ini hanya terlihat oleh admin Anda. Handler akan mendapat notifikasi merah ketika ticket overdue. Default otomatis: ticket overdue setelah 48 jam jika tidak di-set manual.</p>
+              <div className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-gray-700">⏱️ Overdue Setelah Berapa Jam?</label><div className="flex items-center gap-3"><input type="number" min="1" value={overdueForm.due_hours} onChange={(e) => setOverdueForm({ due_hours: e.target.value })} className="flex-1 rounded-lg px-3 py-2.5 text-lg font-bold text-center focus:ring-2 focus:ring-orange-500" style={{ border: "2px solid rgba(245,158,11,0.3)", background: "white" }} /><span className="text-gray-600 font-semibold text-sm">jam</span></div><div className="flex gap-2 mt-2">{[24, 48, 72, 96].map((h) => (<button key={h} type="button" onClick={() => setOverdueForm({ due_hours: String(h) })} className={`flex-1 py-1 rounded-lg text-xs font-bold border transition-all ${overdueForm.due_hours === String(h) ? "bg-orange-500 text-white border-orange-500" : "bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100"}`}>{h}j{h === 48 ? " (default)" : ""}</button>))}</div><p className="text-xs text-gray-400 mt-2">⏰ Dihitung dari waktu ticket pertama kali dibuat</p></div><div className="grid grid-cols-2 gap-3 pt-2"><button onClick={saveOverdueSetting} className="bg-gradient-to-r from-orange-500 to-orange-700 text-white py-2.5 rounded-xl font-bold hover:from-orange-600 hover:to-orange-800 transition-all">💾 Simpan</button><button onClick={() => { setShowOverdueSetting(false); setOverdueTargetTicket(null); setOverdueForm({ due_hours: "48" }); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">✕ Batal</button></div>{getOverdueSetting(overdueTargetTicket.id) && (<button onClick={() => { deleteOverdueSetting(overdueTargetTicket.id); setShowOverdueSetting(false); setOverdueTargetTicket(null); }} className="w-full bg-red-100 text-red-700 py-2 rounded-xl font-bold hover:bg-red-200 transition-all text-sm border border-red-300">🗑️ Hapus Setting Overdue</button>)}</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── RE-OPEN TICKET MODAL (Redesigned) ── */}
+        {showReopenModal && reopenTargetTicket && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
+              <div className="flex items-center gap-3 mb-5"><span className="text-3xl">🔓</span><div><h3 className="text-lg font-bold text-gray-800">Re-open Ticket</h3><p className="text-xs text-gray-500">{reopenTargetTicket.project_name} · {reopenTargetTicket.issue_case}</p></div></div>
+              <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "#b45309" }}>⚠️ Status akan berubah ke <strong>Pending</strong> dan activity log baru ditambahkan otomatis.</div>
+              <div className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-gray-700">Assign ke Handler *</label><select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">— Pilih Handler —</option>{teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}</select></div><div><label className="block text-sm font-bold mb-1 text-gray-700">Alasan (opsional)</label><textarea value={reopenNotes} onChange={(e) => setReopenNotes(e.target.value)} placeholder="Masalah muncul kembali..." rows={3} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(0,0,0,0.12)" }} /></div><div className="grid grid-cols-2 gap-3"><button onClick={reopenTicket} disabled={uploading || !reopenAssignee} className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{uploading ? "⏳..." : "🔓 Re-open"}</button><button onClick={() => { setShowReopenModal(false); setReopenTargetTicket(null); setReopenAssignee(""); setReopenNotes(""); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button></div></div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ACTIVITY SUMMARY MODAL (Redesigned) ── */}
+        {showActivitySummary && summaryTicket && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-2">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-2xl w-full h-[96vh] flex flex-col" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(59,130,246,0.5)" }}>
+              <div className="p-5 border-b flex-shrink-0" style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(0,0,0,0.1)" }}>
+                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="text-2xl">🔄</span><div><h3 className="text-lg font-bold text-white">Activity Summary</h3><p className="text-sm text-blue-100 font-medium">{summaryTicket.project_name}</p><p className="text-xs text-blue-200">{summaryTicket.issue_case}</p></div></div><button onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold transition-all text-lg">✕</button></div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                <div className="flex flex-wrap gap-2 mb-5 p-3 rounded-xl text-xs" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)" }}>
+                  <span className="flex items-center gap-1"><span className="text-gray-500">👤 Handler:</span><span className="font-bold">{summaryTicket.assigned_to || "-"}</span></span><span className="text-gray-300">|</span>
+                  <span className="flex items-center gap-1"><span className="text-gray-500">📅 Dibuat:</span><span className="font-bold">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : "-"}</span></span><span className="text-gray-300">|</span>
+                  <span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.status]}`}>{summaryTicket.status}</span>
+                  {summaryTicket.services_status && (<><span className="text-gray-300">|</span><span className={`px-2 py-0.5 rounded-full font-bold border ${statusColors[summaryTicket.services_status]}`}>Svc: {summaryTicket.services_status}</span></>)}
+                </div>
+                {!summaryTicket.activity_logs || summaryTicket.activity_logs.length === 0 ? (<div className="text-center py-10 text-gray-400"><div className="text-5xl mb-3">📭</div><p className="font-semibold">Belum ada activity yang tercatat</p></div>) : (
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-1"><div className="flex flex-col items-center"><div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shadow-md">🎫</div></div><div className="flex-1 rounded-xl px-4 py-2" style={{ background: "rgba(59,130,246,0.1)", border: "2px solid rgba(59,130,246,0.3)" }}><p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Ticket Dibuat</p><p className="text-sm font-semibold text-gray-800">{summaryTicket.project_name}</p><p className="text-xs text-gray-500">{summaryTicket.created_at ? formatDateTime(summaryTicket.created_at) : "-"}</p></div></div>
+                    {[...summaryTicket.activity_logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((log, idx, arr) => {
+                      const isLast = idx === arr.length - 1;
+                      const isSolved = log.new_status === "Solved";
+                      const isServices = log.assigned_to_services;
+                      const nodeColor = isSolved ? "bg-green-500" : isServices ? "bg-red-500" : log.new_status === "In Progress" ? "bg-blue-500" : "bg-yellow-500";
+                      const cardBorder = isSolved ? "border-green-300 bg-green-50" : isServices ? "border-red-300 bg-red-50" : log.new_status === "In Progress" ? "border-blue-300 bg-blue-50" : "border-yellow-300 bg-yellow-50";
+                      return (
+                        <div key={log.id}>
+                          <div className="flex items-stretch gap-3"><div className="flex flex-col items-center"><div className="w-0.5 bg-gray-300 flex-1 mx-auto" style={{ minHeight: "16px" }}></div></div><div className="flex-1" /></div>
+                          <div className="flex items-start gap-3"><div className="flex flex-col items-center flex-shrink-0"><div className={`w-9 h-9 rounded-full ${nodeColor} flex items-center justify-center text-white text-xs font-bold shadow-md`}>{isSolved ? "✅" : isServices ? "🔄" : idx + 1}</div>{!isLast && <div className="w-0.5 bg-gray-300 flex-1" style={{ minHeight: "12px" }}></div>}</div><div className={`flex-1 border-2 rounded-xl px-4 py-3 mb-1 ${cardBorder}`}><div className="flex justify-between items-start mb-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-gray-800">{log.handler_name}</span><span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">{log.team_type}</span></div><span className={`text-xs px-2 py-0.5 rounded-full font-bold border flex-shrink-0 ml-2 ${statusColors[log.new_status] || "bg-gray-100 text-gray-700 border-gray-300"}`}>{log.new_status}</span></div><p className="text-xs text-gray-500 mb-2">{formatDateTime(log.created_at)}</p>{log.action_taken && (<div className="rounded-lg px-3 py-1.5 mb-2" style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)" }}><p className="text-xs font-bold text-blue-700">🔧 Action:</p><p className="text-xs text-gray-800">{log.action_taken}</p></div>)}<div className="rounded-lg px-3 py-1.5" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)" }}><p className="text-xs font-bold text-gray-600">📝 Notes:</p><p className="text-xs text-gray-800 whitespace-pre-line">{log.notes}</p></div>{isServices && <div className="mt-2 flex items-center gap-1 text-xs font-bold text-red-700 rounded-lg px-2 py-1" style={{ background: "rgba(220,38,38,0.1)" }}><span>🔄</span> Diteruskan ke Team Services</div>}{log.photo_url && <div className="mt-2"><img src={log.photo_url} alt="bukti" className="max-h-28 rounded-lg border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(log.photo_url!, "_blank")} /></div>}{log.file_url && <a href={log.file_url} download={log.file_name} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-700 rounded-lg px-2 py-1 hover:bg-blue-200 transition-colors" style={{ background: "rgba(59,130,246,0.1)" }}>📎 {log.file_name || "Download Report"}</a>}</div></div>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-stretch gap-3"><div className="flex flex-col items-center"><div className="w-0.5 bg-gray-300 mx-auto" style={{ minHeight: "16px" }}></div></div><div className="flex-1" /></div>
+                    <div className="flex items-center gap-3"><div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-base shadow-md flex-shrink-0 ${summaryTicket.status === "Solved" ? "bg-green-600" : "bg-gray-400"}`}>{summaryTicket.status === "Solved" ? "🏁" : "⏳"}</div><div className={`flex-1 rounded-xl px-4 py-2 border-2 ${summaryTicket.status === "Solved" ? "bg-green-50 border-green-300" : "bg-gray-50 border-gray-300"}`}><p className={`text-xs font-bold uppercase tracking-wide ${summaryTicket.status === "Solved" ? "text-green-700" : "text-gray-500"}`}>{summaryTicket.status === "Solved" ? "✅ Ticket Selesai" : `⏳ Status: ${summaryTicket.status}`}</p><p className="text-xs text-gray-500 mt-0.5">{summaryTicket.activity_logs?.length || 0} aktivitas tercatat</p></div></div>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderColor: "rgba(0,0,0,0.08)" }}><button onClick={() => { setShowActivitySummary(false); setSummaryTicket(null); }} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-900 transition-all">✕ Tutup</button></div>
+            </div>
+          </div>
+        )}
+        {/* ── DELETE TICKET MODAL (Admin Only) ── */}
+        {showDeleteModal && deleteTargetTicket && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(220,38,38,0.5)" }}>
+              <div className="flex items-center gap-3 mb-4"><span className="text-3xl">🗑️</span><div><h3 className="text-lg font-bold text-gray-800">Hapus Ticket</h3><p className="text-xs text-gray-500 font-medium">{deleteTargetTicket.project_name}</p><p className="text-xs text-gray-400">{deleteTargetTicket.issue_case}</p></div></div>
+              <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#b91c1c" }}>
+                ⚠️ <strong>Tindakan ini tidak dapat dibatalkan.</strong> Ticket beserta seluruh activity log dan overdue setting akan dihapus permanen dari database.
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-bold mb-1 text-gray-700">Ketik <span className="font-mono bg-red-100 text-red-700 px-1 rounded">HAPUS</span> untuk konfirmasi</label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Ketik HAPUS di sini..."
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500"
+                  style={{ border: "2px solid rgba(220,38,38,0.3)", background: "white" }}
                 />
               </div>
-            </>
-          )}
-
-          {/* ─── FORM VIEW ── (digantikan oleh showFormModal popup) */}
-
-        </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={deleteTicket}
+                  disabled={deleteConfirmText !== "HAPUS" || uploading}
+                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-900"
+                >
+                  {uploading ? "⏳..." : "🗑️ Hapus Permanen"}
+                </button>
+                <button onClick={() => { setShowDeleteModal(false); setDeleteTargetTicket(null); setDeleteConfirmText(""); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">✕ Batal</button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
-
       <style jsx>{`
-        @keyframes fadeInUp {
-          from { opacity:0; transform:translateY(14px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
         @keyframes scale-in {
-          from { opacity:0; transform:scale(0.92); }
-          to   { opacity:1; transform:scale(1); }
+          from { opacity: 0; transform: scale(0.92); }
+          to { opacity: 1; transform: scale(1); }
         }
         @keyframes bounce {
           0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
           40% { transform: scale(1); opacity: 1; }
         }
-        select option { background: #ffffff; color: #1e293b; }
-        input[type="date"]::-webkit-calendar-picker-indicator,
-        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.3); cursor: pointer; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(220,38,38,0.25); border-radius: 4px; }
+        .animate-scale-in { animation: scale-in 0.25s ease-out; }
+        .animate-bounce { animation: bounce 0.6s ease-out; }
+        input:focus, select:focus, textarea:focus { outline: none; }
       `}</style>
     </div>
   );
