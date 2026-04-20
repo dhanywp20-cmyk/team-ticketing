@@ -70,8 +70,8 @@ interface Reminder {
   title?: string;       // kolom lama di DB (beberapa row pakai 'title')
   project_name: string; // kolom baru (fallback dari title)
   description: string;
+  assigned_to: string;
   assign_name: string;
-  assigned_name: string;
   due_date: string;
   due_time: string;
   priority: Priority;
@@ -427,7 +427,7 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assigned_name}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assign_name}</p>
                   </div>
                   <CategoryBadge category={r.category} />
                 </div>
@@ -599,8 +599,8 @@ export default function ReminderSchedulePage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'assigned_name' | 'created_by' | 'wa_sent_h1'> = {
-    project_name: '', description: '', assign_name: '',
+  const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'created_by' | 'wa_sent_h1'> = {
+    project_name: '', description: '', assigned_to: '', assign_name: '',
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
@@ -633,7 +633,7 @@ export default function ReminderSchedulePage() {
         supabase
           .from('reminders')
           .select('*')
-          .eq('assign_name', user.username)
+          .eq('assigned_to', user.username)
           .neq('status', 'done')
           .neq('status', 'cancelled')
           .order('due_date', { ascending: true })
@@ -697,7 +697,7 @@ export default function ReminderSchedulePage() {
     let query = supabase.from('reminders').select('*')
       .order('created_at', { ascending: false });
     if (activeUser?.role === 'team') {
-      query = query.eq('assign_name', activeUser.username);
+      query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
     // Hanya update state kalau data valid dan tidak kosong
@@ -724,7 +724,7 @@ export default function ReminderSchedulePage() {
     let query = supabase.from('reminders').select('*')
       .order('created_at', { ascending: false });
     if (activeUser?.role === 'team') {
-      query = query.eq('assign_name', activeUser.username);
+      query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
     if (!error && data) setReminders(data as Reminder[]);
@@ -735,14 +735,14 @@ export default function ReminderSchedulePage() {
 
   const handleSave = async () => {
     if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
-    if (!formData.assign_name)             { notify('error', 'Pilih anggota team!');           return; }
+    if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
     if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
     if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
     if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
-    const assignee = teamUsers.find(u => u.username === formData.assign_name);
-    const payload = { ...formData, assigned_name: assignee?.full_name ?? formData.assign_name, created_by: currentUser?.username ?? 'system' };
+    const assignee = teamUsers.find(u => u.username === formData.assigned_to);
+    const payload = { ...formData, assign_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
 
     setSaving(true);
     const { error } = editingReminder
@@ -759,7 +759,7 @@ export default function ReminderSchedulePage() {
 
     // ── Kirim WA notifikasi ke assignee saat reminder BARU dibuat ────────────
     if (!editingReminder && assignee?.phone_number) {
-      const assigneeName = assignee.full_name ?? formData.assign_name;
+      const assigneeName = assignee.full_name ?? formData.assigned_to;
       const createdBy = currentUser?.username ?? 'system';
       const msg =
         `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
@@ -780,7 +780,7 @@ export default function ReminderSchedulePage() {
       if (!waResult.ok) console.warn('[WA new schedule] Gagal kirim:', waResult.reason);
       else notify('success', `WA notifikasi terkirim ke ${assigneeName}!`);
     } else if (!editingReminder && !assignee?.phone_number) {
-      console.warn('[WA new schedule] Nomor WA assignee tidak tersedia:', formData.assign_name);
+      console.warn('[WA new schedule] Nomor WA assignee tidak tersedia:', formData.assigned_to);
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -823,7 +823,7 @@ export default function ReminderSchedulePage() {
         if (reminder) {
           const { data: handlerUser } = await supabase
             .from('users').select('phone_number, full_name')
-            .eq('username', reminder.assign_name)
+            .eq('username', reminder.assigned_to)
             .eq('team_type', 'Team PTS').single();
           if (handlerUser?.phone_number) {
             const msg =
@@ -873,7 +873,7 @@ export default function ReminderSchedulePage() {
 
   const openEdit = (r: Reminder) => {
     setEditingReminder(r);
-    setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assign_name: r.assign_name, due_date: r.due_date,
+    setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
@@ -901,7 +901,7 @@ export default function ReminderSchedulePage() {
     try {
       const { data: handlerUser } = await supabase
         .from('users').select('phone_number, full_name')
-        .eq('username', rescheduleTarget.assign_name)
+        .eq('username', rescheduleTarget.assigned_to)
         .eq('team_type', 'Team PTS').single();
       if (handlerUser?.phone_number) {
         const msg =
@@ -924,20 +924,20 @@ export default function ReminderSchedulePage() {
   // ─── Manual WA send ────────────────────────────────────────────────────────
 
   const handleSendWA = async (r: Reminder) => {
-    if (!r.assign_name) { notify('error', 'Reminder belum di-assign ke handler.'); return; }
+    if (!r.assigned_to) { notify('error', 'Reminder belum di-assign ke handler.'); return; }
     setSendingWA(r.id);
 
     // Ambil phone_number handler dari tabel users
     const { data: handlerData, error: handlerErr } = await supabase
       .from('users')
       .select('phone_number, full_name')
-      .eq('username', r.assign_name)
+      .eq('username', r.assigned_to)
       .eq('team_type', 'Team PTS')
       .single();
 
     if (handlerErr || !handlerData?.phone_number) {
       setSendingWA(null);
-      notify('error', `Nomor WA handler (${r.assigned_name || r.assign_name}) tidak tersedia di database.`);
+      notify('error', `Nomor WA handler (${r.assign_name || r.assigned_to}) tidak tersedia di database.`);
       return;
     }
 
@@ -969,7 +969,7 @@ export default function ReminderSchedulePage() {
     try {
       const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Address','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.project_name || (r as any).title || '', r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assigned_name,
+        i + 1, r.project_name || (r as any).title || '', r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assign_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -1003,8 +1003,8 @@ export default function ReminderSchedulePage() {
         !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
     if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
-    if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
-        !r.assign_name?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
+    if (searchTeamHandler && !r.assign_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
+        !r.assigned_to?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
     if (productFilter && r.product !== productFilter) return false;
     if (searchProduct && !r.product?.toLowerCase().includes(searchProduct.toLowerCase())) return false;
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
@@ -1034,7 +1034,7 @@ export default function ReminderSchedulePage() {
 
   const teamPtsPieData = (() => {
     const map: Record<string, number> = {};
-    sourceReminders.forEach(r => { if (r.assigned_name) { map[r.assigned_name] = (map[r.assigned_name] || 0) + 1; } });
+    sourceReminders.forEach(r => { if (r.assign_name) { map[r.assign_name] = (map[r.assign_name] || 0) + 1; } });
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
@@ -1048,7 +1048,7 @@ export default function ReminderSchedulePage() {
   const canAddReminder = currentUser?.role === 'admin' || currentUser?.role === 'team';
 
   const myActiveReminders = reminders.filter(r =>
-    currentUser && r.assign_name === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
+    currentUser && r.assigned_to === currentUser.username && r.status !== 'done' && r.status !== 'cancelled'
   );
 
   // ─── Style helpers ─────────────────────────────────────────────────────────
@@ -1078,7 +1078,7 @@ export default function ReminderSchedulePage() {
       localStorage.setItem('loginTime', now.toString());
       await fetchRemindersQuiet(data); // re-fetch dengan filter role yang baru login
 
-      const active = reminders.filter(r => r.assign_name === data.username && r.status !== 'done' && r.status !== 'cancelled');
+      const active = reminders.filter(r => r.assigned_to === data.username && r.status !== 'done' && r.status !== 'cancelled');
       setMyReminders(active);
       if (active.length > 0) setTimeout(() => setShowNotificationPopup(true), 600);
       setTimeout(() => setDashLoading(false), 2200);
@@ -1272,7 +1272,7 @@ export default function ReminderSchedulePage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Assign To *">
-                    <select value={formData.assign_name} onChange={e => fd({ assign_name: e.target.value })}
+                    <select value={formData.assigned_to} onChange={e => fd({ assigned_to: e.target.value })}
                       className={inputCls} style={inputStyle}>
                       <option value="">-- Pilih Team PTS --</option>
                       {teamUsers.map(u => <option key={u.id} value={u.username}>{u.full_name}</option>)}
@@ -1366,12 +1366,12 @@ export default function ReminderSchedulePage() {
                   </FormField>
                 </div>
 
-                {formData.assign_name && (
+                {formData.assigned_to && (
                   <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)' }}>
                     <span className="text-green-500 text-lg">💬</span>
                     <div>
                       <p className="text-sm font-bold text-green-700">WA Otomatis H-1</p>
-                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.assign_name}</strong> sehari sebelum jadwal.</p>
+                      <p className="text-xs text-green-600 mt-0.5">Pesan pengingat akan otomatis dikirim via WA ke <strong>{formData.assigned_to}</strong> sehari sebelum jadwal.</p>
                     </div>
                   </div>
                 )}
@@ -1555,11 +1555,11 @@ export default function ReminderSchedulePage() {
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
                           style={{ background: 'rgba(220,38,38,0.2)', color: '#dc2626' }}>
-                          {detailReminder.assigned_name.charAt(0).toUpperCase()}
+                          {detailReminder.assign_name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-800">{detailReminder.assigned_name}</p>
-                          <p className="text-xs" style={{ color: '#64748b' }}>@{detailReminder.assign_name}</p>
+                          <p className="text-sm font-bold text-slate-800">{detailReminder.assign_name}</p>
+                          <p className="text-xs" style={{ color: '#64748b' }}>@{detailReminder.assigned_to}</p>
                         </div>
                       </div>
                     </div>
@@ -1889,7 +1889,7 @@ export default function ReminderSchedulePage() {
                   {/* ── TICKET LIST header + filter chips + refresh/export ── */}
                   <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket Schedule List</span>
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
                     {/* Active filter chips */}
@@ -2082,9 +2082,9 @@ export default function ReminderSchedulePage() {
                                   <div className="flex items-center gap-1">
                                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                                       style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
-                                      {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
+                                      {r.assign_name?.charAt(0)?.toUpperCase() || '?'}
                                     </div>
-                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assigned_name}</span>
+                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assign_name}</span>
                                   </div>
                                 </td>
                                 {/* PIC */}
