@@ -3651,16 +3651,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
         });
       }
-      }
-              notify('success', `Request diapprove & di-assign ke Tim PTS!`);
-            fetchRequests();
-            if (selectedRequest?.id === assignModal.req?.id) {
-              setSelectedRequest(prev => prev ? { ...prev, status: 'approved' } : null);
-              fetchMessages(assignModal.req!.id);
-            }
-          }}
-          currentUser={currentUser}
-        />
       )}
 
       {/* STICKY HEADER */}
