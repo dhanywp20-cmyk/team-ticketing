@@ -649,7 +649,7 @@ export default function ReminderSchedulePage() {
           .neq('status', 'done')
           .neq('status', 'cancelled')
           .order('due_date', { ascending: true })
-          .then(({ data: activeData }) => {
+          .then(({ data: activeData }: { data: any[] | null }) => {
             const active = (activeData ?? []) as Reminder[];
             if (active.length > 0) {
               setMyReminders(active);
