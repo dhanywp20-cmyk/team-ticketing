@@ -453,8 +453,8 @@ function NewFormModal({
                   rows={4}
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">& divisi</span></label>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
                 <div className="flex gap-2 items-center">
                   <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
                     placeholder="Nama Sales / Account Manager"
@@ -462,17 +462,17 @@ function NewFormModal({
                   <select
                     value={form.sales_division || ''}
                     onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
-                    className="w-32 border-2 border-gray-200 rounded-xl px-2 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-xs text-gray-400 bg-white outline-none appearance-none cursor-pointer"
-                    style={{ color: '#9ca3af' }}
+                    className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
+                    style={{ color: form.sales_division ? '#374151' : '#9ca3af' }}
                   >
-                    <option value="" style={{ color: '#9ca3af' }}>Pilih divisi...</option>
+                    <option value="" style={{ color: '#9ca3af' }}>Pilih divisi sales...</option>
                     {SALES_DIVISIONS.map(div => (
-                      <option key={div} value={div} style={{ color: '#9ca3af' }}>{div}</option>
+                      <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
                     ))}
                   </select>
                 </div>
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
                   required
@@ -2867,16 +2867,16 @@ Hubungi Admin untuk info lebih lanjut.
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white resize-none" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">& divisi</span></label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
                     <div className="flex gap-2 items-center">
                       <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
                         placeholder="Nama Sales / Account Manager" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
                       <select value={editFormData.sales_division || ''} onChange={e => setEditFormData(p => ({ ...p, sales_division: e.target.value }))}
-                        className="w-32 border-2 border-gray-200 rounded-xl px-2 py-2.5 focus:border-amber-400 transition-all text-xs text-gray-400 bg-white outline-none appearance-none cursor-pointer"
-                        style={{ color: '#9ca3af' }}>
-                        <option value="" style={{ color: '#9ca3af' }}>Pilih divisi...</option>
+                        className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-amber-400 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
+                        style={{ color: editFormData.sales_division ? '#374151' : '#9ca3af' }}>
+                        <option value="" style={{ color: '#9ca3af' }}>Pilih divisi sales...</option>
                         {SALES_DIVISIONS.map(div => (
-                          <option key={div} value={div} style={{ color: '#9ca3af' }}>{div}</option>
+                          <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
                         ))}
                       </select>
                     </div>
