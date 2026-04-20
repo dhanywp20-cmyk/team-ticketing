@@ -22,7 +22,7 @@ async function invokeNotifyHandler(body: Record<string, unknown>): Promise<void>
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const res = await fetch(`${supabaseUrl}/functions/v1/notify-handler`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -869,7 +869,7 @@ export default function TicketingSystem() {
           });
         } catch (waEx: any) {
           // Jangan throw — ticket sudah berhasil disimpan
-          console.error("[notify-handler] approval_request exception:", waEx?.message);
+          console.error("[swift-responder] approval_request exception:", waEx?.message);
         }
       }
 
