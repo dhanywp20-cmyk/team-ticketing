@@ -337,7 +337,7 @@ function HandlerDonutCard({
     const large = angle > Math.PI ? 1 : 0;
     const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
     cumAngle += angle;
-    return { ...d, path, i };
+    return { ...d, path, isFullCircle: false, i };
   }) : [];
   return (
     <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
@@ -364,7 +364,7 @@ function HandlerDonutCard({
                   <circle cx={60} cy={60} r={28} fill="white" />
                 </g>
               ) : (
-                <path key={s.i} d={s.path} fill={activeHandler === s.name ? s.color : s.color}
+                <path key={s.i} d={s.path} fill={s.color}
                   opacity={hov === null || hov === s.i ? 1 : 0.45}
                   style={{ cursor: "pointer", transition: "opacity 0.15s", filter: hov === s.i || activeHandler === s.name ? `drop-shadow(0 0 4px ${s.color})` : "none" }}
                   onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick(s.name)} />
