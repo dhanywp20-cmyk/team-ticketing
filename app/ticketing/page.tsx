@@ -852,9 +852,9 @@ export default function TicketingSystem() {
       // ── Kirim WA notifikasi ke semua admin & superadmin jika butuh approval ──
       // Hanya role guest dan team yang butuh approval → trigger WA
       if (!isElevated) {
+        // Guest/Team: kirim WA ke admin untuk approval
         setLoadingMessage("Mengirim notifikasi WA ke admin...");
         try {
-          // Ambil phone semua admin dari frontend, kirim ke Edge Function
           const { data: adminUsers } = await supabase
             .from("users")
             .select("phone_number, full_name")
@@ -880,8 +880,40 @@ export default function TicketingSystem() {
             );
           }
         } catch (waEx: any) {
-          // Jangan throw — ticket sudah berhasil disimpan
-          console.error("[notify-handler] approval_request exception:", waEx?.message);
+          console.error("[WA approval] exception:", waEx?.message);
+        }
+      } else if (isElevated && ticketAssignedTo) {
+        // Admin/Superadmin: langsung assign ke handler → kirim WA ke handler
+        setLoadingMessage("Mengirim notifikasi WA ke handler...");
+        try {
+          // ticketAssignedTo = team_members.name → cari username → cari phone di users
+          const { data: eTM } = await supabase
+            .from("team_members").select("username")
+            .ilike("name", ticketAssignedTo).maybeSingle();
+          const { data: handlerInfo } = eTM?.username ? await supabase
+            .from("users").select("phone_number, full_name")
+            .eq("username", eTM.username).maybeSingle() : { data: null };
+          if (handlerInfo?.phone_number) {
+            const waMsg = [
+              "🎫 *Ticket Baru Assigned ke Kamu*",
+              "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+              `Halo *${handlerInfo.full_name}*, ada ticket baru untukmu:`,
+              "",
+              `📌 *Project :* ${newTicket.project_name}`,
+              `⚠️ *Issue   :* ${newTicket.issue_case}`,
+              `📝 *Deskripsi:* ${newTicket.description || "-"}`,
+              `🔢 *SN Unit :* ${newTicket.sn_unit || "-"}`,
+              `📱 *Customer:* ${newTicket.customer_phone || "-"}`,
+              `👤 *Sales   :* ${newTicket.sales_name || "-"}`,
+              `📅 *Tanggal :* ${newTicket.date || "-"}`,
+              "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+              "Mohon segera ditangani. Semangat! 💪",
+              "🔗 https://team-ticketing.vercel.app/dashboard",
+            ].join("\n");
+            await sendWANotif({ type: "reminder_wa", target: handlerInfo.phone_number, message: waMsg });
+          }
+        } catch (waEx: any) {
+          console.error("[WA assign] exception:", waEx?.message);
         }
       }
 
@@ -915,14 +947,14 @@ export default function TicketingSystem() {
       }
       // ── WA ke handler yang di-assign ──────────────────────────────────────
       try {
-        // Pakai ilike untuk case-insensitive match (dhany = Dhany = DHANY)
-        const { data: hByName } = await supabase
+        // approvalAssignee = team_members.name
+        // Cari username dari team_members → lalu cari phone di users
+        const { data: tmData } = await supabase
+          .from("team_members").select("username")
+          .ilike("name", approvalAssignee).maybeSingle();
+        const { data: handlerUser } = tmData?.username ? await supabase
           .from("users").select("phone_number, full_name")
-          .ilike("full_name", approvalAssignee).maybeSingle();
-        const { data: hByUser } = await supabase
-          .from("users").select("phone_number, full_name")
-          .ilike("username", approvalAssignee).maybeSingle();
-        const handlerUser = hByName?.phone_number ? hByName : hByUser;
+          .eq("username", tmData.username).maybeSingle() : { data: null };
         if (handlerUser?.phone_number) {
           const waMsg = [
             "🎫 *Ticket Assigned ke Kamu*",
@@ -981,14 +1013,14 @@ export default function TicketingSystem() {
       }]);
       // ── WA ke handler saat reopen ───────────────────────────────────────────
       try {
-        // ilike = case-insensitive (dhany = Dhany)
-        const { data: rhByName } = await supabase
+        // reopenAssignee = team_members.name
+        // Cari username dari team_members → lalu cari phone di users
+        const { data: rhTM } = await supabase
+          .from("team_members").select("username")
+          .ilike("name", reopenAssignee).maybeSingle();
+        const { data: reopenHandler } = rhTM?.username ? await supabase
           .from("users").select("phone_number, full_name")
-          .ilike("full_name", reopenAssignee).maybeSingle();
-        const { data: rhByUser } = await supabase
-          .from("users").select("phone_number, full_name")
-          .ilike("username", reopenAssignee).maybeSingle();
-        const reopenHandler = rhByName?.phone_number ? rhByName : rhByUser;
+          .eq("username", rhTM.username).maybeSingle() : { data: null };
         if (reopenHandler?.phone_number) {
           const waMsg = [
             "🔓 *Ticket Re-opened ke Kamu*",
