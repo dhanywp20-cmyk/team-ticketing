@@ -17,12 +17,12 @@ const supabaseServices = createClient(
 );
 
 
-// ── Helper: invoke Edge Function dengan anon key (custom auth, tanpa Supabase session) ─
-async function invokeNotifyHandler(body: Record<string, unknown>): Promise<void> {
+// ── WA via direct fetch ke Edge Function (sama seperti reminder-schedule) ─────
+async function sendWANotif(body: Record<string, unknown>): Promise<void> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/notify-handler`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -32,9 +32,9 @@ async function invokeNotifyHandler(body: Record<string, unknown>): Promise<void>
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    console.log("[invokeNotifyHandler]", data);
+    console.log("[sendWANotif] response:", data);
   } catch (err: any) {
-    console.error("[invokeNotifyHandler] error:", err.message);
+    console.error("[sendWANotif] error:", err.message);
   }
 }
 // ── Status list khusus Team Services ─────────────────────────────────────────
@@ -854,7 +854,7 @@ export default function TicketingSystem() {
       if (!isElevated) {
         setLoadingMessage("Mengirim notifikasi WA ke admin...");
         try {
-          await invokeNotifyHandler({
+          await sendWANotif({
               type: "approval_request",
               ticketId: insertedTicket?.id || "",
               projectName: newTicket.project_name,
@@ -869,7 +869,7 @@ export default function TicketingSystem() {
           });
         } catch (waEx: any) {
           // Jangan throw — ticket sudah berhasil disimpan
-          console.error("[swift-responder] approval_request exception:", waEx?.message);
+          console.error("[notify-handler] approval_request exception:", waEx?.message);
         }
       }
 
@@ -903,7 +903,7 @@ export default function TicketingSystem() {
       }
       // ── WA ke handler yang di-assign ──────────────────────────────────────
       try {
-        await invokeNotifyHandler({
+        await sendWANotif({
             record: {
               assigned_to: approvalAssignee,
               project_name: approvalTicket.project_name,
@@ -958,7 +958,7 @@ export default function TicketingSystem() {
       }]);
       // ── WA ke handler yang di-assign saat reopen ─────────────────────────
       try {
-        await invokeNotifyHandler({
+        await sendWANotif({
             record: {
               assigned_to: reopenAssignee,
               project_name: reopenTargetTicket.project_name,
