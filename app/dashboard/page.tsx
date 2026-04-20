@@ -181,7 +181,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     setApprovingReg(null);
     fetchPendingRegs();
     fetchUsers();
-};
+  };
 
   const handleRejectRegistration = async (reg: PendingRegistration) => {
     if (!confirm(`Tolak pendaftaran dari ${reg.full_name}?`)) return;
