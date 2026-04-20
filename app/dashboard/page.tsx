@@ -70,6 +70,49 @@ const ALL_MENU_KEYS = [
   'reminder-schedule',
 ];
 
+const MENU_LABELS: Record<string, { label: string; icon: string; gradient: string }> = {
+  'form-bast': { label: 'Form BAST & Demo', icon: '📋', gradient: 'from-slate-600 to-slate-500' },
+  'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
+  'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
+  'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
+  'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
+  'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
+  'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
+};
+
+interface MenuPermissionSelectorProps {
+  selected: string[];
+  onToggle: (key: string) => void;
+  colorScheme?: 'rose' | 'emerald';
+}
+
+function MenuPermissionSelector({ selected, onToggle, colorScheme = 'rose' }: MenuPermissionSelectorProps) {
+  const active = colorScheme === 'emerald'
+    ? { border: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-700', cbBorder: 'border-emerald-500', cbBg: 'bg-emerald-500' }
+    : { border: 'border-rose-400', bg: 'bg-rose-50', text: 'text-rose-700', cbBorder: 'border-rose-500', cbBg: 'bg-rose-500' };
+  return (
+    <div>
+      <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</label>
+      <div className="grid grid-cols-1 gap-2">
+        {ALL_MENU_KEYS.map(key => {
+          const m = MENU_LABELS[key];
+          const checked = selected.includes(key);
+          return (
+            <button key={key} type="button" onClick={() => onToggle(key)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${checked ? `${active.border} ${active.bg} ${active.text}` : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? `${active.cbBorder} ${active.cbBg}` : 'border-slate-300 bg-white'}`}>
+                {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+              </div>
+              <span className="text-lg">{m.icon}</span>
+              <span className="font-semibold text-sm">{m.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface AccountSettingsModalProps {
   onClose: () => void;
 }
@@ -94,16 +137,6 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
   const [loadingPending, setLoadingPending] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [approvingReg, setApprovingReg] = useState<{ reg: PendingRegistration; selectedMenus: string[] } | null>(null);
-
-  const menuLabels: Record<string, { label: string; icon: string; gradient: string }> = {
-    'form-bast': { label: 'Form BAST & Demo', icon: '📋', gradient: 'from-slate-600 to-slate-500' },
-    'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
-    'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
-    'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
-    'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
-    'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
-    'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
-  };
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -226,28 +259,6 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     }
   };
 
-  const MenuPermissionSelector = ({ selected, target }: { selected: string[]; target: 'new' | 'edit' }) => (
-    <div>
-      <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</label>
-      <div className="grid grid-cols-1 gap-2">
-        {ALL_MENU_KEYS.map(key => {
-          const m = menuLabels[key];
-          const checked = selected.includes(key);
-          return (
-            <button key={key} type="button" onClick={() => toggleMenu(key, target)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${checked ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
-              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-rose-500 bg-rose-500' : 'border-slate-300 bg-white'}`}>
-                {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-              </div>
-              <span className="text-lg">{m.icon}</span>
-              <span className="font-semibold text-sm">{m.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
@@ -348,7 +359,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                       </div>
                     </div>
                   )}
-                  <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
+                  <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} onToggle={(key) => toggleMenu(key, 'edit')} />
                   <div className="flex gap-3 pt-2">
                     <button onClick={() => setEditingUser(null)} className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-lg font-semibold hover:bg-slate-50 transition-all text-sm">Batal</button>
                     <button onClick={handleSaveEdit} disabled={saving}
@@ -421,7 +432,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {user.allowed_menus.map(key => (
                             <span key={key} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 text-slate-600">
-                              {menuLabels[key]?.icon} {menuLabels[key]?.label ?? key}
+                              {MENU_LABELS[key]?.icon} {MENU_LABELS[key]?.label ?? key}
                             </span>
                           ))}
                         </div>
@@ -482,7 +493,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   </div>
                 </div>
               )}
-              <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
+              <MenuPermissionSelector selected={newUser.allowed_menus} onToggle={(key) => toggleMenu(key, 'new')} />
               <button onClick={handleAddUser} disabled={saving}
                 className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
                 {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
@@ -527,7 +538,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     </div>
                     <div className="flex-1 overflow-y-auto px-6 py-4">
                       <div className="flex items-center justify-between mb-3">
-                        <label className="text-xs font-bold text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</label>
+                        <span className="text-xs font-bold text-slate-600 tracking-widest uppercase">Menu yang Dapat Diakses</span>
                         <div className="flex gap-2">
                           <button onClick={() => setApprovingReg({ ...approvingReg, selectedMenus: ALL_MENU_KEYS })}
                             className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all">Pilih Semua</button>
@@ -535,28 +546,16 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                             className="text-[10px] font-bold px-2 py-1 rounded bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all">Hapus Semua</button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-2">
-                        {ALL_MENU_KEYS.map(key => {
-                          const m = menuLabels[key];
-                          const checked = approvingReg.selectedMenus.includes(key);
-                          return (
-                            <button key={key} type="button"
-                              onClick={() => setApprovingReg({
-                                ...approvingReg,
-                                selectedMenus: checked
-                                  ? approvingReg.selectedMenus.filter(k => k !== key)
-                                  : [...approvingReg.selectedMenus, key],
-                              })}
-                              className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${checked ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-white'}`}>
-                                {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                              </div>
-                              <span className="text-lg">{m.icon}</span>
-                              <span className="font-semibold text-sm">{m.label}</span>
-                            </button>
-                          );
+                      <MenuPermissionSelector
+                        selected={approvingReg.selectedMenus}
+                        colorScheme="emerald"
+                        onToggle={(key) => setApprovingReg({
+                          ...approvingReg,
+                          selectedMenus: approvingReg.selectedMenus.includes(key)
+                            ? approvingReg.selectedMenus.filter(k => k !== key)
+                            : [...approvingReg.selectedMenus, key],
                         })}
-                      </div>
+                      />
                     </div>
                     <div className="px-6 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
                       <button onClick={() => setApprovingReg(null)} className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-lg font-semibold hover:bg-slate-50 transition-all text-sm">Batal</button>
