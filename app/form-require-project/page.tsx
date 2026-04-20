@@ -59,7 +59,7 @@ interface ProjectRequest {
   ukuran_ruangan: string;
   suggest_tampilan: string;
   keterangan_lain: string;
-  pts_assigned?: string;
+  assign_name?: string;
   approved_by?: string;
   approved_at?: string;
   due_date?: string;
@@ -92,6 +92,28 @@ interface ProjectAttachment {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
+
+// ── WA via direct fetch ke Edge Function (sama seperti reminder-schedule) ─────
+async function sendWANotif(body: Record<string, unknown>): Promise<void> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    console.log('[sendWANotif] response:', data);
+  } catch (err: any) {
+    console.error('[sendWANotif] error:', err.message);
+  }
+}
+
 const SALES_DIVISIONS = [
   'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
   'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
@@ -112,11 +134,12 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; b
 // ─── MiniPieChart ─────────────────────────────────────────────────────────────
 
 function MiniPieChart({
-  data, title, icon, onSliceClick,
+  data, title, icon, onSliceClick, activeFilter,
 }: {
   data: { label: string; value: number; color: string }[];
   title: string; icon: string;
   onSliceClick?: (label: string) => void;
+  activeFilter?: string;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -130,6 +153,7 @@ function MiniPieChart({
   const cx = 60, cy = 60, r = 50, innerR = 28;
   const slices = data.map((d, i) => {
     const angle = (d.value / total) * 2 * Math.PI;
+    if (data.length === 1) return { ...d, path: '', isFullCircle: true, i };
     const x1 = cx + r * Math.cos(cumulativeAngle), y1 = cy + r * Math.sin(cumulativeAngle);
     const x2 = cx + r * Math.cos(cumulativeAngle + angle), y2 = cy + r * Math.sin(cumulativeAngle + angle);
     const xi1 = cx + innerR * Math.cos(cumulativeAngle), yi1 = cy + innerR * Math.sin(cumulativeAngle);
@@ -137,34 +161,53 @@ function MiniPieChart({
     const large = angle > Math.PI ? 1 : 0;
     const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
     cumulativeAngle += angle;
-    return { ...d, path, i };
+    return { ...d, path, isFullCircle: false, i };
   });
+  const hasActiveFilter = !!activeFilter;
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
-      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: hasActiveFilter ? '2px solid rgba(13,148,136,0.4)' : '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)', boxShadow: hasActiveFilter ? '0 0 0 3px rgba(13,148,136,0.08)' : 'none' }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+        {hasActiveFilter && <span className="text-[9px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-full">Filter Aktif ✓</span>}
+      </div>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
+            s.isFullCircle ? (
+              <g key={s.i} style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
+                onClick={() => onSliceClick?.(s.label)}
+                onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}>
+                <circle cx={cx} cy={cy} r={r} fill={s.color}
+                  opacity={activeFilter === s.label ? 1 : hovered === null || hovered === s.i ? 1 : 0.45}
+                  style={{ filter: activeFilter === s.label ? `drop-shadow(0 0 6px ${s.color}) drop-shadow(0 0 2px ${s.color})` : hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }} />
+                <circle cx={cx} cy={cy} r={innerR} fill="white" />
+              </g>
+            ) : (
             <path key={s.i} d={s.path} fill={s.color}
-              opacity={hovered === null || hovered === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
+              opacity={activeFilter === s.label ? 1 : hovered === null || hovered === s.i ? 1 : 0.45}
+              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: activeFilter === s.label ? `drop-shadow(0 0 6px ${s.color}) drop-shadow(0 0 2px ${s.color})` : hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
               onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
               onClick={() => onSliceClick?.(s.label)} />
+            )
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {slices.map((s) => (
+          {slices.map((s) => {
+            const isActive = activeFilter === s.label;
+            return (
             <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-              style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
+              style={{ background: isActive ? `${s.color}22` : hovered === s.i ? `${s.color}15` : 'transparent', outline: isActive ? `1.5px solid ${s.color}55` : 'none' }}
               onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
               onClick={() => onSliceClick?.(s.label)}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+              <span className="text-[10px] font-semibold truncate flex-1" style={{ color: isActive ? s.color : '#4b5563' }}>{s.label}</span>
               <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+              {isActive && <span className="text-[9px] font-bold flex-shrink-0" style={{ color: s.color }}>✓</span>}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -200,7 +243,7 @@ function AssignPTSModal({
   req: ProjectRequest; onClose: () => void; onAssigned: () => void; currentUser: User;
 }) {
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
-  const [selected, setSelected] = useState(req.pts_assigned || '');
+  const [selected, setSelected] = useState(req.assign_name || '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -212,7 +255,7 @@ function AssignPTSModal({
     if (!selected) return;
     setSaving(true);
     const { error } = await supabase.from('project_requests')
-      .update({ pts_assigned: selected, status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString() })
+      .update({ assign_name: selected, status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString() })
       .eq('id', req.id);
     if (!error) {
       await supabase.from('project_messages').insert([{
@@ -221,21 +264,20 @@ function AssignPTSModal({
       }]);
       const selectedMember = teamMembers.find(m => m.full_name === selected);
       if (selectedMember?.phone_number) {
-        await supabase.functions.invoke('notify-handler', {
-          body: {
-            type: 'form_require_assigned',
-            handlerName: selectedMember.full_name,
-            handlerPhone: selectedMember.phone_number,
-            projectName: req.project_name,
-            salesName: req.sales_name || '',
-            salesDivision: req.sales_division || '',
-            requesterName: req.requester_name,
-            dueDate: req.due_date
-              ? new Date(req.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-              : null,
-            approvedBy: currentUser.full_name,
-          },
-        });
+          const assignWaMsg = [
+            '🏗️ *Form Require Project \u2014 Assigned ke Kamu*',
+            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
+            `Halo *${selectedMember.full_name}*, kamu di-assign untuk request:`,
+            '',
+            `📋 *Project  :* ${req.project_name}`,
+            `🛋️ *Ruangan  :* ${req.room_name || '-'}`,
+            `🏢 *Sales    :* ${req.sales_name || '-'}`,
+            `👤 *Requester:* ${req.requester_name}`,
+            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
+            'Segera proses dan update status ya! 💪',
+            '🔗 https://team-ticketing.vercel.app/dashboard',
+          ].join('\n');
+          await sendWANotif({ type: 'reminder_wa', target: selectedMember.phone_number, message: assignWaMsg });
       }
       onAssigned();
     }
@@ -404,34 +446,36 @@ function NewFormModal({
                   placeholder="Nama ruangan / area"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
-                <input value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
-                  placeholder="Contoh: Gedung Wisma 46 Lt.12, Jakarta"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
-                  placeholder="Nama Sales / Account Manager"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+                <textarea value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
+                  placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat"
+                  rows={4}
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Divisi Sales</label>
-                <select
-                  value={form.sales_division || ''}
-                  onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none appearance-none"
-                >
-                  <option value="">— Pilih Divisi Sales —</option>
-                  {SALES_DIVISIONS.map(div => (
-                    <option key={div} value={div}>{div}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
+                <div className="flex gap-2 items-center">
+                  <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
+                    placeholder="Nama Sales / Account Manager"
+                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+                  <select
+                    value={form.sales_division || ''}
+                    onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
+                    className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
+                    style={{ color: form.sales_division ? '#374151' : '#9ca3af' }}
+                  >
+                    <option value="" style={{ color: '#9ca3af' }}>Pilih divisi sales...</option>
+                    {SALES_DIVISIONS.map(div => (
+                      <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai</label>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
+                  required
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
             </div>
@@ -443,15 +487,15 @@ function NewFormModal({
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
               Kategori Kebutuhan & Solution
             </h3>
-            <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
-              value={form.kebutuhan} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v }))} />
+            <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
+              value={form.kebutuhan[0] || ''} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v ? [v] : [] }))} />
             <div className="mb-3">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Kebutuhan</label>
               <input value={form.kebutuhan_other} onChange={e => setForm(prev => ({ ...prev, kebutuhan_other: e.target.value }))}
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
-            <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
-              value={form.solution_product} onChange={v => setForm(prev => ({ ...prev, solution_product: v }))} />
+            <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP']}
+              value={form.solution_product[0] || ''} onChange={v => setForm(prev => ({ ...prev, solution_product: v ? [v] : [] }))} />
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
               <input value={form.solution_other} onChange={e => setForm(prev => ({ ...prev, solution_other: e.target.value }))}
@@ -459,16 +503,17 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Signage & Network */}
+          {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
+          {form.kebutuhan.includes('Signage') && (
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
               Layout Konten & Jaringan
             </h3>
-            <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
-              value={form.layout_signage} onChange={v => setForm(prev => ({ ...prev, layout_signage: v }))} />
+            <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
+              value={form.layout_signage?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, layout_signage: v ? [v] : [] }))} />
             <CheckGroup label="Jaringan / CMS" options={['Cloud', 'Onpremise', 'USB']}
-              value={form.jaringan_cms} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
+              value={form.jaringan_cms || []} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
@@ -482,6 +527,8 @@ function NewFormModal({
               </div>
             </div>
           </div>
+
+          )} {/* end Signage conditional */}
 
           {/* Source & Peripheral */}
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
@@ -560,8 +607,8 @@ function NewFormModal({
               onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
             {form.controller_automation === 'Yes' && (
               <div className="ml-4 mb-4 border-l-2 border-teal-200 pl-4">
-                <CheckGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
-                  value={form.controller_type} onChange={v => setForm(prev => ({ ...prev, controller_type: v }))} />
+                <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
+                  value={form.controller_type?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, controller_type: v ? [v] : [] }))} />
               </div>
             )}
           </div>
@@ -715,16 +762,39 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterYear, setFilterYear] = useState<string>('all');
-  const [filterMonth, setFilterMonth] = useState<string>('all');
-  const [filterHandler, setFilterHandler] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchSales, setSearchSales] = useState('');
-  const [filterDivision, setFilterDivision] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterStatus') || 'all'; } catch { return 'all'; }
+  });
+  const [filterYear, setFilterYear] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterYear') || 'all'; } catch { return 'all'; }
+  });
+  const [filterMonth, setFilterMonth] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterMonth') || 'all'; } catch { return 'all'; }
+  });
+  const [filterHandler, setFilterHandler] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterHandler') || 'all'; } catch { return 'all'; }
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    try { return sessionStorage.getItem('frp_searchQuery') || ''; } catch { return ''; }
+  });
+  const [searchSales, setSearchSales] = useState(() => {
+    try { return sessionStorage.getItem('frp_searchSales') || ''; } catch { return ''; }
+  });
+  const [filterDivision, setFilterDivision] = useState<string>(() => {
+    try { return sessionStorage.getItem('frp_filterDivision') || 'all'; } catch { return 'all'; }
+  });
   const [ptsMembersList, setPtsMembersList] = useState<string[]>([]);
   const [unreadMsgMap, setUnreadMsgMap] = useState<Record<string, number>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, number>>({});
+  // Persist filters to sessionStorage
+  useEffect(() => { try { sessionStorage.setItem('frp_filterStatus', filterStatus); } catch {} }, [filterStatus]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterYear', filterYear); } catch {} }, [filterYear]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterMonth', filterMonth); } catch {} }, [filterMonth]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterHandler', filterHandler); } catch {} }, [filterHandler]);
+  useEffect(() => { try { sessionStorage.setItem('frp_searchQuery', searchQuery); } catch {} }, [searchQuery]);
+  useEffect(() => { try { sessionStorage.setItem('frp_searchSales', searchSales); } catch {} }, [searchSales]);
+  useEffect(() => { try { sessionStorage.setItem('frp_filterDivision', filterDivision); } catch {} }, [filterDivision]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileRef = useRef<HTMLInputElement>(null);
@@ -745,7 +815,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [editFormData, setEditFormData] = useState({
-    project_name: '', room_name: '', project_location: '', sales_name: '',
+    project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
     kebutuhan: [] as string[], kebutuhan_other: '',
     solution_product: [] as string[], solution_other: '',
     layout_signage: [] as string[], jaringan_cms: [] as string[],
@@ -802,7 +872,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const { data, error } = await query;
     if (!error && data) {
       setRequests(data as ProjectRequest[]);
-      const assigned = [...new Set((data as ProjectRequest[]).map(r => r.pts_assigned).filter(Boolean) as string[])].sort();
+      const assigned = [...new Set((data as ProjectRequest[]).map(r => r.assign_name).filter(Boolean) as string[])].sort();
       setPtsMembersList(assigned);
       const ids = (data as ProjectRequest[]).map(r => r.id);
       if (ids.length > 0) {
@@ -930,7 +1000,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const matchStatus = filterStatus === 'all' || r.status === filterStatus;
     const matchYear = filterYear === 'all' || new Date(r.created_at).getFullYear().toString() === filterYear;
     const matchMonth = filterMonth === 'all' || (new Date(r.created_at).getMonth() + 1).toString().padStart(2, '0') === filterMonth;
-    const matchHandler = filterHandler === 'all' || (r.pts_assigned || '') === filterHandler;
+    const matchHandler = filterHandler === 'all' || (r.assign_name || '') === filterHandler;
     const matchDivision = filterDivision === 'all' || (r.sales_division || 'Lainnya') === filterDivision;
     const matchProject = !searchQuery || r.project_name.toLowerCase().includes(searchQuery.toLowerCase())
       || (r.project_location || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -963,8 +1033,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const divisionPieData = Object.entries(divisionCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
   const assignedCounts: Record<string, number> = {};
-  for (const r of requests) { const a = r.pts_assigned || 'Unassigned'; assignedCounts[a] = (assignedCounts[a] || 0) + 1; }
+  for (const r of requests) { const a = r.assign_name || 'Unassigned'; assignedCounts[a] = (assignedCounts[a] || 0) + 1; }
   const assignedPieData = Object.entries(assignedCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+
+  const productCounts: Record<string, number> = {};
+  for (const r of requests) {
+    const prods = r.solution_product?.length ? r.solution_product : (r.solution_other ? [r.solution_other] : ['Lainnya']);
+    for (const p of prods) { productCounts[p] = (productCounts[p] || 0) + 1; }
+  }
+  const productPieData = Object.entries(productCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
   // CheckGroup & RadioGroup for edit modal
   const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
@@ -1023,6 +1100,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (!form.project_name.trim()) { notify('error', 'Nama Project wajib diisi!'); return; }
     if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
     if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    if (!dueDateForm) { notify('error', 'Target Selesai wajib diisi!'); return; }
     setSubmitting(true);
     try {
       const payload = {
@@ -1077,16 +1155,31 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }]);
           }
         }
-        await supabase.functions.invoke('notify-handler', {
-          body: {
-            type: 'form_require_approval',
-            projectName: form.project_name.trim(),
-            requesterName: currentUser.full_name,
-            salesName: form.sales_name.trim() || '',
-            salesDivision: form.sales_division || '',
-            submittedAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          },
-        });
+        const { data: adminUsersWA } = await supabase
+          .from('users')
+          .select('phone_number, full_name')
+          .in('role', ['admin', 'superadmin'])
+          .not('phone_number', 'is', null)
+          .neq('phone_number', '');
+        const adminPhonesWA = (adminUsersWA || []).map((u: any) => u.phone_number).filter(Boolean);
+        if (adminUsersWA && adminUsersWA.length > 0) {
+          const approvalWaMsg = [
+            '🏗️ *Form Require Project \u2014 Request Baru*',
+            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
+            `📋 *Project  :* ${form.project_name.trim()}`,
+            `🛋️ *Ruangan  :* ${form.room_name.trim() || '-'}`,
+            `👤 *Requester:* ${currentUser.full_name}`,
+            `🏢 *Sales    :* ${form.sales_name.trim() || '-'}`,
+            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
+            'Silakan buka dashboard untuk *Approve / Reject*.',
+            '🔗 https://team-ticketing.vercel.app/dashboard',
+          ].join('\n');
+          await Promise.allSettled(
+            (adminUsersWA as any[]).map((a: any) =>
+              sendWANotif({ type: 'reminder_wa', target: a.phone_number, message: approvalWaMsg })
+            )
+          );
+        }
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
       setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null);
@@ -1100,11 +1193,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     if (isSuperAdmin || isAdmin) {
       setAssignModal({ open: true, req });
     } else {
-      const { error } = await supabase.from('project_requests').update({ status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString(), pts_assigned: currentUser.full_name }).eq('id', req.id);
+      const { error } = await supabase.from('project_requests').update({ status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString(), assign_name: currentUser.full_name }).eq('id', req.id);
       if (error) { notify('error', 'Gagal approve: ' + error.message); return; }
       notify('success', 'Request diapprove!');
       fetchRequests();
-      if (selectedRequest?.id === req.id) setSelectedRequest(prev => prev ? { ...prev, status: 'approved', approved_by: currentUser.full_name, pts_assigned: currentUser.full_name } : null);
+      if (selectedRequest?.id === req.id) setSelectedRequest(prev => prev ? { ...prev, status: 'approved', approved_by: currentUser.full_name, assign_name: currentUser.full_name } : null);
       await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `✅ Request telah diapprove oleh ${currentUser.full_name}. Tim PTS akan segera memproses.` }]);
       if (selectedRequest?.id === req.id) fetchMessages(req.id);
     }
@@ -1124,6 +1217,25 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     const noteMsg = rejectNote.trim() ? ` Alasan: ${rejectNote.trim()}` : '';
     await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `❌ Request telah ditolak oleh ${currentUser.full_name}.${noteMsg}` }]);
     if (selectedRequest?.id === req.id) fetchMessages(req.id);
+    // WA ke requester saat ditolak
+    try {
+      const { data: requesterUser } = await supabase.from('users').select('phone_number').eq('id', req.requester_id).single();
+      if (requesterUser?.phone_number) {
+        await sendWANotif({
+          type: 'reminder_wa',
+          target: requesterUser.phone_number,
+          message: `❌ *FORM REQUIRE — Request Ditolak*
+
+Halo *${req.requester_name}*, request kamu ditolak:
+
+📋 *Project:* ${req.project_name}
+${noteMsg ? `📝 *Alasan:* ${rejectNote.trim()}
+` : ''}
+Hubungi Admin untuk info lebih lanjut.
+🔗 https://team-ticketing.vercel.app/dashboard`,
+        });
+      }
+    } catch { /* ignore WA error */ }
   };
 
   const handleDeleteConfirm = async () => {
@@ -1164,7 +1276,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setEditFormData({
       project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
       project_location: selectedRequest.project_location || '',
-      sales_name: selectedRequest.sales_name || '', kebutuhan: selectedRequest.kebutuhan || [],
+      sales_name: selectedRequest.sales_name || '', sales_division: selectedRequest.sales_division || '', kebutuhan: selectedRequest.kebutuhan || [],
       kebutuhan_other: selectedRequest.kebutuhan_other || '', solution_product: selectedRequest.solution_product || [],
       solution_other: selectedRequest.solution_other || '', layout_signage: selectedRequest.layout_signage || [],
       jaringan_cms: selectedRequest.jaringan_cms || [], jumlah_input: selectedRequest.jumlah_input || '',
@@ -1184,7 +1296,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   const handleEditFormSubmit = async () => {
     if (!selectedRequest) return;
-    const { error } = await supabase.from('project_requests').update({ ...editFormData }).eq('id', selectedRequest.id);
+    const { error } = await supabase.from('project_requests').update({ ...editFormData, sales_division: editFormData.sales_division || '' }).eq('id', selectedRequest.id);
     if (error) { notify('error', 'Gagal menyimpan perubahan.'); return; }
     notify('success', 'Perubahan disimpan!');
     setEditFormModal(false);
@@ -1260,37 +1372,173 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const handlePrint = () => {
     if (!selectedRequest) return;
     const sc = statusConfig[selectedRequest.status] || statusConfig.pending;
-    const printContent = `
-      <html><head><title>Form Require Project — ${selectedRequest.project_name}</title>
-      <style>body{font-family:sans-serif;padding:24px;color:#111}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border:1px solid #ccc;padding:8px;font-size:13px;text-align:left}th{background:#f0fdfa;font-weight:bold}@media print{button{display:none}}</style>
-      </head><body>
-      <h1>🏗️ Form Equipment Request — IVP</h1>
-      <p style="margin:0;color:#555">${sc.label} · ${selectedRequest.requester_name} · ${formatDate(selectedRequest.created_at)}</p>
-      <table><tr><th>Field</th><th>Value</th></tr>
-      <tr><td>Project</td><td>${selectedRequest.project_name}</td></tr>
-      <tr><td>Ruangan</td><td>${selectedRequest.room_name}</td></tr>
-      <tr><td>Sales</td><td>${selectedRequest.sales_name}</td></tr>
-      <tr><td>Divisi</td><td>${selectedRequest.sales_division || '-'}</td></tr>
-      <tr><td>Kebutuhan</td><td>${[...selectedRequest.kebutuhan, selectedRequest.kebutuhan_other].filter(Boolean).join(', ')}</td></tr>
-      <tr><td>Solution</td><td>${[...selectedRequest.solution_product, selectedRequest.solution_other].filter(Boolean).join(', ')}</td></tr>
-      <tr><td>Layout Signage</td><td>${selectedRequest.layout_signage?.join(', ') || '-'}</td></tr>
-      <tr><td>Jaringan CMS</td><td>${selectedRequest.jaringan_cms?.join(', ') || '-'}</td></tr>
-      <tr><td>Jumlah I/O</td><td>${selectedRequest.jumlah_input} in / ${selectedRequest.jumlah_output} out</td></tr>
-      <tr><td>Source</td><td>${[...selectedRequest.source, selectedRequest.source_other].filter(Boolean).join(', ')}</td></tr>
-      <tr><td>Camera</td><td>${selectedRequest.camera_conference === 'Yes' ? `Yes — ${selectedRequest.camera_jumlah} unit, ${selectedRequest.camera_tracking?.join(', ') || ''}` : 'No'}</td></tr>
-      <tr><td>Audio</td><td>${selectedRequest.audio_system === 'Yes' ? `Yes — ${selectedRequest.audio_mixer}, ${selectedRequest.audio_detail?.join(', ') || ''}` : 'No'}</td></tr>
-      <tr><td>Wallplate</td><td>${selectedRequest.wallplate_input === 'Yes' ? `Yes — ${selectedRequest.wallplate_jumlah} unit` : 'No'}</td></tr>
-      <tr><td>Tabletop</td><td>${selectedRequest.tabletop_input === 'Yes' ? `Yes — ${selectedRequest.tabletop_jumlah} unit` : 'No'}</td></tr>
-      <tr><td>Wireless</td><td>${selectedRequest.wireless_presentation === 'Yes' ? `Yes — ${selectedRequest.wireless_mode?.join(', ')}, Dongle: ${selectedRequest.wireless_dongle}` : 'No'}</td></tr>
-      <tr><td>Controller</td><td>${selectedRequest.controller_automation === 'Yes' ? `Yes — ${selectedRequest.controller_type?.join(', ')}` : 'No'}</td></tr>
-      <tr><td>Ukuran Ruangan</td><td>${selectedRequest.ukuran_ruangan || '-'}</td></tr>
-      <tr><td>Suggest Tampilan</td><td>${selectedRequest.suggest_tampilan || '-'}</td></tr>
-      <tr><td>Keterangan Lain</td><td>${selectedRequest.keterangan_lain || '-'}</td></tr>
-      ${selectedRequest.pts_assigned ? `<tr><td>PTS Handler</td><td>${selectedRequest.pts_assigned}</td></tr>` : ''}
-      ${selectedRequest.due_date ? `<tr><td>Target Selesai</td><td>${formatDueDate(selectedRequest.due_date)}</td></tr>` : ''}
-      </table></body></html>`;
+    const printDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' } as Intl.DateTimeFormatOptions);
+    const statusColorMap: Record<string, string> = {
+      pending: '#d97706', approved: '#0d9488', in_progress: '#2563eb', completed: '#7c3aed', rejected: '#dc2626',
+    };
+    const statusColor = statusColorMap[selectedRequest.status] || '#0d9488';
+    const statusLabel = sc.label;
+
+    const infoBox = (label: string, value: string, highlight = false) =>
+      value ? `<div class="info-box"><div class="info-label">${label}</div><div class="info-value"${highlight ? ' style="font-size:14px;font-weight:800;color:#065f46"' : ''}>${value}</div></div>` : '';
+
+    const printContent = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8">
+<title>Form Require Project — ${selectedRequest.project_name}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; font-size: 13px; }
+  .page { padding: 28px 32px; max-width: 940px; margin: 0 auto; }
+  .header { background: linear-gradient(135deg,#059669,#065f46); color: white; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-left h1 { font-size: 17px; font-weight: 800; margin-bottom: 3px; }
+  .header-left p { font-size: 11px; opacity: 0.85; }
+  .header-right { text-align: right; font-size: 11px; opacity: 0.85; line-height: 1.8; }
+  .status-pill { display: inline-block; padding: 3px 14px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.5); color: white; margin-top: 6px; }
+  .section { border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; overflow: hidden; page-break-inside: avoid; }
+  .section-title { background: #f1f5f9; padding: 8px 14px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em; color: #475569; border-bottom: 1px solid #e2e8f0; }
+  .section-title.green { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; }
+  .grid2 > * { border-right: 1px solid #e2e8f0; }
+  .grid2 > *:last-child { border-right: none; }
+  .info-box { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+  .info-box:last-child { border-bottom: none; }
+  .info-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 3px; }
+  .info-value { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.5; }
+  .full-col { grid-column: span 2; }
+  .footer { margin-top: 20px; padding-top: 12px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+  .assign-box { margin-top: 40px; page-break-inside: avoid; border-top: 1.5px solid #334155; padding-top: 12px; text-align: left; max-width: 240px; margin-left: 0; margin-right: auto; }
+  .assign-label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+  .assign-name { margin-top: 8px; font-size: 13px; font-weight: 800; color: #065f46; }
+  @media print {
+    .page { padding: 16px 20px; }
+    .section { page-break-inside: avoid; }
+    button { display: none !important; }
+  }
+</style>
+</head>
+<body><div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <h1>🏗️ Form Require Project — IVP</h1>
+      <p>Request ID: ${selectedRequest.id?.substring(0,8).toUpperCase()}</p>
+      <div class="status-pill">Status: ${statusLabel}</div>
+    </div>
+    <div class="header-right">
+      <div><b>Dicetak:</b> ${printDate}</div>
+      <div><b>Handler:</b> ${selectedRequest.assign_name || '—'}</div>
+      <div><b>Requester:</b> ${selectedRequest.requester_name}</div>
+      <div><b>Dibuat:</b> ${formatDate(selectedRequest.created_at)}</div>
+    </div>
+  </div>
+
+  <!-- INFORMASI REQUEST -->
+  <div class="section">
+    <div class="section-title green">🏗️ Informasi Request</div>
+    <div class="grid2">
+      <div>
+        ${infoBox('Nama Project', selectedRequest.project_name, true)}
+        ${infoBox('Nama Ruangan', selectedRequest.room_name || '—')}
+        ${infoBox('Lokasi Project', selectedRequest.project_location || '—')}
+      </div>
+      <div>
+        ${infoBox('Sales / Account', selectedRequest.sales_name || '—')}
+        ${infoBox('Divisi Sales', selectedRequest.sales_division || '—')}
+        ${infoBox('Requester', selectedRequest.requester_name || '—')}
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS & PENUGASAN -->
+  <div class="section">
+    <div class="section-title green">📋 Status & Penugasan</div>
+    <div class="grid2">
+      <div>
+        <div class="info-box"><div class="info-label">Status Request</div>
+          <div><span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor}22;color:${statusColor};border:1.5px solid ${statusColor}66">${selectedRequest.status.replace('_',' ').toUpperCase()}</span></div>
+        </div>
+        ${infoBox('PTS Handler (Assign)', selectedRequest.assign_name || '—')}
+        ${infoBox('Approved By', selectedRequest.approved_by || '—')}
+      </div>
+      <div>
+        ${infoBox('Tanggal Dibuat', formatDate(selectedRequest.created_at))}
+        ${selectedRequest.approved_at ? infoBox('Tanggal Approved', formatDate(selectedRequest.approved_at)) : ''}
+        ${selectedRequest.due_date ? infoBox('Target Selesai', formatDueDate(selectedRequest.due_date)) : ''}
+      </div>
+    </div>
+  </div>
+
+  <!-- KEBUTUHAN & SOLUTION -->
+  <div class="section">
+    <div class="section-title green">🎯 Kebutuhan & Solution</div>
+    <div class="grid2">
+      <div>
+        ${infoBox('Kebutuhan', [...(selectedRequest.kebutuhan||[]), selectedRequest.kebutuhan_other].filter(Boolean).join(', ') || '—')}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Layout Signage', selectedRequest.layout_signage?.join(', ') || '—') : ''}
+      </div>
+      <div>
+        ${infoBox('Solution / Product', [...(selectedRequest.solution_product||[]), selectedRequest.solution_other].filter(Boolean).join(', ') || '—')}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jaringan CMS', selectedRequest.jaringan_cms?.join(', ') || '—') : ''}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Input', selectedRequest.jumlah_input || '—') : ''}
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Output', selectedRequest.jumlah_output || '—') : ''}
+      </div>
+    </div>
+    ${!(selectedRequest.kebutuhan||[]).includes('Signage') ? '' : ''}
+  </div>
+
+  <!-- PERANGKAT & KONEKSI -->
+  <div class="section">
+    <div class="section-title green">🔌 Perangkat & Koneksi</div>
+    <div class="grid2">
+      <div>
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Input', selectedRequest.jumlah_input || '—') : ''}
+        ${infoBox('Source', [...(selectedRequest.source||[]), selectedRequest.source_other].filter(Boolean).join(', ') || '—')}
+        ${infoBox('Wallplate Input', selectedRequest.wallplate_input === 'Yes' ? `Ya — ${selectedRequest.wallplate_jumlah} unit` : 'Tidak')}
+        ${infoBox('Tabletop Input', selectedRequest.tabletop_input === 'Yes' ? `Ya — ${selectedRequest.tabletop_jumlah} unit` : 'Tidak')}
+      </div>
+      <div>
+        ${(selectedRequest.kebutuhan||[]).includes('Signage') ? infoBox('Jumlah Output', selectedRequest.jumlah_output || '—') : ''}
+        ${infoBox('Camera Conference', selectedRequest.camera_conference === 'Yes' ? `Ya — ${selectedRequest.camera_jumlah} unit, ${selectedRequest.camera_tracking?.join(', ')||''}` : 'Tidak')}
+        ${infoBox('Audio System', selectedRequest.audio_system === 'Yes' ? `Ya — ${selectedRequest.audio_mixer}, ${selectedRequest.audio_detail?.join(', ')||''}` : 'Tidak')}
+        ${infoBox('Wireless Presentation', selectedRequest.wireless_presentation === 'Yes' ? `Ya — ${selectedRequest.wireless_mode?.join(', ')}, Dongle: ${selectedRequest.wireless_dongle}` : 'Tidak')}
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROLLER & RUANGAN -->
+  <div class="section">
+    <div class="section-title green">📐 Controller & Ruangan</div>
+    <div class="grid2">
+      <div>
+        ${infoBox('Controller / Automation', selectedRequest.controller_automation === 'Yes' ? `Ya — ${selectedRequest.controller_type?.join(', ')||''}` : 'Tidak')}
+        ${infoBox('Ukuran Ruangan (P×L×T)', selectedRequest.ukuran_ruangan || '—')}
+      </div>
+      <div>
+        ${infoBox('Suggest Tampilan (W×H)', selectedRequest.suggest_tampilan || '—')}
+        ${selectedRequest.keterangan_lain ? infoBox('Keterangan Lain', selectedRequest.keterangan_lain) : ''}
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>🏗️ IndoVisual Professional Tools — Form Require Project</div>
+    <div>Dicetak: ${printDate} | Status: ${selectedRequest.status.replace('_',' ').toUpperCase()}</div>
+  </div>
+
+  <!-- ASSIGN NAME (HANDLER) -->
+  ${selectedRequest.assign_name ? `
+  <div class="assign-box">
+    <div class="assign-label">Handler / PTS Assign</div>
+    <div class="assign-name">${selectedRequest.assign_name}</div>
+  </div>` : ''}
+
+</div></body></html>`;
     const w = window.open('', '_blank');
-    if (w) { w.document.write(printContent); w.document.close(); w.print(); }
+    if (w) { w.document.write(printContent); w.document.close(); setTimeout(() => w.print(), 300); }
   };
 
   // ── Pure-JS ZIP helpers (no external library needed) ──────────────────────
@@ -1444,7 +1692,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     <div class="field"><label>Sales / Account</label><p>${selectedRequest.sales_name || '—'}</p></div>
     <div class="field"><label>Divisi Sales</label><p>${selectedRequest.sales_division || '—'}</p></div>
     <div class="field"><label>Requester</label><p>${selectedRequest.requester_name}</p></div>
-    ${selectedRequest.pts_assigned ? `<div class="field"><label>PTS Handler</label><p>${selectedRequest.pts_assigned}</p></div>` : ''}
+    ${selectedRequest.assign_name ? `<div class="field"><label>PTS Handler</label><p>${selectedRequest.assign_name}</p></div>` : ''}
     ${selectedRequest.due_date ? `<div class="field"><label>Target Selesai</label><p>${formatDueDate(selectedRequest.due_date)}</p></div>` : ''}
     ${selectedRequest.approved_by ? `<div class="field"><label>Approved By</label><p>${selectedRequest.approved_by}</p></div>` : ''}
   </div>
@@ -1456,6 +1704,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     ${[...(selectedRequest.kebutuhan||[]),selectedRequest.kebutuhan_other].filter(Boolean).map(i=>`<span class="chip">${i}</span>`).join('')||'<span class="chip no">—</span>'}
     ${[...(selectedRequest.solution_product||[]),selectedRequest.solution_other].filter(Boolean).map(i=>`<span class="chip">${i}</span>`).join('')||''}
   </div>
+  ${(selectedRequest.kebutuhan||[]).includes('Signage') ? `
   <div class="chips" style="padding-top:0">
     ${(selectedRequest.layout_signage||[]).map(i=>`<span class="chip" style="background:#eff6ff;color:#1e40af;border-color:#93c5fd">${i}</span>`).join('')}
     ${(selectedRequest.jaringan_cms||[]).map(i=>`<span class="chip" style="background:#f0fdfa;color:#0f766e;border-color:#5eead4">${i}</span>`).join('')}
@@ -1463,7 +1712,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   <div class="grid grid-2" style="padding-top:0">
     <div class="field"><label>Jumlah Input</label><p>${selectedRequest.jumlah_input||'—'}</p></div>
     <div class="field"><label>Jumlah Output</label><p>${selectedRequest.jumlah_output||'—'}</p></div>
-  </div>
+  </div>` : ''}
 </div>
 
 <div class="section">
@@ -1609,7 +1858,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 🔔 {unreadCount} pending
               </span>
             )}
-            {!isPTS && (
+            {(true) && (
               <button onClick={() => setShowNewFormModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
@@ -1626,304 +1875,329 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Total', value: stats.total, sub: 'Semua request', gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '📋', shadow: 'rgba(79,70,229,0.35)', onClick: () => setFilterStatus('all'), active: filterStatus === 'all' },
-            { label: 'Pending', value: stats.pending, sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)', onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'), active: filterStatus === 'pending' },
-            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', icon: '🔄', shadow: 'rgba(37,99,235,0.35)', onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
-            { label: 'Completed', value: stats.completed, sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '🏆', shadow: 'rgba(5,150,105,0.35)', onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
-            { label: 'Rejected', value: stats.rejected, sub: 'Ditolak', gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', icon: '🚫', shadow: 'rgba(220,38,38,0.35)', onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'), active: filterStatus === 'rejected' },
+            { label: 'Total', value: stats.total, sub: 'Semua request', gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', shadow: 'rgba(79,70,229,0.35)', onClick: () => setFilterStatus('all'), active: filterStatus === 'all' },
+            { label: 'Pending', value: stats.pending, sub: 'Menunggu approval', gradient: 'linear-gradient(135deg,#d97706,#b45309)', shadow: 'rgba(217,119,6,0.35)', onClick: () => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending'), active: filterStatus === 'pending' },
+            { label: 'In Progress', value: stats.in_progress, sub: 'Sedang dikerjakan', gradient: 'linear-gradient(135deg,#2563eb,#1d4ed8)', shadow: 'rgba(37,99,235,0.35)', onClick: () => setFilterStatus(filterStatus === 'in_progress' ? 'all' : 'in_progress'), active: filterStatus === 'in_progress' },
+            { label: 'Completed', value: stats.completed, sub: 'Selesai ditangani', gradient: 'linear-gradient(135deg,#059669,#047857)', shadow: 'rgba(5,150,105,0.35)', onClick: () => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed'), active: filterStatus === 'completed' },
+            { label: 'Rejected', value: stats.rejected, sub: 'Ditolak', gradient: 'linear-gradient(135deg,#dc2626,#b91c1c)', shadow: 'rgba(220,38,38,0.35)', onClick: () => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected'), active: filterStatus === 'rejected' },
           ].map(card => (
             <div key={card.label} onClick={card.onClick}
               className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
               style={{ background: card.gradient, boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`, outline: card.active ? '3px solid white' : 'none', transform: card.active ? 'scale(1.04)' : undefined }}>
-              <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
               {card.active && <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />}
-              <span className="text-3xl font-black text-white leading-none">{card.value}</span>
+              {card.active && <span className="absolute top-1 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
+              <span className="text-3xl font-black text-white leading-none mt-3">{card.value}</span>
               <div>
                 <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
                 <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
               </div>
-              {card.active && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter ✓</span>}
             </div>
           ))}
         </div>
 
-        {/* Pie Charts */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MiniPieChart data={statusPieData} title="Status Request" icon="📊"
-            onSliceClick={label => {
-              const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
-              setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
-            }} />
-          <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="👤"
-            onSliceClick={label => {
-              setFilterDivision(prev => prev === label ? 'all' : label);
-            }} />
-          <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
-            onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
+        {/* Charts - guest sees handler + product, PTS sees all 3 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {isPTS ? (
+            <>
+              <MiniPieChart data={statusPieData} title="Status Distribution" icon="🥧"
+                activeFilter={filterStatus !== 'all' ? (() => { const rev: Record<string,string> = { pending:'Pending', approved:'Approved', in_progress:'In Progress', completed:'Completed', rejected:'Rejected' }; return rev[filterStatus]; })() : undefined}
+                onSliceClick={label => {
+                  const map: Record<string, string> = { Pending: 'pending', Approved: 'approved', 'In Progress': 'in_progress', Completed: 'completed', Rejected: 'rejected' };
+                  setFilterStatus(prev => prev === (map[label] || label) ? 'all' : (map[label] || label));
+                }} />
+              <MiniPieChart data={divisionPieData} title="Divisi Sales" icon="🥧"
+                activeFilter={filterDivision !== 'all' ? filterDivision : undefined}
+                onSliceClick={label => { setFilterDivision(prev => prev === label ? 'all' : label); }} />
+              <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
+                activeFilter={filterHandler !== 'all' ? filterHandler : undefined}
+                onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
+            </>
+          ) : (
+            <>
+              <MiniPieChart data={statusPieData} title="Status Request Saya" icon="🥧" />
+              <MiniPieChart data={assignedPieData} title="Team PTS Handler" icon="👥"
+                activeFilter={filterHandler !== 'all' ? filterHandler : undefined}
+                onSliceClick={label => setFilterHandler(prev => prev === label ? 'all' : label)} />
+              <MiniPieChart data={productPieData} title="Product" icon="📦" />
+            </>
+          )}
         </div>
 
-        {/* Active filter chips */}
-        {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
-            {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>🏷️ {filterStatus} ✕</button>}
-            {filterYear !== 'all' && <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>📅 {filterYear} ✕</button>}
-            {filterMonth !== 'all' && <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>🗓️ Bln {filterMonth} ✕</button>}
-            {filterHandler !== 'all' && <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>👷 {filterHandler} ✕</button>}
-            {filterDivision !== 'all' && <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#0d9488' }}>🏢 {filterDivision} ✕</button>}
-            {searchQuery && <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>🔍 {searchQuery} ✕</button>}
-            {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
-            <button onClick={() => { setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales(''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80" style={{ background: 'rgba(0,0,0,0.1)', color: '#374151' }}>Reset Semua</button>
-          </div>
-        )}
+        
 
-        {/* TICKET LIST */}
+        {/* TICKET LIST — matching reference style */}
         <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
 
-          {/* Search + filter bar */}
-          <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            <div className="flex-1 min-w-[150px] relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search project / lokasi / ruangan..." />
+          {/* Header with title + actions — same as reference */}
+          <div className="flex flex-wrap items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+              <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{loading ? '…' : filteredRequests.length}</span>
             </div>
-            <div className="flex-1 min-w-[130px] relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-teal-400 outline-none"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }} placeholder="Search sales / requester..." />
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
-              <select value={filterHandler} onChange={e => setFilterHandler(e.target.value)}
-                className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 160 }}>
-                <option value="all">Semua Handler</option>
-                {ptsMembersList.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-            </div>
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 140 }}>
-                <option value="all">All Status</option>
-                <option value="pending">⏳ Pending</option>
-                <option value="approved">✅ Approved</option>
-                <option value="in_progress">🔄 In Progress</option>
-                <option value="completed">🏆 Completed</option>
-                <option value="rejected">❌ Rejected</option>
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-            </div>
-            <div className="relative">
-              <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
-                <option value="all">Semua Tahun</option>
-                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-            </div>
-            <div className="relative">
-              <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-                className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none appearance-none cursor-pointer"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
-                <option value="all">Semua Bulan</option>
-                <option value="01">Januari</option>
-                <option value="02">Februari</option>
-                <option value="03">Maret</option>
-                <option value="04">April</option>
-                <option value="05">Mei</option>
-                <option value="06">Juni</option>
-                <option value="07">Juli</option>
-                <option value="08">Agustus</option>
-                <option value="09">September</option>
-                <option value="10">Oktober</option>
-                <option value="11">November</option>
-                <option value="12">Desember</option>
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <button onClick={fetchRequests} disabled={loading}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: 'white' }}>
+                <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Refresh
+              </button>
             </div>
           </div>
 
-          {/* Sub-header */}
-          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
-              <span className="w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-bold flex items-center justify-center">{loading ? '…' : filteredRequests.length}</span>
+          {/* Search + filter grid — labeled like reference */}
+          <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Lokasi</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                  <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search project / lokasi..."
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales / Requester</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👤</span>
+                  <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                    placeholder="Search sales / requester..."
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">👥</span>
+                  <select value={filterHandler} onChange={e => setFilterHandler(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Handlers</option>
+                    {ptsMembersList.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🏷️</span>
+                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Status</option>
+                    <option value="pending">⏳ Pending</option>
+                    <option value="approved">✅ Approved</option>
+                    <option value="in_progress">🔄 In Progress</option>
+                    <option value="completed">🏆 Completed</option>
+                    <option value="rejected">❌ Rejected</option>
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">📅</span>
+                  <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Years</option>
+                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Bulan</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🗓️</span>
+                  <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                    className="w-full rounded-xl pl-8 pr-4 py-2 text-sm outline-none transition-all bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-300 appearance-none cursor-pointer">
+                    <option value="all">All Months</option>
+                    <option value="01">Januari</option>
+                    <option value="02">Februari</option>
+                    <option value="03">Maret</option>
+                    <option value="04">April</option>
+                    <option value="05">Mei</option>
+                    <option value="06">Juni</option>
+                    <option value="07">Juli</option>
+                    <option value="08">Agustus</option>
+                    <option value="09">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Desember</option>
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">▼</span>
+                </div>
+              </div>
             </div>
-            <button onClick={fetchRequests} disabled={loading}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
-              style={{ background: 'white' }}>
-              <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Refresh
-            </button>
           </div>
 
-          {/* Table header */}
-          <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-500"
-            style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px', borderBottom: '2px solid #e5e7eb', background: '#f1f5f9', borderTop: '1px solid #e5e7eb' }}>
-            <span className="pr-3 border-r-2 border-gray-300 py-1">NAMA PROJECT</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">LOKASI</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">SALES</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">HANDLER</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">STATUS</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">DUE DATE</span>
-            <span className="px-3 border-r-2 border-gray-300 py-1">CREATED BY</span>
-            <span className="pl-3 py-1 text-center">ACTION</span>
-          </div>
-
-          {/* Table body */}
+          {/* Active filter chips — inside table */}
+          {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
+            <div className="px-6 py-2.5 bg-teal-50/60 border-b border-teal-100 flex flex-wrap gap-2 items-center">
+              <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Filter Aktif:</span>
+              {filterStatus !== 'all' && (
+                <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {filterStatus} ✕</button>
+              )}
+              {filterYear !== 'all' && (
+                <button onClick={() => setFilterYear('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>Year: {filterYear} ✕</button>
+              )}
+              {filterMonth !== 'all' && (
+                <button onClick={() => setFilterMonth('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#0e7490' }}>Bulan: {filterMonth} ✕</button>
+              )}
+              {filterHandler !== 'all' && (
+                <button onClick={() => setFilterHandler('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>Handler: {filterHandler} ✕</button>
+              )}
+              {filterDivision !== 'all' && (
+                <button onClick={() => setFilterDivision('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#ec4899' }}>Division: {filterDivision} ✕</button>
+              )}
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Search: {searchQuery} ✕</button>
+              )}
+              {searchSales && (
+                <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>Sales: {searchSales} ✕</button>
+              )}
+              <button onClick={() => { 
+                setFilterStatus('all'); setFilterYear('all'); setFilterMonth('all'); 
+                setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales('');
+                try { ['frp_filterStatus','frp_filterYear','frp_filterMonth','frp_filterHandler','frp_filterDivision','frp_searchQuery','frp_searchSales'].forEach(k => sessionStorage.removeItem(k)); } catch {}
+              }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:bg-red-100 border border-red-200" style={{ background: 'rgba(220,38,38,0.08)', color: '#dc2626' }}>🗑️ Reset Semua</button>
+            </div>
+          )}
           {loading ? (
-            <div className="space-y-0">
+            <div className="space-y-3 py-2 p-4">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="animate-pulse hidden md:grid px-5 py-3.5 border-b border-gray-200"
-                  style={{ gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px' }}>
-                  <div className="pr-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /><div className="h-3 bg-gray-100 rounded w-1/2 mt-1" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-2/3" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-5 bg-gray-100 rounded-full w-20" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-16" /></div>
-                  <div className="px-3 border-r-2 border-gray-100"><div className="h-4 bg-gray-100 rounded w-3/4" /></div>
-                  <div className="pl-3"><div className="h-7 bg-gray-100 rounded-lg w-16" /></div>
+                <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-2/5" />
+                    <div className="h-3 bg-gray-100 rounded w-1/4" />
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-1/6" />
+                  <div className="h-4 bg-gray-200 rounded w-1/5" />
+                  <div className="h-6 bg-gray-200 rounded-full w-20" />
+                  <div className="h-8 bg-gray-200 rounded-lg w-16" />
                 </div>
               ))}
-              <div className="flex items-center justify-center gap-3 py-6 text-gray-400">
+              <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
                 <div className="w-5 h-5 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium">Memuat data...</span>
               </div>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="text-4xl mb-3">📭</div>
-              <p className="text-gray-600 font-semibold">Tidak ada request ditemukan</p>
-              <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau buat request baru</p>
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📭</div>
+              <p className="text-gray-600 font-medium">{searchQuery || searchSales || filterStatus !== 'all' ? 'Tidak ada request yang sesuai filter.' : 'Belum ada request.'}</p>
               {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
-            <div>
-              {filteredRequests.map((req) => {
-                const sc = statusConfig[req.status] || statusConfig.pending;
-                const unread = unreadMsgMap[req.id] || 0;
-                const dueStatus = getDueStatus(req.due_date, req.status);
-                const isToday = req.due_date === new Date().toISOString().split('T')[0];
-                return (
-                  <div key={req.id}>
-                    {/* Mobile row */}
-                    <div className="md:hidden px-4 py-3 transition-colors border-b border-gray-100"
-                      style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                            <p className="font-bold text-gray-800 text-sm truncate">{req.project_name}</p>
-                          </div>
-                          {req.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {req.project_location}</p>}
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
-                        <span>{req.sales_name}{req.sales_division ? ` · ${req.sales_division}` : ''}</span>
-                        <span>{dueStatus ? `🎯 ${dueStatus.label}` : new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
-                      </div>
-                      <div className="flex gap-1.5">
-                        {(isPTS && !isTeamPTS && req.status === 'pending') && (
-                          <>
-                            <button onClick={() => handleApprove(req)} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-xs font-bold">✅ Approve</button>
-                            <button onClick={() => handleReject(req)} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-1.5 rounded-lg text-xs font-bold">❌ Tolak</button>
-                          </>
-                        )}
-                        <button onClick={() => handleOpenDetail(req)} className="flex-1 bg-teal-600 text-white py-1.5 rounded-lg text-xs font-bold">Detail →</button>
-                      </div>
-                    </div>
-
-                    {/* Desktop row */}
-                    <div className="hidden md:grid px-5 py-3.5 transition-colors group hover:bg-teal-50/30"
-                      style={{
-                        gridTemplateColumns: '2fr 1.2fr 1.3fr 1.1fr 1fr 1fr 1.1fr 100px',
-                        borderBottom: '1px solid #e5e7eb',
-                        borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent',
-                      }}>
-                      <div className="pr-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse" />}
-                          <p className="font-bold text-gray-800 text-sm group-hover:text-teal-700 transition-colors truncate">{req.project_name}</p>
-                          {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">+{unread}</span>}
-                        </div>
-                        {req.room_name && <p className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">🛋️ {req.room_name}</p>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
-                        <p className="text-xs text-gray-600 truncate">{req.project_location || <span className="text-gray-300">—</span>}</p>
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        <p className="text-sm font-semibold text-gray-700 truncate">{req.sales_name || <span className="text-gray-300">—</span>}</p>
-                        {req.sales_division && <p className="text-[11px] text-indigo-500 font-bold truncate">{req.sales_division}</p>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex items-center min-w-0">
-                        {req.pts_assigned ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                              {req.pts_assigned.charAt(0).toUpperCase()}
+            <div className="overflow-x-auto">
+              <table className="w-full bg-white border-collapse">
+                <thead>
+                  <tr className="bg-white border-b-2 border-gray-100">
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Nama Project</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Lokasi / Ruangan</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Due Date</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((req) => {
+                    const sc = statusConfig[req.status] || statusConfig.pending;
+                    const unread = unreadMsgMap[req.id] || 0;
+                    const dueStatus = getDueStatus(req.due_date, req.status);
+                    const isToday = req.due_date === new Date().toISOString().split('T')[0];
+                    return (
+                      <tr key={req.id}
+                        className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors"
+                        style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="flex items-start gap-1.5">
+                            {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse mt-1" />}
+                            <div>
+                              <div className="font-bold text-gray-800 text-sm leading-tight">{req.project_name}</div>
+                              {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
+                              <div className="text-xs text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                             </div>
-                            <p className="text-xs font-bold text-gray-700 truncate">{req.pts_assigned}</p>
                           </div>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                        {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 mt-1 animate-pulse">🔔 Perlu Approval</p>}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        {req.due_date ? (
-                          <>
-                            <p className="text-xs font-semibold text-gray-700">{formatDueDate(req.due_date)}</p>
-                            {dueStatus && (
-                              <span className={`text-[10px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>
-                                🎯 {dueStatus.label}
-                              </span>
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
+                          {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5">🛋️ {req.room_name}</div>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="text-sm font-semibold text-gray-700 leading-tight">{req.sales_name || <span className="text-gray-300">—</span>}</div>
+                          {req.sales_division && <div className="text-xs text-purple-600 font-semibold mt-0.5">{req.sales_division}</div>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          {req.assign_name ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-6 h-6 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                {req.assign_name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="text-xs font-semibold text-gray-700 leading-tight">{req.assign_name}</div>
+                            </div>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                            {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 animate-pulse">🔔 Perlu Approval</p>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          {req.due_date ? (
+                            <>
+                              <div className="text-xs font-semibold text-gray-700">{formatDueDate(req.due_date)}</div>
+                              {dueStatus && (
+                                <div className={`text-[10px] font-bold mt-0.5 ${dueStatus.type === 'overdue' ? 'text-red-500' : dueStatus.type === 'urgent' ? 'text-amber-500' : 'text-teal-500'}`}>
+                                  🎯 {dueStatus.label}
+                                </div>
+                              )}
+                            </>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          <div className="text-sm font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
+                          <div className="text-[10px] text-indigo-500 mt-0.5">{req.requester_name}</div>
+                        </td>
+                        <td className="px-2 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {isPTS && !isTeamPTS && req.status === 'pending' && (
+                              <>
+                                <button onClick={() => handleApprove(req)} title="Approve"
+                                  className="w-7 h-7 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 rounded-lg flex items-center justify-center transition-all">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                </button>
+                                <button onClick={() => handleReject(req)} title="Tolak"
+                                  className="w-7 h-7 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 rounded-lg flex items-center justify-center transition-all">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </>
                             )}
-                          </>
-                        ) : (
-                          <span className="text-gray-300 text-xs">—</span>
-                        )}
-                      </div>
-                      <div className="px-3 border-r-2 border-gray-100 flex flex-col justify-center min-w-0">
-                        <p className="text-xs font-semibold text-gray-700 truncate">{req.requester_name}</p>
-                        <p className="text-[10px] text-gray-400">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                      </div>
-                      <div className="pl-3 flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-                        {isPTS && !isTeamPTS && req.status === 'pending' && (
-                          <>
-                            <button onClick={() => handleApprove(req)} title="Approve"
-                              className="w-7 h-7 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 rounded-lg flex items-center justify-center transition-all group">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                            <button onClick={() => handleOpenDetail(req)} title="Lihat Detail"
+                              className="text-red-400 hover:text-red-600 transition-colors">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
-                            <button onClick={() => handleReject(req)} title="Tolak"
-                              className="w-7 h-7 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 rounded-lg flex items-center justify-center transition-all">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                          </>
-                        )}
-                        {(isSuperAdmin || isAdmin) && (
-                          <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus Ticket"
-                            className="w-7 h-7 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center transition-all">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        )}
-                        <button onClick={() => handleOpenDetail(req)} title="Lihat Detail"
-                          className="h-7 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold border border-teal-600">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          Detail
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                            {(isSuperAdmin || isAdmin) && (
+                              <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus Ticket"
+                                className="text-red-400 hover:text-red-600 transition-colors">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white">
+                <span className="text-xs text-gray-400">{filteredRequests.length} request ditemukan</span>
+                <span className="text-xs text-gray-400">{filteredRequests.length > 0 ? `1–${filteredRequests.length}` : '0'} of {requests.length}</span>
+              </div>
             </div>
           )}
         </div>
@@ -2081,8 +2355,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} bg-white/20 border-white/40 text-white`}>{detailSc.label}</span>
-                  {selectedRequest.pts_assigned && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 {selectedRequest.pts_assigned}</span>}
+                  {selectedRequest.assign_name && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">{selectedRequest.assign_name}</span>}
+				  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} text-white`}>Status : {detailSc.label}</span>
                 </div>
                 <p className="text-teal-100 text-xs mt-0.5 truncate">
                   {selectedRequest.room_name && `${selectedRequest.room_name} · `}
@@ -2160,7 +2434,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                         { k: 'Sales / Account', v: selectedRequest.sales_name },
                         { k: 'Divisi Sales', v: selectedRequest.sales_division },
                         { k: 'Requester', v: selectedRequest.requester_name },
-                        { k: 'PTS Handler', v: selectedRequest.pts_assigned ? `🔧 ${selectedRequest.pts_assigned}` : undefined },
+                        { k: 'PTS Handler', v: selectedRequest.assign_name ? `🔧 ${selectedRequest.assign_name}` : undefined },
                         { k: 'Target Selesai', v: selectedRequest.due_date ? `📅 ${formatDueDate(selectedRequest.due_date)}${detailDueStatus ? ` (${detailDueStatus.label})` : ''}` : undefined },
                         { k: 'Status', v: detailSc?.label },
                       ].filter(item => item.v).map(item => (
@@ -2492,7 +2766,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               </div>
 
               {/* RIGHT: Chat */}
-              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 320 }}>
+              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 1000 }}>
                 <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
@@ -2581,22 +2855,31 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                     <input value={editFormData.project_name} onChange={e => setEditFormData(p => ({ ...p, project_name: e.target.value }))}
                       placeholder="Nama project..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none bg-white" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
-                      <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
-                        placeholder="Nama ruangan / area" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
-                      <input value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
-                        placeholder="Gedung / Alamat..." className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                    <input value={editFormData.room_name} onChange={e => setEditFormData(p => ({ ...p, room_name: e.target.value }))}
+                      placeholder="Nama ruangan / area" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
+                    <textarea value={editFormData.project_location} onChange={e => setEditFormData(p => ({ ...p, project_location: e.target.value }))}
+                      placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat" rows={4}
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white resize-none" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                    <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
-                      placeholder="Nama Sales / Account Manager" className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                    <div className="flex gap-2 items-center">
+                      <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
+                        placeholder="Nama Sales / Account Manager" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
+                      <select value={editFormData.sales_division || ''} onChange={e => setEditFormData(p => ({ ...p, sales_division: e.target.value }))}
+                        className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-amber-400 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
+                        style={{ color: editFormData.sales_division ? '#374151' : '#9ca3af' }}>
+                        <option value="" style={{ color: '#9ca3af' }}>Pilih divisi sales...</option>
+                        {SALES_DIVISIONS.map(div => (
+                          <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2613,7 +2896,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   <input value={editFormData.kebutuhan_other} onChange={e => setEditFormData(p => ({ ...p, kebutuhan_other: e.target.value }))}
                     placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 outline-none bg-white" />
                 </div>
-                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Videotron', 'Kiosk', 'IFP']}
+                <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP']}
                   value={editFormData.solution_product} onChange={v => setEditFormData(p => ({ ...p, solution_product: v }))} />
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
@@ -2622,13 +2905,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                 </div>
               </div>
 
+              {editFormData.kebutuhan.includes('Signage') && (
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
                   Layout Konten & Jaringan
                 </h3>
-                <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
-                  value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
+                <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
+                  value={editFormData.layout_signage?.[0] || ''} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v ? [v] : [] }))} />
                 <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
                   value={editFormData.jaringan_cms} onChange={v => setEditFormData(p => ({ ...p, jaringan_cms: v }))} />
                 <div className="grid grid-cols-2 gap-3 mt-3">
@@ -2644,6 +2928,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   </div>
                 </div>
               </div>
+              )}
 
               <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -2721,8 +3006,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
                   onChange={v => setEditFormData(p => ({ ...p, controller_automation: v }))} />
                 {editFormData.controller_automation === 'Yes' && (
                   <div className="ml-4 mb-4 border-l-2 border-amber-200 pl-4">
-                    <CheckGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
-                      value={editFormData.controller_type} onChange={v => setEditFormData(p => ({ ...p, controller_type: v }))} />
+                    <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
+                      value={editFormData.controller_type?.[0] || ''} onChange={v => setEditFormData(p => ({ ...p, controller_type: v ? [v] : [] }))} />
                   </div>
                 )}
               </div>
