@@ -1889,7 +1889,7 @@ export default function ReminderSchedulePage() {
                   {/* ── TICKET LIST header + filter chips + refresh/export ── */}
                   <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule List</span>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
                     {/* Active filter chips */}
