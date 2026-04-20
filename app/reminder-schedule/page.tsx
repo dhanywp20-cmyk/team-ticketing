@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -78,7 +79,8 @@ type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface Reminder {
   id: string;
-  title: string;
+  title?: string;       // kolom lama di DB (beberapa row pakai 'title')
+  project_name: string; // kolom baru (fallback dari title)
   description: string;
   assigned_to: string;
   assigned_name: string;
@@ -90,7 +92,7 @@ interface Reminder {
   category: string;
   sales_name: string;
   sales_division: string;
-  project_location: string;
+  address: string;
   pic_name: string;
   pic_phone: string;
   created_by: string;
@@ -98,6 +100,7 @@ interface Reminder {
   notes?: string;
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
+  product?: string;
 }
 
 interface TeamUser {
@@ -277,14 +280,15 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value?: 
 // ─── Pie Chart Component ─────────────────────────────────────────────────────
 
 function MiniPieChart({
-  data, title, icon,
+  data, title, icon, activeFilter,
   onSliceClick,
 }: {
   data: { label: string; value: number; color: string }[];
   title: string; icon: string;
+  activeFilter?: string | null;
   onSliceClick?: (label: string) => void;
 }) {
-  const [hovered, setHovered] = useState<number | null>(null);
+  const [hov, setHov] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return (
     <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
@@ -293,24 +297,19 @@ function MiniPieChart({
     </div>
   );
 
-  let cumulativeAngle = -Math.PI / 2;
-  const cx = 60, cy = 60, r = 50, innerR = 28;
+  let cumAngle = -Math.PI / 2;
+  const cx = 60, cy = 60, r = 50, ir = 28;
 
   const slices = data.map((d, i) => {
     const angle = (d.value / total) * 2 * Math.PI;
-    const x1 = cx + r * Math.cos(cumulativeAngle);
-    const y1 = cy + r * Math.sin(cumulativeAngle);
-    const x2 = cx + r * Math.cos(cumulativeAngle + angle);
-    const y2 = cy + r * Math.sin(cumulativeAngle + angle);
-    const xi1 = cx + innerR * Math.cos(cumulativeAngle);
-    const yi1 = cy + innerR * Math.sin(cumulativeAngle);
-    const xi2 = cx + innerR * Math.cos(cumulativeAngle + angle);
-    const yi2 = cy + innerR * Math.sin(cumulativeAngle + angle);
+    const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
+    const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
+    const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
+    const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
     const large = angle > Math.PI ? 1 : 0;
-    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
-    const midAngle = cumulativeAngle + angle / 2;
-    cumulativeAngle += angle;
-    return { ...d, path, midAngle, i };
+    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
+    cumAngle += angle;
+    return { ...d, path, i };
   });
 
   return (
@@ -320,28 +319,35 @@ function MiniPieChart({
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
             <path key={s.i} d={s.path} fill={s.color}
-              opacity={hovered === null || hovered === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
-              onMouseEnter={() => setHovered(s.i)}
-              onMouseLeave={() => setHovered(null)}
+              opacity={hov === null || hov === s.i ? 1 : 0.45}
+              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }}
+              onMouseEnter={() => setHov(s.i)}
+              onMouseLeave={() => setHov(null)}
               onClick={() => onSliceClick && onSliceClick(s.label)} />
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          {slices.map((s) => (
-            <div key={s.i}
-              className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-              style={{ background: hovered === s.i ? `${s.color}15` : 'transparent' }}
-              onMouseEnter={() => setHovered(s.i)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={() => onSliceClick && onSliceClick(s.label)}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
-              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
-            </div>
-          ))}
+        <div className="flex flex-col gap-1 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
+          {slices.map((s) => {
+            const isActive = activeFilter === s.label;
+            return (
+              <div key={s.i}
+                className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+                style={{
+                  background: hov === s.i || isActive ? `${s.color}20` : 'transparent',
+                  outline: isActive ? `1.5px solid ${s.color}` : 'none',
+                }}
+                onMouseEnter={() => setHov(s.i)}
+                onMouseLeave={() => setHov(null)}
+                onClick={() => onSliceClick && onSliceClick(s.label)}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
+                {isActive && <span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -432,7 +438,7 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
                 style={{ background: 'white', borderColor: 'rgba(0,0,0,0.08)' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-800 truncate">{r.title}</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">⏰ {r.due_time} · 👤 {r.assigned_name}</p>
                   </div>
                   <CategoryBadge category={r.category} />
@@ -491,7 +497,7 @@ function RescheduleModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">📅 Re-Schedule Jadwal</h3>
-              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.title}</p>
+              <p className="text-amber-200/80 text-xs mt-0.5 truncate max-w-[260px]">{reminder.project_name || (reminder as any).title || '—'}</p>
             </div>
             <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">✕</button>
           </div>
@@ -548,7 +554,8 @@ function RescheduleModal({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ReminderSchedulePage() {
-  const [appReady, setAppReady]             = useState(false);
+  const router = useRouter();
+  const [appReady, setAppReady]             = useState(true);
   const [dashLoading, setDashLoading]       = useState(false);
   const [isLoggedIn, setIsLoggedIn]         = useState(false);
   const [loginForm, setLoginForm]           = useState({ username: '', password: '' });
@@ -576,6 +583,8 @@ export default function ReminderSchedulePage() {
   const [searchDivisionSales, setSearchDivisionSales]       = useState('');
   const [searchTeamHandler, setSearchTeamHandler] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchProduct, setSearchProduct] = useState('');
+  const [productFilter, setProductFilter] = useState<string | null>(null);
 
   const [calendarMonth, setCalendarMonth]   = useState(new Date());
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -584,6 +593,11 @@ export default function ReminderSchedulePage() {
   const [calOnlyDay, setCalOnlyDay]         = useState<string | null>(null);
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
+
+  // ─── Delete Modal State ───────────────────────────────────────────────────
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget]       = useState<Reminder | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // ─── Update Status with photo ──────────────────────────────────────────────
   const [pendingStatus, setPendingStatus]   = useState<Status | null>(null);
@@ -598,12 +612,12 @@ export default function ReminderSchedulePage() {
   };
 
   const emptyForm: Omit<Reminder, 'id' | 'created_at' | 'assigned_name' | 'created_by' | 'wa_sent_h1'> = {
-    title: '', description: '', assigned_to: '',
+    project_name: '', description: '', assigned_to: '',
     due_date: new Date().toISOString().split('T')[0],
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
-    sales_name: '', sales_division: '', project_location: '', pic_name: '', pic_phone: '',
-    notes: '',
+    sales_name: '', sales_division: '', address: '', pic_name: '', pic_phone: '',
+    notes: '', product: '',
   };
   const [formData, setFormData] = useState(emptyForm);
   const fd = (patch: Partial<typeof emptyForm>) => setFormData(prev => ({ ...prev, ...patch }));
@@ -611,30 +625,68 @@ export default function ReminderSchedulePage() {
   // ─── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const initApp = async () => {
-      await fetchTeamUsers();
-      await fetchRemindersQuiet();
-      const saved = localStorage.getItem('currentUser');
-      const savedTime = localStorage.getItem('loginTime');
-      if (saved && savedTime) {
-        const user = JSON.parse(saved);
-        const time = parseInt(savedTime);
-        if (Date.now() - time > 6 * 60 * 60 * 1000) {
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('loginTime');
-        } else {
-          setCurrentUser(user);
-          setIsLoggedIn(true);
-          setLoginTime(time);
-        }
+    // Sama persis dengan ticketing: baca localStorage → set user → fetch data
+    const saved = localStorage.getItem('currentUser');
+    const user = saved ? (JSON.parse(saved) as TeamUser) : null;
+
+    if (user) {
+      setCurrentUser(user);
+      setIsLoggedIn(true);
+      setLoginTime(Date.now());
+    }
+
+    // Fetch parallel — tidak tunggu satu selesai dulu
+    Promise.all([
+      fetchTeamUsers(),
+      fetchRemindersQuiet(user),
+    ]).then(() => {
+      // Popup notif setelah data loaded
+      if (user && (user.role === 'team' || user.role === 'admin')) {
+        supabase
+          .from('reminders')
+          .select('*')
+          .eq('assigned_to', user.username)
+          .neq('status', 'done')
+          .neq('status', 'cancelled')
+          .order('due_date', { ascending: true })
+          .then(({ data: activeData }: { data: any[] | null }) => {
+            const active = (activeData ?? []) as Reminder[];
+            if (active.length > 0) {
+              setMyReminders(active);
+              setTimeout(() => setShowNotificationPopup(true), 800);
+            }
+          });
       }
-      setTimeout(() => setAppReady(true), 1800);
-    };
-    initApp();
+    });
+
+    // Realtime — subscribe setelah user di-set
     const ch = supabase.channel('reminders-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => fetchRemindersQuiet())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
+        const s = localStorage.getItem('currentUser');
+        const u = s ? (JSON.parse(s) as TeamUser) : user;
+        fetchRemindersQuiet(u);
+      })
       .subscribe();
+
     return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  // ─── Session timeout check ───────────────────────────────────────────────
+  useEffect(() => {
+    const checkSession = () => {
+      const savedTime = localStorage.getItem('loginTime');
+      if (!savedTime) return;
+      const sixHours = 6 * 60 * 60 * 1000;
+      if (Date.now() - parseInt(savedTime) > sixHours) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('loginTime');
+        const target = window.top !== window ? window.top : window;
+        if (target) target.location.href = '/dashboard';
+      }
+    };
+    checkSession(); // cek langsung saat mount
+    const interval = setInterval(checkSession, 60000); // cek tiap menit
+    return () => clearInterval(interval);
   }, []);
 
   // ─── H-1 WA auto-send ────────────────────────────────────────────────────
@@ -648,24 +700,43 @@ export default function ReminderSchedulePage() {
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
-    const activeUser = user ?? currentUser;
+    // Tentukan user: dari param → state → localStorage
+    let activeUser: TeamUser | null = user ?? currentUser;
+    if (!activeUser) {
+      const saved = localStorage.getItem('currentUser');
+      if (saved) { try { activeUser = JSON.parse(saved) as TeamUser; } catch { /* ignore */ } }
+    }
     let query = supabase.from('reminders').select('*')
-      .order('created_at', { ascending: false }); // ← Terbaru di atas
-    // role 'team' hanya lihat reminder yang diassign ke dia (sama seperti ticketing)
+      .order('created_at', { ascending: false });
     if (activeUser?.role === 'team') {
       query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
-    if (!error && data) setReminders(data as Reminder[]);
+    // Hanya update state kalau data valid dan tidak kosong
+    // (mencegah data kosong menimpa data yang sudah ada)
+    if (!error && data && data.length > 0) {
+      setReminders(data as Reminder[]);
+    } else if (!error && data && data.length === 0 && !activeUser) {
+      // Kalau benar-benar kosong DAN user tidak diketahui, jangan update
+      console.warn('[fetchRemindersQuiet] skip: no user context, data empty');
+    } else if (!error && data) {
+      setReminders(data as Reminder[]);
+    }
   };
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchReminders = async () => {
     setListLoading(true);
+    // Fallback ke localStorage kalau currentUser state belum ready
+    let activeUser: TeamUser | null = currentUser;
+    if (!activeUser) {
+      const saved = localStorage.getItem('currentUser');
+      if (saved) { try { activeUser = JSON.parse(saved) as TeamUser; } catch { /* ignore */ } }
+    }
     let query = supabase.from('reminders').select('*')
-      .order('created_at', { ascending: false }); // ← Terbaru di atas
-    if (currentUser?.role === 'team') {
-      query = query.eq('assigned_to', currentUser.username);
+      .order('created_at', { ascending: false });
+    if (activeUser?.role === 'team') {
+      query = query.eq('assigned_to', activeUser.username);
     }
     const { data, error } = await query;
     if (!error && data) setReminders(data as Reminder[]);
@@ -675,12 +746,12 @@ export default function ReminderSchedulePage() {
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (!formData.title.trim())            { notify('error', 'Judul reminder wajib diisi!');  return; }
+    if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
     if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
     if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
     if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
-    if (!formData.project_location.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
+    if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
     const assignee = teamUsers.find(u => u.username === formData.assigned_to);
     const payload = { ...formData, assigned_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
@@ -705,10 +776,10 @@ export default function ReminderSchedulePage() {
       const msg =
         `🗓️ *JADWAL BARU — PTS IVP*\n\n` +
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
-        `*Nama Project: ${formData.title}*\n` +
+        `*Nama Project: ${formData.project_name}*\n` +
         `*Deskripsi: ${formData.description}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
-        `📍 Lokasi: ${formData.project_location || '-'}\n` +
+        `📍 Lokasi: ${formData.address || '-'}\n` +
         `👤 Sales: ${formData.sales_name}${formData.sales_division ? ' - ' + formData.sales_division : ''}\n` +
         `🕐 Jadwal: *${formatDate(formData.due_date)}${formData.due_time ? ' · ' + formData.due_time : ''}*\n` +
         (formData.pic_name  ? `🙋 PIC: ${formData.pic_name}${formData.pic_phone ? ' - ' + formData.pic_phone : ''}\n\n`    : '') +
@@ -733,13 +804,22 @@ export default function ReminderSchedulePage() {
     fetchRemindersQuiet();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus reminder ini?')) return;
-    const { error } = await supabase.from('reminders').delete().eq('id', id);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from('reminders').delete().eq('id', deleteTarget.id);
     if (error) { notify('error', 'Gagal menghapus.'); return; }
     notify('success', 'Reminder dihapus.');
     setDetailReminder(null);
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
     fetchRemindersQuiet();
+  };
+
+  const openDeleteModal = (r: Reminder) => {
+    setDeleteTarget(r);
+    setDeleteConfirmText('');
+    setShowDeleteModal(true);
   };
 
   const handleStatusChange = async (id: string, status: Status, photoUrl?: string) => {
@@ -783,10 +863,10 @@ export default function ReminderSchedulePage() {
 
   const openEdit = (r: Reminder) => {
     setEditingReminder(r);
-    setFormData({ title: r.title, description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
+    setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assigned_to: r.assigned_to, due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
-      sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', project_location: r.project_location ?? '',
-      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '' });
+      sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
+      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
     setDetailReminder(null);
     setShowFormModal(true);
   };
@@ -835,10 +915,10 @@ export default function ReminderSchedulePage() {
     const msg =
       `📋 *REMINDER JADWAL PTS IVP*\n\n` +
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
-      `*Nama Project: ${formData.title}*\n` +
+      `*Nama Project: ${formData.project_name}*\n` +
       `*Deskripsi: ${formData.description}*\n` +
       `🏷️ Kategori: ${r.category}\n` +
-      `📍 Lokasi: ${r.project_location || '-'}\n` +
+      `📍 Lokasi: ${r.address || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
       `    Divisi Sales: ${r.sales_division || '-'}\n` +
       `🕐 Jadwal: *${formatDate(r.due_date)} · ${r.due_time}*\n` +
@@ -858,9 +938,9 @@ export default function ReminderSchedulePage() {
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
-      const headers = ['No','Judul','Kategori','Sales','Divisi Sales','Lokasi Project','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
+      const headers = ['No','Project Name','Product','Kategori','Sales','Divisi Sales','Address','Assign To','Status','Prioritas','Tanggal','Waktu','PIC','No. PIC','Created By','Created At','Catatan','Link Foto Bukti'];
       const rows = filteredReminders.map((r, i) => [
-        i + 1, r.title, r.category, r.sales_name, r.sales_division, r.project_location, r.assigned_name,
+        i + 1, r.project_name || (r as any).title || '', r.product ?? '', r.category, r.sales_name, r.sales_division, r.address, r.assigned_name,
         STATUS_CONFIG[r.status].label, PRIORITY_CONFIG[r.priority].label,
         r.due_date, r.due_time, r.pic_name, r.pic_phone, r.created_by,
         r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '', r.notes ?? '', r.completion_photo_url ?? '',
@@ -889,12 +969,15 @@ export default function ReminderSchedulePage() {
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
     if (filterYear !== 'all' && !r.due_date.startsWith(filterYear)) return false;
     if (filterCategory !== 'all' && r.category !== filterCategory) return false;
-    if (searchProject && !r.title.toLowerCase().includes(searchProject.toLowerCase()) &&
-        !r.project_location?.toLowerCase().includes(searchProject.toLowerCase())) return false;
+    const rName = ((r.project_name || '').trim() || ((r as any).title || '').trim()).toLowerCase();
+    if (searchProject && !rName.includes(searchProject.toLowerCase()) &&
+        !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchSales && !r.sales_name?.toLowerCase().includes(searchSales.toLowerCase())) return false;
     if (searchDivisionSales && !r.sales_division?.toLowerCase().includes(searchDivisionSales.toLowerCase())) return false;
     if (searchTeamHandler && !r.assigned_name?.toLowerCase().includes(searchTeamHandler.toLowerCase()) &&
         !r.assigned_to?.toLowerCase().includes(searchTeamHandler.toLowerCase())) return false;
+    if (productFilter && r.product !== productFilter) return false;
+    if (searchProduct && !r.product?.toLowerCase().includes(searchProduct.toLowerCase())) return false;
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
     return true;
   });
@@ -926,6 +1009,12 @@ export default function ReminderSchedulePage() {
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
+  const productPieData = (() => {
+    const map: Record<string, number> = {};
+    sourceReminders.forEach(r => { if (r.product) { map[r.product] = (map[r.product] || 0) + 1; } });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
+
   const isAdmin = currentUser?.role === 'admin';
   const canAddReminder = currentUser?.role === 'admin' || currentUser?.role === 'team';
 
@@ -941,6 +1030,9 @@ export default function ReminderSchedulePage() {
   const handleLogout = () => {
     localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
     setCurrentUser(null); setIsLoggedIn(false); setLoginTime(null);
+    // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
+    const target = window.top !== window ? window.top : window;
+    if (target) target.location.href = '/dashboard';
   };
 
   const handleLogin = async () => {
@@ -965,8 +1057,7 @@ export default function ReminderSchedulePage() {
   };
 
   // ─── Not ready ─────────────────────────────────────────────────────────────
-  if (!appReady) return <LoadingScreen />;
-  if (dashLoading) return <LoadingScreen />;
+  // Render langsung tanpa loading gate (sama seperti ticketing)
 
   // ─── Login page ────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
@@ -1040,6 +1131,53 @@ export default function ReminderSchedulePage() {
           />
         )}
 
+        {/* ── DELETE MODAL ── */}
+        {showDeleteModal && deleteTarget && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6"
+              style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(220,38,38,0.5)' }}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl">🗑️</span>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Hapus Reminder</h3>
+                  <p className="text-xs font-medium text-gray-500">{deleteTarget.project_name}</p>
+                  <p className="text-xs text-gray-400">{deleteTarget.category}</p>
+                </div>
+              </div>
+              <div className="rounded-xl p-3 mb-4 text-xs"
+                style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#b91c1c' }}>
+                ⚠️ <strong>Tindakan ini tidak dapat dibatalkan.</strong> Reminder ini akan dihapus permanen dari database.
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-bold mb-1 text-gray-700">
+                  Ketik <span className="font-mono bg-red-100 text-red-700 px-1.5 py-0.5 rounded">HAPUS</span> untuk konfirmasi
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Ketik HAPUS di sini..."
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                  style={{ border: '2px solid rgba(220,38,38,0.3)', background: 'white' }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteConfirmText !== 'HAPUS'}
+                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-900">
+                  🗑️ Hapus Permanen
+                </button>
+                <button
+                  onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); setDeleteConfirmText(''); }}
+                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
+                  ✕ Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── FORM MODAL (Tambah / Edit Reminder) ── */}
         {showFormModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
@@ -1064,8 +1202,16 @@ export default function ReminderSchedulePage() {
                 <SectionHeader icon="📋" title="Informasi Jadwal" />
 
                 <FormField label="Nama Project*">
-                  <input value={formData.title} onChange={e => fd({ title: e.target.value })}
+                  <input value={formData.project_name} onChange={e => fd({ project_name: e.target.value })}
                     className={inputCls} style={inputStyle} placeholder="Contoh: PT. Maju Bersama" />
+                </FormField>
+
+                <FormField label="Lokasi Project *">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
+                    <input value={formData.address} onChange={e => fd({ address: e.target.value })}
+                      className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
+                  </div>
                 </FormField>
 
                 <FormField label="Deskripsi">
@@ -1139,6 +1285,14 @@ export default function ReminderSchedulePage() {
 
                 <SectionHeader icon="🏢" title="Informasi Project" />
 
+                <FormField label="Product / Unit (Opsional)">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
+                    <input value={formData.product ?? ''} onChange={e => fd({ product: e.target.value })}
+                      className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Sony VPL-FHZ85, Crestron DMPS3..." />
+                  </div>
+                </FormField>
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Nama Sales *">
                     <div className="relative">
@@ -1166,15 +1320,6 @@ export default function ReminderSchedulePage() {
 
                 <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
 
-                <div className="grid grid-cols-1 gap-4">
-                  <FormField label="Lokasi Project *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">📍</span>
-                      <input value={formData.project_location} onChange={e => fd({ project_location: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Contoh: Gedung Wisma 46 Lt. 12" />
-                    </div>
-                  </FormField>
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Nama PIC">
                     <div className="relative">
@@ -1255,8 +1400,8 @@ export default function ReminderSchedulePage() {
                           <CategoryBadge category={r.category} />
                           <PriorityBadge priority={r.priority} />
                         </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
-                        {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                        <p className="font-bold text-sm text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
+                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <StatusBadge status={r.status} />
@@ -1308,8 +1453,8 @@ export default function ReminderSchedulePage() {
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <CategoryBadge category={r.category} />
                         </div>
-                        <p className="font-bold text-sm text-gray-800 truncate">{r.title}</p>
-                        {r.project_location && <p className="text-xs text-gray-500 mt-0.5">📍 {r.project_location}</p>}
+                        <p className="font-bold text-sm text-gray-800 truncate">{(r.project_name || '').trim() || ((r as any).title || '').trim() || '—'}</p>
+                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <StatusBadge status={r.status} />
@@ -1353,11 +1498,26 @@ export default function ReminderSchedulePage() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/80 text-white">✅ WA H-1 Terkirim</span>
                   )}
                 </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{detailReminder.title}</h2>
-                {detailReminder.description && <p className="text-white/80 text-sm mt-2">{detailReminder.description}</p>}
+                <h2 className="text-2xl font-bold text-white leading-tight">{(detailReminder.project_name || '').trim() || ((detailReminder as any).title || '').trim() || '—'}</h2>
+                {/* Lokasi Project langsung di bawah nama project */}
+                {detailReminder.address && (
+                  <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">
+                    <span>📍</span>{detailReminder.address}
+                  </p>
+                )}
+                {detailReminder.description && <p className="text-white/70 text-xs mt-1.5">{detailReminder.description}</p>}
+                {/* Troubleshooting link ke Ticketing — navigasi internal */}
+                {detailReminder.category === 'Troubleshooting' && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setDetailReminder(null); router.push('/ticketing'); }}
+                    className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-[1.03]"
+                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                    🎫 Buka Platform Ticketing
+                  </button>
+                )}
               </div>
 
-              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 140px)' }}>
+              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
                 <div>
                   <SectionHeaderSmall icon="📋" title="Detail Jadwal" />
                   <div className="mt-3 grid grid-cols-2 gap-4">
@@ -1375,7 +1535,7 @@ export default function ReminderSchedulePage() {
                       </div>
                     </div>
                     <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)' }}>
-                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>Tenggat Waktu</p>
+                      <p className="text-[10px] font-bold tracking-widest uppercase mb-2" style={{ color: '#64748b' }}>📅 Jadwal</p>
                       <p className="text-sm font-bold text-slate-800">{formatDate(detailReminder.due_date)}</p>
                       <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>⏰ {detailReminder.due_time}</p>
                     </div>
@@ -1385,8 +1545,8 @@ export default function ReminderSchedulePage() {
                 <div>
                   <SectionHeaderSmall icon="🏢" title="Informasi Project" />
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
+                    {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
-                    <InfoRow icon="📍" label="Lokasi Project" value={detailReminder.project_location} />
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
                     {detailReminder.pic_phone && (
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
@@ -1398,7 +1558,7 @@ export default function ReminderSchedulePage() {
                         </div>
                       </div>
                     )}
-                    <InfoRow icon="👤" label="Created By" value={detailReminder.created_by} />
+                    {detailReminder.description && <InfoRow icon="📝" label="Deskripsi" value={detailReminder.description} />}
                   </div>
                 </div>
 
@@ -1436,12 +1596,6 @@ export default function ReminderSchedulePage() {
                         </button>
                       );
                     })}
-                    {/* Re-Schedule — hanya tampil jika status bukan done */}
-                    <button onClick={() => { setRescheduleTarget(detailReminder); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 2px 8px rgba(217,119,6,0.3)' }}>
-                      📅 Re-Schedule
-                    </button>
                   </div>
                   )}
 
@@ -1539,28 +1693,37 @@ export default function ReminderSchedulePage() {
                   </div>
                 )}
 
-                {/* Action buttons - admin only */}
-                {isAdmin && (
+                {/* Action buttons di detail popup */}
+                {(isAdmin || currentUser?.role === 'team') && (
                   <div className="flex gap-3 pt-2 flex-wrap">
-                    {/* Send WA - admin only */}
-                    <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
-                      style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
-                      {sendingWA === detailReminder.id
-                        ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        : '💬'}
-                      Kirim WA
-                    </button>
-                    <button onClick={() => openEdit(detailReminder)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
-                      ✏️ Edit
-                    </button>
-                    <button onClick={() => handleDelete(detailReminder.id)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-                      style={{ border: '1px solid rgba(220,38,38,0.35)', color: '#dc2626', background: 'rgba(220,38,38,0.08)' }}>
-                      🗑️ Hapus
-                    </button>
+                    {/* Re-Schedule — admin + team PTS bisa */}
+                    {detailReminder.status !== 'done' && (
+                      <button onClick={() => { setRescheduleTarget(detailReminder); }}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
+                        📅 Re-Schedule
+                      </button>
+                    )}
+                    {/* Send WA — admin only */}
+                    {isAdmin && (
+                      <button onClick={() => handleSendWA(detailReminder)} disabled={sendingWA === detailReminder.id}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}>
+                        {sendingWA === detailReminder.id
+                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : '💬'}
+                        Kirim WA
+                      </button>
+                    )}
+                    {/* Edit — admin only */}
+                    {isAdmin && (
+                      <button onClick={() => openEdit(detailReminder)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
+                        ✏️ Edit
+                      </button>
+                    )}
+                    {/* TIDAK ADA tombol Hapus di detail popup — hapus hanya dari ACT di tabel */}
                   </div>
                 )}
               </div>
@@ -1593,18 +1756,6 @@ export default function ReminderSchedulePage() {
                   </span>
                 )}
               </button>
-
-              {view === 'list' && (
-                <button onClick={handleExportExcel} disabled={exportLoading}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border"
-                  style={{ background: exportLoading ? '#f0fdf4' : '#16a34a', color: exportLoading ? '#16a34a' : 'white', borderColor: '#16a34a', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}>
-                  {exportLoading
-                    ? <div className="w-3.5 h-3.5 border-2 border-green-300 border-t-green-600 rounded-full animate-spin" />
-                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  }
-                  <span className="hidden sm:inline">{exportLoading ? 'Exporting...' : 'Export Excel'}</span>
-                </button>
-              )}
 
               {canAddReminder && view === 'list' && (
                 <button onClick={() => { setEditingReminder(null); setFormData(emptyForm); setShowFormModal(true); }}
@@ -1676,298 +1827,300 @@ export default function ReminderSchedulePage() {
               </div>
 
               {/* ── Pie Charts — klick untuk filter ── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <MiniPieChart
                   data={projectPieData} title="Kegiatan / Kategori" icon="🖥️"
+                  activeFilter={filterCategory !== 'all' ? filterCategory : null}
                   onSliceClick={label => setFilterCategory(filterCategory === label ? 'all' : label)}
                 />
                 <MiniPieChart
                   data={salesPieData} title="Divisi Sales" icon="👤"
+                  activeFilter={searchDivisionSales || null}
                   onSliceClick={label => setSearchDivisionSales(searchDivisionSales === label ? '' : label)}
                 />
                 <MiniPieChart
                   data={teamPtsPieData} title="Team PTS" icon="👥"
+                  activeFilter={searchTeamHandler || null}
                   onSliceClick={label => setSearchTeamHandler(searchTeamHandler === label ? '' : label)}
+                />
+                <MiniPieChart
+                  data={productPieData} title="Product / Unit" icon="📦"
+                  activeFilter={productFilter}
+                  onSliceClick={label => setProductFilter(productFilter === label ? null : label)}
                 />
               </div>
 
               {/* Active filter chips */}
-              {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay) && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-bold text-white-500 uppercase tracking-widest">Filter:</span>
-                  {filterCategory !== 'all' && (
-                    <button onClick={() => setFilterCategory('all')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#7c3aed' }}>
-                      🏷️ {filterCategory} ✕
-                    </button>
-                  )}
-                  {filterStatus !== 'all' && (
-                    <button onClick={() => setFilterStatus('all')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#d97706' }}>
-                      Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕
-                    </button>
-                  )}
-                  {searchSales && (
-                    <button onClick={() => setSearchSales('')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#454747ff' }}>
-                      👤 {searchSales} ✕
-                    </button>
-                  )}
-                  {searchTeamHandler && (
-                    <button onClick={() => setSearchTeamHandler('')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#7c3aed' }}>
-                      👷 {searchTeamHandler} ✕
-                    </button>
-                  )}
-                  {searchProject && (
-                    <button onClick={() => setSearchProject('')}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#575454ff' }}>
-                      🔍 {searchProject} ✕
-                    </button>
-                  )}
-                  {selectedCalDay && (
-                    <button onClick={() => setSelectedCalDay(null)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:opacity-80"
-                      style={{ background: '#0891b2' }}>
-                      📅 {formatDate(selectedCalDay)} ✕
-                    </button>
-                  )}
-                  <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:opacity-80"
-                    style={{ background: 'rgba(0,0,0,0.1)', color: '#f9fbfdff' }}>
-                    Reset Semua
-                  </button>
-                </div>
-              )}
-
               {/* Main area: list + calendar */}
               <div className="flex gap-4 items-start">
 
                 {/* ── TICKET LIST ── */}
-                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
 
-                  {/* Search + filter bar */}
-                  <div className="px-5 pt-4 pb-3 flex flex-wrap gap-3 items-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                    {/* Search project */}
-                    <div className="flex-1 min-w-[150px] relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search project / lokasi..." />
+                  {/* ── TICKET LIST header + filter chips + refresh/export ── */}
+                  <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+                      <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
-                    {/* Search sales */}
-                    <div className="flex-1 min-w-[130px] relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
-                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-red-400 outline-none"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search sales..." />
-                    </div>
-                    {/* Search Team Handler — NEW */}
-                    <div className="flex-1 min-w-[140px] relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👷</span>
-                      <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
-                        className="w-full rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 transition-all focus:ring-2 focus:ring-purple-400 outline-none"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                        placeholder="Search team handler..." />
-                    </div>
-                    {/* Filter status */}
-                    <div className="relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                      </svg>
-                      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
-                        className="rounded-xl pl-9 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 130 }}>
-                        <option value="all">All Status</option>
-                        {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
-                      </select>
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                    </div>
-                    {/* Filter tahun */}
-                    <div className="relative">
-                      <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                        className="rounded-xl px-3 pr-8 py-2.5 text-sm text-gray-700 focus:ring-2 focus:ring-red-400 outline-none appearance-none cursor-pointer"
-                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minWidth: 110 }}>
-                        <option value="all">Semua Tahun</option>
-                        {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                      </select>
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                    </div>
-                  </div>
-
-                  {/* Ticket list header */}
-                  <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    {/* Active filter chips */}
+                    {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
+                      <div className="flex flex-wrap gap-1.5 items-center my-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
+                        {filterCategory !== 'all' && <button onClick={() => setFilterCategory('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>🏷️ {filterCategory} ✕</button>}
+                        {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#d97706' }}>Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕</button>}
+                        {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
+                        {searchDivisionSales && <button onClick={() => setSearchDivisionSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#ec4899' }}>Division: {searchDivisionSales} ✕</button>}
+                        {searchTeamHandler && <button onClick={() => setSearchTeamHandler('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>👷 {searchTeamHandler} ✕</button>}
+                        {searchProject && <button onClick={() => setSearchProject('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>🔍 {searchProject} ✕</button>}
+                        {productFilter && <button onClick={() => { setProductFilter(null); setSearchProduct(''); }} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#6366f1' }}>📦 {productFilter} ✕</button>}
+                        {selectedCalDay && <button onClick={() => setSelectedCalDay(null)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#0891b2' }}>📅 {formatDate(selectedCalDay)} ✕</button>}
+                        <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-gray-600 border border-gray-300 hover:bg-gray-50">Reset Semua</button>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">TICKET LIST</span>
-                      <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">
-                        {filteredReminders.length}
-                      </span>
+                      <button onClick={fetchReminders} disabled={listLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60 bg-white">
+                        <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        Refresh
+                      </button>
+                      <button onClick={handleExportExcel} disabled={exportLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105"
+                        style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 2px 8px rgba(220,38,38,0.3)' }}>
+                        {exportLoading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '📊'}
+                        Export
+                      </button>
                     </div>
-                    <button onClick={fetchReminders} disabled={listLoading}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60"
-                      style={{ background: 'white' }}>
-                      <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Refresh
-                    </button>
                   </div>
 
-                  {/* Table header — with Team Handler column */}
-                  <div className="hidden md:grid px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-gray-400"
-                    style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fafafa' }}>
-                    <span>NAMA PROJECT</span>
-                    <span>KEGIATAN</span>
-                    <span>SALES</span>
-                    <span>TEAM HANDLER</span>
-                    <span>PIC lOKASI</span>
-                    <span>STATUS</span>
-                    <span>TANGGAL</span>
-                    <span className="text-right">ACT</span>
+                  {/* ── Search / Filter bar — tepat di bawah TICKET LIST ── */}
+                  <div className="px-5 py-3 bg-white/60 border-b border-gray-100">
+                    <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🔍</span>
+                          <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
+                            placeholder="Search project / lokasi..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales Name</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👤</span>
+                          <input value={searchSales} onChange={e => setSearchSales(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
+                            placeholder="Search sales..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">📦 Product</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📦</span>
+                          <input value={searchProduct} onChange={e => { setSearchProduct(e.target.value); setProductFilter(null); }}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all"
+                            placeholder="Cari product..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👷</span>
+                          <input value={searchTeamHandler} onChange={e => setSearchTeamHandler(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-purple-300 transition-all"
+                            placeholder="Search handler..." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🏷️</span>
+                          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer transition-all">
+                            <option value="all">All Status</option>
+                            {(Object.keys(STATUS_CONFIG) as Status[]).map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+                          </select>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📅</span>
+                          <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
+                            className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 appearance-none cursor-pointer transition-all">
+                            <option value="all">All Years</option>
+                            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Table body */}
+                  {/* ── TABLE ── */}
                   {listLoading ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-4">
-                      <div className="w-10 h-10 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin" />
-                      <p className="text-sm text-gray-500 font-medium">Memuat list...</p>
+                    <div className="space-y-2 p-4">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-3 border border-gray-200">
+                          <div className="flex-1 space-y-2"><div className="h-3 bg-gray-200 rounded w-2/5"></div><div className="h-2 bg-gray-100 rounded w-1/4"></div></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/6"></div><div className="h-3 bg-gray-200 rounded w-1/5"></div>
+                          <div className="h-5 bg-gray-200 rounded-full w-16"></div><div className="h-6 bg-gray-200 rounded-lg w-14"></div>
+                        </div>
+                      ))}
                     </div>
                   ) : filteredReminders.length === 0 ? (
-                    <div className="text-center py-16">
-                      <div className="text-4xl mb-3">📭</div>
-                      <p className="text-gray-600 font-semibold">Tidak ada reminder ditemukan</p>
-                      <p className="text-sm text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
+                    <div className="text-center py-12">
+                      <div className="text-5xl mb-3">📭</div>
+                      <p className="text-gray-600 font-semibold text-sm">Tidak ada reminder ditemukan</p>
+                      <p className="text-xs text-gray-400 mt-1">Coba ubah filter atau tambahkan reminder baru</p>
                     </div>
                   ) : (
-                    <div>
-                      {filteredReminders.map((r) => {
-                        const today = isDueToday(r.due_date);
-                        return (
-                          <div key={r.id}
-                            className="px-5 py-4 transition-colors hover:bg-red-50/40 cursor-pointer"
-                            style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', borderLeft: today ? '3px solid #dc2626' : '3px solid transparent' }}
-                            onClick={() => setDetailReminder(r)}>
-
-                            {/* Mobile layout */}
-                            <div className="md:hidden space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-base font-bold text-gray-800">{r.title}</span>
-                                    <CategoryBadge category={r.category} />
+                    <div className="overflow-x-auto">
+                      <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                          <col style={{ width: '17%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '11%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '8%' }} />
+                        </colgroup>
+                        <thead>
+                          <tr className="bg-gray-50 border-b-2 border-gray-100">
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Kegiatan</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
+                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredReminders.map((r) => {
+                            const today = isDueToday(r.due_date);
+                            return (
+                              <tr key={r.id}
+                                className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
+                                onClick={() => setDetailReminder(r)}>
+                                {/* Project */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
+                                  {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address.split(',')[0]}</div>}
+                                  <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
+                                </td>
+                                {/* Product */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  {r.product ? (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
+                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-left break-words leading-tight transition-all"
+                                      style={{ background: productFilter === r.product ? '#6366f1' : '#eef2ff', color: productFilter === r.product ? 'white' : '#4338ca' }}>
+                                      {r.product}
+                                    </button>
+                                  ) : <span className="text-gray-300 text-xs">—</span>}
+                                </td>
+                                {/* Kegiatan */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
+                                    <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
                                   </div>
-                                  <p className="text-xs text-gray-500">{formatDatetime(r.created_at)}</p>
-                                </div>
-                                <StatusBadge status={r.status} />
-                              </div>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                                {r.project_location && <span>📍 {r.project_location}</span>}
-                                {r.sales_name && <span>👤 {r.sales_name}</span>}
-                                <span>🎯 Target: {formatDate(r.due_date)}</span>
-                              </div>
-                            </div>
-
-                            {/* Desktop table row — with Team Handler column */}
-                            <div className="hidden md:grid items-center gap-3"
-                              style={{ gridTemplateColumns: '2fr 1.4fr 1fr 1.2fr 1fr 1.1fr 1.2fr 52px' }}>
-                              {/* Nama Project */}
-                              <div className="min-w-0">
-                                <span className="font-bold text-gray-800 text-sm truncate block">{r.title}</span>
-                                {r.project_location && <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {r.project_location.split(',')[0]}</p>}
-                              </div>
-                              {/* Kegiatan — larger text */}
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-lg">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
-                                  <span className="font-bold text-gray-800 text-sm">{r.category}</span>
-                                </div>
-                                {r.description && <p className="text-[10px] text-gray-400 truncate mt-0.5">{r.description}</p>}
-                              </div>
-                              {/* Sales */}
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-700 truncate">{r.sales_name || '—'}</p>
-                                {r.sales_division && (
-                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">{r.sales_division}</p>
-                                )}
-                              </div>
-                              {/* Team Handler — NEW COLUMN */}
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                                    style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
-                                    {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
+                                  {r.category === 'Troubleshooting' && (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); router.push('/ticketing'); }}
+                                      className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded text-blue-600 hover:text-blue-800 transition-colors"
+                                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                      🎫 Ticketing
+                                    </button>
+                                  )}
+                                </td>
+                                {/* Sales */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
+                                  {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
+                                </td>
+                                {/* Handler */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                                      style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
+                                      {r.assigned_name?.charAt(0)?.toUpperCase() || '?'}
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assigned_name}</span>
                                   </div>
-                                  <div className="min-w-0">
-                                    <p className="text-xs font-bold text-gray-800 truncate">{r.assigned_name}</p>
+                                </td>
+                                {/* PIC */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  {r.pic_name ? (
+                                    <>
+                                      <div className="text-[10px] font-semibold text-gray-700 truncate">{r.pic_name}</div>
+                                      {r.pic_phone && <div className="text-[10px] text-gray-400 truncate">📱{r.pic_phone}</div>}
+                                    </>
+                                  ) : <span className="text-gray-300 text-xs">—</span>}
+                                </td>
+                                {/* Status */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <StatusBadge status={r.status} />
+                                  {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
+                                </td>
+                                {/* Tanggal */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                  <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-center"
+                                    style={{
+                                      background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
+                                      border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
+                                    }}>
+                                    <span className="text-base font-black leading-none" style={{ color: today ? '#dc2626' : '#4f46e5' }}>
+                                      {new Date(r.due_date + 'T00:00:00').getDate()}
+                                    </span>
+                                    <span className="text-[8px] font-bold uppercase leading-tight" style={{ color: today ? '#dc2626' : '#6366f1' }}>
+                                      {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
+                                    </span>
+                                    {r.due_time && <span className="text-[8px] text-gray-400 leading-tight">{r.due_time}</span>}
                                   </div>
-                                </div>
-                              </div>
-                              {/* PIC & No PIC */}
-                              <div className="min-w-0">
-                                {r.pic_name ? (
-                                  <>
-                                    <p className="text-sm font-semibold text-gray-700 truncate flex items-center gap-1">
-                                      <span className="text-[11px]">🙋</span>{r.pic_name}
-                                    </p>
-                                    {r.pic_phone && (
-                                      <p className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
-                                        <span>📱</span>{r.pic_phone}
-                                      </p>
+                                </td>
+                                {/* ACT */}
+                                <td className="px-1 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    {/* Detail */}
+                                    <button onClick={() => setDetailReminder(r)} title="Detail"
+                                      className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
+                                      <span className="text-sm">👁</span>
+                                    </button>
+                                    {/* Re-Schedule — semua team PTS & admin bisa lihat */}
+                                    {(isAdmin || currentUser?.role === 'team') && r.status !== 'done' && (
+                                      <button onClick={() => setRescheduleTarget(r)} title="Re-Schedule"
+                                        className="text-amber-500 hover:text-amber-700 transition-colors p-0.5">
+                                        <span className="text-sm">📅</span>
+                                      </button>
                                     )}
-                                  </>
-                                ) : <span className="text-gray-300 text-sm">—</span>}
-                              </div>
-                              {/* Status */}
-                              <div className="space-y-1">
-                                <StatusBadge status={r.status} />
-                                {r.wa_sent_h1 && (
-                                  <p className="text-[9px] font-bold text-green-600 flex items-center gap-0.5">✅ WA H-1</p>
-                                )}
-                              </div>
-                              {/* Tanggal Schedule */}
-                              <div className="min-w-0">
-                                <div className="inline-flex flex-col items-center px-3 py-1.5 rounded-xl text-center"
-                                  style={{
-                                    background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
-                                    border: today ? '1px solid rgba(220,38,38,0.35)' : '1px solid rgba(99,102,241,0.2)',
-                                  }}>
-                                  <span className="text-xl font-black leading-none"
-                                    style={{ color: today ? '#dc2626' : '#4f46e5' }}>
-                                    {new Date(r.due_date + 'T00:00:00').getDate()}
-                                  </span>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider leading-tight"
-                                    style={{ color: today ? '#dc2626' : '#6366f1' }}>
-                                    {new Date(r.due_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}
-                                  </span>
-                                  {r.due_time && <span className="text-[9px] text-gray-400 leading-tight mt-0.5">{r.due_time}</span>}
-                                </div>
-                              </div>
-                              {/* Action */}
-                              <div className="flex justify-end">
-                                <button
-                                  onClick={e => { e.stopPropagation(); setDetailReminder(r); }}
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-                                  style={{ border: '1px solid #e5e7eb' }}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                                    {/* Hapus — admin only */}
+                                    {isAdmin && (
+                                      <button onClick={() => openDeleteModal(r)} title="Hapus"
+                                        className="text-red-400 hover:text-red-600 transition-colors p-0.5">
+                                        <span className="text-sm">🗑️</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 bg-white">
+                        <span className="text-[10px] text-gray-400">{filteredReminders.length} jadwal ditemukan</span>
+                        <span className="text-[10px] text-gray-400">{filteredReminders.length > 0 ? `1–${filteredReminders.length}` : '0'} of {reminders.length}</span>
+                      </div>
                     </div>
                   )}
                 </div>
