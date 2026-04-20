@@ -854,19 +854,29 @@ export default function TicketingSystem() {
       if (!isElevated) {
         setLoadingMessage("Mengirim notifikasi WA ke admin...");
         try {
-          await sendWANotif({
-            type: "approval_request",
-            ticketId: insertedTicket?.id || "",
-            projectName: newTicket.project_name,
-            issueCase: newTicket.issue_case,
-            requesterName: currentUser?.full_name || "",
-            requesterUsername: currentUser?.username || "",
-            date: newTicket.date,
-            description: newTicket.description || "-",
-            snUnit: newTicket.sn_unit || "-",
-            customerPhone: newTicket.customer_phone || "-",
-            salesName: newTicket.sales_name || "-",
-          });
+          // Ambil phone semua admin dari frontend, kirim ke Edge Function
+          const { data: adminUsers } = await supabase
+            .from("users")
+            .select("phone_number")
+            .in("role", ["admin", "superadmin"])
+            .not("phone_number", "is", null)
+            .neq("phone_number", "");
+          const adminPhones = (adminUsers || []).map((u: any) => u.phone_number).filter(Boolean);
+          if (adminPhones.length > 0) {
+            await sendWANotif({
+              type: "approval_request",
+              adminPhones,
+              projectName: newTicket.project_name,
+              issueCase: newTicket.issue_case,
+              requesterName: currentUser?.full_name || "",
+              requesterUsername: currentUser?.username || "",
+              date: newTicket.date,
+              description: newTicket.description || "-",
+              snUnit: newTicket.sn_unit || "-",
+              customerPhone: newTicket.customer_phone || "-",
+              salesName: newTicket.sales_name || "-",
+            });
+          }
         } catch (waEx: any) {
           // Jangan throw — ticket sudah berhasil disimpan
           console.error("[notify-handler] approval_request exception:", waEx?.message);
@@ -901,20 +911,40 @@ export default function TicketingSystem() {
           if (!existingMapping) await supabase.from("guest_mappings").insert([{ guest_username: approvalTicket.created_by, project_name: approvalTicket.project_name }]);
         }
       }
-      // ── WA ke handler yang di-assign ──────────────────────────────────────
+      // ── WA ke handler yang di-assign (cari phone di frontend) ───────────
       try {
-        await sendWANotif({
-          record: {
-            assigned_to: approvalAssignee,
-            project_name: approvalTicket.project_name,
-            issue_case: approvalTicket.issue_case,
+        // Cari phone number handler dari team_members berdasarkan nama
+        // Cari handler: coba full_name dulu, fallback ke username
+        let handlerUser: any = null;
+        const { data: byName } = await supabase
+          .from("users")
+          .select("phone_number, full_name")
+          .eq("full_name", approvalAssignee)
+          .maybeSingle();
+        if (byName?.phone_number) {
+          handlerUser = byName;
+        } else {
+          const { data: byUsername } = await supabase
+            .from("users")
+            .select("phone_number, full_name")
+            .eq("username", approvalAssignee)
+            .maybeSingle();
+          if (byUsername?.phone_number) handlerUser = byUsername;
+        }
+        if (handlerUser?.phone_number) {
+          await sendWANotif({
+            type: "ticket_assigned",
+            handlerName: handlerUser.full_name,
+            handlerPhone: handlerUser.phone_number,
+            projectName: approvalTicket.project_name,
+            issueCase: approvalTicket.issue_case,
             description: approvalTicket.description || "-",
-            sn_unit: approvalTicket.sn_unit || "-",
-            customer_phone: approvalTicket.customer_phone || "-",
-            sales_name: approvalTicket.sales_name || "-",
+            snUnit: approvalTicket.sn_unit || "-",
+            customerPhone: approvalTicket.customer_phone || "-",
+            salesName: approvalTicket.sales_name || "-",
             date: approvalTicket.date || "-",
-          },
-        });
+          });
+        }
       } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
       setShowApprovalModal(false);
@@ -958,18 +988,38 @@ export default function TicketingSystem() {
       }]);
       // ── WA ke handler yang di-assign saat reopen ─────────────────────────
       try {
-        await sendWANotif({
-          record: {
-            assigned_to: reopenAssignee,
-            project_name: reopenTargetTicket.project_name,
-            issue_case: reopenTargetTicket.issue_case,
+        // Cari handler: coba full_name dulu, fallback ke username
+        let reopenHandler: any = null;
+        const { data: reopenByName } = await supabase
+          .from("users")
+          .select("phone_number, full_name")
+          .eq("full_name", reopenAssignee)
+          .maybeSingle();
+        if (reopenByName?.phone_number) {
+          reopenHandler = reopenByName;
+        } else {
+          const { data: reopenByUser } = await supabase
+            .from("users")
+            .select("phone_number, full_name")
+            .eq("username", reopenAssignee)
+            .maybeSingle();
+          if (reopenByUser?.phone_number) reopenHandler = reopenByUser;
+        }
+        if (reopenHandler?.phone_number) {
+          await sendWANotif({
+            type: "ticket_assigned",
+            handlerName: reopenHandler.full_name,
+            handlerPhone: reopenHandler.phone_number,
+            projectName: reopenTargetTicket.project_name,
+            issueCase: reopenTargetTicket.issue_case,
             description: `[Re-open] ${reopenNotes || 'Ticket dibuka kembali'}`,
-            sn_unit: reopenTargetTicket.sn_unit || "-",
-            customer_phone: reopenTargetTicket.customer_phone || "-",
-            sales_name: reopenTargetTicket.sales_name || "-",
+            snUnit: reopenTargetTicket.sn_unit || "-",
+            customerPhone: reopenTargetTicket.customer_phone || "-",
+            salesName: reopenTargetTicket.sales_name || "-",
             date: reopenTargetTicket.date || "-",
-          },
-        });
+            isReopen: true,
+          });
+        }
       } catch (waEx: any) { console.warn("[reopenTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
       await fetchData();
