@@ -16,6 +16,27 @@ const supabaseServices = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICES_ANON_KEY!,
 );
 
+
+// ── Helper: invoke Edge Function dengan anon key (custom auth, tanpa Supabase session) ─
+async function invokeNotifyHandler(body: Record<string, unknown>): Promise<void> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const res = await fetch(`${supabaseUrl}/functions/v1/notify-handler`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${anonKey}`,
+        "apikey": anonKey,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    console.log("[invokeNotifyHandler]", data);
+  } catch (err: any) {
+    console.error("[invokeNotifyHandler] error:", err.message);
+  }
+}
 // ── Status list khusus Team Services ─────────────────────────────────────────
 const SERVICES_STATUSES = [
   "Waiting Approval",
@@ -833,8 +854,7 @@ export default function TicketingSystem() {
       if (!isElevated) {
         setLoadingMessage("Mengirim notifikasi WA ke admin...");
         try {
-          const { error: waErr, data: waData } = await supabase.functions.invoke("notify-handler", {
-            body: {
+          await invokeNotifyHandler({
               type: "approval_request",
               ticketId: insertedTicket?.id || "",
               projectName: newTicket.project_name,
@@ -846,14 +866,7 @@ export default function TicketingSystem() {
               snUnit: newTicket.sn_unit || "-",
               customerPhone: newTicket.customer_phone || "-",
               salesName: newTicket.sales_name || "-",
-            }
           });
-          if (waErr) {
-            // WA gagal — ticket tetap tersimpan, cukup log saja
-            console.error("[notify-handler] approval_request WA error:", waErr);
-          } else {
-            console.log("[notify-handler] approval_request WA sent:", waData);
-          }
         } catch (waEx: any) {
           // Jangan throw — ticket sudah berhasil disimpan
           console.error("[notify-handler] approval_request exception:", waEx?.message);
@@ -890,8 +903,7 @@ export default function TicketingSystem() {
       }
       // ── WA ke handler yang di-assign ──────────────────────────────────────
       try {
-        await supabase.functions.invoke("notify-handler", {
-          body: {
+        await invokeNotifyHandler({
             record: {
               assigned_to: approvalAssignee,
               project_name: approvalTicket.project_name,
@@ -902,7 +914,6 @@ export default function TicketingSystem() {
               sales_name: approvalTicket.sales_name || "-",
               date: approvalTicket.date || "-",
             }
-          }
         });
       } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
@@ -947,8 +958,7 @@ export default function TicketingSystem() {
       }]);
       // ── WA ke handler yang di-assign saat reopen ─────────────────────────
       try {
-        await supabase.functions.invoke("notify-handler", {
-          body: {
+        await invokeNotifyHandler({
             record: {
               assigned_to: reopenAssignee,
               project_name: reopenTargetTicket.project_name,
@@ -959,7 +969,6 @@ export default function TicketingSystem() {
               sales_name: reopenTargetTicket.sales_name || "-",
               date: reopenTargetTicket.date || "-",
             }
-          }
         });
       } catch (waEx: any) { console.warn("[reopenTicket] WA failed:", waEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
