@@ -9,34 +9,56 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ── WA via Supabase Edge Function notify-handler ─────────────────────────────
-// Semua WA dikirim server-side (bukan dari browser) untuk hindari CORS
+// ─── Fonnte WA via Supabase Edge Function (same pattern as ticketing) ────────
+// ── Fonnte token di-cache dari Supabase app_settings ─────────────────────────
+let _fonnteToken: string | null = null;
+async function getFonnteToken(): Promise<string | null> {
+  if (_fonnteToken) return _fonnteToken;
+  try {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'fonnte_token')
+      .single();
+    if (data?.value) {
+      // value di JSONB bisa berupa string dengan kutip: '"token"' → strip kutip
+      const raw = data.value;
+      _fonnteToken = typeof raw === 'string' ? raw.replace(/^"|"$/g, '') : String(raw);
+      return _fonnteToken;
+    }
+  } catch { /* fallback ke env */ }
+  const envToken = process.env.NEXT_PUBLIC_FONNTE_TOKEN;
+  if (envToken) { _fonnteToken = envToken; return _fonnteToken; }
+  return null;
+}
+
+// ── WA via direct fetch ke Edge Function (custom auth, tanpa Supabase session) ─
 async function sendFonnteWA(
   target: string,
   message: string,
-  meta?: Record<string, unknown>
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _meta?: Record<string, unknown>
 ): Promise<{ ok: boolean; reason?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke('notify-handler', {
-      body: {
-        type: 'reminder_wa',
-        target,
-        message,
-        ...(meta?.reminder_id ? { reminder_id: meta.reminder_id } : {}),
-        ...(meta?.mark_h1_sent ? { mark_h1_sent: meta.mark_h1_sent } : {}),
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const res = await fetch(`${supabaseUrl}/functions/v1/swift-responder`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
       },
+      body: JSON.stringify({ type: 'reminder_wa', target, message }),
     });
-    if (error) {
-      console.error('[sendFonnteWA] Edge function error:', error);
-      return { ok: false, reason: error.message };
-    }
+    const data = await res.json();
     console.log('[sendFonnteWA] response:', data);
     return { ok: data?.ok === true, reason: data?.reason };
-  } catch (err) {
-    return { ok: false, reason: String(err) };
+  } catch (err: any) {
+    console.error('[sendFonnteWA] error:', err.message);
+    return { ok: false, reason: err.message };
   }
 }
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
@@ -794,6 +816,28 @@ export default function ReminderSchedulePage() {
     const { error } = await supabase.from('reminders').update(updatePayload).eq('id', id);
     if (error) { notify('error', 'Gagal update status.'); return; }
     notify('success', 'Status diperbarui!');
+    // ── WA ke handler saat status Done ───────────────────────────────────
+    if (status === 'done') {
+      try {
+        const reminder = reminders.find(r => r.id === id);
+        if (reminder) {
+          const { data: handlerUser } = await supabase
+            .from('users').select('phone_number, full_name')
+            .eq('username', reminder.assigned_to)
+            .eq('team_type', 'Team PTS').single();
+          if (handlerUser?.phone_number) {
+            const msg =
+              `✅ *JADWAL SELESAI — PTS IVP*\n\n` +
+              `Terima kasih *${handlerUser.full_name}*!\n` +
+              `Jadwal *${reminder.project_name}* telah ditandai *Completed*.\n` +
+              `🏷️ ${reminder.category} · ${formatDate(reminder.due_date)}\n` +
+              `\nTetap semangat! 💪`;
+            await sendFonnteWA(handlerUser.phone_number, msg);
+          }
+        }
+      } catch (waEx) { console.warn('[status done] WA failed:', waEx); }
+    }
+    // ─────────────────────────────────────────────────────────────────────
     fetchRemindersQuiet();
     if (detailReminder?.id === id) setDetailReminder(prev => prev ? { ...prev, status } : null);
   };
@@ -853,6 +897,25 @@ export default function ReminderSchedulePage() {
       return;
     }
     notify('success', `Jadwal berhasil dipindah ke ${formatDate(newDate)}!`);
+    // ── WA ke handler tentang reschedule ──────────────────────────────────
+    try {
+      const { data: handlerUser } = await supabase
+        .from('users').select('phone_number, full_name')
+        .eq('username', rescheduleTarget.assigned_to)
+        .eq('team_type', 'Team PTS').single();
+      if (handlerUser?.phone_number) {
+        const msg =
+          `📅 *JADWAL DIUBAH — PTS IVP*\n\n` +
+          `Halo *${handlerUser.full_name}*, jadwal kamu telah di-reschedule:\n\n` +
+          `*Project: ${rescheduleTarget.project_name}*\n` +
+          `📌 Jadwal Lama: ${formatDate(rescheduleTarget.due_date)} ${rescheduleTarget.due_time}\n` +
+          `📅 Jadwal Baru: *${formatDate(newDate)} ${newTime}*\n` +
+          (reason ? `📝 Alasan: ${reason}\n` : '') +
+          `\n🔗 https://team-ticketing.vercel.app/dashboard`;
+        await sendFonnteWA(handlerUser.phone_number, msg);
+      }
+    } catch (waEx) { console.warn('[reschedule] WA failed:', waEx); }
+    // ─────────────────────────────────────────────────────────────────────
     setRescheduleTarget(null);
     setDetailReminder(null);
     fetchRemindersQuiet();
