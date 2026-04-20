@@ -1322,6 +1322,69 @@ export default function Dashboard() {
     </div>
   );
 
+  const MenuLoadingOverlay = () => (
+    <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
+      <div className="w-12 h-12 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin"></div>
+      <p className="text-slate-600 font-semibold tracking-wide">Memuat menu...</p>
+    </div>
+  );
+
+  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'ticket-troubleshooting', 'form-bast'];
+  const INTERNAL_KEYS = ['daily-report', 'database-pts', 'unit-movement'];
+
+  const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
+  const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
+
+  const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => (
+    <div
+      key={menu.key}
+      className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1"
+      style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
+    >
+      <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
+          <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white" />
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="text-4xl">{menu.icon}</div>
+            <h3 className="text-xl font-bold tracking-tight text-white leading-tight">{menu.title}</h3>
+            {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
+              <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                {formRequireNotifCount}
+              </span>
+            )}
+          </div>
+          <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
+        </div>
+      </div>
+      <div className="p-5 space-y-3">
+        {menu.items.map((item, itemIndex) => (
+          <button
+            key={itemIndex}
+            onClick={() => handleMenuClick(item, menu.title)}
+            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item"
+          >
+            {item.external && !item.embed ? (
+              <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            )}
+            <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
+            <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
+              {item.icon}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   if (!isLoggedIn) return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed p-4" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <div className="bg-white/75 backdrop-blur-sm rounded-lg shadow-2xl p-10 w-full max-w-md border border-slate-200">
@@ -1437,69 +1500,6 @@ export default function Dashboard() {
             </button>
           </div>
         )}
-      </div>
-    </div>
-  );
-
-  const MenuLoadingOverlay = () => (
-    <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
-      <div className="w-12 h-12 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin"></div>
-      <p className="text-slate-600 font-semibold tracking-wide">Memuat menu...</p>
-    </div>
-  );
-
-  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'ticket-troubleshooting', 'form-bast'];
-  const INTERNAL_KEYS = ['daily-report', 'database-pts', 'unit-movement'];
-
-  const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
-  const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
-
-  const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => (
-    <div
-      key={menu.key}
-      className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1"
-      style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
-    >
-      <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
-          <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="text-4xl">{menu.icon}</div>
-            <h3 className="text-xl font-bold tracking-tight text-white leading-tight">{menu.title}</h3>
-            {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
-              <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                {formRequireNotifCount}
-              </span>
-            )}
-          </div>
-          <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
-        </div>
-      </div>
-      <div className="p-5 space-y-3">
-        {menu.items.map((item, itemIndex) => (
-          <button
-            key={itemIndex}
-            onClick={() => handleMenuClick(item, menu.title)}
-            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item"
-          >
-            {item.external && !item.embed ? (
-              <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            )}
-            <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
-            <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
-              {item.icon}
-            </div>
-          </button>
-        ))}
       </div>
     </div>
   );
