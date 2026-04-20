@@ -152,6 +152,7 @@ function MiniPieChart({
   const cx = 60, cy = 60, r = 50, innerR = 28;
   const slices = data.map((d, i) => {
     const angle = (d.value / total) * 2 * Math.PI;
+    if (data.length === 1) return { ...d, path: '', isFullCircle: true, i };
     const x1 = cx + r * Math.cos(cumulativeAngle), y1 = cy + r * Math.sin(cumulativeAngle);
     const x2 = cx + r * Math.cos(cumulativeAngle + angle), y2 = cy + r * Math.sin(cumulativeAngle + angle);
     const xi1 = cx + innerR * Math.cos(cumulativeAngle), yi1 = cy + innerR * Math.sin(cumulativeAngle);
@@ -159,7 +160,7 @@ function MiniPieChart({
     const large = angle > Math.PI ? 1 : 0;
     const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${large} 0 ${xi1} ${yi1} Z`;
     cumulativeAngle += angle;
-    return { ...d, path, i };
+    return { ...d, path, isFullCircle: false, i };
   });
   return (
     <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
@@ -167,11 +168,22 @@ function MiniPieChart({
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((s) => (
+            s.isFullCircle ? (
+              <g key={s.i} style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
+                onClick={() => onSliceClick?.(s.label)}
+                onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}>
+                <circle cx={cx} cy={cy} r={r} fill={s.color}
+                  opacity={hovered === null || hovered === s.i ? 1 : 0.45}
+                  style={{ filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }} />
+                <circle cx={cx} cy={cy} r={innerR} fill="white" />
+              </g>
+            ) : (
             <path key={s.i} d={s.path} fill={s.color}
               opacity={hovered === null || hovered === s.i ? 1 : 0.45}
               style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hovered === s.i ? `drop-shadow(0 0 4px ${s.color})` : 'none' }}
               onMouseEnter={() => setHovered(s.i)} onMouseLeave={() => setHovered(null)}
               onClick={() => onSliceClick?.(s.label)} />
+            )
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
@@ -464,15 +476,15 @@ function NewFormModal({
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
               Kategori Kebutuhan & Solution
             </h3>
-            <CheckGroup label="Kebutuhan" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
-              value={form.kebutuhan} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v }))} />
+            <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
+              value={form.kebutuhan[0] || ''} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v ? [v] : [] }))} />
             <div className="mb-3">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Kebutuhan</label>
               <input value={form.kebutuhan_other} onChange={e => setForm(prev => ({ ...prev, kebutuhan_other: e.target.value }))}
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
-            <CheckGroup label="Solution Product" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
-              value={form.solution_product} onChange={v => setForm(prev => ({ ...prev, solution_product: v }))} />
+            <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Projector', 'Kiosk', 'IFP']}
+              value={form.solution_product[0] || ''} onChange={v => setForm(prev => ({ ...prev, solution_product: v ? [v] : [] }))} />
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
               <input value={form.solution_other} onChange={e => setForm(prev => ({ ...prev, solution_other: e.target.value }))}
@@ -480,16 +492,17 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Signage & Network */}
+          {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
+          {form.kebutuhan.includes('Signage') && (
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
               Layout Konten & Jaringan
             </h3>
-            <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
-              value={form.layout_signage} onChange={v => setForm(prev => ({ ...prev, layout_signage: v }))} />
+            <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
+              value={form.layout_signage?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, layout_signage: v ? [v] : [] }))} />
             <CheckGroup label="Jaringan / CMS" options={['Cloud', 'Onpremise', 'USB']}
-              value={form.jaringan_cms} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
+              value={form.jaringan_cms?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v ? [v] : [] }))} />
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
@@ -503,6 +516,8 @@ function NewFormModal({
               </div>
             </div>
           </div>
+
+          )} {/* end Signage conditional */}
 
           {/* Source & Peripheral */}
           <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
@@ -581,8 +596,8 @@ function NewFormModal({
               onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
             {form.controller_automation === 'Yes' && (
               <div className="ml-4 mb-4 border-l-2 border-teal-200 pl-4">
-                <CheckGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
-                  value={form.controller_type} onChange={v => setForm(prev => ({ ...prev, controller_type: v }))} />
+                <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
+                  value={form.controller_type?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, controller_type: v ? [v] : [] }))} />
               </div>
             )}
           </div>
@@ -1664,7 +1679,7 @@ Hubungi Admin untuk info lebih lanjut.
                 🔔 {unreadCount} pending
               </span>
             )}
-            {!isPTS && (
+            {(true) && (
               <button onClick={() => setShowNewFormModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
@@ -2690,7 +2705,7 @@ Hubungi Admin untuk info lebih lanjut.
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
                   Layout Konten & Jaringan
                 </h3>
-                <CheckGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
+                <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
                   value={editFormData.layout_signage} onChange={v => setEditFormData(p => ({ ...p, layout_signage: v }))} />
                 <CheckGroup label="Jaringan / CMS" options={['Offline', 'Online LAN', 'Online WiFi', 'Cloud CMS', 'Local CMS']}
                   value={editFormData.jaringan_cms} onChange={v => setEditFormData(p => ({ ...p, jaringan_cms: v }))} />
@@ -2784,7 +2799,7 @@ Hubungi Admin untuk info lebih lanjut.
                   onChange={v => setEditFormData(p => ({ ...p, controller_automation: v }))} />
                 {editFormData.controller_automation === 'Yes' && (
                   <div className="ml-4 mb-4 border-l-2 border-amber-200 pl-4">
-                    <CheckGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
+                    <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
                       value={editFormData.controller_type} onChange={v => setEditFormData(p => ({ ...p, controller_type: v }))} />
                   </div>
                 )}
