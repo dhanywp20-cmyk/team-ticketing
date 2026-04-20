@@ -555,7 +555,7 @@ function RescheduleModal({
 
 export default function ReminderSchedulePage() {
   const router = useRouter();
-  const [appReady, setAppReady]             = useState(false);
+  const [appReady, setAppReady]             = useState(true);
   const [dashLoading, setDashLoading]       = useState(false);
   const [isLoggedIn, setIsLoggedIn]         = useState(false);
   const [loginForm, setLoginForm]           = useState({ username: '', password: '' });
@@ -625,67 +625,45 @@ export default function ReminderSchedulePage() {
   // ─── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Flag untuk block realtime trigger sampai initApp selesai
-    let initDone = false;
-    let pendingRealtimeFetch = false;
+    // Sama persis dengan ticketing: baca localStorage → set user → fetch data
+    const saved = localStorage.getItem('currentUser');
+    const user = saved ? (JSON.parse(saved) as TeamUser) : null;
 
-    const initApp = async () => {
-      // Baca user dari localStorage DULU sebelum fetch apapun
-      const saved = localStorage.getItem('currentUser');
-      const user = saved ? JSON.parse(saved) as TeamUser : null;
+    if (user) {
+      setCurrentUser(user);
+      setIsLoggedIn(true);
+      setLoginTime(Date.now());
+    }
 
-      // Set state user segera agar komponen lain bisa pakai
-      if (user) {
-        setCurrentUser(user);
-        setIsLoggedIn(true);
-        setLoginTime(Date.now());
-      }
-
-      // Fetch team users dan reminders secara parallel untuk lebih cepat
-      await Promise.all([
-        fetchTeamUsers(),
-        fetchRemindersQuiet(user),
-      ]);
-
-      // Popup notif untuk team/admin
+    // Fetch parallel — tidak tunggu satu selesai dulu
+    Promise.all([
+      fetchTeamUsers(),
+      fetchRemindersQuiet(user),
+    ]).then(() => {
+      // Popup notif setelah data loaded
       if (user && (user.role === 'team' || user.role === 'admin')) {
-        const { data: activeData } = await supabase
+        supabase
           .from('reminders')
           .select('*')
           .eq('assigned_to', user.username)
           .neq('status', 'done')
           .neq('status', 'cancelled')
-          .order('due_date', { ascending: true });
-        const active = (activeData ?? []) as Reminder[];
-        if (active.length > 0) {
-          setMyReminders(active);
-          setTimeout(() => setShowNotificationPopup(true), 800);
-        }
+          .order('due_date', { ascending: true })
+          .then(({ data: activeData }) => {
+            const active = (activeData ?? []) as Reminder[];
+            if (active.length > 0) {
+              setMyReminders(active);
+              setTimeout(() => setShowNotificationPopup(true), 800);
+            }
+          });
       }
+    });
 
-      setAppReady(true);
-      initDone = true;
-
-      // Kalau ada realtime yang masuk saat init, jalankan sekarang
-      if (pendingRealtimeFetch) {
-        pendingRealtimeFetch = false;
-        const s = localStorage.getItem('currentUser');
-        const u = s ? JSON.parse(s) as TeamUser : null;
-        fetchRemindersQuiet(u);
-      }
-    };
-
-    initApp();
-
+    // Realtime — subscribe setelah user di-set
     const ch = supabase.channel('reminders-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, () => {
-        if (!initDone) {
-          // Tandai untuk di-fetch setelah init selesai — jangan interrupt init
-          pendingRealtimeFetch = true;
-          return;
-        }
-        const savedUser = localStorage.getItem('currentUser');
-        const u = savedUser ? JSON.parse(savedUser) as TeamUser : null;
+        const s = localStorage.getItem('currentUser');
+        const u = s ? (JSON.parse(s) as TeamUser) : user;
         fetchRemindersQuiet(u);
       })
       .subscribe();
@@ -1079,8 +1057,7 @@ export default function ReminderSchedulePage() {
   };
 
   // ─── Not ready ─────────────────────────────────────────────────────────────
-  if (!appReady) return <LoadingScreen />;
-  if (dashLoading) return <LoadingScreen />;
+  // Render langsung tanpa loading gate (sama seperti ticketing)
 
   // ─── Login page ────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
