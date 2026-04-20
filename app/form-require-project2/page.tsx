@@ -502,7 +502,7 @@ function NewFormModal({
             <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
               value={form.layout_signage?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, layout_signage: v ? [v] : [] }))} />
             <CheckGroup label="Jaringan / CMS" options={['Cloud', 'Onpremise', 'USB']}
-              value={form.jaringan_cms?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v ? [v] : [] }))} />
+              value={form.jaringan_cms || []} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
