@@ -2332,7 +2332,7 @@ export default function TicketingSystem() {
                               {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                               <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                             </div>
-                            <div className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                            <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             {ticket.product ? (
                               <button
                                 onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
@@ -2340,7 +2340,7 @@ export default function TicketingSystem() {
                                 style={{ background: productFilter === ticket.product ? "#6366f1" : "#eef2ff", color: productFilter === ticket.product ? "white" : "#4338ca", borderColor: "#c7d2fe" }}
                               >{ticket.product}</button>
                             ) : <span className="text-gray-300 text-sm">—</span>}
-                            </div>
+                            </td>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                            </td>
                            
