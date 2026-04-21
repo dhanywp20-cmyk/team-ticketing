@@ -2018,7 +2018,7 @@ export default function ReminderSchedulePage() {
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '6%' }} />
-                          <col style={{ width: '6%' }} />
+                          <col style={{ width: '8%' }} />
                         </colgroup>
                         <thead>
                           <tr className="bg-gray-50 border-b-2 border-gray-100">
@@ -2119,7 +2119,7 @@ export default function ReminderSchedulePage() {
                                 </td>
                                 {/* ACT */}
                                 <td className="px-3 py-1 align-middle text-center" onClick={e => e.stopPropagation()}>
-                                  <div className="flex flex-col items-center gap-0.5">
+                                  <div className="flex items-center justify-center gap-1">
                                     {/* Detail */}
                                     <button onClick={() => setDetailReminder(r)} title="Detail"
                                       className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
