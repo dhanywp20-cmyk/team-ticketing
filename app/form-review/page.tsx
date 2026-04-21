@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/src/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Bell, 
