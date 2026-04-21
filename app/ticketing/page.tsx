@@ -2340,13 +2340,13 @@ export default function TicketingSystem() {
                             {ticket.product ? (
                               <button
                                 onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                                className="text-[8px] text-gray-600 px-2 py-0.5 text-left break-words leading-tight"
+                                className="text-[15px] text-gray-600 px-2 py-0.5 text-left break-words leading-tight"
                                 style={{ background: productFilter === ticket.product ? "#e2e3f0ff" : "#eef2ff", color: productFilter === ticket.product ? "white" : "#8076f0ff", borderColor: "#c7d2fe" }}
                               >{ticket.product}</button>
                             ) : <span className="text-gray-300 text-sm">—</span>}
                           </td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[8px] text-gray-600 break-words leading-tight">{ticket.sn_unit || "—"}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[9px] text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-600 break-words leading-tight">{ticket.sn_unit || "—"}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.assign_name}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex flex-col gap-1 items-start">
