@@ -1889,7 +1889,7 @@ export default function ReminderSchedulePage() {
                   {/* ── TICKET LIST header + filter chips + refresh/export ── */}
                   <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ticket List</span>
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule List</span>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
                     {/* Active filter chips */}
@@ -2010,15 +2010,15 @@ export default function ReminderSchedulePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
-                          <col style={{ width: '17%' }} />
+                          <col style={{ width: '14%' }} />
                           <col style={{ width: '10%' }} />
                           <col style={{ width: '11%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '10%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '6%' }} />
+                          <col style={{ width: '6%' }} />
                         </colgroup>
                         <thead>
                           <tr className="bg-gray-50 border-b-2 border-gray-100">
@@ -2102,7 +2102,7 @@ export default function ReminderSchedulePage() {
                                   {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
                                 </td>
                                 {/* Tanggal */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-2 py-1 border-r border-gray-100 align-middle">
                                   <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-center"
                                     style={{
                                       background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
@@ -2118,7 +2118,7 @@ export default function ReminderSchedulePage() {
                                   </div>
                                 </td>
                                 {/* ACT */}
-                                <td className="px-1 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
+                                <td className="px-3 py-1 align-middle text-center" onClick={e => e.stopPropagation()}>
                                   <div className="flex flex-col items-center gap-0.5">
                                     {/* Detail */}
                                     <button onClick={() => setDetailReminder(r)} title="Detail"
