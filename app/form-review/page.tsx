@@ -1,32 +1,31 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Bell, 
-  Search, 
-  Star, 
-  Filter, 
-  PieChart as PieIcon,
-  BarChart2,
-  CheckCircle2,
-  MoreVertical,
-  X,
-  TrendingUp,
-  LayoutDashboard,
-  Users,
-  Box,
-  ChevronRight,
-  ClipboardList,
-  ArrowUpRight
-} from 'lucide-react';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+// Lazy initialization for Supabase client
+let _supabase: any = null;
+const getSupabase = () => {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      return { 
+        from: () => ({ 
+          select: () => ({ order: () => ({ ascending: () => ({}) }), eq: () => ({ in: () => ({}) }) }),
+          update: () => ({ eq: () => ({}) }),
+          insert: () => ({})
+        }),
+        storage: { from: () => ({ upload: () => ({}), getPublicUrl: () => ({ data: {} }) }) }
+      } as any;
+    }
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,328 +69,422 @@ interface ReviewRecord {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Star Rating Component ────────────────────────────────────────────────────
 
-function StarRating({ value, onChange, readOnly = false, size = 'md' }: { value: number; onChange?: (v: number) => void; readOnly?: boolean; size?: 'sm' | 'md' | 'lg' }) {
+function StarRating({
+  value,
+  onChange,
+  readOnly = false,
+  size = 'md',
+}: {
+  value: number;
+  onChange?: (v: number) => void;
+  readOnly?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+}) {
   const [hover, setHover] = useState(0);
-  const stars = [1, 2, 3, 4, 5];
+  const starSize = size === 'sm' ? 'text-lg' : size === 'lg' ? 'text-3xl' : 'text-2xl';
   return (
     <div className="flex items-center gap-1">
-      {stars.map((s) => (
+      {[1, 2, 3, 4, 5].map((star) => (
         <button
-          key={s}
+          key={star}
           type="button"
           disabled={readOnly}
-          onClick={() => !readOnly && onChange?.(s)}
-          onMouseEnter={() => !readOnly && setHover(s)}
+          onClick={() => !readOnly && onChange?.(star)}
+          onMouseEnter={() => !readOnly && setHover(star)}
           onMouseLeave={() => !readOnly && setHover(0)}
-          className={`transition-all ${!readOnly ? 'hover:scale-125 cursor-pointer' : 'cursor-default'}`}
+          className={`${starSize} transition-transform ${!readOnly ? 'hover:scale-110 cursor-pointer' : 'cursor-default'}`}
         >
-          <Star 
-            size={size === 'sm' ? 14 : size === 'lg' ? 32 : 20} 
-            fill={(hover || value) >= s ? "#f59e0b" : "transparent"} 
-            className={(hover || value) >= s ? "text-amber-500" : "text-slate-200"}
-          />
+          <span style={{ color: star <= (hover || value) ? '#f59e0b' : '#d1d5db' }}>★</span>
         </button>
       ))}
+      {value > 0 && (
+        <span className="ml-1 text-xs font-bold text-amber-600">{value}/5</span>
+      )}
     </div>
   );
 }
 
-function MiniPieChart({ data, title, icon }: { data: { label: string; value: number; color: string }[]; title: string; icon: React.ReactNode }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return null;
+// ─── Image Upload Component ───────────────────────────────────────────────────
 
-  let cumAngle = -Math.PI / 2;
-  const cx = 50, cy = 50, r = 40, ir = 25;
+function ImageUploadField({
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  value: string;
+  onChange?: (url: string) => void;
+  readOnly?: boolean;
+}) {
+  const supabase = getSupabase();
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState(value || '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setPreview(value || ''); }, [value]);
+
+  const handleFile = async (file: File) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const fileName = `review_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage
+        .from('review-photos')
+        .upload(fileName, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage
+        .from('review-photos')
+        .getPublicUrl(data.path);
+      const url = urlData.publicUrl;
+      setPreview(url);
+      onChange?.(url);
+    } catch (e: any) {
+      console.error('Upload error:', e);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (readOnly) {
+    if (!preview) return <span className="text-slate-400 text-sm italic">Tidak ada foto</span>;
+    return (
+      <a href={preview} target="_blank" rel="noopener noreferrer">
+        <img src={preview} alt="Dokumentasi" className="max-h-48 rounded-xl border border-slate-200 object-cover hover:opacity-90 transition-opacity cursor-zoom-in" referrerPolicy="no-referrer" />
+      </a>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-         {icon}
-         <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{title}</span>
-      </div>
-      <div className="flex items-center gap-6">
-        <svg width="100" height="100" viewBox="0 0 100 100" className="flex-shrink-0">
-          {data.map((d, i) => {
-            const angle = (d.value / total) * 2 * Math.PI;
-            const x1 = cx + r * Math.cos(cumAngle), y1 = cy + r * Math.sin(cumAngle);
-            const x2 = cx + r * Math.cos(cumAngle + angle), y2 = cy + r * Math.sin(cumAngle + angle);
-            const xi1 = cx + ir * Math.cos(cumAngle), yi1 = cy + ir * Math.sin(cumAngle);
-            const xi2 = cx + ir * Math.cos(cumAngle + angle), yi2 = cy + ir * Math.sin(cumAngle + angle);
-            const large = angle > Math.PI ? 1 : 0;
-            const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${large} 0 ${xi1} ${yi1} Z`;
-            cumAngle += angle;
-            return <path key={i} d={path} fill={d.color} stroke="white" strokeWidth="1" />;
-          })}
-          <text x="50" y="50" textAnchor="middle" dy="0.32em" fontSize="12" fontWeight="900" fill="#1e293b">{total}</text>
-        </svg>
-        <div className="flex-1 space-y-1 max-h-[100px] overflow-y-auto custom-scrollbar pr-2">
-          {data.slice(0, 5).map((d, i) => (
-            <div key={i} className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                <span className="text-[10px] font-bold text-slate-500 truncate">{d.label}</span>
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+      />
+      {preview ? (
+        <div className="relative group">
+          <img src={preview} alt="Preview" className="max-h-40 rounded-xl border border-slate-200 object-cover" referrerPolicy="no-referrer" />
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => { setPreview(''); onChange?.(''); }}
+              className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+            >×</button>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed border-slate-300 rounded-xl hover:border-cyan-400 hover:bg-cyan-50 transition-all text-slate-400 hover:text-cyan-600"
+        >
+          {uploading ? (
+            <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <span className="text-2xl">📷</span>
+              <span className="text-xs font-medium">Klik untuk upload foto</span>
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Modal Detail/Edit ────────────────────────────────────────────────────────
+
+function ReviewModal({
+  record,
+  mode,
+  onClose,
+  onSaved,
+}: {
+  record: ReviewRecord;
+  mode: 'view' | 'edit';
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const supabase = getSupabase();
+  const [activeTab, setActiveTab] = useState<ReviewCategory>(record.review_category);
+  const [form, setForm] = useState<ReviewRecord>({ ...record });
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  const isEdit = mode === 'edit';
+  const isDemoProduct = record.reminder_category === 'Demo Product';
+
+  const notify = (type: 'success' | 'error', msg: string) => {
+    setNotification({ type, msg });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleSave = async () => {
+    if (!form.product.trim()) { notify('error', 'Produk wajib diisi!'); return; }
+    if (!form.grade_product_knowledge) { notify('error', 'Grade Product Knowledge wajib diisi!'); return; }
+    if (!isDemoProduct && !form.grade_training_customer) { notify('error', 'Grade Training Customer wajib diisi!'); return; }
+    setSaving(true);
+    const payload: any = {
+      product: form.product,
+      grade_product_knowledge: form.grade_product_knowledge,
+      catatan_product_knowledge: form.catatan_product_knowledge,
+      foto_dokumentasi_url: form.foto_dokumentasi_url,
+      updated_at: new Date().toISOString(),
+    };
+    if (!isDemoProduct) {
+      payload.grade_training_customer = form.grade_training_customer;
+      payload.catatan_training_customer = form.catatan_training_customer;
+    }
+    const { error } = await supabase.from('reviews').update(payload).eq('id', record.id);
+    setSaving(false);
+    if (error) { notify('error', 'Gagal menyimpan: ' + error.message); return; }
+    notify('success', 'Review berhasil disimpan!');
+    setTimeout(() => { onSaved(); onClose(); }, 1000);
+  };
+
+  const gradeLabel = (g: number) => {
+    const labels: Record<number, string> = { 1: 'Sangat Buruk', 2: 'Buruk', 3: 'Cukup', 4: 'Baik', 5: 'Sangat Baik' };
+    return g ? labels[g] : '';
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3">
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+        {/* Header */}
+        <div className="px-6 py-5 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: 'rgba(255,255,255,0.12)' }}>
+                {isDemoProduct ? '🖥️' : '🎓'}
               </div>
-              <span className="text-[10px] font-black text-slate-800">{d.value}</span>
+              <div>
+                <h2 className="text-white font-bold text-base leading-tight">{record.project_name}</h2>
+                <p className="text-white/50 text-xs mt-0.5">{isEdit ? 'Edit Review' : 'Detail Review'} — {record.reminder_category}</p>
+              </div>
             </div>
-          ))}
+            <button onClick={onClose} className="text-white/50 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
 
-// ─── Modal Detail ────────────────────────────────────────────────────────────
-
-function ReviewDetailModal({ record, onClose }: { record: ReviewRecord; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl overflow-hidden">
-        <div className="bg-red-600 p-8 text-white">
-           <div className="flex justify-between items-start mb-6">
-              <div className="bg-white/20 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-white backdrop-blur-md border border-white/30">Review Detail</div>
-              <button onClick={onClose} className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all"><X size={20} /></button>
-           </div>
-           <h2 className="text-3xl font-black mb-2">{record.project_name}</h2>
-           <p className="text-red-100/70 font-bold text-sm flex items-center gap-2"><Box size={16} /> {record.product || 'Standard Product'}</p>
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'Nama Project', value: record.project_name, icon: '🏢' },
+              { label: 'Lokasi', value: record.address, icon: '📍' },
+              { label: 'Nama Sales', value: record.sales_name, icon: '👤' },
+              { label: 'Handler', value: record.assign_name, icon: '🔧' },
+              { label: 'Tanggal Dibuat', value: new Date(record.created_at).toLocaleDateString(), icon: '⏱️' },
+            ].map(({ label, value, icon }) => (
+              <div key={label} className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{icon} {label}</p>
+                <p className="text-sm font-semibold text-slate-800 leading-snug">{value || '—'}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                 <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Product Knowledge</label>
-                    <div className="flex items-center gap-3">
-                       <StarRating value={record.grade_product_knowledge} readOnly />
-                       <span className="text-xl font-black text-slate-800">{record.grade_product_knowledge}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2 italic font-medium">"{record.catatan_product_knowledge || '-'}"</p>
-                 </div>
-                 {record.grade_training_customer && (
-                   <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Training Customer</label>
-                      <div className="flex items-center gap-3">
-                         <StarRating value={record.grade_training_customer} readOnly />
-                         <span className="text-xl font-black text-slate-800">{record.grade_training_customer}</span>
-                      </div>
-                   </div>
-                 )}
-              </div>
-              <div className="space-y-4">
-                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Handler Team</p>
-                    <p className="text-sm font-bold text-slate-700">{record.assign_name}</p>
-                 </div>
-                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Sales Advisor</p>
-                    <p className="text-sm font-bold text-slate-700">{record.sales_name}</p>
-                 </div>
-              </div>
-           </div>
-           {record.foto_dokumentasi_url && (
-             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Foto Dokumentasi</p>
-                <img src={record.foto_dokumentasi_url} className="w-full h-64 object-cover rounded-2xl shadow-md" alt="evidence" />
-             </div>
-           )}
+
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 flex-shrink-0 bg-slate-50/50">
+          <button onClick={onClose} className="flex-1 border border-slate-300 text-slate-700 py-2.5 rounded-xl font-semibold hover:bg-slate-100 transition-all text-sm">Tutup</button>
+          {isEdit && (
+            <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl font-bold text-white text-sm transition-all" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
+              {saving ? 'Menyimpan...' : '💾 Simpan Review'}
+            </button>
+          )}
         </div>
       </motion.div>
-    </div>
+    </motion.div>
+  );
+}
+
+// ─── Guest Form Modal ─────────────────────────────────────────────────────────
+
+function GuestFormModal({
+  reminder,
+  onClose,
+  onSaved,
+}: {
+  reminder: Reminder;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const supabase = getSupabase();
+  const isDemoProduct = reminder.category === 'Demo Product';
+  const reviewCat: ReviewCategory = isDemoProduct ? 'Demo Product' : 'BAST';
+
+  const [form, setForm] = useState({
+    product: '',
+    grade_product_knowledge: 0,
+    catatan_product_knowledge: '',
+    grade_training_customer: 0,
+    catatan_training_customer: '',
+    foto_dokumentasi_url: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  const notify = (type: 'success' | 'error', msg: string) => {
+    setNotification({ type, msg });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleSubmit = async () => {
+    if (!form.product.trim()) { notify('error', 'Produk wajib diisi!'); return; }
+    if (!form.grade_product_knowledge) { notify('error', 'Grade Product Knowledge wajib diisi!'); return; }
+    if (!isDemoProduct && !form.grade_training_customer) { notify('error', 'Grade Training Customer wajib diisi!'); return; }
+
+    setSaving(true);
+    const payload: any = {
+      reminder_id: reminder.id,
+      project_name: reminder.project_name || reminder.title || '',
+      address: reminder.address,
+      sales_name: reminder.sales_name,
+      sales_division: reminder.sales_division,
+      assign_name: reminder.assign_name,
+      review_category: reviewCat,
+      reminder_category: reminder.category,
+      product: form.product,
+      grade_product_knowledge: form.grade_product_knowledge,
+      catatan_product_knowledge: form.catatan_product_knowledge,
+      foto_dokumentasi_url: form.foto_dokumentasi_url || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    if (!isDemoProduct) {
+      payload.grade_training_customer = form.grade_training_customer;
+      payload.catatan_training_customer = form.catatan_training_customer;
+    }
+
+    const { error } = await supabase.from('reviews').insert([payload]);
+    setSaving(false);
+    if (error) { notify('error', 'Gagal submit: ' + error.message); return; }
+    notify('success', 'Review berhasil dikirim! Terima kasih.');
+    setTimeout(() => { onSaved(); onClose(); }, 1500);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3">
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+        <div className="px-6 py-5 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2644 100%)' }}>
+          <div className="flex items-center justify-between">
+             <div className="flex items-center gap-3">
+                <div className="text-2xl">⭐</div>
+                <h2 className="text-white font-bold">Form Review</h2>
+             </div>
+             <button onClick={onClose} className="text-white/50">×</button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+           <textarea rows={3} value={form.product} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} className="w-full border-2 p-3 rounded-xl focus:border-blue-400 outline-none" placeholder="Product..." />
+           <StarRating value={form.grade_product_knowledge} onChange={v => setForm(f => ({ ...f, grade_product_knowledge: v }))} size="lg" />
+           <ImageUploadField value={form.foto_dokumentasi_url} onChange={url => setForm(f => ({ ...f, foto_dokumentasi_url: url }))} />
+        </div>
+        <div className="p-4 border-t flex gap-3">
+           <button onClick={onClose} className="flex-1 p-3 border-2 rounded-xl">Batal</button>
+           <button onClick={handleSubmit} disabled={saving} className="flex-1 p-3 bg-blue-900 text-white rounded-xl font-bold">Submit</button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function FormReview() {
-  const navigate = useNavigate();
+export default function FormReviewPage() {
+  const supabase = getSupabase();
+  const router = useRouter();
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
+  const [solvedReminders, setSolvedReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  
   const [selectedReview, setSelectedReview] = useState<ReviewRecord | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  const [modalMode, setModalMode] = useState<'view' | 'edit'>('view');
+  const [guestReminder, setGuestReminder] = useState<Reminder | null>(null);
 
-  const fetchReviews = useCallback(async (user: any) => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
-    
-    // If guest, filter by their full name (matches logic requested)
-    if (user && user.role === 'guest') {
-      query = query.eq('sales_name', user.full_name);
-    }
+    const { data: reviewData } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
+    if (reviewData) setReviews(reviewData as ReviewRecord[]);
 
-    const { data } = await query;
-    if (data) setReviews(data as ReviewRecord[]);
+    const { data: reminderData } = await supabase.from('reminders').select('*').eq('status', 'done').in('category', ['Demo Product', 'Training', 'Konfigurasi & Training']);
+    if (reminderData) {
+      const ids = new Set((reviewData ?? []).map((r: any) => r.reminder_id));
+      setSolvedReminders((reminderData as Reminder[]).filter(r => !ids.has(r.id)));
+    }
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) {
-      const user = JSON.parse(saved);
-      setCurrentUser(user);
-      setIsGuest(user.role === 'guest');
-      fetchReviews(user);
-    } else {
-      navigate('/reminder-schedule');
-    }
-  }, [navigate, fetchReviews]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filteredReviews = reviews.filter(r => 
-    r.project_name.toLowerCase().includes(search.toLowerCase()) ||
-    r.sales_name.toLowerCase().includes(search.toLowerCase()) ||
-    r.assign_name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const stats = {
-    demo: reviews.filter(r => r.reminder_category === 'Demo Product').length,
-    training: reviews.filter(r => r.reminder_category === 'Training' || r.reminder_category === 'Konfigurasi & Training').length,
-  };
-
-  const chartData = {
-    category: Array.from(new Set(reviews.map(r => r.reminder_category))).map((cat, i) => ({
-      label: cat as string,
-      value: reviews.filter(r => r.reminder_category === cat).length,
-      color: PIE_COLORS[i % PIE_COLORS.length]
-    })),
-    handler: Array.from(new Set(reviews.map(r => r.assign_name))).map((name, i) => ({
-      label: name as string,
-      value: reviews.filter(r => r.assign_name === name).length,
-      color: PIE_COLORS[i % PIE_COLORS.length]
-    })),
-    product: Array.from(new Set(reviews.map(r => r.product))).filter(Boolean).slice(0, 8).map((prod, i) => ({
-      label: prod as string,
-      value: reviews.filter(r => r.product === prod).length,
-      color: PIE_COLORS[i % PIE_COLORS.length]
-    })),
-  };
+  const filteredReviews = useMemo(() => {
+    return reviews.filter(r => 
+      r.project_name.toLowerCase().includes(search.toLowerCase()) ||
+      r.sales_name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [reviews, search]);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans pb-20">
-      {/* Header (Same as Master Reminder Schedule style) */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b-2 border-red-600 px-4 py-3">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white text-xl shadow-lg">⭐</div>
-            <div>
-              <h1 className="text-lg font-black text-slate-800 tracking-tight">Review Platform</h1>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">PTS IVP Feedback Dashboard</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/reminder-schedule')} className="px-4 py-2 border-2 border-slate-200 rounded-xl font-bold text-sm hover:border-red-600 hover:text-red-600 transition-all">🗓️ Schedule Platform</button>
-          </div>
+    <div className="min-h-screen bg-slate-50 font-sans">
+      {guestReminder && <GuestFormModal reminder={guestReminder} onClose={() => setGuestReminder(null)} onSaved={fetchAll} />}
+      {selectedReview && <ReviewModal record={selectedReview} mode={modalMode} onClose={() => setSelectedReview(null)} onSaved={fetchAll} />}
+
+      <header className="sticky top-0 z-40 bg-white border-b-2 border-red-600 px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white text-xl">⭐</div>
+          <h1 className="text-xl font-black text-slate-800">Form Review Platform</h1>
         </div>
+        <button onClick={() => router.push('/reminder-schedule')} className="px-4 py-2 border-2 border-slate-200 rounded-xl font-bold text-sm">🗓️ Schedule</button>
       </header>
 
-      <main className="max-w-[1600px] mx-auto p-6 space-y-6">
-        {/* Dashboard Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex items-center justify-between overflow-hidden relative group">
-              <div className="absolute right-0 top-0 w-32 h-full bg-indigo-50/50 -skew-x-12 translate-x-10 transition-transform group-hover:translate-x-4" />
-              <div>
-                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Demo Product</p>
-                 <h2 className="text-5xl font-black text-indigo-600">{stats.demo}</h2>
-              </div>
-              <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 relative z-10"><Box size={32} /></div>
-           </div>
-           <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex items-center justify-between overflow-hidden relative group">
-              <div className="absolute right-0 top-0 w-32 h-full bg-emerald-50/50 -skew-x-12 translate-x-10 transition-transform group-hover:translate-x-4" />
-              <div>
-                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Training Report</p>
-                 <h2 className="text-5xl font-black text-emerald-600">{stats.training}</h2>
-              </div>
-              <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 relative z-10"><ClipboardList size={32} /></div>
-           </div>
-        </div>
-
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <MiniPieChart data={chartData.category} title="Kategori Kegiatan" icon={<TrendingUp size={14} className="text-slate-400" />} />
-           <MiniPieChart data={chartData.handler} title="Handler Team PTS" icon={<Users size={14} className="text-slate-400" />} />
-           <MiniPieChart data={chartData.product} title="Unit / Product" icon={<Box size={14} className="text-slate-400" />} />
-        </div>
-
-        {/* List Section */}
-        <div className="space-y-4">
-           <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                 <LayoutDashboard size={20} className="text-red-600" />
-                 <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">Feedback Feed</h2>
-              </div>
-              <div className="flex-1 max-w-md relative">
-                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                 <input 
-                    type="text" 
-                    placeholder="Search review by project or sales..." 
-                    className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-sm focus:border-red-600 focus:ring-4 focus:ring-red-50 outline-none transition-all"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                 />
-              </div>
-           </div>
-
-           {loading ? (
-             <div className="py-20 flex justify-center"><div className="w-10 h-10 border-4 border-slate-200 border-t-red-600 rounded-full animate-spin" /></div>
-           ) : filteredReviews.length === 0 ? (
-             <div className="bg-white rounded-[40px] p-20 border-2 border-dashed border-slate-200 flex flex-col items-center gap-4 text-slate-400">
-                <ClipboardList size={64} className="opacity-20" />
-                <p className="font-black text-sm uppercase tracking-widest">No matching reviews found</p>
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        {solvedReminders.length > 0 && (
+          <div className="space-y-3">
+             <h2 className="text-sm font-black text-red-600 uppercase tracking-widest">🔴 Menunggu Review ({solvedReminders.length})</h2>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {solvedReminders.map(r => (
+                   <motion.div whileHover={{ scale: 1.02 }} key={r.id} className="bg-white p-5 rounded-[32px] border-2 border-amber-100 shadow-sm flex flex-col gap-4">
+                      <h3 className="font-black text-slate-800 leading-tight">{r.project_name}</h3>
+                      <button onClick={() => setGuestReminder(r)} className="w-full bg-red-600 text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest">✍️ Isi Review Sekarang</button>
+                   </motion.div>
+                ))}
              </div>
-           ) : (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <AnimatePresence>
-                   {filteredReviews.map((r) => (
-                     <motion.div 
-                        key={r.id}
-                        layout
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        onClick={() => setSelectedReview(r)}
-                        className="bg-white rounded-[32px] p-6 border-2 border-slate-50 shadow-sm hover:shadow-xl hover:border-red-100 transition-all cursor-pointer group flex flex-col h-full"
-                     >
-                        <div className="flex justify-between items-start mb-4">
-                           <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-500 uppercase tracking-widest">{r.reminder_category}</div>
-                           <div className="p-2 rounded-xl bg-slate-50 text-slate-300 group-hover:bg-red-600 group-hover:text-white transition-all"><ArrowUpRight size={16} /></div>
-                        </div>
-                        <h3 className="text-lg font-black text-slate-800 leading-tight mb-2 group-hover:text-red-700 transition-colors uppercase">{r.project_name}</h3>
-                        <div className="flex items-center gap-2 mb-4">
-                           <StarRating value={r.grade_product_knowledge} readOnly size="sm" />
-                           <span className="text-[10px] font-black text-slate-400">{r.grade_product_knowledge}/5</span>
-                        </div>
-                        <div className="mt-auto pt-4 border-t border-slate-50 space-y-3">
-                           <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-black text-xs">{r.sales_name.charAt(0)}</div>
-                              <div className="min-w-0">
-                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sales Advisor</p>
-                                 <p className="text-xs font-bold text-slate-700 truncate">{r.sales_name}</p>
-                              </div>
-                           </div>
-                           <div className="flex items-center justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                              <div className="flex items-center gap-1.5"><Users size={12} className="text-slate-300" /> Handler: {r.assign_name}</div>
-                              <span>{new Date(r.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
-                           </div>
-                        </div>
-                     </motion.div>
-                   ))}
-                </AnimatePresence>
-             </div>
-           )}
+          </div>
+        )}
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+           <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                 <PieChart>
+                    <Pie data={[{ name: 'Demo Product', value: reviews.filter(r => r.review_category === 'Demo Product').length }, { name: 'BAST', value: reviews.filter(r => r.review_category === 'BAST').length }].filter(d => d.value > 0)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                       {COLORS.map((color, idx) => <Cell key={`cell-${idx}`} fill={color} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                 </PieChart>
+              </ResponsiveContainer>
+           </div>
         </div>
-      </main>
 
-      <AnimatePresence>
-        {selectedReview && <ReviewDetailModal record={selectedReview} onClose={() => setSelectedReview(null)} />}
-      </AnimatePresence>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-      `}</style>
+        {/* List */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+           {filteredReviews.map(r => (
+              <motion.div layout whileHover={{ y: -5 }} key={r.id} className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm cursor-pointer" onClick={() => { setSelectedReview(r); setModalMode('view'); }}>
+                 <h3 className="text-lg font-black text-slate-800 uppercase">{r.project_name}</h3>
+                 <p className="text-xs text-slate-400 font-bold mt-2">Handler: {r.assign_name}</p>
+              </motion.div>
+           ))}
+        </div>
+      </div>
     </div>
   );
 }
