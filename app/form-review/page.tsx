@@ -1,505 +1,516 @@
-'use client';
-
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import { ReviewRecord, Reminder, User, ReviewCategory } from '@/types';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Star, 
-  Clock, 
+  Search, 
+  Bell, 
+  LayoutDashboard, 
+  PieChart as PieChartIcon, 
+  ChevronRight, 
   MapPin, 
-  User, 
-  Wrench, 
-  Building2, 
+  User as UserIcon, 
   Calendar,
-  Search,
-  LayoutDashboard,
-  Filter,
-  PieChart as PieIcon
+  Package,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  Trash2,
+  Edit,
+  ExternalLink,
+  MessageSquare,
+  XCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
-// Lazy initialization for Supabase client
-let _supabase: any = null;
-const getSupabase = () => {
-  if (!_supabase) {
-    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) {
-      return { 
-        from: () => ({ 
-          select: () => ({ order: () => ({ ascending: () => ({}) }), eq: () => ({ in: () => ({}) }) }),
-          update: () => ({ eq: () => ({}) }),
-          insert: () => ({})
-        }),
-        storage: { from: () => ({ upload: () => ({}), getPublicUrl: () => ({ data: {} }) }) }
-      } as any;
-    }
-    _supabase = createClient(url, key);
-  }
-  return _supabase;
-};
+const COLORS = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#fb7185', '#6366f1'];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ReviewCategory = 'Demo Product' | 'BAST';
-
-interface Reminder {
-  id: string;
-  project_name: string;
-  title?: string;
-  address: string;
-  sales_name: string;
-  sales_division: string;
-  assign_name: string;
-  assigned_to: string;
-  category: string;
-  status: string;
-  due_date: string;
-  due_time: string;
-  description?: string;
+interface FormReviewProps {
+  currentUser: User;
 }
 
-interface ReviewRecord {
-  id: string;
-  reminder_id: string;
-  project_name: string;
-  address: string;
-  sales_name: string;
-  sales_division: string;
-  assign_name: string;
-  review_category: ReviewCategory;
-  product: string;
-  grade_product_knowledge: number;
-  catatan_product_knowledge: string;
-  grade_training_customer?: number;
-  catatan_training_customer?: string;
-  foto_dokumentasi_url?: string;
-  created_at: string;
-  updated_at?: string;
-  reminder_category: string;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'];
-
-// ─── Star Rating Component ────────────────────────────────────────────────────
-
-function StarRating({
-  value,
-  onChange,
-  readOnly = false,
-  size = 'md',
-}: {
-  value: number;
-  onChange?: (v: number) => void;
-  readOnly?: boolean;
-  size?: 'sm' | 'md' | 'lg';
-}) {
-  const [hover, setHover] = useState(0);
-  const starSize = size === 'sm' ? 'text-lg' : size === 'lg' ? 'text-3xl' : 'text-2xl';
-  return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          disabled={readOnly}
-          onClick={() => !readOnly && onChange?.(star)}
-          onMouseEnter={() => !readOnly && setHover(star)}
-          onMouseLeave={() => !readOnly && setHover(0)}
-          className={`${starSize} transition-transform ${!readOnly ? 'hover:scale-110 cursor-pointer' : 'cursor-default'}`}
-        >
-          <span style={{ color: star <= (hover || value) ? '#f59e0b' : '#d1d5db' }}>★</span>
-        </button>
-      ))}
-      {value > 0 && (
-        <span className="ml-1 text-xs font-bold text-amber-600">{value}/5</span>
-      )}
-    </div>
-  );
-}
-
-// ─── Image Upload Component ───────────────────────────────────────────────────
-
-function ImageUploadField({
-  value,
-  onChange,
-  readOnly = false,
-}: {
-  value: string;
-  onChange?: (url: string) => void;
-  readOnly?: boolean;
-}) {
-  const supabase = getSupabase();
-  const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(value || '');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setPreview(value || ''); }, [value]);
-
-  const handleFile = async (file: File) => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const ext = file.name.split('.').pop();
-      const fileName = `review_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { data, error } = await supabase.storage
-        .from('review-photos')
-        .upload(fileName, file, { upsert: true });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage
-        .from('review-photos')
-        .getPublicUrl(data.path);
-      const url = urlData.publicUrl;
-      setPreview(url);
-      onChange?.(url);
-    } catch (e: any) {
-      console.error('Upload error:', e);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  if (readOnly) {
-    if (!preview) return <span className="text-slate-400 text-sm italic">Tidak ada foto</span>;
-    return (
-      <a href={preview} target="_blank" rel="noopener noreferrer">
-        <img src={preview} alt="Dokumentasi" className="max-h-48 rounded-xl border border-slate-200 object-cover hover:opacity-90 transition-opacity cursor-zoom-in" referrerPolicy="no-referrer" />
-      </a>
-    );
-  }
-
-  return (
-    <div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-      />
-      {preview ? (
-        <div className="relative group">
-          <img src={preview} alt="Preview" className="max-h-40 rounded-xl border border-slate-200 object-cover" referrerPolicy="no-referrer" />
-          {!readOnly && (
-            <button
-              type="button"
-              onClick={() => { setPreview(''); onChange?.(''); }}
-              className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-            >×</button>
-          )}
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed border-slate-300 rounded-xl hover:border-cyan-400 hover:bg-cyan-50 transition-all text-slate-400 hover:text-cyan-600"
-        >
-          {uploading ? (
-            <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <>
-              <span className="text-2xl">📷</span>
-              <span className="text-xs font-medium">Klik untuk upload foto</span>
-            </>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ─── Modal Detail/Edit ────────────────────────────────────────────────────────
-
-function ReviewModal({
-  record,
-  mode,
-  onClose,
-  onSaved,
-}: {
-  record: ReviewRecord;
-  mode: 'view' | 'edit';
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const supabase = getSupabase();
-  const [activeTab, setActiveTab] = useState<ReviewCategory>(record.review_category);
-  const [form, setForm] = useState<ReviewRecord>({ ...record });
-  const [saving, setSaving] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-
-  const isEdit = mode === 'edit';
-  const isDemoProduct = record.reminder_category === 'Demo Product';
-
-  const notify = (type: 'success' | 'error', msg: string) => {
-    setNotification({ type, msg });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  const handleSave = async () => {
-    if (!form.product.trim()) { notify('error', 'Produk wajib diisi!'); return; }
-    if (!form.grade_product_knowledge) { notify('error', 'Grade Product Knowledge wajib diisi!'); return; }
-    if (!isDemoProduct && !form.grade_training_customer) { notify('error', 'Grade Training Customer wajib diisi!'); return; }
-    setSaving(true);
-    const payload: any = {
-      product: form.product,
-      grade_product_knowledge: form.grade_product_knowledge,
-      catatan_product_knowledge: form.catatan_product_knowledge,
-      foto_dokumentasi_url: form.foto_dokumentasi_url,
-      updated_at: new Date().toISOString(),
-    };
-    if (!isDemoProduct) {
-      payload.grade_training_customer = form.grade_training_customer;
-      payload.catatan_training_customer = form.catatan_training_customer;
-    }
-    const { error } = await supabase.from('reviews').update(payload).eq('id', record.id);
-    setSaving(false);
-    if (error) { notify('error', 'Gagal menyimpan: ' + error.message); return; }
-    notify('success', 'Review berhasil disimpan!');
-    setTimeout(() => { onSaved(); onClose(); }, 1000);
-  };
-
-  const gradeLabel = (g: number) => {
-    const labels: Record<number, string> = { 1: 'Sangat Buruk', 2: 'Buruk', 3: 'Cukup', 4: 'Baik', 5: 'Sangat Baik' };
-    return g ? labels[g] : '';
-  };
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3">
-      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
-        {/* Header */}
-        <div className="px-6 py-5 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: 'rgba(255,255,255,0.12)' }}>
-                {isDemoProduct ? '🖥️' : '🎓'}
-              </div>
-              <div>
-                <h2 className="text-white font-bold text-base leading-tight">{record.project_name}</h2>
-                <p className="text-white/50 text-xs mt-0.5">{isEdit ? 'Edit Review' : 'Detail Review'} — {record.reminder_category}</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="text-white/50 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Nama Project', value: record.project_name, icon: <Building2 className="w-3.5 h-3.5" /> },
-              { label: 'Lokasi', value: record.address, icon: <MapPin className="w-3.5 h-3.5" /> },
-              { label: 'Nama Sales', value: record.sales_name, icon: <User className="w-3.5 h-3.5" /> },
-              { label: 'Handler', value: record.assign_name, icon: <Wrench className="w-3.5 h-3.5" /> },
-              { label: 'Tanggal Dibuat', value: new Date(record.created_at).toLocaleDateString(), icon: <Clock className="w-3.5 h-3.5" /> },
-            ].map(({ label, value, icon }) => (
-              <div key={label} className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
-                <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{icon} {label}</p>
-                <p className="text-sm font-semibold text-slate-800 leading-snug">{value || '—'}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 flex-shrink-0 bg-slate-50/50">
-          <button onClick={onClose} className="flex-1 border border-slate-300 text-slate-700 py-2.5 rounded-xl font-semibold hover:bg-slate-100 transition-all text-sm">Tutup</button>
-          {isEdit && (
-            <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl font-bold text-white text-sm transition-all" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
-              {saving ? 'Menyimpan...' : '💾 Simpan Review'}
-            </button>
-          )}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ─── Guest Form Modal ─────────────────────────────────────────────────────────
-
-function GuestFormModal({
-  reminder,
-  onClose,
-  onSaved,
-}: {
-  reminder: Reminder;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const supabase = getSupabase();
-  const isDemoProduct = reminder.category === 'Demo Product';
-  const reviewCat: ReviewCategory = isDemoProduct ? 'Demo Product' : 'BAST';
-
-  const [form, setForm] = useState({
+export default function FormReview({ currentUser }: FormReviewProps) {
+  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  
+  const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewForm, setReviewForm] = useState({
     product: '',
-    grade_product_knowledge: 0,
+    grade_product_knowledge: 5,
     catatan_product_knowledge: '',
-    grade_training_customer: 0,
+    grade_training_customer: 5,
     catatan_training_customer: '',
-    foto_dokumentasi_url: '',
   });
-  const [saving, setSaving] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const notify = (type: 'success' | 'error', msg: string) => {
-    setNotification({ type, msg });
-    setTimeout(() => setNotification(null), 4000);
+  const handleOpenReview = (reminder: Reminder) => {
+    setSelectedReminder(reminder);
+    setReviewForm({
+      product: reminder.product || '',
+      grade_product_knowledge: 5,
+      catatan_product_knowledge: '',
+      grade_training_customer: 5,
+      catatan_training_customer: '',
+    });
+    setShowReviewForm(true);
   };
 
-  const handleSubmit = async () => {
-    if (!form.product.trim()) { notify('error', 'Produk wajib diisi!'); return; }
-    if (!form.grade_product_knowledge) { notify('error', 'Grade Product Knowledge wajib diisi!'); return; }
-    if (!isDemoProduct && !form.grade_training_customer) { notify('error', 'Grade Training Customer wajib diisi!'); return; }
-
+  const submitReview = async () => {
+    if (!selectedReminder) return;
     setSaving(true);
-    const payload: any = {
-      reminder_id: reminder.id,
-      project_name: reminder.project_name || reminder.title || '',
-      address: reminder.address,
-      sales_name: reminder.sales_name,
-      sales_division: reminder.sales_division,
-      assign_name: reminder.assign_name,
-      review_category: reviewCat,
-      reminder_category: reminder.category,
-      product: form.product,
-      grade_product_knowledge: form.grade_product_knowledge,
-      catatan_product_knowledge: form.catatan_product_knowledge,
-      foto_dokumentasi_url: form.foto_dokumentasi_url || null,
+    
+    const payload = {
+      reminder_id: selectedReminder.id,
+      project_name: selectedReminder.project_name,
+      address: selectedReminder.address,
+      sales_name: selectedReminder.sales_name,
+      sales_division: selectedReminder.sales_division,
+      assign_name: selectedReminder.assign_name,
+      review_category: (selectedReminder.category === 'Demo Product' ? 'Demo Product' : 'BAST') as ReviewCategory,
+      reminder_category: selectedReminder.category,
+      product: reviewForm.product,
+      grade_product_knowledge: reviewForm.grade_product_knowledge,
+      catatan_product_knowledge: reviewForm.catatan_product_knowledge,
+      grade_training_customer: reviewForm.grade_training_customer,
+      catatan_training_customer: reviewForm.catatan_training_customer,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
-    if (!isDemoProduct) {
-      payload.grade_training_customer = form.grade_training_customer;
-      payload.catatan_training_customer = form.catatan_training_customer;
-    }
 
     const { error } = await supabase.from('reviews').insert([payload]);
     setSaving(false);
-    if (error) { notify('error', 'Gagal submit: ' + error.message); return; }
-    notify('success', 'Review berhasil dikirim! Terima kasih.');
-    setTimeout(() => { onSaved(); onClose(); }, 1500);
+    
+    if (error) {
+      alert('Gagal submit review: ' + error.message);
+    } else {
+      setShowReviewForm(false);
+      setSelectedReminder(null);
+      fetchData();
+    }
+  };
+
+  const [saving, setSaving] = useState(false);
+  const [pendingReminders, setPendingReminders] = useState<Reminder[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, [currentUser]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    
+    // Fetch user's reviews
+    let reviewQuery = supabase.from('reviews').select('*').order('created_at', { ascending: false });
+    
+    // If guest, only see their own
+    if (currentUser.role === 'guest') {
+      reviewQuery = reviewQuery.eq('sales_name', currentUser.full_name);
+    }
+    
+    const { data: reviewData } = await reviewQuery;
+    if (reviewData) setReviews(reviewData);
+
+    // Fetch pending reminders that need review (status=done, no review yet)
+    // Only category Demo Product, Konfigurasi & Training, Training
+    let reminderQuery = supabase.from('reminders')
+      .select('*')
+      .eq('status', 'done')
+      .in('category', ['Demo Product', 'Konfigurasi & Training', 'Training', 'Konfigurasi']);
+      
+    if (currentUser.role === 'guest') {
+      reminderQuery = reminderQuery.eq('sales_name', currentUser.full_name);
+    }
+
+    const { data: reminderData } = await reminderQuery;
+    if (reminderData && reviewData) {
+      const reviewedIds = new Set(reviewData.map(r => r.reminder_id));
+      const pending = reminderData.filter(r => !reviewedIds.has(r.id));
+      setPendingReminders(pending);
+    }
+
+    setLoading(false);
+  };
+
+  const filteredReviews = reviews.filter(r => 
+    r.project_name.toLowerCase().includes(search.toLowerCase()) ||
+    r.assign_name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Stats for Dashboard
+  const stats = {
+    total: reviews.length,
+    demoProduct: reviews.filter(r => r.reminder_category === 'Demo Product').length,
+    training: reviews.filter(r => r.reminder_category === 'Training' || r.reminder_category === 'Konfigurasi & Training' || r.reminder_category === 'Konfigurasi').length,
+    pending: pendingReminders.length
+  };
+
+  // Chart Data
+  const getChartData = (key: keyof ReviewRecord) => {
+    const counts: Record<string, number> = {};
+    reviews.forEach(r => {
+      const val = String(r[key] || 'Unknown');
+      counts[val] = (counts[val] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  };
+
+  const chartData = {
+    category: getChartData('reminder_category'),
+    handler: getChartData('assign_name'),
+    product: getChartData('product'),
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3">
-      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
-        <div className="px-6 py-5 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2644 100%)' }}>
-          <div className="flex items-center justify-between">
-             <div className="flex items-center gap-3">
-                <div className="text-2xl">⭐</div>
-                <h2 className="text-white font-bold">Form Review</h2>
-             </div>
-             <button onClick={onClose} className="text-white/50">×</button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-           <textarea rows={3} value={form.product} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} className="w-full border-2 p-3 rounded-xl focus:border-blue-400 outline-none" placeholder="Product..." />
-           <StarRating value={form.grade_product_knowledge} onChange={v => setForm(f => ({ ...f, grade_product_knowledge: v }))} size="lg" />
-           <ImageUploadField value={form.foto_dokumentasi_url} onChange={url => setForm(f => ({ ...f, foto_dokumentasi_url: url }))} />
-        </div>
-        <div className="p-4 border-t flex gap-3">
-           <button onClick={onClose} className="flex-1 p-3 border-2 rounded-xl">Batal</button>
-           <button onClick={handleSubmit} disabled={saving} className="flex-1 p-3 bg-blue-900 text-white rounded-xl font-bold">Submit</button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-export default function FormReviewPage() {
-  const supabase = getSupabase();
-  const router = useRouter();
-  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
-  const [solvedReminders, setSolvedReminders] = useState<Reminder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  
-  const [selectedReview, setSelectedReview] = useState<ReviewRecord | null>(null);
-  const [modalMode, setModalMode] = useState<'view' | 'edit'>('view');
-  const [guestReminder, setGuestReminder] = useState<Reminder | null>(null);
-
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    const { data: reviewData } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
-    if (reviewData) setReviews(reviewData as ReviewRecord[]);
-
-    const { data: reminderData } = await supabase.from('reminders').select('*').eq('status', 'done').in('category', ['Demo Product', 'Training', 'Konfigurasi & Training']);
-    if (reminderData) {
-      const ids = new Set((reviewData ?? []).map((r: any) => r.reminder_id));
-      setSolvedReminders((reminderData as Reminder[]).filter(r => !ids.has(r.id)));
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  const filteredReviews = useMemo(() => {
-    return reviews.filter(r => 
-      r.project_name.toLowerCase().includes(search.toLowerCase()) ||
-      r.sales_name.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [reviews, search]);
-
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans">
-      {guestReminder && <GuestFormModal reminder={guestReminder} onClose={() => setGuestReminder(null)} onSaved={fetchAll} />}
-      {selectedReview && <ReviewModal record={selectedReview} mode={modalMode} onClose={() => setSelectedReview(null)} onSaved={fetchAll} />}
-
-      <header className="sticky top-0 z-40 bg-white border-b-2 border-red-600 px-6 py-4 flex items-center justify-between shadow-sm">
+    <div className="p-6 max-w-7xl mx-auto space-y-8 bg-slate-50 min-h-screen">
+      {/* Header & Notification Bell */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white">
-            <LayoutDashboard className="w-6 h-6" />
+          <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200">
+            <LayoutDashboard className="text-white" size={24} />
           </div>
-          <h1 className="text-xl font-black text-slate-800">Form Review Platform</h1>
-        </div>
-        <button onClick={() => router.push('/reminder-schedule')} className="px-4 py-2 border-2 border-slate-200 rounded-xl font-bold text-sm">🗓️ Schedule</button>
-      </header>
-
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {solvedReminders.length > 0 && (
-          <div className="space-y-3">
-             <h2 className="text-sm font-black text-red-600 uppercase tracking-widest">🔴 Menunggu Review ({solvedReminders.length})</h2>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {solvedReminders.map(r => (
-                   <motion.div whileHover={{ scale: 1.02 }} key={r.id} className="bg-white p-5 rounded-[32px] border-2 border-amber-100 shadow-sm flex flex-col gap-4">
-                      <h3 className="font-black text-slate-800 leading-tight">{r.project_name}</h3>
-                      <button onClick={() => setGuestReminder(r)} className="w-full bg-red-600 text-white py-3 rounded-2xl font-black text-xs uppercase tracking-widest">✍️ Isi Review Sekarang</button>
-                   </motion.div>
-                ))}
-             </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Review Dashboard</h1>
+            <p className="text-slate-500 text-sm">Survey & evaluasi implementasi produk</p>
           </div>
-        )}
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-           <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                 <PieChart>
-                    <Pie data={[{ name: 'Demo Product', value: reviews.filter(r => r.review_category === 'Demo Product').length }, { name: 'BAST', value: reviews.filter(r => r.review_category === 'BAST').length }].filter(d => d.value > 0)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                       {COLORS.map((color, idx) => <Cell key={`cell-${idx}`} fill={color} />)}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                 </PieChart>
-              </ResponsiveContainer>
-           </div>
         </div>
-
-        {/* List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           {filteredReviews.map(r => (
-              <motion.div layout whileHover={{ y: -5 }} key={r.id} className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm cursor-pointer" onClick={() => { setSelectedReview(r); setModalMode('view'); }}>
-                 <h3 className="text-lg font-black text-slate-800 uppercase">{r.project_name}</h3>
-                 <p className="text-xs text-slate-400 font-bold mt-2">Handler: {r.assign_name}</p>
+        
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className={`p-3 rounded-2xl transition-all relative ${pendingReminders.length > 0 ? 'bg-amber-50 text-amber-600' : 'bg-white text-slate-400 border border-slate-200'}`}
+          >
+            <Bell size={20} />
+            {pendingReminders.length > 0 && (
+              <span className="absolute top-2 right-2 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full animate-pulse border-2 border-white">
+                {pendingReminders.length}
+              </span>
+            )}
+          </button>
+          
+          <AnimatePresence>
+            {showNotifications && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute right-0 mt-4 w-80 bg-white rounded-3xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
+              >
+                <div className="p-4 bg-amber-600 text-white flex justify-between items-center">
+                  <h3 className="font-bold">Menunggu Review</h3>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{pendingReminders.length}</span>
+                </div>
+                <div className="max-h-96 overflow-y-auto p-2">
+                  {pendingReminders.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400">
+                      <CheckCircle2 size={32} className="mx-auto mb-2 opacity-20" />
+                      <p className="text-xs">Semua tugas sudah di-review!</p>
+                    </div>
+                  ) : (
+                    pendingReminders.map(r => (
+                      <div key={r.id} className="p-3 hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border-b border-slate-50 last:border-0 group">
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="font-bold text-sm text-slate-800 line-clamp-1 group-hover:text-amber-600 transition-colors">{r.project_name}</p>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md whitespace-nowrap">{r.category}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Handler: {r.assign_name}</p>
+                        <button 
+                          onClick={() => handleOpenReview(r)}
+                          className="w-full mt-2 py-1.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg hover:bg-amber-100 transition-all"
+                        >
+                          Isi Review Sekarang
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </motion.div>
-           ))}
+            )}
+          </AnimatePresence>
         </div>
       </div>
+
+      {/* Summary Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Review', value: stats.total, icon: <FileText size={20} />, color: 'bg-indigo-600', shadow: 'shadow-indigo-100' },
+          { label: 'Demo Product', value: stats.demoProduct, icon: <Package size={20} />, color: 'bg-purple-600', shadow: 'shadow-purple-100' },
+          { label: 'Training', value: stats.training, icon: <LayoutDashboard size={20} />, color: 'bg-emerald-600', shadow: 'shadow-emerald-100' },
+          { label: 'Menunggu', value: stats.pending, icon: <AlertCircle size={20} />, color: 'bg-amber-600', shadow: 'shadow-amber-100' },
+        ].map(stat => (
+          <div key={stat.label} className={`bg-white rounded-3xl p-6 border border-slate-100 transition-all hover:scale-[1.02] ${stat.shadow}`}>
+            <div className={`w-10 h-10 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg active:scale-95 transition-transform`}>
+              {stat.icon}
+            </div>
+            <p className="text-2xl font-black text-slate-800">{stat.value}</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{stat.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {[
+          { title: 'Kategori Kegiatan', data: chartData.category, icon: '📊' },
+          { title: 'Handler Team PTS', data: chartData.handler, icon: '👥' },
+          { title: 'Product Unit', data: chartData.product, icon: '📦' },
+        ].map(chart => (
+          <div key={chart.title} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-6">
+              <span className="text-lg">{chart.icon}</span>
+              {chart.title}
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chart.data}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {chart.data.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* List Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-slate-800">Daftar Review</h2>
+            <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">{filteredReviews.length}</span>
+          </div>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Cari project atau handler..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all bg-white"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+          </div>
+        ) : filteredReviews.length === 0 ? (
+          <div className="bg-white rounded-3xl p-20 text-center border border-dashed border-slate-300">
+            <div className="text-4xl mb-4">📝</div>
+            <p className="text-slate-500 font-medium">Belum ada review yang ditemukan.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredReviews.map(review => (
+              <div key={review.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                <div className="absolute right-0 top-0 p-6 flex flex-col items-end">
+                   <div className="flex items-center gap-1 mb-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={14} fill={i < review.grade_product_knowledge ? "#f59e0b" : "none"} stroke={i < review.grade_product_knowledge ? "#f59e0b" : "#e2e8f0"} />
+                      ))}
+                   </div>
+                   <span className="text-[10px] font-bold text-amber-600">{review.grade_product_knowledge}/5 Stars</span>
+                </div>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`p-3 rounded-2xl ${review.review_category === 'Demo Product' ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    {review.review_category === 'Demo Product' ? <Package size={20} /> : <FileText size={20} />}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{review.review_category}</p>
+                    <h4 className="font-bold text-slate-800 text-lg leading-tight">{review.project_name}</h4>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-2 text-slate-500 text-xs">
+                    <MapPin size={12} className="flex-shrink-0" />
+                    <span className="truncate">{review.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 text-xs">
+                    <Calendar size={12} className="flex-shrink-0" />
+                    <span>{new Date(review.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 text-xs">
+                    <UserIcon size={12} className="flex-shrink-0" />
+                    <span>Handler: {review.assign_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold">
+                    <Package size={12} className="flex-shrink-0 text-indigo-500" />
+                    <span className="text-indigo-600">{review.product}</span>
+                  </div>
+                </div>
+
+                {review.catatan_product_knowledge && (
+                   <div className="p-3 bg-slate-50 rounded-2xl mb-4 border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                        <MessageSquare size={10} /> Catatan Review
+                      </p>
+                      <p className="text-xs text-slate-600 italic line-clamp-2">"{review.catatan_product_knowledge}"</p>
+                   </div>
+                )}
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                   <div className="flex gap-2">
+                      <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit size={16} /></button>
+                      <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={16} /></button>
+                   </div>
+                   <button className="flex items-center gap-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-xl transition-all">
+                      Lihat Detail <ChevronRight size={14} />
+                   </button>
+                </div>
+
+                {review.foto_dokumentasi_url && (
+                   <div className="absolute -bottom-4 -right-4 w-12 h-12 rotate-12 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <ExternalLink size={48} />
+                   </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Review Form Modal */}
+      {showReviewForm && selectedReminder && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden"
+          >
+            <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold flex items-center gap-2">
+                  <Star className="text-amber-400" size={18} fill="#f59e0b" />
+                  Form Review
+                </h3>
+                <p className="text-white/60 text-[10px] mt-0.5">{selectedReminder.project_name}</p>
+              </div>
+              <button onClick={() => setShowReviewForm(false)} className="text-white/40 hover:text-white transition-colors">
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Produk / Unit</label>
+                  <input 
+                    type="text" 
+                    value={reviewForm.product}
+                    onChange={e => setReviewForm({ ...reviewForm, product: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-amber-500/20"
+                    placeholder="Nama produk..."
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Rating Product Knowledge</label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <button 
+                          key={star} 
+                          onClick={() => setReviewForm({ ...reviewForm, grade_product_knowledge: star })}
+                          className="transition-transform active:scale-90"
+                        >
+                          <Star 
+                            size={28} 
+                            fill={star <= reviewForm.grade_product_knowledge ? "#f59e0b" : "none"} 
+                            stroke={star <= reviewForm.grade_product_knowledge ? "#f59e0b" : "#cbd5e1"} 
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xl font-black text-amber-600">{reviewForm.grade_product_knowledge}/5</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Catatan Product Knowledge</label>
+                  <textarea 
+                    value={reviewForm.catatan_product_knowledge}
+                    onChange={e => setReviewForm({ ...reviewForm, catatan_product_knowledge: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-amber-500/20 h-24 resize-none"
+                    placeholder="Berikan masukan mengenai pemahaman produk..."
+                  />
+                </div>
+
+                {(selectedReminder.category === 'Training' || selectedReminder.category === 'Konfigurasi & Training') && (
+                  <>
+                     <div className="space-y-3 pt-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Rating Training Customer</label>
+                      <div className="flex items-center gap-4">
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <button 
+                              key={star} 
+                              onClick={() => setReviewForm({ ...reviewForm, grade_training_customer: star })}
+                              className="transition-transform active:scale-90"
+                            >
+                              <Star 
+                                size={28} 
+                                fill={star <= reviewForm.grade_training_customer ? "#f59e0b" : "none"} 
+                                stroke={star <= reviewForm.grade_training_customer ? "#f59e0b" : "#cbd5e1"} 
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        <span className="text-xl font-black text-amber-600">{reviewForm.grade_training_customer}/5</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Catatan Training Customer</label>
+                      <textarea 
+                        value={reviewForm.catatan_training_customer}
+                        onChange={e => setReviewForm({ ...reviewForm, catatan_training_customer: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-amber-500/20 h-24 resize-none"
+                        placeholder="Berikan masukan mengenai proses training..."
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={() => setShowReviewForm(false)}
+                className="flex-1 px-4 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-all font-sans"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={submitReview}
+                disabled={saving || !reviewForm.product}
+                className="flex-1 px-4 py-3 rounded-2xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 font-sans"
+              >
+                {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                Submit Review
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
