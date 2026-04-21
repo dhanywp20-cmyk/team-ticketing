@@ -1543,12 +1543,12 @@ export default function TicketingSystem() {
     <div>Dicetak: ${printDate} | Status: ${ticket.status}</div>
   </div>
 
-  <!-- ASSIGN NAME (HANDLER) -->
-  ${selectedRequest.assign_name ? `
-  <div class="assign-box">
-    <div class="assign-label">Handler / PTS</div>
-    <div class="assign-name">${selectedRequest.assign_name}</div>
-  </div>` : ''}
+  <!-- TANDA TANGAN -->
+  <div class="sign-grid">
+    ${["Handler / PTS"].map(r =>
+      `<div class="sign-box"><div class="sign-label">${r}</div><div class="sign-space">Tanda Tangan</div></div>`
+    ).join("")}
+  </div>
 
 </div></body></html>`;
 
