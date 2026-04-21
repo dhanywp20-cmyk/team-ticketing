@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/src/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -104,6 +105,7 @@ function MiniPieChart({ data, title, icon: Icon }: { data: { label: string; valu
 }
 
 export default function FormReview() {
+  const navigate = useNavigate();
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -185,7 +187,7 @@ export default function FormReview() {
 
           <div className="flex items-center gap-3">
              <button 
-                onClick={() => { window.location.href = '/reminder-schedule'; }}
+                onClick={() => { navigate('/reminder-schedule'); }}
                 className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-600 border-2 border-slate-100 hover:border-red-200 hover:text-red-600 transition-all bg-white shadow-sm"
              >
                 <ClipboardList size={18} />
