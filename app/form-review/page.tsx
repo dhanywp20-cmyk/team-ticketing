@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'motion/react';
+import { supabase } from '@/src/lib/supabase';
 import { 
   Bell, 
   Search, 
@@ -288,142 +287,127 @@ export default function FormReview() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <AnimatePresence>
-              {filteredReviews.map((review) => (
-                <motion.div 
-                  key={review.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-[32px] p-6 border-2 border-slate-100 shadow-sm hover:shadow-xl hover:border-red-100 transition-all cursor-pointer group flex flex-col h-full"
-                  onClick={() => setSelectedReview(review)}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="px-3 py-1 bg-red-50 rounded-full text-[10px] font-black text-red-600 uppercase tracking-widest">
-                       {review.review_category}
-                    </div>
-                    <div className="p-2 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-red-600 group-hover:text-white transition-all">
-                       <ArrowUpRight size={16} />
-                    </div>
+            {filteredReviews.map((review) => (
+              <div 
+                key={review.id}
+                className="bg-white rounded-[32px] p-6 border-2 border-slate-100 shadow-sm hover:shadow-xl hover:border-red-100 transition-all cursor-pointer group flex flex-col h-full"
+                onClick={() => setSelectedReview(review)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="px-3 py-1 bg-red-50 rounded-full text-[10px] font-black text-red-600 uppercase tracking-widest">
+                     {review.review_category}
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-red-600 group-hover:text-white transition-all">
+                     <ArrowUpRight size={16} />
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-black text-slate-800 leading-tight mb-2 group-hover:text-red-700 transition-colors">
+                  {review.project_name}
+                </h3>
+                <div className="flex items-center gap-2 mb-4">
+                   <StarRating rating={review.grade_product_knowledge} />
+                   <span className="text-[11px] font-bold text-slate-400">{review.grade_product_knowledge}/5</span>
+                </div>
+
+                <div className="mt-auto space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                     <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-red-600 font-black text-xs">
+                        {review.sales_name.charAt(0)}
+                     </div>
+                     <div className="min-w-0">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sales Advisor</p>
+                        <p className="text-xs font-bold text-slate-700 truncate">{review.sales_name}</p>
+                     </div>
                   </div>
 
-                  <h3 className="text-lg font-black text-slate-800 leading-tight mb-2 group-hover:text-red-700 transition-colors">
-                    {review.project_name}
-                  </h3>
-                  <div className="flex items-center gap-2 mb-4">
-                     <StarRating rating={review.grade_product_knowledge} />
-                     <span className="text-[11px] font-bold text-slate-400">{review.grade_product_knowledge}/5</span>
+                  <div className="flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest pt-2">
+                     <div className="flex items-center gap-1.5">
+                        <Users size={12} className="text-slate-300" />
+                        <span>By {review.assign_name}</span>
+                     </div>
+                     <div className="flex items-center gap-1.5">
+                        <ClipboardList size={12} className="text-slate-300" />
+                        <span>{new Date(review.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
+                     </div>
                   </div>
-
-                  <div className="mt-auto space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                       <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-red-600 font-black text-xs">
-                          {review.sales_name.charAt(0)}
-                       </div>
-                       <div className="min-w-0">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sales Advisor</p>
-                          <p className="text-xs font-bold text-slate-700 truncate">{review.sales_name}</p>
-                       </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest pt-2">
-                       <div className="flex items-center gap-1.5">
-                          <Users size={12} className="text-slate-300" />
-                          <span>By {review.assign_name}</span>
-                       </div>
-                       <div className="flex items-center gap-1.5">
-                          <ClipboardList size={12} className="text-slate-300" />
-                          <span>{new Date(review.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
-                       </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
 
       {/* Review Detail Modal */}
-      <AnimatePresence>
-        {selectedReview && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedReview(null)} 
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl overflow-hidden"
-            >
-              <div className="bg-red-600 p-8 text-white">
-                 <div className="flex justify-between items-start mb-6">
-                    <div className="bg-white/20 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-white backdrop-blur-md border border-white/30">
-                       Review Details
-                    </div>
-                    <button onClick={() => setSelectedReview(null)} className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all">
-                       <X size={20} />
-                    </button>
-                 </div>
-                 <h2 className="text-3xl font-black mb-2">{selectedReview.project_name}</h2>
-                 <p className="text-red-100/70 font-bold text-sm flex items-center gap-2">
-                    <Box size={16} /> {selectedReview.product || 'Standard Product'}
-                 </p>
-              </div>
+      {selectedReview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedReview(null)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl overflow-hidden">
+            <div className="bg-red-600 p-8 text-white">
+               <div className="flex justify-between items-start mb-6">
+                  <div className="bg-white/20 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-white backdrop-blur-md border border-white/30">
+                     Review Details
+                  </div>
+                  <button onClick={() => setSelectedReview(null)} className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all">
+                     <X size={20} />
+                  </button>
+               </div>
+               <h2 className="text-3xl font-black mb-2">{selectedReview.project_name}</h2>
+               <p className="text-red-100/70 font-bold text-sm flex items-center gap-2">
+                  <Box size={16} /> {selectedReview.product || 'Standard Product'}
+               </p>
+            </div>
 
-              <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                       <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Product Knowledge Grade</p>
-                          <div className="flex items-center gap-3">
-                             <StarRating rating={selectedReview.grade_product_knowledge} />
-                             <span className="text-xl font-black text-slate-800">{selectedReview.grade_product_knowledge}</span>
-                          </div>
-                       </div>
-                       <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Training Grade</p>
-                          <div className="flex items-center gap-3">
-                             <StarRating rating={selectedReview.grade_training_customer || 0} />
-                             <span className="text-xl font-black text-slate-800">{selectedReview.grade_training_customer || 0}</span>
-                          </div>
-                       </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Sales Advisor</p>
-                          <p className="font-bold text-slate-700">{selectedReview.sales_name}</p>
-                       </div>
-                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Handler Team</p>
-                          <p className="font-bold text-slate-700">{selectedReview.assign_name}</p>
-                       </div>
-                    </div>
-                 </div>
+            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+               <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                     <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Product Knowledge Grade</p>
+                        <div className="flex items-center gap-3">
+                           <StarRating rating={selectedReview.grade_product_knowledge} />
+                           <span className="text-xl font-black text-slate-800">{selectedReview.grade_product_knowledge}</span>
+                        </div>
+                     </div>
+                     <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Training Grade</p>
+                        <div className="flex items-center gap-3">
+                           <StarRating rating={selectedReview.grade_training_customer || 0} />
+                           <span className="text-xl font-black text-slate-800">{selectedReview.grade_training_customer || 0}</span>
+                        </div>
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Sales Advisor</p>
+                        <p className="font-bold text-slate-700">{selectedReview.sales_name}</p>
+                     </div>
+                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Handler Team</p>
+                        <p className="font-bold text-slate-700">{selectedReview.assign_name}</p>
+                     </div>
+                  </div>
+               </div>
 
-                 <div className="space-y-4">
-                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <ClipboardList size={14} /> Documentation Photo
-                       </p>
-                       {selectedReview.foto_dokumentasi_url ? (
-                         <img src={selectedReview.foto_dokumentasi_url} className="w-full h-48 object-cover rounded-2xl shadow-md" alt="Docs" />
-                       ) : (
-                         <div className="w-full h-48 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-bold text-sm italic">
-                            No documentation image
-                         </div>
-                       )}
-                    </div>
+               <div className="space-y-4">
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <ClipboardList size={14} /> Documentation Photo
+                     </p>
+                     {selectedReview.foto_dokumentasi_url ? (
+                       <img src={selectedReview.foto_dokumentasi_url} className="w-full h-48 object-cover rounded-2xl shadow-md" alt="Docs" />
+                     ) : (
+                       <div className="w-full h-48 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-bold text-sm italic">
+                          No documentation image
+                       </div>
+                     )}
+                  </div>
 
-                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Customer Feedback / Catatan</p>
-                       <p className="text-sm font-bold text-slate-600 leading-relaxed italic">
-                          "{selectedReview.catatan_product_knowledge || 'No specific comments provided'}"
-                       </p>
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Customer Feedback / Catatan</p>
+                     <p className="text-sm font-bold text-slate-600 leading-relaxed italic">
+                        "{selectedReview.catatan_product_knowledge || 'No specific comments provided'}"
+                     </p>
                     </div>
                  </div>
               </div>
@@ -433,60 +417,51 @@ export default function FormReview() {
                     Generate Report
                  </button>
               </div>
-            </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* Notifications Side Drawer */}
-      <AnimatePresence>
-        {showNotifications && (
-          <div className="fixed inset-0 z-[200] overflow-hidden">
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowNotifications(false)} />
-             <motion.div 
-               initial={{ x: '100%' }} 
-               animate={{ x: 0 }} 
-               exit={{ x: '100%' }}
-               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-               className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-white shadow-2xl border-l border-slate-100 flex flex-col"
-              >
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-red-600 text-white">
-                   <div className="flex items-center gap-3">
-                      <Bell size={24} />
-                      <h3 className="text-lg font-black uppercase tracking-widest">Feedback Alerts</h3>
+      {showNotifications && (
+        <div className="fixed inset-0 z-[200] overflow-hidden">
+           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowNotifications(false)} />
+           <div className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-white shadow-2xl border-l border-slate-100 flex flex-col transition-transform duration-300 transform translate-x-0">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-red-600 text-white">
+                 <div className="flex items-center gap-3">
+                    <Bell size={24} />
+                    <h3 className="text-lg font-black uppercase tracking-widest">Feedback Alerts</h3>
+                 </div>
+                 <button onClick={() => setShowNotifications(false)} className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center hover:bg-white/30">
+                    <X size={18} />
+                 </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                 {reviews.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-50">
+                      <TrendingUp size={48} className="mb-4" />
+                      <p className="font-black text-sm uppercase tracking-widest">No Alerts Yet</p>
                    </div>
-                   <button onClick={() => setShowNotifications(false)} className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center hover:bg-white/30">
-                      <X size={18} />
-                   </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                   {reviews.length === 0 ? (
-                     <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-50">
-                        <TrendingUp size={48} className="mb-4" />
-                        <p className="font-black text-sm uppercase tracking-widest">No Alerts Yet</p>
-                     </div>
-                   ) : reviews.slice(0, 10).map((rev) => (
-                     <div key={rev.id} className="p-4 rounded-2xl border-2 border-slate-50 hover:border-red-100 transition-all cursor-pointer group" onClick={() => { setSelectedReview(rev); setShowNotifications(false); }}>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-red-500 transition-colors">New Feedback</p>
-                        <p className="text-sm font-black text-slate-800 leading-tight mb-2 truncate">{rev.project_name}</p>
-                        <div className="flex items-center justify-between">
-                           <StarRating rating={rev.grade_product_knowledge} />
-                           <p className="text-[9px] font-bold text-slate-400">{new Date(rev.created_at).toLocaleDateString()}</p>
-                        </div>
-                     </div>
-                   ))}
-                </div>
+                 ) : reviews.slice(0, 10).map((rev) => (
+                   <div key={rev.id} className="p-4 rounded-2xl border-2 border-slate-50 hover:border-red-100 transition-all cursor-pointer group" onClick={() => { setSelectedReview(rev); setShowNotifications(false); }}>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-red-500 transition-colors">New Feedback</p>
+                      <p className="text-sm font-black text-slate-800 leading-tight mb-2 truncate">{rev.project_name}</p>
+                      <div className="flex items-center justify-between">
+                         <StarRating rating={rev.grade_product_knowledge} />
+                         <p className="text-[9px] font-bold text-slate-400">{new Date(rev.created_at).toLocaleDateString()}</p>
+                      </div>
+                   </div>
+                 ))}
+              </div>
 
-                <div className="p-4 border-t border-slate-100">
-                   <button onClick={() => setShowNotifications(false)} className="w-full bg-slate-900 text-white py-3 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-slate-200">
-                      Close Alerts
-                   </button>
-                </div>
-             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              <div className="p-4 border-t border-slate-100">
+                 <button onClick={() => setShowNotifications(false)} className="w-full bg-slate-900 text-white py-3 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-slate-200">
+                    Close Alerts
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
