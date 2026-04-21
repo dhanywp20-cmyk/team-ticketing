@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+"use client";
+
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import { ReviewRecord, Reminder, User, ReviewCategory } from '@/types';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -23,6 +26,11 @@ import {
   XCircle
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+);
 
 const COLORS = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#fb7185', '#6366f1'];
 
