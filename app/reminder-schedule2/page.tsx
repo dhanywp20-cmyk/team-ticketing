@@ -2039,7 +2039,7 @@ export default function ReminderSchedulePage() {
                             return (
                               <tr key={r.id}
                                 className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
-                                onClick={() => setDetailReminder(r)}>
+                                >
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
