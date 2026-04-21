@@ -4,7 +4,20 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Star, 
+  Clock, 
+  MapPin, 
+  User, 
+  Wrench, 
+  Building2, 
+  Calendar,
+  Search,
+  LayoutDashboard,
+  Filter,
+  PieChart as PieIcon
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Lazy initialization for Supabase client
 let _supabase: any = null;
@@ -278,14 +291,14 @@ function ReviewModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Nama Project', value: record.project_name, icon: '🏢' },
-              { label: 'Lokasi', value: record.address, icon: '📍' },
-              { label: 'Nama Sales', value: record.sales_name, icon: '👤' },
-              { label: 'Handler', value: record.assign_name, icon: '🔧' },
-              { label: 'Tanggal Dibuat', value: new Date(record.created_at).toLocaleDateString(), icon: '⏱️' },
+              { label: 'Nama Project', value: record.project_name, icon: <Building2 className="w-3.5 h-3.5" /> },
+              { label: 'Lokasi', value: record.address, icon: <MapPin className="w-3.5 h-3.5" /> },
+              { label: 'Nama Sales', value: record.sales_name, icon: <User className="w-3.5 h-3.5" /> },
+              { label: 'Handler', value: record.assign_name, icon: <Wrench className="w-3.5 h-3.5" /> },
+              { label: 'Tanggal Dibuat', value: new Date(record.created_at).toLocaleDateString(), icon: <Clock className="w-3.5 h-3.5" /> },
             ].map(({ label, value, icon }) => (
               <div key={label} className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{icon} {label}</p>
+                <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{icon} {label}</p>
                 <p className="text-sm font-semibold text-slate-800 leading-snug">{value || '—'}</p>
               </div>
             ))}
@@ -439,7 +452,9 @@ export default function FormReviewPage() {
 
       <header className="sticky top-0 z-40 bg-white border-b-2 border-red-600 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white text-xl">⭐</div>
+          <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white">
+            <LayoutDashboard className="w-6 h-6" />
+          </div>
           <h1 className="text-xl font-black text-slate-800">Form Review Platform</h1>
         </div>
         <button onClick={() => router.push('/reminder-schedule')} className="px-4 py-2 border-2 border-slate-200 rounded-xl font-bold text-sm">🗓️ Schedule</button>
