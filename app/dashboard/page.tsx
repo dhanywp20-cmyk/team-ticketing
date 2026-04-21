@@ -82,7 +82,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   const menuLabels: Record<string, { label: string; icon: string; gradient: string }> = {
-    'form-bast': { label: 'Form Review Demo & BAST', icon: '⭐', gradient: 'from-slate-600 to-slate-500' },
+    'form-bast': { label: 'Form Review Demo & BAST', icon: '✨', gradient: 'from-slate-600 to-slate-500' },
     'form-require-project': { label: 'Form Require Project', icon: '🏗️', gradient: 'from-violet-600 to-violet-500' },
     'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫', gradient: 'from-rose-600 to-rose-500' },
     'daily-report': { label: 'Daily Report', icon: '📈', gradient: 'from-emerald-600 to-emerald-500' },
@@ -901,11 +901,11 @@ export default function Dashboard() {
       items: [{ name: 'Submit Require', url: '/form-require-project2', icon: '📋', internal: true, embed: true }]
     },
     {
-      title: 'Form Review Demo & BAST', icon: '⭐', key: 'form-bast',
+      title: 'Form Review Demo & BAST', icon: '✨', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
-      description: 'Platform review Demo Produk & BAST dari Reminder Schedule',
+      description: 'Platform review Demo Produk & BAST',
       items: [
-        { name: 'Platform Review', url: '/form-review', icon: '⭐', internal: true, embed: true },
+        { name: 'Platform Review', url: '/form-review', icon: '✨', internal: true, embed: true },
       ]
     },
     {
