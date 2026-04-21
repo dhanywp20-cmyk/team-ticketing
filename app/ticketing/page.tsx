@@ -2340,7 +2340,7 @@ export default function TicketingSystem() {
                             {ticket.product ? (
                               <button
                                 onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                                className="text-[10px] text-gray-600 px-2 py-0.5 text-left break-words leading-tight"
+                                className="text-[12px] text-gray-600 px-2 py-0.5 text-left break-words leading-tight"
                                 style={{ background: productFilter === ticket.product ? "#e2e3f0ff" : "#eef2ff", color: productFilter === ticket.product ? "white" : "#8076f0ff", borderColor: "#c7d2fe" }}
                               >{ticket.product}</button>
                             ) : <span className="text-gray-300 text-sm">—</span>}
