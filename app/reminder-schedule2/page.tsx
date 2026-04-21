@@ -2119,7 +2119,7 @@ export default function ReminderSchedulePage() {
                                 </td>
                                 {/* ACT */}
                                 <td className="px-3 py-1 align-middle text-center" onClick={e => e.stopPropagation()}>
-                                  <div className="flex items-center justify-center gap-1">
+                                  <div className="flex flex-nowrap items-center justify-center gap-1">
                                     {/* Detail */}
                                     <button onClick={() => setDetailReminder(r)} title="Detail"
                                       className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
