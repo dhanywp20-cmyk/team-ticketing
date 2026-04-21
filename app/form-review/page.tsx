@@ -148,8 +148,8 @@ export default function FormReview() {
 
     const { data: reminderData } = await reminderQuery;
     if (reminderData && reviewData) {
-      const reviewedIds = new Set(reviewData.map(r => r.reminder_id));
-      const pending = reminderData.filter(r => !reviewedIds.has(r.id));
+      const reviewedIds = new Set(reviewData.map((r: ReviewRecord) => r.reminder_id));
+      const pending = reminderData.filter((r: Reminder) => !reviewedIds.has(r.id));
       setPendingReminders(pending);
     }
 
@@ -208,21 +208,21 @@ export default function FormReview() {
     }
   };
 
-  const filteredReviews = useMemo(() => reviews.filter(r => 
+  const filteredReviews = useMemo(() => reviews.filter((r: ReviewRecord) => 
     r.project_name.toLowerCase().includes(search.toLowerCase()) ||
     r.assign_name.toLowerCase().includes(search.toLowerCase())
   ), [reviews, search]);
 
   const stats = useMemo(() => ({
     total: reviews.length,
-    demoProduct: reviews.filter(r => r.reminder_category === 'Demo Product').length,
-    training: reviews.filter(r => ['Training', 'Konfigurasi & Training', 'Konfigurasi'].includes(r.reminder_category)).length,
+    demoProduct: reviews.filter((r: ReviewRecord) => r.reminder_category === 'Demo Product').length,
+    training: reviews.filter((r: ReviewRecord) => ['Training', 'Konfigurasi & Training', 'Konfigurasi'].includes(r.reminder_category)).length,
     pending: pendingReminders.length
   }), [reviews, pendingReminders]);
 
   const getChartData = useCallback((key: keyof ReviewRecord) => {
     const counts: Record<string, number> = {};
-    reviews.forEach(r => {
+    reviews.forEach((r: ReviewRecord) => {
       const val = String(r[key] || 'Unknown');
       counts[val] = (counts[val] || 0) + 1;
     });
@@ -277,7 +277,7 @@ export default function FormReview() {
                     <p className="text-xs mt-2">Semua tugas sudah di-review!</p>
                   </div>
                 ) : (
-                  pendingReminders.map(r => (
+                  pendingReminders.map((r: Reminder) => (
                     <div key={r.id} className="p-3 hover:bg-slate-50 rounded-2xl transition-all border-b border-slate-50 last:border-0 group">
                       <div className="flex justify-between items-start mb-1">
                         <p className="font-bold text-sm text-slate-800 line-clamp-1">{r.project_name}</p>
