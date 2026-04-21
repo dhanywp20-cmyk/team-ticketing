@@ -2122,20 +2122,20 @@ export default function ReminderSchedulePage() {
                                   <div className="flex flex-nowrap items-center justify-center gap-1">
                                     {/* Detail */}
                                     <button onClick={() => setDetailReminder(r)} title="Detail"
-                                      className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
+                                      className="text-blue-500 hover:text-blue-700 transition-colors">
                                       <span className="text-sm">👁</span>
                                     </button>
                                     {/* Re-Schedule — semua team PTS & admin bisa lihat */}
                                     {(isAdmin || currentUser?.role === 'team') && r.status !== 'done' && (
                                       <button onClick={() => setRescheduleTarget(r)} title="Re-Schedule"
-                                        className="text-amber-500 hover:text-amber-700 transition-colors p-0.5">
+                                        className="text-amber-500 hover:text-amber-700 transition-colors">
                                         <span className="text-sm">📅</span>
                                       </button>
                                     )}
                                     {/* Hapus — admin only */}
                                     {isAdmin && (
                                       <button onClick={() => openDeleteModal(r)} title="Hapus"
-                                        className="text-red-400 hover:text-red-600 transition-colors p-0.5">
+                                        className="text-red-400 hover:text-red-600 transition-colors">
                                         <span className="text-sm">🗑️</span>
                                       </button>
                                     )}
