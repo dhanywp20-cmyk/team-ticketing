@@ -105,6 +105,7 @@ interface GuestUser {
   id: string;
   username: string;
   full_name: string;
+  sales_division: string;
   role: string;
   phone_number?: string;
 }
@@ -708,14 +709,14 @@ export default function ReminderSchedulePage() {
   // Berjalan otomatis setiap hari tanpa perlu buka halaman
 
   const fetchTeamUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
+    const { data } = await supabase.from('users').select('id, username, full_name, role, sales_division, team_type, phone_number').order('full_name');
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
   const fetchGuestUsers = async () => {
     const { data } = await supabase
       .from('users')
-      .select('id, username, full_name, role, phone_number')
+      .select('id, username, full_name, role, sales_division, phone_number')
       .eq('role', 'guest')
       .order('full_name');
     if (data) setGuestUsers(data as GuestUser[]);
