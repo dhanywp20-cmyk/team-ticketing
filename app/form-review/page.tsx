@@ -1,90 +1,139 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface User {
-  id: string;
-  username: string;
-  full_name: string;
-  role: 'admin' | 'team' | 'guest' | 'superadmin';
-}
+type ReviewCategory = 'Demo Product' | 'BAST';
 
-interface ReviewRecord {
+interface ReviewForm {
   id: string;
+  reminder_id: string;
   project_name: string;
   address: string;
   sales_name: string;
   sales_division: string;
   assign_name: string;
-  review_category: 'Demo Product' | 'BAST';
+  assigned_to: string;
   reminder_category: string;
-  product: string;
-  grade_product_knowledge: number;
-  catatan_product_knowledge: string;
+  review_category: ReviewCategory;
+  // Demo Product fields
+  product_demo?: string;
+  grade_product_knowledge?: number;
+  catatan_grade_product_knowledge?: string;
+  // BAST fields
+  product_bast?: string;
   grade_training_customer?: number;
-  catatan_training_customer?: string;
-  photo_url?: string;
+  catatan_grade_training_customer?: string;
+  grade_product_knowledge_bast?: number;
+  catatan_grade_product_knowledge_bast?: string;
+  // Shared
+  foto_dokumentasi_url?: string;
+  // Meta
+  guest_username: string;
   created_at: string;
-  reminder_id?: string;
+  updated_at?: string;
 }
 
 interface Reminder {
   id: string;
   project_name: string;
-  category: string;
+  address: string;
   sales_name: string;
   sales_division: string;
   assign_name: string;
-  address: string;
+  assigned_to: string;
+  category: string;
   status: string;
-  product?: string;
   due_date: string;
-  due_time: string;
+  due_time?: string;
+}
+
+interface GuestUser {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
+  team_type?: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: string }> = {
-  'Demo Product': { label: 'Demo Product', color: '#7c3aed', bg: 'rgba(124,58,237,0.15)', border: 'rgba(124,58,237,0.4)', icon: '🖥️' },
-  'BAST':         { label: 'BAST',         color: '#059669', bg: 'rgba(5,150,105,0.15)',  border: 'rgba(5,150,105,0.4)',   icon: '✅' },
-};
+const REVIEW_TRIGGER_CATEGORIES = ['Demo Product', 'Konfigurasi & Training', 'Training'];
 
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
+function getCategoryType(reminderCategory: string): ReviewCategory {
+  if (reminderCategory === 'Demo Product') return 'Demo Product';
+  return 'BAST';
+}
 
-const IconStar = ({ fill = "none", stroke = "currentColor", ...props }: { fill?: string; stroke?: string; [key: string]: any }) => (
-  <svg {...props} width="16" height="16" viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-);
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
-const IconSearch = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
-const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
-const IconEdit = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDatetime(createdAt: string) {
-  if (!createdAt) return '';
-  const d = new Date(createdAt);
+function formatDatetime(dt: string) {
+  if (!dt) return '';
+  const d = new Date(dt);
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' +
     d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ─── Pie Chart Component ─────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: '#94a3b8' }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function SectionHeader({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div className="flex items-center gap-2 pb-2 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
+      <span className="text-lg">{icon}</span>
+      <span className="text-sm font-bold tracking-wide text-slate-700">{title}</span>
+    </div>
+  );
+}
+
+function StarRating({ value, onChange, disabled }: { value: number; onChange?: (v: number) => void; disabled?: boolean }) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="flex items-center gap-1">
+      {[1,2,3,4,5].map(star => (
+        <button
+          key={star}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange && onChange(star)}
+          onMouseEnter={() => !disabled && setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          className="transition-all"
+          style={{ fontSize: '1.6rem', cursor: disabled ? 'default' : 'pointer' }}
+        >
+          <span style={{ color: star <= (hovered || value) ? '#f59e0b' : '#d1d5db' }}>★</span>
+        </button>
+      ))}
+      {value > 0 && <span className="ml-1 text-sm font-bold text-amber-600">{value}/5</span>}
+    </div>
+  );
+}
+
+// ─── Mini Pie Chart ────────────────────────────────────────────────────────────
 
 function MiniPieChart({
-  data, title, icon, activeFilter,
-  onSliceClick,
+  data, title, icon, activeFilter, onSliceClick,
 }: {
   data: { label: string; value: number; color: string }[];
   title: string; icon: string;
@@ -96,7 +145,7 @@ function MiniPieChart({
   if (total === 0) return (
     <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
       <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
-      <p className="text-gray-400 text-sm text-center py-4 font-bold">Belum ada data</p>
+      <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
     </div>
   );
 
@@ -126,715 +175,1135 @@ function MiniPieChart({
               <g key={s.i} style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
                 onClick={() => onSliceClick && onSliceClick(s.label)}
                 onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
-                <circle cx={60} cy={60} r={50} fill={s.color}
-                  opacity={hov === null || hov === s.i ? 1 : 0.45}
-                  style={{ filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }} />
+                <circle cx={60} cy={60} r={50} fill={s.color} opacity={hov === s.i || activeFilter === s.label ? 1 : 0.82} />
                 <circle cx={60} cy={60} r={28} fill="white" />
               </g>
             ) : (
-            <path key={s.i} d={s.path} fill={s.color}
-              opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }}
-              onMouseEnter={() => setHov(s.i)}
-              onMouseLeave={() => setHov(null)}
-              onClick={() => onSliceClick && onSliceClick(s.label)} />
+              <g key={s.i} style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
+                onClick={() => onSliceClick && onSliceClick(s.label)}
+                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}
+                transform={hov === s.i || activeFilter === s.label ? `translate(${Math.cos(cumAngle - (s.value/total)*Math.PI)*3}, ${Math.sin(cumAngle - (s.value/total)*Math.PI)*3})` : ''}>
+                <path d={s.path} fill={s.color} opacity={hov === s.i || activeFilter === s.label ? 1 : 0.82} />
+              </g>
             )
           ))}
-          <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
-          <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
+          <text x="60" y="64" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#374151">{total}</text>
         </svg>
-        <div className="flex flex-col gap-1 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
-          {slices.map((s) => {
-            const isActive = activeFilter === s.label;
-            return (
-              <div key={s.i}
-                className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-                style={{
-                  background: hov === s.i || isActive ? `${s.color}20` : 'transparent',
-                  outline: isActive ? `1.5px solid ${s.color}` : 'none',
-                }}
-                onMouseEnter={() => setHov(s.i)}
-                onMouseLeave={() => setHov(null)}
-                onClick={() => onSliceClick && onSliceClick(s.label)}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
-                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: s.color }}>{s.value}</span>
-              </div>
-            );
-          })}
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          {data.slice(0, 5).map((d, i) => (
+            <div key={i} onClick={() => onSliceClick && onSliceClick(d.label)}
+              className="flex items-center gap-2 cursor-pointer group"
+              style={{ opacity: activeFilter && activeFilter !== d.label ? 0.45 : 1 }}>
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+              <span className="text-[10px] text-gray-600 truncate group-hover:text-gray-900 transition-colors leading-tight">{d.label}</span>
+              <span className="ml-auto text-[10px] font-bold text-gray-700 flex-shrink-0">{d.value}</span>
+            </div>
+          ))}
+          {data.length > 5 && <p className="text-[9px] text-gray-400">+{data.length - 5} lainnya</p>}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Loading Screen ────────────────────────────────────────────────────────────
 
-export default function FormReview() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Category Tab
-  const [activeTab, setActiveTab] = useState<'Demo Product' | 'BAST'>('Demo Product');
+function LoadingScreen() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-[9999]"
+      style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="flex flex-col items-center gap-3 px-10 py-8 rounded-2xl"
+        style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <svg className="w-12 h-12 animate-spin" viewBox="0 0 50 50" fill="none">
+          <circle cx="25" cy="25" r="20" stroke="#f1f1f1" strokeWidth="5" />
+          <path d="M25 5 A20 20 0 0 1 45 25" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" />
+        </svg>
+        <p className="text-gray-700 font-semibold text-sm tracking-wide">Loading Form Review...</p>
+      </div>
+    </div>
+  );
+}
 
-  // Filters (Match Reminder Schedule)
-  const [searchProject, setSearchProject] = useState('');
-  const [searchSales, setSearchSales] = useState('');
-  const [searchProduct, setSearchProduct] = useState('');
-  const [searchHandler, setSearchHandler] = useState('');
-  const [filterYear, setFilterYear] = useState('all');
+// ─── Main Component ────────────────────────────────────────────────────────────
 
-  // Modal states
-  const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
-  const [showReviewForm, setShowReviewForm] = useState(false);
+export default function FormReviewPage() {
+  const router = useRouter();
+
+  // Auth
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<GuestUser | null>(null);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [dashLoading, setDashLoading] = useState(false);
+
+  // Data
+  const [reviews, setReviews] = useState<ReviewForm[]>([]);
+  const [listLoading, setListLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [pendingReminders, setPendingReminders] = useState<Reminder[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [detailReview, setDetailReview] = useState<ReviewRecord | null>(null);
-  const [editingReview, setEditingReview] = useState<ReviewRecord | null>(null);
 
-  // Form State
-  const [reviewForm, setReviewForm] = useState({
-    product: '',
-    grade_product_knowledge: 5,
-    catatan_product_knowledge: '',
-    grade_training_customer: 5,
-    catatan_training_customer: '',
-  });
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Notifications
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [showBellPopup, setShowBellPopup] = useState(false);
+  const [myPendingReviews, setMyPendingReviews] = useState<ReviewForm[]>([]);
+
+  // Filters
+  const [filterCategory, setFilterCategory] = useState<'all' | 'Demo Product' | 'BAST'>('all');
+  const [searchProject, setSearchProject] = useState('');
+  const [searchHandler, setSearchHandler] = useState('');
+  const [filterReviewCat, setFilterReviewCat] = useState<'all' | 'Demo Product' | 'BAST'>('all');
+  const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
+  const [productFilterChart, setProductFilterChart] = useState<string | null>(null);
+
+  // Switch tabs
+  const [switchTab, setSwitchTab] = useState<'Demo Product' | 'BAST'>('Demo Product');
+
+  // Modals
+  const [detailReview, setDetailReview] = useState<ReviewForm | null>(null);
+  const [editingReview, setEditingReview] = useState<ReviewForm | null>(null);
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ReviewForm | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  // Review form data
+  const emptyReviewForm = {
+    product_demo: '', grade_product_knowledge: 0, catatan_grade_product_knowledge: '',
+    product_bast: '', grade_training_customer: 0, catatan_grade_training_customer: '',
+    grade_product_knowledge_bast: 0, catatan_grade_product_knowledge_bast: '',
+    foto_dokumentasi_url: '',
+  };
+  const [reviewFormData, setReviewFormData] = useState(emptyReviewForm);
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const fotoRef = useRef<HTMLInputElement>(null);
+
+  // Toast
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  const notify = (type: 'success' | 'error', msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const rfd = (patch: Partial<typeof emptyReviewForm>) =>
+    setReviewFormData(prev => ({ ...prev, ...patch }));
+
+  const isAdmin = currentUser?.role === 'admin';
+  const isGuest = currentUser?.role === 'guest';
+  const isTeam = currentUser?.role === 'team';
+
+  // ─── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
-    
-    // Auto sync storage listener if user changes role externally
-    const handleStorage = () => {
-       const s = localStorage.getItem('currentUser');
-       if(s) setCurrentUser(JSON.parse(s));
+    const saved = localStorage.getItem('currentUser');
+    const user = saved ? (JSON.parse(saved) as GuestUser) : null;
+    if (user) {
+      setCurrentUser(user);
+      setIsLoggedIn(true);
+    }
+
+    fetchReviewsQuiet(user);
+
+    // Realtime subscription
+    const ch = supabase.channel('form-reviews-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'form_reviews' }, () => {
+        const s = localStorage.getItem('currentUser');
+        const u = s ? (JSON.parse(s) as GuestUser) : user;
+        fetchReviewsQuiet(u);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  // Session timeout
+  useEffect(() => {
+    const check = () => {
+      const savedTime = localStorage.getItem('loginTime');
+      if (!savedTime) return;
+      if (Date.now() - parseInt(savedTime) > 6 * 60 * 60 * 1000) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('loginTime');
+        const target = window.top !== window ? window.top : window;
+        if (target) target.location.href = '/dashboard';
+      }
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    check();
+    const interval = setInterval(check, 60000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchData = useCallback(async (user: User) => {
-    setLoading(true);
-    let reviewQuery = supabase.from('reviews').select('*').order('created_at', { ascending: false });
-    // Guest only sees their assigned reviews
-    if (user.role === 'guest') reviewQuery = reviewQuery.eq('sales_name', user.full_name);
-    
-    const { data: reviewData } = await reviewQuery;
-    if (reviewData) setReviews(reviewData);
+  // ─── Fetch ─────────────────────────────────────────────────────────────────
 
-    // Pending reminders (Completed in Schedule but not reviewed yet)
-    let reminderQuery = supabase.from('reminders')
-      .select('*')
-      .eq('status', 'done')
-      .in('category', ['Demo Product', 'Konfigurasi & Training', 'Training', 'Konfigurasi']);
-    
-    if (user.role === 'guest') reminderQuery = reminderQuery.eq('sales_name', user.full_name);
-
-    const { data: reminderData } = await reminderQuery;
-    if (reminderData && reviewData) {
-      const reviewedIds = new Set(reviewData.map((r: ReviewRecord) => r.reminder_id));
-      const pending = reminderData.filter((r: Reminder) => !reviewedIds.has(r.id));
-      setPendingReminders(pending);
+  const fetchReviewsQuiet = async (user?: GuestUser | null) => {
+    let activeUser: GuestUser | null = user ?? currentUser;
+    if (!activeUser) {
+      const saved = localStorage.getItem('currentUser');
+      if (saved) { try { activeUser = JSON.parse(saved) as GuestUser; } catch {} }
     }
-    setLoading(false);
-  }, []);
 
-  useEffect(() => {
-    if (currentUser) fetchData(currentUser);
-  }, [currentUser, fetchData]);
+    let query = supabase.from('form_reviews').select('*').order('created_at', { ascending: false });
 
-  const handleOpenReview = (reminder: Reminder) => {
-    setSelectedReminder(reminder);
-    setReviewForm({
-      product: reminder.product || '',
-      grade_product_knowledge: 5,
-      catatan_product_knowledge: '',
-      grade_training_customer: 5,
-      catatan_training_customer: '',
-    });
-    setImagePreview(null);
-    setImageFile(null);
-    setShowReviewForm(true);
-    setShowNotifications(false);
-  };
+    // Guest hanya melihat data yang di-assign ke mereka
+    if (activeUser?.role === 'guest') {
+      query = query.eq('guest_username', activeUser.username);
+    }
 
-  const handleImageChange = (e: import("react").ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
+    const { data, error } = await query;
+    if (!error && data) {
+      setReviews(data as ReviewForm[]);
+      // Cek pending reviews untuk notif
+      if (activeUser?.role === 'guest') {
+        const pending = (data as ReviewForm[]).filter(r => !r.grade_product_knowledge && !r.grade_product_knowledge_bast);
+        setMyPendingReviews(pending);
+        if (pending.length > 0) setTimeout(() => setShowNotificationPopup(true), 800);
+      }
     }
   };
 
-  const submitReview = async () => {
-    if (!selectedReminder || !currentUser) return;
+  const fetchReviews = async () => {
+    setListLoading(true);
+    await fetchReviewsQuiet();
+    setTimeout(() => setListLoading(false), 400);
+  };
+
+  // ─── CRUD ──────────────────────────────────────────────────────────────────
+
+  const handleSaveReview = async () => {
+    if (!editingReview) return;
+
+    const isDemo = editingReview.review_category === 'Demo Product';
+
+    if (isDemo) {
+      if (!reviewFormData.product_demo?.trim()) { notify('error', 'Product wajib diisi!'); return; }
+      if (!reviewFormData.grade_product_knowledge) { notify('error', 'Grade Product Knowledge wajib diisi!'); return; }
+    } else {
+      if (!reviewFormData.product_bast?.trim()) { notify('error', 'Product wajib diisi!'); return; }
+      if (!reviewFormData.grade_training_customer) { notify('error', 'Grade Training Customer wajib diisi!'); return; }
+      if (!reviewFormData.grade_product_knowledge_bast) { notify('error', 'Grade Product Knowledge wajib diisi!'); return; }
+    }
+
     setSaving(true);
 
-    let photoUrl = '';
-    if (imageFile) {
-        setUploadingImage(true);
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `review_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('reminder-photos').upload(fileName, imageFile);
-        if (!uploadError) {
-            const { data } = supabase.storage.from('reminder-photos').getPublicUrl(fileName);
-            photoUrl = data.publicUrl;
-        }
-        setUploadingImage(false);
+    let fotoUrl = reviewFormData.foto_dokumentasi_url;
+    if (fotoFile) {
+      const ext = fotoFile.name.split('.').pop();
+      const fileName = `review_foto_${editingReview.id}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('review-photos')
+        .upload(fileName, fotoFile, { upsert: true });
+      if (upErr) {
+        notify('error', 'Gagal upload foto: ' + upErr.message);
+        setSaving(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('review-photos').getPublicUrl(fileName);
+      fotoUrl = urlData?.publicUrl;
     }
-    
-    const payload: any = {
-      reminder_id: selectedReminder.id,
-      project_name: selectedReminder.project_name,
-      address: selectedReminder.address,
-      sales_name: selectedReminder.sales_name,
-      sales_division: selectedReminder.sales_division,
-      assign_name: selectedReminder.assign_name,
-      review_category: (['Konfigurasi & Training', 'Training', 'Konfigurasi'].includes(selectedReminder.category) ? 'BAST' : 'Demo Product'),
-      reminder_category: selectedReminder.category,
-      product: reviewForm.product,
-      grade_product_knowledge: reviewForm.grade_product_knowledge,
-      catatan_product_knowledge: reviewForm.catatan_product_knowledge,
-      photo_url: photoUrl,
-      created_at: new Date().toISOString(),
+
+    const payload: Partial<ReviewForm> = {
+      foto_dokumentasi_url: fotoUrl,
+      updated_at: new Date().toISOString(),
     };
 
-    if (payload.review_category === 'BAST') {
-      payload.grade_training_customer = reviewForm.grade_training_customer;
-      payload.catatan_training_customer = reviewForm.catatan_training_customer;
+    if (isDemo) {
+      payload.product_demo = reviewFormData.product_demo;
+      payload.grade_product_knowledge = reviewFormData.grade_product_knowledge;
+      payload.catatan_grade_product_knowledge = reviewFormData.catatan_grade_product_knowledge;
+    } else {
+      payload.product_bast = reviewFormData.product_bast;
+      payload.grade_training_customer = reviewFormData.grade_training_customer;
+      payload.catatan_grade_training_customer = reviewFormData.catatan_grade_training_customer;
+      payload.grade_product_knowledge_bast = reviewFormData.grade_product_knowledge_bast;
+      payload.catatan_grade_product_knowledge_bast = reviewFormData.catatan_grade_product_knowledge_bast;
     }
 
-    const { error } = editingReview 
-      ? await supabase.from('reviews').update(payload).eq('id', editingReview.id)
-      : await supabase.from('reviews').insert([payload]);
-
+    const { error } = await supabase.from('form_reviews').update(payload).eq('id', editingReview.id);
     setSaving(false);
-    if (error) { alert('Gagal submit: ' + error.message); }
-    else {
-      setShowReviewForm(false);
-      setSelectedReminder(null);
-      setEditingReview(null);
-      fetchData(currentUser);
-    }
+
+    if (error) { notify('error', 'Gagal menyimpan: ' + error.message); return; }
+    notify('success', 'Review berhasil disimpan!');
+    setShowFormModal(false);
+    setEditingReview(null);
+    setReviewFormData(emptyReviewForm);
+    setFotoFile(null);
+    setFotoPreview(null);
+    fetchReviewsQuiet();
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Hapus review ini permanen?')) {
-       await supabase.from('reviews').delete().eq('id', id);
-       fetchData(currentUser!);
-    }
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from('form_reviews').delete().eq('id', deleteTarget.id);
+    if (error) { notify('error', 'Gagal menghapus.'); return; }
+    notify('success', 'Review dihapus.');
+    setDetailReview(null);
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
+    fetchReviewsQuiet();
   };
 
-  const openEdit = (r: ReviewRecord) => {
-     setEditingReview(r);
-     setSelectedReminder({ 
-        id: r.reminder_id || '', project_name: r.project_name, category: r.reminder_category,
-        sales_name: r.sales_name, sales_division: r.sales_division, assign_name: r.assign_name,
-        address: r.address, status: 'done', product: r.product, due_date: '', due_time: ''
-     });
-     setReviewForm({
-        product: r.product, grade_product_knowledge: r.grade_product_knowledge, catatan_product_knowledge: r.catatan_product_knowledge,
-        grade_training_customer: r.grade_training_customer || 5, catatan_training_customer: r.catatan_training_customer || ''
-     });
-     setImagePreview(r.photo_url || null);
-     setDetailReview(null);
-     setShowReviewForm(true);
-  };
-
-  // ─── Filter Logic (Identical to Schedule) ───────────────────────────────────
-
-  const filteredReviews = useMemo(() => {
-    return reviews.filter(r => {
-      // Tab filter
-      if (r.review_category !== activeTab) return false;
-      // Search filters
-      if (searchProject && !r.project_name.toLowerCase().includes(searchProject.toLowerCase())) return false;
-      if (searchSales && !r.sales_name.toLowerCase().includes(searchSales.toLowerCase())) return false;
-      if (searchProduct && !r.product.toLowerCase().includes(searchProduct.toLowerCase())) return false;
-      if (searchHandler && !r.assign_name.toLowerCase().includes(searchHandler.toLowerCase())) return false;
-      if (filterYear !== 'all' && !r.created_at.startsWith(filterYear)) return false;
-      return true;
+  const openEdit = (r: ReviewForm) => {
+    setEditingReview(r);
+    setReviewFormData({
+      product_demo: r.product_demo ?? '',
+      grade_product_knowledge: r.grade_product_knowledge ?? 0,
+      catatan_grade_product_knowledge: r.catatan_grade_product_knowledge ?? '',
+      product_bast: r.product_bast ?? '',
+      grade_training_customer: r.grade_training_customer ?? 0,
+      catatan_grade_training_customer: r.catatan_grade_training_customer ?? '',
+      grade_product_knowledge_bast: r.grade_product_knowledge_bast ?? 0,
+      catatan_grade_product_knowledge_bast: r.catatan_grade_product_knowledge_bast ?? '',
+      foto_dokumentasi_url: r.foto_dokumentasi_url ?? '',
     });
-  }, [reviews, activeTab, searchProject, searchSales, searchProduct, searchHandler, filterYear]);
+    setFotoFile(null);
+    setFotoPreview(null);
+    setDetailReview(null);
+    setShowFormModal(true);
+  };
 
-  const availableYears = useMemo(() => {
-    const years = Array.from(new Set(reviews.map(r => r.created_at.substring(0, 4))));
-    return (years as string[]).sort((a, b) => b.localeCompare(a));
-  }, [reviews]);
+  const openDeleteModal = (r: ReviewForm) => {
+    setDeleteTarget(r);
+    setDeleteConfirmText('');
+    setShowDeleteModal(true);
+  };
 
-  // ─── Stats & Pie Chart Data ─────────────────────────────────────────────────
+  // ─── Login ─────────────────────────────────────────────────────────────────
 
-  const stats = useMemo(() => ({
-    total: reviews.filter(r => r.review_category === activeTab).length,
-    pending: pendingReminders.length,
-    demo: reviews.filter(r => r.review_category === 'Demo Product').length,
-    bast: reviews.filter(r => r.review_category === 'BAST').length,
-  }), [reviews, pendingReminders, activeTab]);
+  const handleLogin = async () => {
+    try {
+      const { data, error } = await supabase.from('users').select('*')
+        .eq('username', loginForm.username).eq('password', loginForm.password).single();
+      if (error || !data) { notify('error', 'Username atau password salah!'); return; }
+      const now = Date.now();
+      setDashLoading(true);
+      setCurrentUser(data);
+      setIsLoggedIn(true);
+      localStorage.setItem('currentUser', JSON.stringify(data));
+      localStorage.setItem('loginTime', now.toString());
+      await fetchReviewsQuiet(data);
+      setTimeout(() => setDashLoading(false), 1800);
+    } catch { notify('error', 'Terjadi kesalahan.'); }
+  };
 
-  const getPieData = useCallback((key: keyof ReviewRecord) => {
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('loginTime');
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    const target = window.top !== window ? window.top : window;
+    if (target) target.location.href = '/dashboard';
+  };
+
+  // ─── Filters ───────────────────────────────────────────────────────────────
+
+  const filteredReviews = reviews.filter(r => {
+    if (filterReviewCat !== 'all' && r.review_category !== filterReviewCat) return false;
+    if (handlerFilter && r.assign_name !== handlerFilter) return false;
+    if (productFilterChart) {
+      const prod = r.review_category === 'Demo Product' ? r.product_demo : r.product_bast;
+      if (prod !== productFilterChart) return false;
+    }
+    if (searchProject && !r.project_name?.toLowerCase().includes(searchProject.toLowerCase()) &&
+        !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
+    if (searchHandler && !r.assign_name?.toLowerCase().includes(searchHandler.toLowerCase())) return false;
+    return true;
+  });
+
+  // Demo vs BAST split for table switch
+  const demoReviews = filteredReviews.filter(r => r.review_category === 'Demo Product');
+  const bastReviews = filteredReviews.filter(r => r.review_category === 'BAST');
+  const tableReviews = switchTab === 'Demo Product' ? demoReviews : bastReviews;
+
+  // Dashboard counts
+  const totalDemo = reviews.filter(r => r.review_category === 'Demo Product').length;
+  const totalTraining = reviews.filter(r => r.review_category === 'BAST').length;
+
+  // Pie data
+  const categoryPieData = (() => {
     const map: Record<string, number> = {};
-    reviews.filter(r => r.review_category === activeTab).forEach(r => {
-      const val = String(r[key] || 'Unknown');
-      map[val] = (map[val] || 0) + 1;
-    });
+    reviews.forEach(r => { map[r.reminder_category] = (map[r.reminder_category] || 0) + 1; });
+    return Object.entries(map).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
+
+  const handlerPieData = (() => {
+    const map: Record<string, number> = {};
+    reviews.forEach(r => { if (r.assign_name) map[r.assign_name] = (map[r.assign_name] || 0) + 1; });
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  }, [reviews, activeTab]);
+  })();
 
-  const pieData = useMemo(() => ({
-    category: getPieData('reminder_category'),
-    handler: getPieData('assign_name'),
-    product: getPieData('product'),
-  }), [getPieData]);
+  const productPieData = (() => {
+    const map: Record<string, number> = {};
+    reviews.forEach(r => {
+      const prod = r.review_category === 'Demo Product' ? r.product_demo : r.product_bast;
+      if (prod) map[prod] = (map[prod] || 0) + 1;
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
 
-  if (!currentUser) return <div className="p-20 text-center font-black text-slate-400 uppercase tracking-widest animate-pulse">Loading Platform...</div>;
+  const myActivePendingReviews = reviews.filter(r =>
+    currentUser && r.guest_username === currentUser.username &&
+    !r.grade_product_knowledge && !r.grade_product_knowledge_bast
+  );
+
+  const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-violet-500/40";
+  const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
+
+  // ─── Login Page ─────────────────────────────────────────────────────────────
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative"
+        style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} />
+        {toast && (
+          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
+            {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
+          </div>
+        )}
+        <div className="relative z-10 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md" style={{ border: '2px solid rgba(124,58,237,0.3)' }}>
+          <div className="flex justify-center mb-5">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', boxShadow: '0 6px 24px rgba(124,58,237,0.4)' }}>
+              <span className="text-3xl">⭐</span>
+            </div>
+          </div>
+          <h1 className="text-3xl font-black text-center mb-1 text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-purple-800">Login</h1>
+          <p className="text-center text-gray-600 font-semibold mb-6 text-sm">Form Review Demo Produk & BAST<br /><span className="text-violet-600 font-bold">PTS IVP — Survey Team</span></p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold mb-2 text-gray-700">Username</label>
+              <input type="text" value={loginForm.username}
+                onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-violet-600 focus:ring-4 focus:ring-violet-200 transition-all font-medium bg-white"
+                placeholder="Masukkan username"
+                onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-2 text-gray-700">Password</label>
+              <input type="password" value={loginForm.password}
+                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-violet-600 focus:ring-4 focus:ring-violet-200 transition-all font-medium bg-white"
+                placeholder="Masukkan password"
+                onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+            </div>
+            <button onClick={handleLogin}
+              className="w-full text-white py-3 rounded-xl font-bold shadow-xl transition-all hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+              🔐 Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (dashLoading) return <LoadingScreen />;
+
+  // ─── Main Render ────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen flex flex-col relative" style={{
       backgroundImage: `url('/IVP_Background.png')`,
       backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
     }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
       <div className="relative z-10 flex flex-col min-h-screen">
-        
-        {/* Header (Clean Master) */}
-        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
-          <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg"
-                style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
-                <span className="text-xl">⭐</span>
+
+        {/* Toast */}
+        {toast && (
+          <div className={`fixed top-5 right-5 z-[200] px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 text-white animate-bounce`}
+            style={{
+              background: toast.type === 'success' ? '#059669' : '#dc2626',
+              boxShadow: toast.type === 'success' ? '0 4px 20px rgba(5,150,105,0.4)' : '0 4px 20px rgba(220,38,38,0.4)',
+            }}>
+            {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
+          </div>
+        )}
+
+        {/* ── DELETE MODAL ── */}
+        {showDeleteModal && deleteTarget && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10001] p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6"
+              style={{ animation: 'scale-in 0.25s ease-out', border: '2px solid rgba(220,38,38,0.5)' }}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl">🗑️</span>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Hapus Review</h3>
+                  <p className="text-xs font-medium text-gray-500">{deleteTarget.project_name}</p>
+                  <p className="text-xs text-gray-400">{deleteTarget.review_category}</p>
+                </div>
               </div>
-              <h1 className="text-base font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 uppercase">Form Review Platform</h1>
+              <div className="rounded-xl p-3 mb-4 text-xs"
+                style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#b91c1c' }}>
+                ⚠️ <strong>Tindakan ini tidak dapat dibatalkan.</strong> Review ini akan dihapus permanen dari database.
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-bold mb-1 text-gray-700">
+                  Ketik <span className="font-mono bg-red-100 text-red-700 px-1.5 py-0.5 rounded">HAPUS</span> untuk konfirmasi
+                </label>
+                <input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Ketik HAPUS di sini..."
+                  className="w-full rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                  style={{ border: '2px solid rgba(220,38,38,0.3)', background: 'white' }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={handleDelete} disabled={deleteConfirmText !== 'HAPUS'}
+                  className="bg-gradient-to-r from-red-600 to-red-800 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                  🗑️ Hapus Permanen
+                </button>
+                <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); setDeleteConfirmText(''); }}
+                  className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">
+                  ✕ Batal
+                </button>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowNotifications(true)}
-                className={`relative p-2 rounded-xl transition-all border-2 ${pendingReminders.length > 0 ? 'bg-amber-50 border-yellow-400 text-amber-600 scale-105 shadow-md shadow-amber-100' : 'hover:bg-red-50 border-transparent text-gray-600'}`}>
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                {pendingReminders.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white bg-red-600 ring-2 ring-white">
-                    {pendingReminders.length}
-                  </span>
+          </div>
+        )}
+
+        {/* ── FORM MODAL (Edit/View Review) ── */}
+        {showFormModal && editingReview && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
+            onClick={e => { if (e.target === e.currentTarget) { setShowFormModal(false); setEditingReview(null); setReviewFormData(emptyReviewForm); } }}>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4"
+              style={{ animation: 'scale-in 0.25s ease-out', border: '1.5px solid rgba(124,58,237,0.25)' }}>
+              {/* Header */}
+              <div className="px-8 py-6 rounded-t-2xl" style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">✏️ Isi Review</h2>
+                    <p className="text-violet-200/80 text-xs mt-1">{editingReview.project_name}</p>
+                    <p className="text-violet-300/70 text-xs mt-0.5">
+                      {editingReview.review_category === 'Demo Product' ? '🖥️ Demo Product' : '📌 BAST (Training)'}
+                    </p>
+                  </div>
+                  <button onClick={() => { setShowFormModal(false); setEditingReview(null); setReviewFormData(emptyReviewForm); }}
+                    className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+                {/* Project Info (Read-only) */}
+                <div className="rounded-xl p-4 space-y-2" style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)' }}>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-violet-600">Informasi Project</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div><span className="text-gray-400">Project:</span> <span className="font-semibold text-gray-700">{editingReview.project_name}</span></div>
+                    <div><span className="text-gray-400">Lokasi:</span> <span className="font-semibold text-gray-700">{editingReview.address}</span></div>
+                    <div><span className="text-gray-400">Sales:</span> <span className="font-semibold text-gray-700">{editingReview.sales_name}</span></div>
+                    <div><span className="text-gray-400">Divisi:</span> <span className="font-semibold text-gray-700">{editingReview.sales_division}</span></div>
+                    <div><span className="text-gray-400">Handler:</span> <span className="font-semibold text-gray-700">{editingReview.assign_name}</span></div>
+                    <div><span className="text-gray-400">Kategori:</span> <span className="font-semibold text-gray-700">{editingReview.reminder_category}</span></div>
+                  </div>
+                </div>
+
+                {editingReview.review_category === 'Demo Product' ? (
+                  <>
+                    <SectionHeader icon="🖥️" title="Review Demo Product" />
+                    <FormField label="Product *">
+                      <textarea value={reviewFormData.product_demo} onChange={e => rfd({ product_demo: e.target.value })}
+                        rows={3} className={`${inputCls} resize-none`} style={inputStyle}
+                        placeholder="Deskripsikan product yang di-demo-kan..." />
+                    </FormField>
+                    <FormField label="Grade Product Knowledge *">
+                      <StarRating value={reviewFormData.grade_product_knowledge} onChange={v => rfd({ grade_product_knowledge: v })} />
+                    </FormField>
+                    <FormField label="Catatan Grade Product Knowledge">
+                      <textarea value={reviewFormData.catatan_grade_product_knowledge} onChange={e => rfd({ catatan_grade_product_knowledge: e.target.value })}
+                        rows={2} className={`${inputCls} resize-none`} style={inputStyle}
+                        placeholder="Catatan penilaian product knowledge..." />
+                    </FormField>
+                  </>
+                ) : (
+                  <>
+                    <SectionHeader icon="📌" title="Review BAST (Training)" />
+                    <FormField label="Product *">
+                      <textarea value={reviewFormData.product_bast} onChange={e => rfd({ product_bast: e.target.value })}
+                        rows={3} className={`${inputCls} resize-none`} style={inputStyle}
+                        placeholder="Deskripsikan product yang di-training-kan..." />
+                    </FormField>
+                    <FormField label="Grade Training Customer *">
+                      <StarRating value={reviewFormData.grade_training_customer} onChange={v => rfd({ grade_training_customer: v })} />
+                    </FormField>
+                    <FormField label="Catatan Grade Training Customer">
+                      <textarea value={reviewFormData.catatan_grade_training_customer} onChange={e => rfd({ catatan_grade_training_customer: e.target.value })}
+                        rows={2} className={`${inputCls} resize-none`} style={inputStyle}
+                        placeholder="Catatan penilaian training customer..." />
+                    </FormField>
+                    <FormField label="Grade Product Knowledge *">
+                      <StarRating value={reviewFormData.grade_product_knowledge_bast} onChange={v => rfd({ grade_product_knowledge_bast: v })} />
+                    </FormField>
+                    <FormField label="Catatan Grade Product Knowledge">
+                      <textarea value={reviewFormData.catatan_grade_product_knowledge_bast} onChange={e => rfd({ catatan_grade_product_knowledge_bast: e.target.value })}
+                        rows={2} className={`${inputCls} resize-none`} style={inputStyle}
+                        placeholder="Catatan penilaian product knowledge..." />
+                    </FormField>
+                  </>
                 )}
-              </button>
+
+                <SectionHeader icon="📸" title="Foto Dokumentasi" />
+                <div>
+                  <input ref={fotoRef} type="file" accept="image/*" className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setFotoFile(file);
+                        const reader = new FileReader();
+                        reader.onload = ev => setFotoPreview(ev.target?.result as string);
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                  <button type="button" onClick={() => fotoRef.current?.click()}
+                    className="w-full rounded-xl py-4 border-2 border-dashed transition-all text-sm font-semibold text-violet-600 hover:bg-violet-50"
+                    style={{ borderColor: 'rgba(124,58,237,0.4)' }}>
+                    📸 Upload Foto Dokumentasi
+                  </button>
+                  {(fotoPreview || reviewFormData.foto_dokumentasi_url) && (
+                    <img src={fotoPreview || reviewFormData.foto_dokumentasi_url} alt="Foto" className="mt-3 rounded-xl w-full max-h-48 object-cover" />
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => { setShowFormModal(false); setEditingReview(null); setReviewFormData(emptyReviewForm); }}
+                    className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
+                    style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
+                    Batal
+                  </button>
+                  <button onClick={handleSaveReview} disabled={saving}
+                    className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02]"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', boxShadow: '0 4px 14px rgba(124,58,237,0.35)' }}>
+                    {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                    💾 Simpan Review
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </header>
+        )}
 
-        <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
-          
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-             <div onClick={() => { setActiveTab('Demo Product'); setFilterYear('all'); }} 
-                  className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
-                  style={{ background: 'linear-gradient(135deg,#4f46e5,#6d28d9)', boxShadow: '0 4px 16px rgba(79,70,229,0.3)', border: activeTab === 'Demo Product' ? '3px solid white' : 'none' }}>
-                <div className="absolute right-3 top-2 text-4xl opacity-[0.15]">🖥️</div>
-                {activeTab === 'Demo Product' && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-black uppercase tracking-widest">Tab Aktif ✓</span>}
-                <span className="text-3xl font-black text-white leading-none">{stats.demo}</span>
-                <div><p className="text-sm font-bold text-white uppercase tracking-tight">Demo Product</p><p className="text-[10px] font-medium text-white/70">Record demo selesai</p></div>
-             </div>
-             
-             <div onClick={() => { setActiveTab('BAST'); setFilterYear('all'); }} 
-                  className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
-                  style={{ background: 'linear-gradient(135deg,#059669,#047857)', boxShadow: '0 4px 16px rgba(5,150,105,0.3)', border: activeTab === 'BAST' ? '3px solid white' : 'none' }}>
-                <div className="absolute right-3 top-2 text-4xl opacity-[0.15]">📜</div>
-                {activeTab === 'BAST' && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-black uppercase tracking-widest">Tab Aktif ✓</span>}
-                <span className="text-3xl font-black text-white leading-none">{stats.bast}</span>
-                <div><p className="text-sm font-bold text-white uppercase tracking-tight">BAST Review</p><p className="text-[10px] font-medium text-white/70">Record training selesai</p></div>
-             </div>
+        {/* ── DETAIL MODAL ── */}
+        {detailReview && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto"
+            onClick={e => { if (e.target === e.currentTarget) setDetailReview(null); }}>
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
+              style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)', maxHeight: '96vh' }}>
+              <div className="px-6 py-5 relative"
+                style={{ background: detailReview.review_category === 'Demo Product' ? 'linear-gradient(135deg,#7c3aeddd,#5b21b688)' : 'linear-gradient(135deg,#0ea5e9dd,#0284c788)' }}>
+                <button onClick={() => setDetailReview(null)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/20 hover:bg-black/30 text-white flex items-center justify-center font-bold text-lg">✕</button>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white"
+                    style={{ background: detailReview.review_category === 'Demo Product' ? '#7c3aed' : '#0ea5e9', border: '2px solid rgba(255,255,255,0.6)' }}>
+                    {detailReview.review_category === 'Demo Product' ? '🖥️' : '📌'} {detailReview.review_category}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white"
+                    style={{ background: 'rgba(0,0,0,0.25)', border: '2px solid rgba(255,255,255,0.4)' }}>
+                    📋 {detailReview.reminder_category}
+                  </span>
+                </div>
+                <h2 className="text-2xl font-bold text-white leading-tight">{detailReview.project_name || '—'}</h2>
+                {detailReview.address && <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">📍 {detailReview.address}</p>}
+              </div>
 
-             <div className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 transition-all"
-                  style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', boxShadow: '0 4px 16px rgba(217,119,6,0.2)' }}>
-                <div className="absolute right-3 top-2 text-4xl opacity-[0.15]">⏳</div>
-                <span className="text-3xl font-black text-white leading-none">{stats.pending}</span>
-                <div><p className="text-sm font-bold text-white uppercase tracking-tight">Menunggu</p><p className="text-[10px] font-medium text-white/70">Survey belum diisi</p></div>
-             </div>
+              <div className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
+                {/* Info Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { icon: '👤', label: 'Sales', value: detailReview.sales_name },
+                    { icon: '🏢', label: 'Divisi', value: detailReview.sales_division },
+                    { icon: '🛠️', label: 'Handler', value: detailReview.assign_name },
+                    { icon: '📅', label: 'Dibuat', value: formatDatetime(detailReview.created_at) },
+                  ].filter(x => x.value).map((item, i) => (
+                    <div key={i} className="rounded-xl px-4 py-3" style={{ background: 'rgba(248,250,252,0.9)', border: '1px solid rgba(0,0,0,0.07)' }}>
+                      <p className="text-[9px] font-bold tracking-widest uppercase text-gray-400">{item.icon} {item.label}</p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
 
-             <div className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 transition-all"
-                  style={{ background: 'linear-gradient(135deg,#6366f1,#4338ca)', boxShadow: '0 4px 16px rgba(99,102,241,0.2)' }}>
-                <div className="absolute right-3 top-2 text-4xl opacity-[0.15]">📊</div>
-                <span className="text-3xl font-black text-white leading-none">{stats.total}</span>
-                <div><p className="text-sm font-bold text-white uppercase tracking-tight">Total filtered</p><p className="text-[10px] font-medium text-white/70">Display list tab ini</p></div>
-             </div>
-          </div>
+                {/* Demo Product review */}
+                {detailReview.review_category === 'Demo Product' && (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(124,58,237,0.04)', border: '1px solid rgba(124,58,237,0.15)' }}>
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-violet-600">🖥️ Review Demo Product</p>
+                    {detailReview.product_demo && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Product</p>
+                        <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{detailReview.product_demo}</p>
+                      </div>
+                    )}
+                    {detailReview.grade_product_knowledge ? (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grade Product Knowledge</p>
+                        <StarRating value={detailReview.grade_product_knowledge} disabled />
+                        {detailReview.catatan_grade_product_knowledge && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{detailReview.catatan_grade_product_knowledge}</p>
+                        )}
+                      </div>
+                    ) : <p className="text-sm text-gray-400 italic">Belum diisi</p>}
+                  </div>
+                )}
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-             <MiniPieChart data={pieData.category} title="Kegiatan / Kategori" icon="🖥️" />
-             <MiniPieChart data={pieData.handler} title="Team PTS Reviewer" icon="👥" />
-             <MiniPieChart data={pieData.product} title="Unit / Produk" icon="📦" />
-          </div>
+                {/* BAST review */}
+                {detailReview.review_category === 'BAST' && (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(14,165,233,0.04)', border: '1px solid rgba(14,165,233,0.15)' }}>
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-sky-600">📌 Review BAST (Training)</p>
+                    {detailReview.product_bast && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Product</p>
+                        <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{detailReview.product_bast}</p>
+                      </div>
+                    )}
+                    {detailReview.grade_training_customer ? (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grade Training Customer</p>
+                        <StarRating value={detailReview.grade_training_customer} disabled />
+                        {detailReview.catatan_grade_training_customer && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{detailReview.catatan_grade_training_customer}</p>
+                        )}
+                      </div>
+                    ) : null}
+                    {detailReview.grade_product_knowledge_bast ? (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grade Product Knowledge</p>
+                        <StarRating value={detailReview.grade_product_knowledge_bast} disabled />
+                        {detailReview.catatan_grade_product_knowledge_bast && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{detailReview.catatan_grade_product_knowledge_bast}</p>
+                        )}
+                      </div>
+                    ) : null}
+                    {!detailReview.grade_training_customer && !detailReview.grade_product_knowledge_bast && (
+                      <p className="text-sm text-gray-400 italic">Belum diisi</p>
+                    )}
+                  </div>
+                )}
 
-          {/* Data List (Copy schedule style) */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
-            
-            {/* Table Header Control (Identify Tab) */}
-            <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
-               <div className="flex items-center gap-3">
-                  <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Review {activeTab} Activity</span>
-                  <span className="bg-gray-100 text-gray-700 text-xs font-black px-2.5 py-1 rounded-full shadow-inner">{filteredReviews.length}</span>
-               </div>
-               <div className="flex gap-2">
-                  <button onClick={() => fetchData(currentUser)} className="p-1.5 rounded-lg border border-gray-100 bg-white hover:bg-slate-50 text-slate-400">🔄</button>
-                  <button onClick={() => { setSearchProject(''); setSearchSales(''); setSearchProduct(''); setSearchHandler(''); setFilterYear('all'); }} 
-                          className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-red-600 text-white tracking-widest shadow-lg shadow-red-100 transition-all hover:bg-red-700 active:scale-95">Reset Filter</button>
-               </div>
+                {/* Foto */}
+                {detailReview.foto_dokumentasi_url && (
+                  <div className="rounded-xl overflow-hidden">
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-gray-400 mb-2">📸 Foto Dokumentasi</p>
+                    <img src={detailReview.foto_dokumentasi_url} alt="Foto Dokumentasi" className="w-full rounded-xl max-h-56 object-cover" />
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => openEdit(detailReview)}
+                    className="flex-1 text-white py-3 rounded-xl font-bold text-sm transition-all"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                    ✏️ Edit / Isi Review
+                  </button>
+                  {isAdmin && (
+                    <button onClick={() => { setDetailReview(null); openDeleteModal(detailReview); }}
+                      className="px-5 py-3 rounded-xl font-bold text-sm text-red-600 transition-all hover:bg-red-50"
+                      style={{ border: '1.5px solid rgba(220,38,38,0.35)' }}>
+                      🗑️
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-
-            {/* Filter Bar (Identical style) */}
-            <div className="px-5 py-3 bg-white/60 border-b border-gray-100">
-               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
-                  <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project</label>
-                    <div className="relative">
-                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px]">🔍</span>
-                       <input value={searchProject} onChange={e => setSearchProject(e.target.value)} className="w-full rounded-lg pl-6 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all" placeholder="Project..." />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Sales</label>
-                    <div className="relative">
-                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px]">👤</span>
-                       <input value={searchSales} onChange={e => setSearchSales(e.target.value)} className="w-full rounded-lg pl-6 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all" placeholder="Sales name..." />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Product</label>
-                    <div className="relative">
-                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px]">📦</span>
-                       <input value={searchProduct} onChange={e => setSearchProduct(e.target.value)} className="w-full rounded-lg pl-6 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all" placeholder="Product name..." />
-                    </div>
-                  </div>
-                   <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Handler</label>
-                    <div className="relative">
-                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px]">👷</span>
-                       <input value={searchHandler} onChange={e => setSearchHandler(e.target.value)} className="w-full rounded-lg pl-6 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all" placeholder="Handler name..." />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter Year</label>
-                    <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full rounded-lg px-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-red-300 transition-all appearance-none cursor-pointer">
-                       <option value="all">All Year</option>
-                       {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                  </div>
-               </div>
-            </div>
-
-            {/* Table (Identical structure) */}
-            <div className="overflow-x-auto min-h-[400px]">
-               <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: '18%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '13%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '18%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '7%' }} />
-                  </colgroup>
-                  <thead>
-                     <tr className="bg-gray-50 border-b-2 border-gray-100">
-                        <th className="px-3 py-2.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Kategori</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Knowledge & Review</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
-                        <th className="px-2 py-2.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-wide">ACT</th>
-                     </tr>
-                  </thead>
-                  <tbody>
-                     {loading ? (
-                       <tr><td colSpan={8} className="py-20 text-center text-slate-300 font-bold uppercase text-xs animate-pulse tracking-widest">Scanning database...</td></tr>
-                     ) : filteredReviews.length === 0 ? (
-                       <tr><td colSpan={8} className="py-20 text-center text-slate-400 font-bold text-sm lowercase">tidak ada record review ditemukan dalam list tab ini</td></tr>
-                     ) : filteredReviews.map(r => (
-                        <tr key={r.id} className="border-b border-gray-100 hover:bg-red-50/20 transition-all cursor-pointer group">
-                           <td className="px-3 py-4 border-r border-gray-100">
-                              <p className="font-black text-gray-800 text-[11px] uppercase tracking-tight leading-tight group-hover:text-red-700 transition-colors">{r.project_name}</p>
-                              <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold truncate">📍 {r.address}</p>
-                           </td>
-                           <td className="px-3 py-4 border-r border-gray-100">
-                              <div className="inline-flex px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded text-[9px] font-black uppercase">{r.product}</div>
-                           </td>
-                           <td className="px-3 py-4 border-r border-gray-100">
-                              <div className="flex flex-col gap-1">
-                                 <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest w-fit" 
-                                       style={{ background: STATUS_CONFIG[r.review_category].bg, color: STATUS_CONFIG[r.review_category].color, border: `1px solid ${STATUS_CONFIG[r.review_category].border}` }}>
-                                    {r.review_category}
-                                 </span>
-                                 <span className="text-[8px] font-bold text-slate-300 uppercase">{r.reminder_category}</span>
-                              </div>
-                           </td>
-                           <td className="px-3 py-4 border-r border-gray-100">
-                              <p className="text-[10.5px] font-black text-slate-700 leading-none truncate">{r.sales_name}</p>
-                              <p className="text-[9px] text-purple-600 font-black uppercase mt-1 opacity-70 truncate">{r.sales_division}</p>
-                           </td>
-                           <td className="px-3 py-4 border-r border-gray-100">
-                              <div className="flex items-center gap-1.5">
-                                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white" style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>{r.assign_name[0]}</div>
-                                 <span className="text-[10px] font-black text-slate-600 truncate">{r.assign_name}</span>
-                              </div>
-                           </td>
-                           <td className="px-3 py-4 border-r border-gray-100">
-                              <div className="flex items-center gap-0.5 mb-1 animate-in fade-in">
-                                 {[...Array(5)].map((_, i) => <IconStar key={i} fill={i < r.grade_product_knowledge ? "#f59e0b" : "white"} stroke={i < r.grade_product_knowledge ? "#f59e0b" : "#e2e8f0"} />)}
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-bold italic line-clamp-2 leading-relaxed lowercase">"{r.catatan_product_knowledge || 'n/a'}"</p>
-                              {r.photo_url && <span className="text-[8px] font-black text-emerald-500 uppercase mt-1 tracking-widest inline-flex items-center gap-1">🖼️ Dokumentasi Ada</span>}
-                           </td>
-                           <td className="px-2 py-4 border-r border-gray-100 text-center">
-                              <div className="inline-flex flex-col items-center bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1 shadow-sm group-hover:scale-105 transition-transform">
-                                 <span className="text-sm font-black text-slate-800 leading-none">{new Date(r.created_at).getDate()}</span>
-                                 <span className="text-[8.5px] font-bold uppercase text-slate-400 mt-1">{new Date(r.created_at).toLocaleDateString('id-ID', { month: 'short' })} '{new Date(r.created_at).toLocaleDateString('id-ID', { year: '2-digit' })}</span>
-                              </div>
-                           </td>
-                           <td className="px-2 py-4 align-middle text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                 <button onClick={() => setDetailReview(r)} className="text-blue-500 hover:scale-125 transition-transform" title="View Detail">👁</button>
-                                 <button onClick={() => openEdit(r)} className="text-amber-500 hover:scale-125 transition-transform" title="Edit Review"><IconEdit /></button>
-                                 <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-700 hover:scale-125 transition-transform" title="Delete Review"><IconTrash /></button>
-                              </div>
-                           </td>
-                        </tr>
-                     ))}
-                  </tbody>
-               </table>
-            </div>
-
           </div>
+        )}
 
+        {/* ── NOTIFICATION POPUP ── */}
+        {showNotificationPopup && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
+              style={{ animation: 'scale-in 0.3s ease-out' }}>
+              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl animate-bounce">🔔</span>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Review Menunggu Kamu</h3>
+                      <p className="text-sm text-white/90">{myPendingReviews.length} form review yang perlu diisi</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
+                </div>
+              </div>
+              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
+                {myPendingReviews.map(r => (
+                  <div key={r.id} onClick={() => { openEdit(r); setShowNotificationPopup(false); }}
+                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-violet-700"
+                            style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                            {r.review_category === 'Demo Product' ? '🖥️' : '📌'} {r.review_category}
+                          </span>
+                        </div>
+                        <p className="font-bold text-sm text-gray-800 truncate">{r.project_name || '—'}</p>
+                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700"
+                          style={{ background: '#fef3c7', border: '1px solid #f59e0b' }}>⏳ Belum Diisi</span>
+                        <p className="text-[10px] text-gray-500 mt-1">{r.assign_name}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+                <button onClick={() => setShowNotificationPopup(false)}
+                  className="w-full text-white py-3 rounded-xl font-bold transition-all"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                  ✕ Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── BELL POPUP ── */}
+        {showBellPopup && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
+              style={{ animation: 'scale-in 0.3s ease-out' }}>
+              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">🔔</span>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Review Aktif Kamu</h3>
+                      <p className="text-sm text-white/90">{myActivePendingReviews.length} belum diisi</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
+                </div>
+              </div>
+              <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
+                {myActivePendingReviews.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500">
+                    <div className="text-5xl mb-3">✅</div>
+                    <p className="font-semibold">Semua review sudah diisi</p>
+                  </div>
+                ) : myActivePendingReviews.map(r => (
+                  <div key={r.id} onClick={() => { openEdit(r); setShowBellPopup(false); }}
+                    className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                    style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-violet-700 mb-1"
+                          style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                          {r.review_category === 'Demo Product' ? '🖥️' : '📌'} {r.review_category}
+                        </span>
+                        <p className="font-bold text-sm text-gray-800 truncate">{r.project_name || '—'}</p>
+                        {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700"
+                        style={{ background: '#fef3c7', border: '1px solid #f59e0b' }}>⏳ Belum</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
+                <button onClick={() => setShowBellPopup(false)}
+                  className="w-full text-white py-3 rounded-xl font-bold transition-all"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                  ✕ Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── HEADER ── */}
+        <div className="sticky top-0 z-50 px-6 py-3 flex items-center justify-between"
+          style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+              <span className="text-white text-base">⭐</span>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.2em] uppercase" style={{ color: '#7c3aed' }}>IndoVisual</p>
+              <p className="font-bold text-sm leading-none tracking-wide text-slate-800">Form Review Demo & BAST</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Bell */}
+            <button onClick={() => setShowBellPopup(true)}
+              className="relative p-2 rounded-xl transition-all hover:bg-violet-50"
+              style={{ border: '1px solid rgba(124,58,237,0.2)' }}>
+              <span className="text-lg">🔔</span>
+              {myActivePendingReviews.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black rounded-full h-4.5 w-4.5 flex items-center justify-center min-w-[18px] px-1 animate-pulse">
+                  {myActivePendingReviews.length}
+                </span>
+              )}
+            </button>
+            {/* User */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                {currentUser?.full_name?.charAt(0)?.toUpperCase()}
+              </div>
+              <span className="text-xs font-semibold text-slate-700 max-w-[120px] truncate">{currentUser?.full_name}</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                style={{ background: currentUser?.role === 'admin' ? '#dc2626' : currentUser?.role === 'team' ? '#0ea5e9' : '#7c3aed' }}>
+                {currentUser?.role?.toUpperCase()}
+              </span>
+            </div>
+            <button onClick={handleLogout} title="Logout"
+              className="p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
+              style={{ border: '1px solid rgba(0,0,0,0.1)' }}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* ── NOTIFICATION DRAWER ── */}
-        {showNotifications && (
-           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 backdrop-blur-sm animate-in fade-in">
-              <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-8 border-yellow-400 animate-in zoom-in-95 duration-200">
-                 <div className="p-7 relative" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
-                    <div className="flex justify-between items-center relative z-10 text-white">
-                       <div className="flex items-center gap-4">
-                          <span className="text-4xl animate-bounce">🔔</span>
-                          <div>
-                             <h3 className="text-xl font-black uppercase tracking-tight leading-none">Reminder Review</h3>
-                             <p className="text-sm font-bold opacity-80 mt-1 text-[10px] uppercase tracking-widest">{pendingReminders.length} TUGAS MENUNGGU KONFIRMASI GUEST</p>
-                          </div>
-                       </div>
-                       <button onClick={() => setShowNotifications(false)} className="bg-white/20 p-2 rounded-xl">✕</button>
-                    </div>
-                 </div>
-                 <div className="bg-slate-50 p-6 space-y-3 overflow-y-auto max-h-[calc(80vh-140px)] custom-scrollbar">
-                    {pendingReminders.map(r => (
-                       <div key={r.id} onClick={() => handleOpenReview(r)} className="bg-white rounded-[2rem] p-6 border-2 border-slate-100 hover:border-yellow-400 transition-all cursor-pointer shadow-sm active:scale-95">
-                          <div className="flex justify-between items-start mb-2">
-                             <p className="font-black text-sm text-slate-800 uppercase tracking-tight">{r.project_name}</p>
-                             <span className="text-[8.5px] font-black px-2 py-0.5 bg-rose-50 text-rose-500 rounded uppercase border border-rose-100">{r.category}</span>
-                          </div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Handler: {r.assign_name}</p>
-                          <div className="mt-4 py-3 bg-red-600 text-white text-[10px] font-black rounded-2xl text-center uppercase tracking-[0.2em] shadow-xl shadow-red-100">isi review form sekarang</div>
-                       </div>
-                    ))}
-                 </div>
-                 <div className="p-4 bg-white border-t border-slate-100">
-                    <button onClick={() => setShowNotifications(false)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em]">Tutup Notifikasi</button>
-                 </div>
+        {/* ── MAIN CONTENT ── */}
+        <div className="flex-1 p-5 space-y-5">
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Demo Product', value: totalDemo, icon: '🖥️', color: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.25)' },
+              { label: 'Total Training / BAST', value: totalTraining, icon: '📌', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)', border: 'rgba(14,165,233,0.25)' },
+              { label: 'Belum Diisi', value: reviews.filter(r => !r.grade_product_knowledge && !r.grade_product_knowledge_bast).length, icon: '⏳', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
+              { label: 'Sudah Diisi', value: reviews.filter(r => r.grade_product_knowledge || r.grade_product_knowledge_bast).length, icon: '✅', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
+            ].map((card, i) => (
+              <div key={i} className="rounded-2xl p-4 transition-all hover:scale-[1.01]"
+                style={{ background: card.bg, border: `1px solid ${card.border}`, backdropFilter: 'blur(10px)' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl">{card.icon}</span>
+                  <span className="text-2xl font-black" style={{ color: card.color }}>{card.value}</span>
+                </div>
+                <p className="text-xs font-bold text-gray-600 tracking-wide">{card.label}</p>
               </div>
-           </div>
-        )}
+            ))}
+          </div>
 
-        {/* ── FORM MODAL (Demo Product & BAST Logic) ── */}
-        {showReviewForm && selectedReminder && (
-           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4 overflow-y-auto backdrop-blur-md">
-              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl my-6 overflow-hidden animate-in zoom-in-95 duration-300">
-                 <div className="p-8 text-white relative" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
-                    <h2 className="text-2xl font-black tracking-tighter uppercase leading-none">⭐ Platform Form Review</h2>
-                    <p className="text-red-200 text-[10px] font-black mt-2 uppercase tracking-[0.2em]">{['Konfigurasi & Training', 'Training', 'Konfigurasi'].includes(selectedReminder.category) ? 'BAST CATEGORY' : 'DEMO PRODUCT CATEGORY'} - {selectedReminder.project_name}</p>
-                    <button onClick={() => { setShowReviewForm(false); setEditingReview(null); }} className="absolute top-8 right-8 bg-white/10 p-2 rounded-xl text-white">✕</button>
-                 </div>
-                 
-                 <div className="p-10 space-y-7 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                    <div className="space-y-6">
-                       <div className="grid grid-cols-2 gap-3 mb-2">
-                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Project Information</p>
-                             <p className="text-[11px] font-black text-slate-800 leading-tight truncate">{selectedReminder.project_name}</p>
-                             <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase truncate">📍 {selectedReminder.address}</p>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Sales Info</p>
-                             <p className="text-[11px] font-black text-slate-800 leading-tight truncate">{selectedReminder.sales_name}</p>
-                             <p className="text-[9px] font-bold text-purple-500 mt-1 uppercase">{selectedReminder.sales_division}</p>
-                          </div>
-                       </div>
+          {/* Mini Pie Charts */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MiniPieChart data={categoryPieData} title="Kategori Kegiatan" icon="📋"
+              activeFilter={filterReviewCat !== 'all' ? filterReviewCat : null} />
+            <MiniPieChart data={handlerPieData} title="Handler Team PTS" icon="👥"
+              activeFilter={handlerFilter}
+              onSliceClick={label => setHandlerFilter(prev => prev === label ? null : label)} />
+            <MiniPieChart data={productPieData} title="Product" icon="📦"
+              activeFilter={productFilterChart}
+              onSliceClick={label => setProductFilterChart(prev => prev === label ? null : label)} />
+          </div>
 
-                       <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Produk Target (Isi Paragraf) *</label>
-                          <textarea value={reviewForm.product} onChange={e => setReviewForm({...reviewForm, product: e.target.value})}
-                                    className="w-full rounded-2xl px-6 py-4 text-xs outline-none bg-slate-50 border-2 border-slate-100 focus:border-red-500 font-bold transition-all min-h-[100px]" placeholder="Sebutkan item produk yang dipasang / didemokan..." />
-                       </div>
+          {/* Table */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.09)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
+            {/* Table Header Controls */}
+            <div className="px-5 py-4 flex flex-wrap items-center gap-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+              <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+                <span className="text-base">⭐</span>
+                <h2 className="font-bold text-slate-800 text-sm tracking-wide">Form Review Demo Produk & BAST</h2>
+              </div>
 
-                       {/* Conditional Area: BAST (Konfigurasi & Training) */}
-                       {['Konfigurasi & Training', 'Training', 'Konfigurasi'].includes(selectedReminder.category) && (
-                          <div className="pt-4 space-y-6 border-t-2 border-dashed border-slate-100">
-                             <div className="bg-emerald-50 p-8 rounded-[2.5rem] border-4 border-white shadow-inner flex flex-col items-center gap-4">
-                                <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Grade Training Customer</label>
-                                <div className="flex gap-2.5">
-                                   {[1,2,3,4,5].map(s => (
-                                      <button key={s} onClick={() => setReviewForm({...reviewForm, grade_training_customer: s})}>
-                                         <IconStar width={32} height={32} fill={s <= reviewForm.grade_training_customer ? "#10b981" : "white"} stroke={s <= reviewForm.grade_training_customer ? "#10b981" : "#a7f3d0"} />
-                                      </button>
-                                   ))}
-                                </div>
-                                <span className="text-3xl font-black text-emerald-700 tracking-tighter">{reviewForm.grade_training_customer} / 5</span>
-                             </div>
-                             <textarea value={reviewForm.catatan_training_customer} onChange={e => setReviewForm({...reviewForm, catatan_training_customer: e.target.value})}
-                                       className="w-full rounded-2xl px-6 py-4 text-xs outline-none bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold lowercase min-h-[80px]" placeholder="catatan mengenai training customer..." />
-                          </div>
-                       )}
+              {/* Switch Tab */}
+              <div className="flex rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(124,58,237,0.25)' }}>
+                {(['Demo Product', 'BAST'] as const).map(tab => (
+                  <button key={tab} onClick={() => setSwitchTab(tab)}
+                    className="px-4 py-2 text-xs font-bold transition-all"
+                    style={switchTab === tab
+                      ? { background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white' }
+                      : { background: 'transparent', color: '#7c3aed' }}>
+                    {tab === 'Demo Product' ? '🖥️' : '📌'} {tab}
+                  </button>
+                ))}
+              </div>
 
-                       {/* Always: Knowledge Area */}
-                       <div className="pt-4 space-y-6 border-t-2 border-dashed border-slate-100">
-                          <div className="bg-rose-50 p-8 rounded-[2.5rem] border-4 border-white shadow-inner flex flex-col items-center gap-4">
-                             <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Grade Product Knowledge</label>
-                             <div className="flex gap-2.5">
-                                {[1,2,3,4,5].map(s => (
-                                   <button key={s} onClick={() => setReviewForm({...reviewForm, grade_product_knowledge: s})}>
-                                      <IconStar width={32} height={32} fill={s <= reviewForm.grade_product_knowledge ? "#f59e0b" : "white"} stroke={s <= reviewForm.grade_product_knowledge ? "#f59e0b" : "#fecaca"} />
-                                   </button>
-                                ))}
-                             </div>
-                             <span className="text-3xl font-black text-rose-700 tracking-tighter">{reviewForm.grade_product_knowledge} / 5</span>
-                          </div>
-                          <textarea value={reviewForm.catatan_product_knowledge} onChange={e => setReviewForm({...reviewForm, catatan_product_knowledge: e.target.value})}
-                                    className="w-full rounded-2xl px-6 py-4 text-xs outline-none bg-slate-50 border-2 border-slate-100 focus:border-red-500 font-bold lowercase min-h-[80px]" placeholder="catatan mengenai pengetahun produk..." />
-                       </div>
+              {/* Search */}
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
+                  placeholder="Cari project / lokasi..."
+                  className="pl-9 pr-4 py-2 rounded-xl text-xs bg-white outline-none transition-all focus:ring-2 focus:ring-violet-400/30"
+                  style={{ border: '1.5px solid rgba(0,0,0,0.12)', minWidth: 180 }} />
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👤</span>
+                <input value={searchHandler} onChange={e => setSearchHandler(e.target.value)}
+                  placeholder="Cari handler..."
+                  className="pl-9 pr-4 py-2 rounded-xl text-xs bg-white outline-none transition-all focus:ring-2 focus:ring-violet-400/30"
+                  style={{ border: '1.5px solid rgba(0,0,0,0.12)', minWidth: 140 }} />
+              </div>
 
-                       {/* Image Upload Area */}
-                       <div className="space-y-3">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Foto Dokumentasi *</label>
-                          <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
-                          {imagePreview ? (
-                             <div className="relative rounded-3xl overflow-hidden border-4 border-slate-100 group">
-                                <img src={imagePreview} className="w-full max-h-[300px] object-cover" alt="Review documentation" />
-                                <button onClick={() => { setImagePreview(null); setImageFile(null); }} className="absolute top-4 right-4 bg-red-600 text-white p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">🗑️ Ganti Foto</button>
-                             </div>
-                          ) : (
-                             <button onClick={() => fileInputRef.current?.click()} className="w-full py-12 border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center gap-3 hover:bg-slate-50 transition-all text-slate-300">
-                                <span className="text-5xl">📸</span>
-                                <span className="text-[10px] font-black uppercase tracking-widest">Pilih Foto Dokumentasi</span>
-                             </button>
+              {/* Filter */}
+              <select value={filterReviewCat} onChange={e => setFilterReviewCat(e.target.value as any)}
+                className="px-3 py-2 rounded-xl text-xs bg-white outline-none"
+                style={{ border: '1.5px solid rgba(0,0,0,0.12)' }}>
+                <option value="all">Semua Kategori</option>
+                <option value="Demo Product">Demo Product</option>
+                <option value="BAST">BAST</option>
+              </select>
+
+              <button onClick={fetchReviews}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-violet-600 transition-all hover:bg-violet-50"
+                style={{ border: '1.5px solid rgba(124,58,237,0.3)' }}>
+                🔄
+              </button>
+            </div>
+
+            {/* Active Filters Chips */}
+            {(handlerFilter || productFilterChart) && (
+              <div className="px-5 py-2 flex items-center gap-2 flex-wrap" style={{ background: 'rgba(124,58,237,0.04)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter Aktif:</span>
+                {handlerFilter && (
+                  <button onClick={() => setHandlerFilter(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-violet-700 hover:bg-violet-100 transition-all"
+                    style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                    👤 {handlerFilter} ✕
+                  </button>
+                )}
+                {productFilterChart && (
+                  <button onClick={() => setProductFilterChart(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 transition-all"
+                    style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)' }}>
+                    📦 {productFilterChart} ✕
+                  </button>
+                )}
+              </div>
+            )}
+
+            {listLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(124,58,237,0.3)', borderTopColor: '#7c3aed' }} />
+              </div>
+            ) : tableReviews.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-5xl mb-3">📭</p>
+                <p className="font-bold text-gray-600">Tidak ada data {switchTab}</p>
+                <p className="text-sm text-gray-400 mt-1">Form review muncul otomatis dari Reminder Schedule yang Solved</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(248,250,252,0.95)', borderBottom: '1.5px solid rgba(0,0,0,0.07)' }}>
+                      {['No', 'Project', 'Lokasi', 'Sales', 'Handler',
+                        switchTab === 'Demo Product' ? 'Product Demo' : 'Product BAST',
+                        switchTab === 'Demo Product' ? 'Grade PK' : 'Grade Training',
+                        switchTab === 'BAST' ? 'Grade PK' : null,
+                        'Status', 'Aksi'].filter(Boolean).map((h, i) => (
+                        <th key={i} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-gray-500 whitespace-nowrap"
+                          style={{ borderRight: '1px solid rgba(0,0,0,0.06)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableReviews.map((r, idx) => {
+                      const isDemo = r.review_category === 'Demo Product';
+                      const hasReview = isDemo
+                        ? !!r.grade_product_knowledge
+                        : !!(r.grade_training_customer && r.grade_product_knowledge_bast);
+                      return (
+                        <tr key={r.id}
+                          onClick={() => setDetailReview(r)}
+                          className="cursor-pointer transition-all hover:bg-violet-50/40"
+                          style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                          {/* No */}
+                          <td className="px-3 py-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 align-middle">{idx + 1}</td>
+                          {/* Project */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            <div className="text-xs font-bold text-gray-800 leading-tight max-w-[140px] truncate">{r.project_name || '—'}</div>
+                            <div className="text-[10px] text-violet-600 font-semibold mt-0.5">{r.reminder_category}</div>
+                          </td>
+                          {/* Lokasi */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            <div className="text-[10px] text-gray-500 max-w-[120px] truncate">📍 {r.address || '—'}</div>
+                          </td>
+                          {/* Sales */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            <div className="text-xs font-semibold text-gray-700 truncate max-w-[100px]">{r.sales_name || '—'}</div>
+                            {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold">{r.sales_division}</div>}
+                          </td>
+                          {/* Handler */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            <div className="flex items-center gap-1">
+                              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                                style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                                {r.assign_name?.charAt(0)?.toUpperCase() || '?'}
+                              </div>
+                              <span className="text-[10px] font-bold text-gray-800 truncate max-w-[80px]">{r.assign_name}</span>
+                            </div>
+                          </td>
+                          {/* Product */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            <div className="text-[10px] text-gray-600 max-w-[120px] line-clamp-2">
+                              {isDemo ? (r.product_demo || '—') : (r.product_bast || '—')}
+                            </div>
+                          </td>
+                          {/* Grade 1 */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            {isDemo
+                              ? (r.grade_product_knowledge ? <StarRating value={r.grade_product_knowledge} disabled /> : <span className="text-gray-300 text-xs">—</span>)
+                              : (r.grade_training_customer ? <StarRating value={r.grade_training_customer} disabled /> : <span className="text-gray-300 text-xs">—</span>)
+                            }
+                          </td>
+                          {/* Grade 2 (BAST only) */}
+                          {!isDemo && (
+                            <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                              {r.grade_product_knowledge_bast ? <StarRating value={r.grade_product_knowledge_bast} disabled /> : <span className="text-gray-300 text-xs">—</span>}
+                            </td>
                           )}
-                       </div>
-                    </div>
-                 </div>
-
-                 <div className="p-8 bg-slate-50 border-t-2 border-slate-100 flex gap-4">
-                    <button onClick={() => { setShowReviewForm(false); setEditingReview(null); }} className="flex-1 py-5 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 rounded-2xl transition-all">Batal</button>
-                    <button onClick={submitReview} disabled={saving || uploadingImage || !reviewForm.product} 
-                            className="grow py-5 bg-black text-white font-black uppercase text-[10px] tracking-[0.3em] rounded-2xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3">
-                       {(saving || uploadingImage) ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : '💾 SIMPAN REVIEW FORM'}
-                    </button>
-                 </div>
+                          {/* Status */}
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold"
+                              style={hasReview
+                                ? { background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }
+                                : { background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>
+                              {hasReview ? '✅ Terisi' : '⏳ Belum'}
+                            </span>
+                          </td>
+                          {/* Actions */}
+                          <td className="px-3 py-1 align-middle text-center" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => setDetailReview(r)} title="Detail" className="text-blue-500 hover:text-blue-700 transition-colors text-sm">👁</button>
+                              <button onClick={() => openEdit(r)} title="Edit / Isi Review" className="text-violet-500 hover:text-violet-700 transition-colors text-sm">✏️</button>
+                              {isAdmin && (
+                                <button onClick={() => openDeleteModal(r)} title="Hapus" className="text-red-400 hover:text-red-600 transition-colors text-sm">🗑️</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 bg-white">
+                  <span className="text-[10px] text-gray-400">{tableReviews.length} review ditemukan ({switchTab})</span>
+                  <span className="text-[10px] text-gray-400">{tableReviews.length} of {reviews.length} total</span>
+                </div>
               </div>
-           </div>
-        )}
+            )}
+          </div>
+        </div>
 
-        {/* ── DETAIL REVIEW MODAL ── */}
-        {detailReview && (
-           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[10000] p-4 overflow-y-auto backdrop-blur-md">
-              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl my-6 overflow-hidden animate-in fade-in duration-300">
-                 <div className="p-8 text-white relative" style={{ background: `linear-gradient(135deg,${STATUS_CONFIG[detailReview.review_category].color},#000)` }}>
-                    <div className="flex gap-2 mb-3">
-                        <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest">{detailReview.review_category}</span>
-                    </div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter break-words leading-none">{detailReview.project_name}</h2>
-                    <p className="text-white/60 text-[10px] font-bold mt-2 uppercase tracking-widest flex items-center gap-2"><span>📍</span>{detailReview.address}</p>
-                    <button onClick={() => setDetailReview(null)} className="absolute top-8 right-8 bg-white/10 p-2 rounded-xl">✕</button>
-                 </div>
-                 <div className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                    <div className="grid grid-cols-2 gap-5">
-                       <div className="bg-slate-50 p-6 rounded-3xl">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Survey Information</p>
-                          <div className="space-y-4">
-                             <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Guest Reviewer</p>
-                                <p className="text-sm font-black text-slate-800">{detailReview.sales_name}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">{detailReview.sales_division}</p>
-                             </div>
-                             <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Handler Team IVP</p>
-                                <p className="text-sm font-black text-slate-800">{detailReview.assign_name}</p>
-                             </div>
-                          </div>
-                       </div>
-                       <div className="bg-slate-50 p-6 rounded-3xl">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Date Record</p>
-                          <p className="text-lg font-black text-slate-800">{formatDatetime(detailReview.created_at).split(',')[0]}</p>
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Time: {formatDatetime(detailReview.created_at).split(',')[1]}</p>
-                       </div>
-                    </div>
-
-                    <div className="space-y-6">
-                       <div className="border-t-2 border-slate-50 pt-6">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Detailed Product</p>
-                          <p className="text-xs font-bold text-slate-700 leading-relaxed italic">"{detailReview.product}"</p>
-                       </div>
-
-                       {detailReview.review_category === 'BAST' && (
-                          <div className="bg-emerald-50 rounded-[2.5rem] p-8 border-4 border-white shadow-sm space-y-4">
-                             <div className="flex justify-between items-center">
-                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Grade Training Customer</p>
-                                <div className="flex gap-1">{[...Array(5)].map((_, i) => <IconStar key={i} fill={i < detailReview.grade_training_customer! ? "#10b981" : "white"} stroke="#10b981" />)}</div>
-                             </div>
-                             <p className="text-[11px] font-bold text-emerald-800 leading-relaxed bg-white/60 p-4 rounded-2xl border border-emerald-100 shadow-inner">"{detailReview.catatan_training_customer || '-'}"</p>
-                          </div>
-                       )}
-
-                       <div className="bg-rose-50 rounded-[2.5rem] p-8 border-4 border-white shadow-sm space-y-4">
-                          <div className="flex justify-between items-center">
-                             <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Grade Product Knowledge</p>
-                             <div className="flex gap-1">{[...Array(5)].map((_, i) => <IconStar key={i} fill={i < detailReview.grade_product_knowledge ? "#f59e0b" : "white"} stroke="#f59e0b" />)}</div>
-                          </div>
-                          <p className="text-[11px] font-bold text-rose-800 leading-relaxed bg-white/60 p-4 rounded-2xl border border-rose-100 shadow-inner">"{detailReview.catatan_product_knowledge || '-'}"</p>
-                       </div>
-
-                       {detailReview.photo_url && (
-                          <div className="pt-6">
-                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Dokumentasi Review</p>
-                             <img src={detailReview.photo_url} className="w-full rounded-[2rem] border-8 border-slate-50 shadow-lg object-cover" alt="Documentation" />
-                          </div>
-                       )}
-                    </div>
-                 </div>
-                 <div className="p-8 bg-slate-50 border-t border-slate-100">
-                    <button onClick={() => setDetailReview(null)} className="w-full py-4 bg-slate-900 text-white font-black uppercase text-[10px] tracking-[0.3em] rounded-2xl">Confirm Read</button>
-                 </div>
-              </div>
-           </div>
-        )}
+        {/* Footer */}
+        <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
+          <div className="px-6 py-4">
+            <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
+          </div>
+        </div>
 
       </div>
 
-      <style jsx global>{`
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from { opacity:0; transform:translateY(14px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        @keyframes scale-in {
+          from { opacity:0; transform:scale(0.92); }
+          to   { opacity:1; transform:scale(1); }
+        }
+        select option { background: #ffffff; color: #1e293b; }
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.3); cursor: pointer; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(220,38,38,0.25); border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.25); border-radius: 4px; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
     </div>
   );
