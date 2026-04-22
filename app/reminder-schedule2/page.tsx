@@ -889,11 +889,14 @@ export default function ReminderSchedulePage() {
 
               if (!existingReview) {
                 const reviewCategory = reminder.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+                const guestForReview = guestUsers.find(g => g.full_name === salesName);
                 const { error: reviewErr } = await supabase.from('form_reviews').insert([{
                   reminder_id: reminder.id,
                   project_name: reminder.project_name,
                   address: reminder.address || '',
                   sales_name: salesName,
+                  guest_fullname: guestForReview?.username ?? salesName,
+                  guest_username: guestForReview?.username ?? salesName,
                   sales_division: reminder.sales_division || '',
                   assign_name: reminder.assign_name,
                   assigned_to: reminder.assigned_to,
@@ -1071,7 +1074,15 @@ export default function ReminderSchedulePage() {
 
     setResendingFormReview(r.id);
     try {
-      // Cek apakah sudah ada — kalau ada, hapus dulu biar bisa upsert bersih
+      // Lookup username guest dari guestUsers berdasarkan full_name === sales_name
+      const guestUser = guestUsers.find(g => g.full_name === salesName);
+      if (!guestUser) {
+        notify('error', `Akun guest untuk "${salesName}" tidak ditemukan. Pastikan nama Sales sesuai akun guest di sistem.`);
+        setResendingFormReview(null);
+        return;
+      }
+
+      // Cek apakah sudah ada
       const { data: existing } = await supabase
         .from('form_reviews')
         .select('id')
@@ -1085,6 +1096,8 @@ export default function ReminderSchedulePage() {
         project_name: r.project_name,
         address: r.address || '',
         sales_name: salesName,
+        guest_fullname: guestUser.username,
+        guest_username: guestUser.username,
         sales_division: r.sales_division || '',
         assign_name: r.assign_name,
         assigned_to: r.assigned_to,
