@@ -16,6 +16,7 @@ interface User {
   full_name: string;
   role: string;
   team_type?: string;
+  sales_division?: string;
   allowed_menus?: string[];
 }
 
@@ -48,6 +49,13 @@ interface NotificationItem {
   menuTitle: string;
 }
 
+const SALES_DIVISIONS = [
+  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
+  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
+  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
+  'IOCBali', 'SGP', 'OSS',
+];
+
 // ─── Account Settings Modal ──────────────────────────────────────────────────
 
 const ALL_MENU_KEYS = [
@@ -77,6 +85,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     full_name: '',
     role: 'guest',
     team_type: '',
+    sales_division: '',
     allowed_menus: ALL_MENU_KEYS,
   });
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -109,17 +118,21 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     if (!newUser.username || !newUser.password || !newUser.full_name) {
       notify('error', 'Semua field wajib diisi!'); return;
     }
+    if (newUser.role === 'guest' && !newUser.sales_division) {
+      notify('error', 'Sales Division wajib diisi untuk role Guest!'); return;
+    }
     setSaving(true);
     const { error } = await supabase.from('users').insert([{
       username: newUser.username, password: newUser.password,
       full_name: newUser.full_name, role: newUser.role,
       team_type: newUser.role === 'team' ? newUser.team_type : null,
+      sales_division: newUser.role === 'guest' ? newUser.sales_division : null,
       allowed_menus: newUser.allowed_menus,
     }]);
     setSaving(false);
     if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
     notify('success', 'Akun berhasil ditambahkan!');
-    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', allowed_menus: ALL_MENU_KEYS });
+    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', allowed_menus: ALL_MENU_KEYS });
     setActiveTab('list');
     fetchUsers();
   };
@@ -131,6 +144,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       username: editingUser.username, password: editingUser.password,
       full_name: editingUser.full_name, role: editingUser.role,
       team_type: editingUser.role === 'team' ? (editingUser.team_type ?? '') : null,
+      sales_division: editingUser.role === 'guest' ? (editingUser.sales_division ?? '') : null,
       allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS,
     }).eq('id', editingUser.id);
     setSaving(false);
@@ -257,7 +271,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     </div>
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
-                      <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value, team_type: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                      <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value, team_type: '', sales_division: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
                         <option value="guest">Guest</option>
                         <option value="team">Team</option>
                         <option value="sales">Sales</option>
@@ -278,6 +292,21 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                           </button>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {editingUser.role === 'guest' && (
+                    <div>
+                      <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Sales Division *</label>
+                      <select
+                        value={editingUser.sales_division ?? ''}
+                        onChange={e => setEditingUser({ ...editingUser, sales_division: e.target.value })}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white"
+                      >
+                        <option value="">-- Pilih Divisi --</option>
+                        {SALES_DIVISIONS.map(div => (
+                          <option key={div} value={div}>{div}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
                   <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
@@ -341,6 +370,11 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                                   {user.team_type === 'Team PTS' ? '🏗️' : '🔧'} {user.team_type}
                                 </span>
                               )}
+                              {user.role === 'guest' && user.sales_division && (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-violet-100 text-violet-600 border border-violet-200">
+                                  🏢 {user.sales_division}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -392,7 +426,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
-                  <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value, team_type: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                  <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value, team_type: '', sales_division: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
                     <option value="guest">Guest</option>
                     <option value="team">Team</option>
                     <option value="sales">Sales</option>
@@ -413,6 +447,21 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+              {newUser.role === 'guest' && (
+                <div>
+                  <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Sales Division *</label>
+                  <select
+                    value={newUser.sales_division}
+                    onChange={e => setNewUser({ ...newUser, sales_division: e.target.value })}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white"
+                  >
+                    <option value="">-- Pilih Divisi --</option>
+                    {SALES_DIVISIONS.map(div => (
+                      <option key={div} value={div}>{div}</option>
+                    ))}
+                  </select>
                 </div>
               )}
               <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
