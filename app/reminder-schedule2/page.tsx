@@ -1418,7 +1418,7 @@ export default function ReminderSchedulePage() {
                     </p>
                     <FormField label="Pilih Sales*">
                       <select value={formData.guest_fullname ?? ''} onChange={e => {
-                        const g = guestUsers.find(u => u.sales_name === e.target.value);
+                        const g = guestUsers.find(u => u.username === e.target.value);
                         fd({ guest_fullname: e.target.value, sales_name: g ? g.full_name : formData.sales_name });
                       }} className={inputCls} style={{ ...inputStyle, borderColor: 'rgba(124,58,237,0.35)' }}>
                         <option value="">-- Pilih Sales --</option>
