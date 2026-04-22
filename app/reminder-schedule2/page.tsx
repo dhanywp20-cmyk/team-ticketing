@@ -630,7 +630,7 @@ export default function ReminderSchedulePage() {
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
     sales_name: '', sales_division: '', address: '', pic_name: '', pic_phone: '',
-    notes: '', product: '', guest_username: '',
+    notes: '', product: '', guest_fullname: '',
   };
   const [formData, setFormData] = useState(emptyForm);
   const fd = (patch: Partial<typeof emptyForm>) => setFormData(prev => ({ ...prev, ...patch }));
