@@ -1414,20 +1414,20 @@ export default function ReminderSchedulePage() {
                       <p className="text-sm font-bold text-violet-700">Assign Guest untuk Form Review</p>
                     </div>
                     <p className="text-xs text-violet-600 -mt-1">
-                      Kategori <strong>{formData.category}</strong> memerlukan review dari customer/guest. Pilih akun guest yang akan mengisi form review setelah jadwal selesai.
+                      Kategori <strong>{formData.category}</strong> memerlukan review dari Guest / Sales. Pengingat Guest / Sales mengisi kepuasan pelanggan.
                     </p>
-                    <FormField label="Pilih Guest (Customer) *">
-                      <select value={formData.guest_username ?? ''} onChange={e => {
-                        const g = guestUsers.find(u => u.username === e.target.value);
-                        fd({ guest_username: e.target.value, sales_name: g ? g.full_name : formData.sales_name });
+                    <FormField label="Pilih Sales*">
+                      <select value={formData.guest_fullname ?? ''} onChange={e => {
+                        const g = guestUsers.find(u => u.sales_name === e.target.value);
+                        fd({ guest_fullname: e.target.value, sales_name: g ? g.full_name : formData.sales_name });
                       }} className={inputCls} style={{ ...inputStyle, borderColor: 'rgba(124,58,237,0.35)' }}>
-                        <option value="">-- Pilih akun Guest --</option>
+                        <option value="">-- Pilih Sales --</option>
                         {guestUsers.map(u => (
-                          <option key={u.id} value={u.username}>{u.full_name} (@{u.username})</option>
+                          <option key={u.id} value={u.full_name}>{u.full_name} (@{u.sales_division})</option>
                         ))}
                       </select>
                     </FormField>
-                    {formData.guest_username && (
+                    {formData.guest_fullname && (
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
                         <span className="text-sm">✅</span>
                         <p className="text-xs font-semibold text-violet-700">
@@ -1736,7 +1736,7 @@ export default function ReminderSchedulePage() {
                       <span className="text-lg">✅</span>
                       <div>
                         <p className="text-xs font-bold text-emerald-700">Jadwal Selesai</p>
-                        <p className="text-[10px] text-emerald-600">Status completed tidak dapat diubah kembali.</p>
+                        
                       </div>
                     </div>
                   ) : (
