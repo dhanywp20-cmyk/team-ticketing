@@ -787,6 +787,8 @@ export default function FormReviewPage() {
             onClick={e => { if (e.target === e.currentTarget) setDetailReview(null); }}>
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden"
               style={{ animation: 'scale-in 0.25s ease-out', border: '1px solid rgba(0,0,0,0.1)', maxHeight: '96vh' }}>
+
+              {/* Header */}
               <div className="px-6 py-5 relative"
                 style={{ background: detailReview.review_category === 'Demo Product' ? 'linear-gradient(135deg,#7c3aeddd,#5b21b688)' : 'linear-gradient(135deg,#0ea5e9dd,#0284c788)' }}>
                 <button onClick={() => setDetailReview(null)}
@@ -800,105 +802,177 @@ export default function FormReviewPage() {
                     style={{ background: 'rgba(0,0,0,0.25)', border: '2px solid rgba(255,255,255,0.4)' }}>
                     📋 {detailReview.reminder_category}
                   </span>
+                  {/* Status badge */}
+                  {(() => {
+                    const hasReview = detailReview.review_category === 'Demo Product'
+                      ? !!detailReview.grade_product_knowledge
+                      : !!(detailReview.grade_training_customer && detailReview.grade_product_knowledge_bast);
+                    return hasReview ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white"
+                        style={{ background: '#059669', border: '2px solid rgba(255,255,255,0.5)' }}>
+                        ✅ Sudah Diisi
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white animate-pulse"
+                        style={{ background: '#d97706', border: '2px solid rgba(255,255,255,0.5)' }}>
+                        ⏳ Belum Diisi
+                      </span>
+                    );
+                  })()}
                 </div>
-                <h2 className="text-2xl font-bold text-white leading-tight">{detailReview.project_name || '—'}</h2>
+                <h2 className="text-xl font-bold text-white leading-tight">{detailReview.project_name || '—'}</h2>
                 {detailReview.address && <p className="text-white/80 text-sm mt-1 flex items-center gap-1.5">📍 {detailReview.address}</p>}
               </div>
 
-              <div className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
-                {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-2">
+              <div className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
+
+                {/* Info Cards Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {[
                     { icon: '👤', label: 'Sales', value: detailReview.sales_name },
                     { icon: '🏢', label: 'Divisi', value: detailReview.sales_division },
-                    { icon: '🛠️', label: 'Handler', value: detailReview.assign_name },
+                    { icon: '🛠️', label: 'Handler PTS', value: detailReview.assign_name },
+                    { icon: '👥', label: 'Guest Reviewer', value: detailReview.guest_username },
                     { icon: '📅', label: 'Dibuat', value: formatDatetime(detailReview.created_at) },
+                    { icon: '🔄', label: 'Update', value: detailReview.updated_at ? formatDatetime(detailReview.updated_at) : null },
                   ].filter(x => x.value).map((item, i) => (
                     <div key={i} className="rounded-xl px-4 py-3" style={{ background: 'rgba(248,250,252,0.9)', border: '1px solid rgba(0,0,0,0.07)' }}>
                       <p className="text-[9px] font-bold tracking-widest uppercase text-gray-400">{item.icon} {item.label}</p>
-                      <p className="text-sm font-bold text-gray-800 mt-0.5">{item.value}</p>
+                      <p className="text-sm font-bold text-gray-800 mt-0.5 break-words">{item.value}</p>
                     </div>
                   ))}
                 </div>
 
-                {/* Demo Product review */}
+                {/* Demo Product review detail */}
                 {detailReview.review_category === 'Demo Product' && (
-                  <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(124,58,237,0.04)', border: '1px solid rgba(124,58,237,0.15)' }}>
+                  <div className="rounded-xl p-4 space-y-4" style={{ background: 'rgba(124,58,237,0.04)', border: '1.5px solid rgba(124,58,237,0.15)' }}>
                     <p className="text-[10px] font-bold tracking-widest uppercase text-violet-600">🖥️ Review Demo Product</p>
-                    {detailReview.product_demo && (
+
+                    {detailReview.product_demo ? (
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Product</p>
-                        <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{detailReview.product_demo}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Product yang Di-Demo</p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap bg-white/60 rounded-lg px-3 py-2 border border-violet-100">{detailReview.product_demo}</p>
                       </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 italic px-2">Product belum diisi</p>
                     )}
-                    {detailReview.grade_product_knowledge ? (
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grade Product Knowledge</p>
-                        <StarRating value={detailReview.grade_product_knowledge} disabled />
-                        {detailReview.catatan_grade_product_knowledge && (
-                          <p className="text-xs text-gray-500 mt-1 italic">{detailReview.catatan_grade_product_knowledge}</p>
-                        )}
-                      </div>
-                    ) : <p className="text-sm text-gray-400 italic">Belum diisi</p>}
+
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Grade Product Knowledge</p>
+                      {detailReview.grade_product_knowledge ? (
+                        <>
+                          <StarRating value={detailReview.grade_product_knowledge} disabled />
+                          {detailReview.catatan_grade_product_knowledge && (
+                            <div className="mt-2 bg-white/60 rounded-lg px-3 py-2 border border-violet-100">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Catatan</p>
+                              <p className="text-xs text-gray-600 italic">{detailReview.catatan_grade_product_knowledge}</p>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                          <span className="text-sm">⏳</span>
+                          <p className="text-xs font-semibold text-amber-700">Belum diisi oleh guest</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                {/* BAST review */}
+                {/* BAST review detail */}
                 {detailReview.review_category === 'BAST' && (
-                  <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(14,165,233,0.04)', border: '1px solid rgba(14,165,233,0.15)' }}>
+                  <div className="rounded-xl p-4 space-y-4" style={{ background: 'rgba(14,165,233,0.04)', border: '1.5px solid rgba(14,165,233,0.15)' }}>
                     <p className="text-[10px] font-bold tracking-widest uppercase text-sky-600">📌 Review BAST (Training)</p>
-                    {detailReview.product_bast && (
+
+                    {detailReview.product_bast ? (
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Product</p>
-                        <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{detailReview.product_bast}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Product yang Di-Training</p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap bg-white/60 rounded-lg px-3 py-2 border border-sky-100">{detailReview.product_bast}</p>
                       </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 italic px-2">Product belum diisi</p>
                     )}
-                    {detailReview.grade_training_customer ? (
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grade Training Customer</p>
-                        <StarRating value={detailReview.grade_training_customer} disabled />
-                        {detailReview.catatan_grade_training_customer && (
-                          <p className="text-xs text-gray-500 mt-1 italic">{detailReview.catatan_grade_training_customer}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Grade Training Customer</p>
+                        {detailReview.grade_training_customer ? (
+                          <>
+                            <StarRating value={detailReview.grade_training_customer} disabled />
+                            {detailReview.catatan_grade_training_customer && (
+                              <p className="text-xs text-gray-500 mt-2 italic bg-white/60 rounded-lg px-3 py-2 border border-sky-100">{detailReview.catatan_grade_training_customer}</p>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                            <span className="text-sm">⏳</span>
+                            <p className="text-xs font-semibold text-amber-700">Belum diisi</p>
+                          </div>
                         )}
                       </div>
-                    ) : null}
-                    {detailReview.grade_product_knowledge_bast ? (
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grade Product Knowledge</p>
-                        <StarRating value={detailReview.grade_product_knowledge_bast} disabled />
-                        {detailReview.catatan_grade_product_knowledge_bast && (
-                          <p className="text-xs text-gray-500 mt-1 italic">{detailReview.catatan_grade_product_knowledge_bast}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Grade Product Knowledge</p>
+                        {detailReview.grade_product_knowledge_bast ? (
+                          <>
+                            <StarRating value={detailReview.grade_product_knowledge_bast} disabled />
+                            {detailReview.catatan_grade_product_knowledge_bast && (
+                              <p className="text-xs text-gray-500 mt-2 italic bg-white/60 rounded-lg px-3 py-2 border border-sky-100">{detailReview.catatan_grade_product_knowledge_bast}</p>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                            <span className="text-sm">⏳</span>
+                            <p className="text-xs font-semibold text-amber-700">Belum diisi</p>
+                          </div>
                         )}
                       </div>
-                    ) : null}
-                    {!detailReview.grade_training_customer && !detailReview.grade_product_knowledge_bast && (
-                      <p className="text-sm text-gray-400 italic">Belum diisi</p>
-                    )}
+                    </div>
                   </div>
                 )}
 
-                {/* Foto */}
-                {detailReview.foto_dokumentasi_url && (
-                  <div className="rounded-xl overflow-hidden">
-                    <p className="text-[10px] font-bold tracking-widest uppercase text-gray-400 mb-2">📸 Foto Dokumentasi</p>
-                    <img src={detailReview.foto_dokumentasi_url} alt="Foto Dokumentasi" className="w-full rounded-xl max-h-56 object-cover" />
+                {/* Foto Dokumentasi */}
+                {detailReview.foto_dokumentasi_url ? (
+                  <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-gray-400 px-4 pt-3 pb-2">📸 Foto Dokumentasi</p>
+                    <img
+                      src={detailReview.foto_dokumentasi_url}
+                      alt="Foto Dokumentasi"
+                      className="w-full max-h-56 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => window.open(detailReview.foto_dokumentasi_url!, '_blank')}
+                    />
+                    <div className="px-4 pb-3 pt-1">
+                      <a href={detailReview.foto_dokumentasi_url} target="_blank" rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-violet-600 hover:text-violet-800 transition-colors">
+                        🔗 Buka foto di tab baru
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl px-4 py-3 flex items-center gap-2" style={{ background: 'rgba(0,0,0,0.03)', border: '1px dashed rgba(0,0,0,0.15)' }}>
+                    <span className="text-gray-300 text-xl">📷</span>
+                    <p className="text-xs text-gray-400">Belum ada foto dokumentasi</p>
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-2">
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-1">
                   <button onClick={() => openEdit(detailReview)}
-                    className="flex-1 text-white py-3 rounded-xl font-bold text-sm transition-all"
-                    style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                    className="flex-1 text-white py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
+                    style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', boxShadow: '0 3px 12px rgba(124,58,237,0.3)' }}>
                     ✏️ Edit / Isi Review
                   </button>
                   {isAdmin && (
                     <button onClick={() => { setDetailReview(null); openDeleteModal(detailReview); }}
-                      className="px-5 py-3 rounded-xl font-bold text-sm text-red-600 transition-all hover:bg-red-50"
+                      className="px-5 py-3 rounded-xl font-bold text-sm text-red-600 transition-all hover:bg-red-50 hover:scale-[1.01] flex items-center gap-2"
                       style={{ border: '1.5px solid rgba(220,38,38,0.35)' }}>
-                      🗑️
+                      🗑️ Hapus
                     </button>
                   )}
+                  <button onClick={() => setDetailReview(null)}
+                    className="px-5 py-3 rounded-xl font-bold text-sm text-gray-500 transition-all hover:bg-gray-100"
+                    style={{ border: '1px solid rgba(0,0,0,0.12)' }}>
+                    ✕ Tutup
+                  </button>
                 </div>
               </div>
             </div>
@@ -924,7 +998,7 @@ export default function FormReviewPage() {
               </div>
               <div className="max-h-[calc(80vh-140px)] overflow-y-auto p-4 space-y-2">
                 {myPendingReviews.map(r => (
-                  <div key={r.id} onClick={() => { openEdit(r); setShowNotificationPopup(false); }}
+                  <div key={r.id} onClick={() => { setDetailReview(r); setShowNotificationPopup(false); }}
                     className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
                     style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
                     <div className="flex items-start justify-between gap-2">
@@ -982,7 +1056,7 @@ export default function FormReviewPage() {
                     <p className="font-semibold">Semua review sudah diisi</p>
                   </div>
                 ) : myActivePendingReviews.map(r => (
-                  <div key={r.id} onClick={() => { openEdit(r); setShowBellPopup(false); }}
+                  <div key={r.id} onClick={() => { setDetailReview(r); setShowBellPopup(false); }}
                     className="rounded-xl p-3 border-2 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
                     style={{ background: 'rgba(249,250,251,0.9)', borderColor: '#e5e7eb' }}>
                     <div className="flex items-start justify-between gap-2">
