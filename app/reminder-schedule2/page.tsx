@@ -89,6 +89,7 @@ interface Reminder {
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
   product?: string;
+  guest_username?: string; // username guest yang di-assign untuk form review
 }
 
 interface TeamUser {
@@ -99,6 +100,17 @@ interface TeamUser {
   team_type?: string;
   phone_number?: string;
 }
+
+interface GuestUser {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
+  phone_number?: string;
+}
+
+// Kategori yang men-trigger auto form_review ke Guest
+const REVIEW_TRIGGER_CATEGORIES = ['Demo Product', 'Konfigurasi & Training', 'Training'] as const;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -565,6 +577,7 @@ export default function ReminderSchedulePage() {
   const [myReminders, setMyReminders]       = useState<Reminder[]>([]);
   const [currentUser, setCurrentUser]       = useState<TeamUser | null>(null);
   const [teamUsers, setTeamUsers]           = useState<TeamUser[]>([]);
+  const [guestUsers, setGuestUsers]         = useState<GuestUser[]>([]);
   const [reminders, setReminders]           = useState<Reminder[]>([]);
   const [listLoading, setListLoading]       = useState(false);
   const [saving, setSaving]                 = useState(false);
@@ -617,7 +630,7 @@ export default function ReminderSchedulePage() {
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
     sales_name: '', sales_division: '', address: '', pic_name: '', pic_phone: '',
-    notes: '', product: '',
+    notes: '', product: '', guest_username: '',
   };
   const [formData, setFormData] = useState(emptyForm);
   const fd = (patch: Partial<typeof emptyForm>) => setFormData(prev => ({ ...prev, ...patch }));
@@ -638,6 +651,7 @@ export default function ReminderSchedulePage() {
     // Fetch parallel — tidak tunggu satu selesai dulu
     Promise.all([
       fetchTeamUsers(),
+      fetchGuestUsers(),
       fetchRemindersQuiet(user),
     ]).then(() => {
       // Popup notif setelah data loaded
@@ -698,6 +712,15 @@ export default function ReminderSchedulePage() {
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
+  const fetchGuestUsers = async () => {
+    const { data } = await supabase
+      .from('users')
+      .select('id, username, full_name, role, phone_number')
+      .eq('role', 'guest')
+      .order('full_name');
+    if (data) setGuestUsers(data as GuestUser[]);
+  };
+
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
     // Tentukan user: dari param → state → localStorage
@@ -737,9 +760,14 @@ export default function ReminderSchedulePage() {
     if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
     if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
-    if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
-    if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
+    if (!formData.sales_division.trim())       { notify('error', 'Divisi sales wajib diisi!');       return; }
     if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
+
+    const isTriggerCat = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(formData.category);
+    if (isTriggerCat && !formData.guest_username?.trim()) {
+      notify('error', `Kategori "${formData.category}" memerlukan pilihan Guest untuk form review!`);
+      return;
+    }
 
     const assignee = teamUsers.find(u => u.username === formData.assigned_to);
     const payload = { ...formData, assign_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
@@ -834,6 +862,61 @@ export default function ReminderSchedulePage() {
               `\nTetap semangat! 💪`;
             await sendFonnteWA(handlerUser.phone_number, msg);
           }
+
+          // ── Auto-insert ke form_reviews jika kategori trigger & ada guest ──
+          const isTriggerCategory = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(reminder.category);
+          const guestUsername = reminder.guest_username?.trim();
+          if (isTriggerCategory && guestUsername) {
+            try {
+              // Cek apakah sudah ada form_review untuk reminder ini
+              const { data: existingReview } = await supabase
+                .from('form_reviews')
+                .select('id')
+                .eq('reminder_id', reminder.id)
+                .eq('guest_username', guestUsername)
+                .maybeSingle();
+
+              if (!existingReview) {
+                const reviewCategory = reminder.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+                const { error: reviewErr } = await supabase.from('form_reviews').insert([{
+                  reminder_id: reminder.id,
+                  project_name: reminder.project_name,
+                  address: reminder.address || '',
+                  sales_name: reminder.sales_name || '',
+                  sales_division: reminder.sales_division || '',
+                  assign_name: reminder.assign_name,
+                  assigned_to: reminder.assigned_to,
+                  reminder_category: reminder.category,
+                  review_category: reviewCategory,
+                  guest_username: guestUsername,
+                }]);
+
+                if (reviewErr) {
+                  console.error('[Auto form_review] Gagal insert:', reviewErr.message);
+                } else {
+                  console.log('[Auto form_review] ✅ Form review dibuat untuk guest:', guestUsername);
+
+                  // Kirim WA notifikasi ke guest
+                  const guestUser = guestUsers.find(g => g.username === guestUsername);
+                  if (guestUser?.phone_number) {
+                    const guestMsg =
+                      `⭐ *REVIEW DIMINTA — PTS IVP*\n\n` +
+                      `Halo *${guestUser.full_name}*!\n\n` +
+                      `Jadwal *${reminder.category}* untuk project:\n` +
+                      `📋 *${reminder.project_name}*\n` +
+                      `📍 ${reminder.address || '-'}\n\n` +
+                      `telah selesai dilaksanakan oleh tim kami.\n\n` +
+                      `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
+                      `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
+                      `Terima kasih! 🙏`;
+                    await sendFonnteWA(guestUser.phone_number, guestMsg);
+                  }
+                }
+              }
+            } catch (reviewEx) {
+              console.warn('[Auto form_review] Exception:', reviewEx);
+            }
+          }
         }
       } catch (waEx) { console.warn('[status done] WA failed:', waEx); }
     }
@@ -876,7 +959,8 @@ export default function ReminderSchedulePage() {
     setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assigned_to: r.assigned_to, assign_name: r.assign_name ?? '', due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
-      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
+      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '',
+      guest_username: r.guest_username ?? '' });
     setDetailReminder(null);
     setShowFormModal(true);
   };
@@ -1322,8 +1406,40 @@ export default function ReminderSchedulePage() {
                   </div>
                 </FormField>
 
+                {/* Guest selector — hanya untuk trigger categories */}
+                {(REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(formData.category) && (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(124,58,237,0.06)', border: '1.5px solid rgba(124,58,237,0.25)' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">⭐</span>
+                      <p className="text-sm font-bold text-violet-700">Assign Guest untuk Form Review</p>
+                    </div>
+                    <p className="text-xs text-violet-600 -mt-1">
+                      Kategori <strong>{formData.category}</strong> memerlukan review dari customer/guest. Pilih akun guest yang akan mengisi form review setelah jadwal selesai.
+                    </p>
+                    <FormField label="Pilih Guest (Customer) *">
+                      <select value={formData.guest_username ?? ''} onChange={e => {
+                        const g = guestUsers.find(u => u.username === e.target.value);
+                        fd({ guest_username: e.target.value, sales_name: g ? g.full_name : formData.sales_name });
+                      }} className={inputCls} style={{ ...inputStyle, borderColor: 'rgba(124,58,237,0.35)' }}>
+                        <option value="">-- Pilih akun Guest --</option>
+                        {guestUsers.map(u => (
+                          <option key={u.id} value={u.username}>{u.full_name} (@{u.username})</option>
+                        ))}
+                      </select>
+                    </FormField>
+                    {formData.guest_username && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                        <span className="text-sm">✅</span>
+                        <p className="text-xs font-semibold text-violet-700">
+                          Form review akan otomatis muncul di akun <strong>{formData.guest_username}</strong> setelah status jadwal ini diubah ke <strong>Completed</strong>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Nama Sales *">
+                  <FormField label="Nama Sales">
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
                       <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
@@ -1576,6 +1692,21 @@ export default function ReminderSchedulePage() {
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                     {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
+                    {detailReminder.guest_username && (
+                      <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(124,58,237,0.04)' }}>
+                        <span className="text-base flex-shrink-0">⭐</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7c3aed' }}>Guest Review</p>
+                          <p className="text-sm font-semibold text-violet-700">
+                            {guestUsers.find(g => g.username === detailReminder.guest_username)?.full_name || detailReminder.guest_username}
+                          </p>
+                          <p className="text-[10px] text-violet-500">@{detailReminder.guest_username}</p>
+                        </div>
+                        {detailReminder.status === 'done' && (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ background: '#7c3aed' }}>Form Terkirim ✓</span>
+                        )}
+                      </div>
+                    )}
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
                     {detailReminder.pic_phone && (
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
@@ -2076,6 +2207,12 @@ export default function ReminderSchedulePage() {
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
+                                  {r.guest_username && (
+                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
+                                      style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
+                                      ⭐ {r.guest_username}
+                                    </div>
+                                  )}
                                 </td>
                                 {/* Handler */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
