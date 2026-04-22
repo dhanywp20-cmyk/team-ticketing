@@ -288,7 +288,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                           <button key={t} type="button"
                             onClick={() => setEditingUser({ ...editingUser, team_type: t })}
                             className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${editingUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
-                            {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
+                            {t === 'Team PTS' ? '👥' : '👥'} {t}
                           </button>
                         ))}
                       </div>
@@ -367,7 +367,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                               <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
                               {user.team_type && (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-rose-100 text-rose-600 border border-rose-200">
-                                  {user.team_type === 'Team PTS' ? '🏗️' : '🔧'} {user.team_type}
+                                  {user.team_type === 'Team PTS' ? '👥' : '👥'} {user.team_type}
                                 </span>
                               )}
                               {user.role === 'guest' && user.sales_division && (
