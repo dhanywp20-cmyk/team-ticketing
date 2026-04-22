@@ -89,7 +89,7 @@ interface Reminder {
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
   product?: string;
-  guest_fullname?: string; // username guest yang di-assign untuk form review
+  // guest_fullname dihapus — link ke form_reviews menggunakan sales_name + sales_division
 }
 
 interface TeamUser {
@@ -105,9 +105,9 @@ interface GuestUser {
   id: string;
   username: string;
   full_name: string;
-  sales_division: string;
   role: string;
   phone_number?: string;
+  sales_division?: string;
 }
 
 // Kategori yang men-trigger auto form_review ke Guest
@@ -568,7 +568,7 @@ function RescheduleModal({
 
 export default function ReminderSchedulePage() {
   const router = useRouter();
-  const [appReady, setAppReady]             = useState(true);
+  const [appReady, setAppReady]             = useState(false);
   const [dashLoading, setDashLoading]       = useState(false);
   const [isLoggedIn, setIsLoggedIn]         = useState(false);
   const [loginForm, setLoginForm]           = useState({ username: '', password: '' });
@@ -608,6 +608,11 @@ export default function ReminderSchedulePage() {
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
 
+  // ─── Guest search state ───────────────────────────────────────────────────
+  const [guestSearch, setGuestSearch]         = useState('');
+  const [guestDropdownOpen, setGuestDropdownOpen] = useState(false);
+  const guestDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Delete Modal State ───────────────────────────────────────────────────
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget]       = useState<Reminder | null>(null);
@@ -631,7 +636,7 @@ export default function ReminderSchedulePage() {
     due_time: '09:00', priority: 'medium', status: 'pending',
     repeat: 'none', category: 'Demo Product',
     sales_name: '', sales_division: '', address: '', pic_name: '', pic_phone: '',
-    notes: '', product: '', guest_fullname: '',
+    notes: '', product: '',
   };
   const [formData, setFormData] = useState(emptyForm);
   const fd = (patch: Partial<typeof emptyForm>) => setFormData(prev => ({ ...prev, ...patch }));
@@ -655,6 +660,7 @@ export default function ReminderSchedulePage() {
       fetchGuestUsers(),
       fetchRemindersQuiet(user),
     ]).then(() => {
+      setAppReady(true); // ← tampilkan konten setelah data siap
       // Popup notif setelah data loaded
       if (user && (user.role === 'team' || user.role === 'admin')) {
         supabase
@@ -709,14 +715,14 @@ export default function ReminderSchedulePage() {
   // Berjalan otomatis setiap hari tanpa perlu buka halaman
 
   const fetchTeamUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username, full_name, role, sales_division, team_type, phone_number').order('full_name');
+    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
   const fetchGuestUsers = async () => {
     const { data } = await supabase
       .from('users')
-      .select('id, username, full_name, role, sales_division, phone_number')
+      .select('id, username, full_name, role, phone_number, sales_division')
       .eq('role', 'guest')
       .order('full_name');
     if (data) setGuestUsers(data as GuestUser[]);
@@ -761,12 +767,16 @@ export default function ReminderSchedulePage() {
     if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
     if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
-    if (!formData.sales_division.trim())       { notify('error', 'Divisi sales wajib diisi!');       return; }
     if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
     const isTriggerCat = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(formData.category);
-    if (isTriggerCat && !formData.guest_fullname?.trim()) {
-      notify('error', `Kategori "${formData.category}" memerlukan pilihan Guest untuk form review!`);
+    if (isTriggerCat && !formData.sales_name?.trim()) {
+      notify('error', `Kategori "${formData.category}" memerlukan pilihan Guest / Sales untuk form review!`);
+      return;
+    }
+    // Untuk kategori non-trigger, sales_division tetap wajib
+    if (!isTriggerCat && !formData.sales_division.trim()) {
+      notify('error', 'Divisi sales wajib diisi!');
       return;
     }
 
@@ -864,17 +874,17 @@ export default function ReminderSchedulePage() {
             await sendFonnteWA(handlerUser.phone_number, msg);
           }
 
-          // ── Auto-insert ke form_reviews jika kategori trigger & ada guest ──
+          // ── Auto-insert ke form_reviews jika kategori trigger & ada sales_name ──
           const isTriggerCategory = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(reminder.category);
-          const guestUsername = reminder.guest_fullname?.trim();
-          if (isTriggerCategory && guestUsername) {
+          const salesName = reminder.sales_name?.trim();
+          if (isTriggerCategory && salesName) {
             try {
-              // Cek apakah sudah ada form_review untuk reminder ini
+              // Cek apakah sudah ada form_review untuk reminder ini (berdasarkan reminder_id + sales_name)
               const { data: existingReview } = await supabase
                 .from('form_reviews')
                 .select('id')
                 .eq('reminder_id', reminder.id)
-                .eq('guest_fullname', guestUsername)
+                .eq('sales_name', salesName)
                 .maybeSingle();
 
               if (!existingReview) {
@@ -883,22 +893,21 @@ export default function ReminderSchedulePage() {
                   reminder_id: reminder.id,
                   project_name: reminder.project_name,
                   address: reminder.address || '',
-                  sales_name: reminder.sales_name || '',
+                  sales_name: salesName,
                   sales_division: reminder.sales_division || '',
                   assign_name: reminder.assign_name,
                   assigned_to: reminder.assigned_to,
                   reminder_category: reminder.category,
                   review_category: reviewCategory,
-                  guest_fullname: guestUsername,
                 }]);
 
                 if (reviewErr) {
                   console.error('[Auto form_review] Gagal insert:', reviewErr.message);
                 } else {
-                  console.log('[Auto form_review] ✅ Form review dibuat untuk guest:', guestUsername);
+                  console.log('[Auto form_review] ✅ Form review dibuat untuk sales:', salesName);
 
-                  // Kirim WA notifikasi ke guest
-                  const guestUser = guestUsers.find(g => g.username === guestUsername);
+                  // Kirim WA notifikasi ke guest (lookup by full_name = sales_name, role guest)
+                  const guestUser = guestUsers.find(g => g.full_name === salesName);
                   if (guestUser?.phone_number) {
                     const guestMsg =
                       `⭐ *REVIEW DIMINTA — PTS IVP*\n\n` +
@@ -960,8 +969,7 @@ export default function ReminderSchedulePage() {
     setFormData({ project_name: r.project_name || (r as any).title || '', description: r.description, assigned_to: r.assigned_to, assign_name: r.assign_name ?? '', due_date: r.due_date,
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
-      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '',
-      guest_fullname: r.guest_fullname ?? '' });
+      pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '' });
     setDetailReminder(null);
     setShowFormModal(true);
   };
@@ -1170,8 +1178,8 @@ export default function ReminderSchedulePage() {
     } catch { notify('error', 'Terjadi kesalahan.'); }
   };
 
-  // ─── Not ready ─────────────────────────────────────────────────────────────
-  // Render langsung tanpa loading gate (sama seperti ticketing)
+  // ─── Not ready — tampilkan loading screen saat pertama kali fetch data ────
+  if (!appReady) return <LoadingScreen />;
 
   // ─── Login page ────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
@@ -1417,52 +1425,108 @@ export default function ReminderSchedulePage() {
                     <p className="text-xs text-violet-600 -mt-1">
                       Kategori <strong>{formData.category}</strong> memerlukan review dari Guest / Sales. Pengingat Guest / Sales mengisi kepuasan pelanggan.
                     </p>
-                    <FormField label="Pilih Sales*">
-                      <select value={formData.guest_fullname ?? ''} onChange={e => {
-                        const g = guestUsers.find(u => u.username === e.target.value);
-                        fd({ guest_fullname: e.target.value, sales_name: g ? g.full_name : formData.sales_name });
-                      }} className={inputCls} style={{ ...inputStyle, borderColor: 'rgba(124,58,237,0.35)' }}>
-                        <option value="">-- Pilih Sales --</option>
-                        {guestUsers.map(u => (
-                          <option key={u.id} value={u.full_name}>{u.full_name} (@{u.sales_division})</option>
-                        ))}
-                      </select>
+                    <FormField label="Pilih Sales *">
+                      <div className="relative" ref={guestDropdownRef}>
+                        {/* Search + display input */}
+                        <div
+                          className="w-full rounded-xl px-4 py-3 text-sm flex items-center justify-between cursor-pointer transition-all"
+                          style={{ ...inputStyle, borderColor: guestDropdownOpen ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.35)', boxShadow: guestDropdownOpen ? '0 0 0 3px rgba(124,58,237,0.12)' : undefined }}
+                          onClick={() => { setGuestDropdownOpen(o => !o); if (!guestDropdownOpen) setGuestSearch(''); }}
+                        >
+                          {formData.sales_name
+                            ? <span className="font-semibold text-slate-800">{formData.sales_name} <span className="text-violet-500 font-normal">{formData.sales_division ? `· ${formData.sales_division}` : ''}</span></span>
+                            : <span className="text-slate-400">-- Pilih akun Guest --</span>
+                          }
+                          <svg className={`w-4 h-4 text-violet-400 flex-shrink-0 transition-transform ${guestDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+
+                        {/* Dropdown panel */}
+                        {guestDropdownOpen && (
+                          <div className="absolute z-50 mt-1 w-full rounded-xl shadow-xl overflow-hidden"
+                            style={{ background: 'white', border: '1.5px solid rgba(124,58,237,0.3)', maxHeight: '240px' }}>
+                            {/* Search box */}
+                            <div className="p-2 border-b" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400 text-sm">🔍</span>
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={guestSearch}
+                                  onChange={e => setGuestSearch(e.target.value)}
+                                  placeholder="Cari nama guest..."
+                                  className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                                  style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', color: '#1e293b' }}
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              </div>
+                            </div>
+                            {/* Options */}
+                            <div className="overflow-y-auto" style={{ maxHeight: '180px' }}>
+                              {/* Clear option */}
+                              <div
+                                className="px-4 py-2.5 text-sm cursor-pointer hover:bg-violet-50 text-slate-400 italic"
+                                onClick={() => { fd({ sales_name: '', sales_division: '' }); setGuestDropdownOpen(false); setGuestSearch(''); }}
+                              >
+                                -- Pilih akun Guest --
+                              </div>
+                              {guestUsers
+                                .filter(u =>
+                                  !guestSearch.trim() ||
+                                  u.full_name.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                  u.username.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                  (u.sales_division ?? '').toLowerCase().includes(guestSearch.toLowerCase())
+                                )
+                                .map(u => (
+                                  <div
+                                    key={u.id}
+                                    className="px-4 py-2.5 cursor-pointer transition-colors flex items-center justify-between gap-2"
+                                    style={{
+                                      background: formData.sales_name === u.full_name ? 'rgba(124,58,237,0.1)' : undefined,
+                                      borderLeft: formData.sales_name === u.full_name ? '3px solid #7c3aed' : '3px solid transparent',
+                                    }}
+                                    onMouseEnter={e => { if (formData.sales_name !== u.full_name) (e.currentTarget as HTMLDivElement).style.background = 'rgba(124,58,237,0.05)'; }}
+                                    onMouseLeave={e => { if (formData.sales_name !== u.full_name) (e.currentTarget as HTMLDivElement).style.background = ''; }}
+                                    onClick={() => {
+                                      fd({ sales_name: u.full_name, sales_division: u.sales_division ?? '' });
+                                      setGuestDropdownOpen(false);
+                                      setGuestSearch('');
+                                    }}
+                                  >
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-800">{u.full_name}</p>
+                                      <p className="text-xs text-violet-500">@{u.username}{u.sales_division ? ` · ${u.sales_division}` : ''}</p>
+                                    </div>
+                                    {formData.sales_name === u.full_name && <span className="text-violet-600 text-sm">✓</span>}
+                                  </div>
+                                ))
+                              }
+                              {guestSearch.trim() && guestUsers.filter(u =>
+                                u.full_name.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                u.username.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                (u.sales_division ?? '').toLowerCase().includes(guestSearch.toLowerCase())
+                              ).length === 0 && (
+                                <div className="px-4 py-4 text-center text-xs text-gray-400">Tidak ada guest ditemukan</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {/* Close dropdown on outside click */}
+                      {guestDropdownOpen && (
+                        <div className="fixed inset-0 z-40" onClick={() => { setGuestDropdownOpen(false); setGuestSearch(''); }} />
+                      )}
                     </FormField>
-                    {formData.guest_fullname && (
+                    {formData.sales_name && (
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
                         <span className="text-sm">✅</span>
                         <p className="text-xs font-semibold text-violet-700">
-                          Form review akan otomatis muncul di akun <strong>{formData.guest_fullname}</strong> setelah status jadwal ini diubah ke <strong>Completed</strong>.
+                          Form review akan otomatis muncul di akun <strong>{formData.sales_name}</strong> setelah status jadwal ini diubah ke <strong>Completed</strong>.
+                          {formData.sales_division && <span className="ml-1 text-violet-500">· Divisi: <strong>{formData.sales_division}</strong></span>}
                         </p>
                       </div>
                     )}
                   </div>
                 )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Nama Sales">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                      <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
-                    </div>
-                  </FormField>
-                  <FormField label="Divisi *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2"></span>
-                      <select
-                        value={formData.sales_division}
-                        onChange={e => fd({ sales_division: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle}
-                      >
-                        <option value=""> Pilih Divisi..</option>
-                        {SALES_DIVISIONS.map(div => (
-                          <option key={div} value={div}>{div}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </FormField>
-                </div>
 
                 <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
 
@@ -1693,15 +1757,13 @@ export default function ReminderSchedulePage() {
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                     {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
-                    {detailReminder.guest_fullname && (
+                    {detailReminder.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(detailReminder.category) && (
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(124,58,237,0.04)' }}>
                         <span className="text-base flex-shrink-0">⭐</span>
                         <div className="min-w-0 flex-1">
                           <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7c3aed' }}>Guest Review</p>
-                          <p className="text-sm font-semibold text-violet-700">
-                            {guestUsers.find(g => g.username === detailReminder.guest_fullname)?.full_name || detailReminder.guest_fullname}
-                          </p>
-                          <p className="text-[10px] text-violet-500">@{detailReminder.guest_fullname}</p>
+                          <p className="text-sm font-semibold text-violet-700">{detailReminder.sales_name}</p>
+                          {detailReminder.sales_division && <p className="text-[10px] text-violet-500">{detailReminder.sales_division}</p>}
                         </div>
                         {detailReminder.status === 'done' && (
                           <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ background: '#7c3aed' }}>Form Terkirim ✓</span>
@@ -1737,7 +1799,7 @@ export default function ReminderSchedulePage() {
                       <span className="text-lg">✅</span>
                       <div>
                         <p className="text-xs font-bold text-emerald-700">Jadwal Selesai</p>
-                        
+                        <p className="text-[10px] text-emerald-600">Status completed tidak dapat diubah kembali.</p>
                       </div>
                     </div>
                   ) : (
@@ -2208,10 +2270,10 @@ export default function ReminderSchedulePage() {
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
-                                  {r.guest_fullname && (
+                                  {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
                                     <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
                                       style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
-                                      ⭐ {r.guest_fullname}
+                                      ⭐ {r.sales_name}
                                     </div>
                                   )}
                                 </td>
