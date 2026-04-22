@@ -607,7 +607,6 @@ export default function ReminderSchedulePage() {
   const [calOnlyDay, setCalOnlyDay]         = useState<string | null>(null);
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
-  const [resendingFormReview, setResendingFormReview] = useState<string | null>(null);
 
   // ─── Guest search state ───────────────────────────────────────────────────
   const [guestSearch, setGuestSearch]         = useState('');
@@ -879,7 +878,23 @@ export default function ReminderSchedulePage() {
           const salesName = reminder.sales_name?.trim();
           if (isTriggerCategory && salesName) {
             try {
-              // Cek apakah sudah ada form_review untuk reminder ini (berdasarkan reminder_id + sales_name)
+              // Lookup guest user berdasarkan full_name === sales_name, role === guest
+              // Ini penting: guest_username harus diisi agar Guest bisa melihat form review mereka
+              const guestUser = guestUsers.find(g => g.full_name === salesName);
+
+              // Jika guestUser tidak ada di state, coba fetch dari DB
+              let resolvedGuest = guestUser;
+              if (!resolvedGuest) {
+                const { data: guestFromDb } = await supabase
+                  .from('users')
+                  .select('id, username, full_name, role, phone_number, sales_division')
+                  .eq('role', 'guest')
+                  .eq('full_name', salesName)
+                  .maybeSingle();
+                if (guestFromDb) resolvedGuest = guestFromDb as GuestUser;
+              }
+
+              // Cek apakah sudah ada form_review untuk reminder ini
               const { data: existingReview } = await supabase
                 .from('form_reviews')
                 .select('id')
@@ -889,32 +904,30 @@ export default function ReminderSchedulePage() {
 
               if (!existingReview) {
                 const reviewCategory = reminder.category === 'Demo Product' ? 'Demo Product' : 'BAST';
-                const guestForReview = guestUsers.find(g => g.full_name === salesName);
                 const { error: reviewErr } = await supabase.from('form_reviews').insert([{
                   reminder_id: reminder.id,
                   project_name: reminder.project_name,
                   address: reminder.address || '',
                   sales_name: salesName,
-                  guest_fullname: guestForReview?.username ?? salesName,
-                  guest_username: guestForReview?.username ?? salesName,
                   sales_division: reminder.sales_division || '',
                   assign_name: reminder.assign_name,
                   assigned_to: reminder.assigned_to,
                   reminder_category: reminder.category,
                   review_category: reviewCategory,
+                  // ⚠️ KRITIS: guest_username wajib diisi agar Guest bisa filter & melihat form review-nya
+                  guest_username: resolvedGuest?.username ?? '',
                 }]);
 
                 if (reviewErr) {
                   console.error('[Auto form_review] Gagal insert:', reviewErr.message);
                 } else {
-                  console.log('[Auto form_review] ✅ Form review dibuat untuk sales:', salesName);
+                  console.log('[Auto form_review] ✅ Form review dibuat untuk sales:', salesName, '| guest_username:', resolvedGuest?.username ?? 'TIDAK DITEMUKAN');
 
-                  // Kirim WA notifikasi ke guest (lookup by full_name = sales_name, role guest)
-                  const guestUser = guestUsers.find(g => g.full_name === salesName);
-                  if (guestUser?.phone_number) {
+                  // Kirim WA notifikasi ke guest
+                  if (resolvedGuest?.phone_number) {
                     const guestMsg =
                       `⭐ *REVIEW DIMINTA — PTS IVP*\n\n` +
-                      `Halo *${guestUser.full_name}*!\n\n` +
+                      `Halo *${resolvedGuest.full_name}*!\n\n` +
                       `Jadwal *${reminder.category}* untuk project:\n` +
                       `📋 *${reminder.project_name}*\n` +
                       `📍 ${reminder.address || '-'}\n\n` +
@@ -922,9 +935,13 @@ export default function ReminderSchedulePage() {
                       `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
                       `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
                       `Terima kasih! 🙏`;
-                    await sendFonnteWA(guestUser.phone_number, guestMsg);
+                    await sendFonnteWA(resolvedGuest.phone_number, guestMsg);
+                  } else {
+                    console.warn('[Auto form_review] Guest tidak memiliki nomor WA:', salesName);
                   }
                 }
+              } else {
+                console.log('[Auto form_review] Form review sudah ada untuk reminder ini:', reminder.id);
               }
             } catch (reviewEx) {
               console.warn('[Auto form_review] Exception:', reviewEx);
@@ -1040,8 +1057,8 @@ export default function ReminderSchedulePage() {
     const msg =
       `📋 *REMINDER JADWAL PTS IVP*\n\n` +
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
-      `*Nama Project: ${formData.project_name}*\n` +
-      `*Deskripsi: ${formData.description}*\n` +
+      `*Nama Project: ${r.project_name}*\n` +
+      `*Deskripsi: ${r.description}*\n` +
       `🏷️ Kategori: ${r.category}\n` +
       `📍 Lokasi: ${r.address || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
@@ -1056,102 +1073,6 @@ export default function ReminderSchedulePage() {
     setSendingWA(null);
     if (result.ok) notify('success', `WA berhasil dikirim ke ${handlerData.full_name}!`);
     else notify('error', `Gagal kirim WA: ${result.reason ?? 'Unknown error'}`);
-  };
-
-  // ─── Resend ke Form Review (admin only) ───────────────────────────────────
-
-  const handleResendFormReview = async (r: Reminder) => {
-    const isTriggerCat = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category);
-    if (!isTriggerCat) {
-      notify('error', `Kategori "${r.category}" tidak mendukung Form Review.`);
-      return;
-    }
-    const salesName = r.sales_name?.trim();
-    if (!salesName) {
-      notify('error', 'Sales name tidak tersedia pada jadwal ini.');
-      return;
-    }
-
-    setResendingFormReview(r.id);
-    try {
-      // Lookup username guest dari guestUsers berdasarkan full_name === sales_name
-      const guestUser = guestUsers.find(g => g.full_name === salesName);
-      if (!guestUser) {
-        notify('error', `Akun guest untuk "${salesName}" tidak ditemukan. Pastikan nama Sales sesuai akun guest di sistem.`);
-        setResendingFormReview(null);
-        return;
-      }
-
-      // Cek apakah sudah ada
-      const { data: existing } = await supabase
-        .from('form_reviews')
-        .select('id')
-        .eq('reminder_id', r.id)
-        .eq('sales_name', salesName)
-        .maybeSingle();
-
-      const reviewCategory = r.category === 'Demo Product' ? 'Demo Product' : 'BAST';
-      const reviewPayload = {
-        reminder_id: r.id,
-        project_name: r.project_name,
-        address: r.address || '',
-        sales_name: salesName,
-        guest_fullname: guestUser.username,
-        guest_username: guestUser.username,
-        sales_division: r.sales_division || '',
-        assign_name: r.assign_name,
-        assigned_to: r.assigned_to,
-        reminder_category: r.category,
-        review_category: reviewCategory,
-      };
-
-      let insertError: any = null;
-      if (existing) {
-        // Update row yang sudah ada
-        const { error } = await supabase
-          .from('form_reviews')
-          .update(reviewPayload)
-          .eq('id', existing.id);
-        insertError = error;
-      } else {
-        const { error } = await supabase
-          .from('form_reviews')
-          .insert([reviewPayload]);
-        insertError = error;
-      }
-
-      if (insertError) {
-        notify('error', 'Gagal resend Form Review: ' + insertError.message);
-        setResendingFormReview(null);
-        return;
-      }
-
-      // Kirim ulang WA notifikasi ke guest
-      const guestUser = guestUsers.find(g => g.full_name === salesName);
-      if (guestUser?.phone_number) {
-        const guestMsg =
-          `⭐ *FORM REVIEW — PTS IVP*\n\n` +
-          `Halo *${guestUser.full_name}*!\n\n` +
-          `Jadwal *${r.category}* untuk project:\n` +
-          `📋 *${r.project_name}*\n` +
-          `📍 ${r.address || '-'}\n\n` +
-          `telah selesai dilaksanakan oleh tim kami.\n\n` +
-          `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
-          `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
-          `Terima kasih! 🙏`;
-        const waResult = await sendFonnteWA(guestUser.phone_number, guestMsg);
-        if (waResult.ok) {
-          notify('success', `Form Review berhasil dikirim ulang + WA ke ${salesName}!`);
-        } else {
-          notify('success', `Form Review berhasil dikirim ulang ke ${salesName} (WA gagal: ${waResult.reason ?? '-'})`);
-        }
-      } else {
-        notify('success', `Form Review berhasil dikirim ulang ke ${salesName} (nomor WA tidak tersedia).`);
-      }
-    } catch (ex: any) {
-      notify('error', 'Terjadi kesalahan: ' + ex.message);
-    }
-    setResendingFormReview(null);
   };
 
   // ─── Export Excel ──────────────────────────────────────────────────────────
@@ -2064,19 +1985,6 @@ export default function ReminderSchedulePage() {
                         className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
                         style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}>
                         ✏️ Edit
-                      </button>
-                    )}
-                    {/* Resend ke Form Review — admin only, hanya untuk kategori trigger */}
-                    {isAdmin && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(detailReminder.category) && detailReminder.sales_name && (
-                      <button
-                        onClick={() => handleResendFormReview(detailReminder)}
-                        disabled={resendingFormReview === detailReminder.id}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
-                        style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: 'white', boxShadow: '0 4px 12px rgba(124,58,237,0.3)' }}>
-                        {resendingFormReview === detailReminder.id
-                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          : '⭐'}
-                        Resend Form Review
                       </button>
                     )}
                     {/* TIDAK ADA tombol Hapus di detail popup — hapus hanya dari ACT di tabel */}
