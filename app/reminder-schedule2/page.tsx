@@ -89,7 +89,7 @@ interface Reminder {
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
   product?: string;
-  guest_username?: string; // username guest yang di-assign untuk form review
+  guest_fullname?: string; // username guest yang di-assign untuk form review
 }
 
 interface TeamUser {
@@ -764,7 +764,7 @@ export default function ReminderSchedulePage() {
     if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
 
     const isTriggerCat = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(formData.category);
-    if (isTriggerCat && !formData.guest_username?.trim()) {
+    if (isTriggerCat && !formData.guest_fullname?.trim()) {
       notify('error', `Kategori "${formData.category}" memerlukan pilihan Guest untuk form review!`);
       return;
     }
@@ -865,7 +865,7 @@ export default function ReminderSchedulePage() {
 
           // ── Auto-insert ke form_reviews jika kategori trigger & ada guest ──
           const isTriggerCategory = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(reminder.category);
-          const guestUsername = reminder.guest_username?.trim();
+          const guestUsername = reminder.guest_fullname?.trim();
           if (isTriggerCategory && guestUsername) {
             try {
               // Cek apakah sudah ada form_review untuk reminder ini
@@ -873,7 +873,7 @@ export default function ReminderSchedulePage() {
                 .from('form_reviews')
                 .select('id')
                 .eq('reminder_id', reminder.id)
-                .eq('guest_username', guestUsername)
+                .eq('guest_fullname', guestUsername)
                 .maybeSingle();
 
               if (!existingReview) {
@@ -888,7 +888,7 @@ export default function ReminderSchedulePage() {
                   assigned_to: reminder.assigned_to,
                   reminder_category: reminder.category,
                   review_category: reviewCategory,
-                  guest_username: guestUsername,
+                  guest_fullname: guestUsername,
                 }]);
 
                 if (reviewErr) {
@@ -960,7 +960,7 @@ export default function ReminderSchedulePage() {
       due_time: r.due_time, priority: r.priority, status: r.status, repeat: r.repeat, category: r.category,
       sales_name: r.sales_name ?? '', sales_division: r.sales_division ?? '', address: r.address ?? '',
       pic_name: r.pic_name ?? '', pic_phone: r.pic_phone ?? '', notes: r.notes ?? '', product: r.product ?? '',
-      guest_username: r.guest_username ?? '' });
+      guest_fullname: r.guest_fullname ?? '' });
     setDetailReminder(null);
     setShowFormModal(true);
   };
@@ -1431,7 +1431,7 @@ export default function ReminderSchedulePage() {
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
                         <span className="text-sm">✅</span>
                         <p className="text-xs font-semibold text-violet-700">
-                          Form review akan otomatis muncul di akun <strong>{formData.guest_username}</strong> setelah status jadwal ini diubah ke <strong>Completed</strong>.
+                          Form review akan otomatis muncul di akun <strong>{formData.guest_fullname}</strong> setelah status jadwal ini diubah ke <strong>Completed</strong>.
                         </p>
                       </div>
                     )}
@@ -1692,15 +1692,15 @@ export default function ReminderSchedulePage() {
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                     {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
-                    {detailReminder.guest_username && (
+                    {detailReminder.guest_fullname && (
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(124,58,237,0.04)' }}>
                         <span className="text-base flex-shrink-0">⭐</span>
                         <div className="min-w-0 flex-1">
                           <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7c3aed' }}>Guest Review</p>
                           <p className="text-sm font-semibold text-violet-700">
-                            {guestUsers.find(g => g.username === detailReminder.guest_username)?.full_name || detailReminder.guest_username}
+                            {guestUsers.find(g => g.username === detailReminder.guest_fullname)?.full_name || detailReminder.guest_fullname}
                           </p>
-                          <p className="text-[10px] text-violet-500">@{detailReminder.guest_username}</p>
+                          <p className="text-[10px] text-violet-500">@{detailReminder.guest_fullname}</p>
                         </div>
                         {detailReminder.status === 'done' && (
                           <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ background: '#7c3aed' }}>Form Terkirim ✓</span>
@@ -2207,10 +2207,10 @@ export default function ReminderSchedulePage() {
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
-                                  {r.guest_username && (
+                                  {r.guest_fullname && (
                                     <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
                                       style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
-                                      ⭐ {r.guest_username}
+                                      ⭐ {r.guest_fullname}
                                     </div>
                                   )}
                                 </td>
