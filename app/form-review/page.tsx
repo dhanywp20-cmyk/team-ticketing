@@ -343,9 +343,14 @@ export default function FormReviewPage() {
 
     let query = supabase.from('form_reviews').select('*').order('created_at', { ascending: false });
 
-    // Guest hanya melihat data yang di-assign ke mereka
+    // Guest hanya melihat data milik mereka.
+    // Prioritas: guest_username (data baru) ATAU sales_name === full_name (data lama / fallback)
+    // Menggunakan OR filter agar data lama yang belum punya guest_username tetap muncul.
     if (activeUser?.role === 'guest') {
-      query = query.eq('guest_username', activeUser.username);
+      // Supabase OR filter: guest_username = username ATAU sales_name = full_name
+      query = query.or(
+        `guest_username.eq.${activeUser.username},sales_name.eq.${activeUser.full_name}`
+      );
     }
 
     const { data, error } = await query;
@@ -541,7 +546,10 @@ export default function FormReviewPage() {
   })();
 
   const myActivePendingReviews = reviews.filter(r =>
-    currentUser && r.guest_username === currentUser.username &&
+    currentUser && (
+      r.guest_username === currentUser.username ||
+      r.sales_name === currentUser.full_name
+    ) &&
     !r.grade_product_knowledge && !r.grade_product_knowledge_bast
   );
 
