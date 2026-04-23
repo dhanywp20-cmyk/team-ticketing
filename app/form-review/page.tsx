@@ -208,17 +208,18 @@ function MiniPieChart({
 
 // ─── Loading Screen ────────────────────────────────────────────────────────────
 
-function LoadingScreen() {
+function LoadingScreen({ message = 'Loading...' }: { message?: string }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[9999]"
       style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      <div className="flex flex-col items-center gap-3 px-10 py-8 rounded-2xl"
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.25)' }} />
+      <div className="relative z-10 flex flex-col items-center gap-3 px-10 py-8 rounded-2xl"
         style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
         <svg className="w-12 h-12 animate-spin" viewBox="0 0 50 50" fill="none">
           <circle cx="25" cy="25" r="20" stroke="#f1f1f1" strokeWidth="5" />
           <path d="M25 5 A20 20 0 0 1 45 25" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" />
         </svg>
-        <p className="text-gray-700 font-semibold text-sm tracking-wide">Loading Form Review...</p>
+        <p className="text-gray-700 font-semibold text-sm tracking-wide">{message}</p>
       </div>
     </div>
   );
@@ -236,6 +237,7 @@ export default function FormReviewPage() {
   const [dashLoading, setDashLoading] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [loadingBar, setLoadingBar] = useState(0); // 0-100 progress bar
+  const [loadingMessage, setLoadingMessage] = useState('Loading...');
 
   // Data
   const [reviews, setReviews] = useState<ReviewForm[]>([]);
@@ -302,6 +304,12 @@ export default function FormReviewPage() {
       setCurrentUser(user);
       setIsLoggedIn(true);
     }
+
+    // Set pesan loading sesuai role
+    if (user?.role === 'guest') setLoadingMessage('Memuat form review Anda...');
+    else if (user?.role === 'team') setLoadingMessage('Memuat jadwal review tim...');
+    else if (user?.role === 'admin') setLoadingMessage('Memuat semua data review...');
+    else setLoadingMessage('Loading Form Review...');
 
     // Loading bar animasi
     setLoadingBar(20);
@@ -635,7 +643,10 @@ export default function FormReviewPage() {
     );
   }
 
-  if (dashLoading) return <LoadingScreen />;
+  // Loading awal — tampilkan sebelum data siap (sesuai role)
+  if (!appReady) return <LoadingScreen message={loadingMessage} />;
+
+  if (dashLoading) return <LoadingScreen message="Memuat data..." />;
 
   // ─── Main Render ────────────────────────────────────────────────────────────
 
