@@ -2433,6 +2433,12 @@ export default function ReminderSchedulePage() {
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
+                                    {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
+                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-1"
+                                      >
+                                      ⭐ {/*r.sales_name*/}
+                                    </div>
+                                  )}
                                   </div>
                                   {r.category === 'Troubleshooting' && (
                                     <button
@@ -2447,12 +2453,6 @@ export default function ReminderSchedulePage() {
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
-                                  {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
-                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-1"
-                                      >
-                                      ⭐ {/*r.sales_name*/}
-                                    </div>
-                                  )}
                                 </td>
                                 {/* Handler */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
