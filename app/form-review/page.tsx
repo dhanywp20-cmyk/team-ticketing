@@ -36,7 +36,6 @@ interface ReviewForm {
   catatan_grade_product_knowledge_bast?: string;
   // Shared
   foto_dokumentasi_url?: string;
-  product?: string; // field product dari Reminder Schedule (pre-fill)
   // Meta
   guest_username: string;
   created_at: string;
@@ -254,9 +253,11 @@ export default function FormReviewPage() {
   const [filterCategory, setFilterCategory] = useState<'all' | 'Demo Product' | 'BAST'>('all');
   const [searchProject, setSearchProject] = useState('');
   const [searchHandler, setSearchHandler] = useState('');
+  const [searchSalesName, setSearchSalesName] = useState('');
   const [filterReviewCat, setFilterReviewCat] = useState<'all' | 'Demo Product' | 'BAST'>('all');
   const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
   const [productFilterChart, setProductFilterChart] = useState<string | null>(null);
+  const [salesDivisionFilter, setSalesDivisionFilter] = useState<string | null>(null);
 
   // Switch tabs
   const [switchTab, setSwitchTab] = useState<'Demo Product' | 'BAST'>('Demo Product');
@@ -484,11 +485,10 @@ export default function FormReviewPage() {
   const openEdit = (r: ReviewForm) => {
     setEditingReview(r);
     setReviewFormData({
-      // Pre-fill dari r.product (Reminder) jika product_demo/product_bast belum diisi guest
-      product_demo: r.product_demo || r.product || '',
+      product_demo: r.product_demo ?? '',
       grade_product_knowledge: r.grade_product_knowledge ?? 0,
       catatan_grade_product_knowledge: r.catatan_grade_product_knowledge ?? '',
-      product_bast: r.product_bast || r.product || '',
+      product_bast: r.product_bast ?? '',
       grade_training_customer: r.grade_training_customer ?? 0,
       catatan_grade_training_customer: r.catatan_grade_training_customer ?? '',
       grade_product_knowledge_bast: r.grade_product_knowledge_bast ?? 0,
@@ -539,6 +539,7 @@ export default function FormReviewPage() {
   const filteredReviews = reviews.filter(r => {
     if (filterReviewCat !== 'all' && r.review_category !== filterReviewCat) return false;
     if (handlerFilter && r.assign_name !== handlerFilter) return false;
+    if (salesDivisionFilter && r.sales_division !== salesDivisionFilter) return false;
     if (productFilterChart) {
       const prod = r.review_category === 'Demo Product' ? r.product_demo : r.product_bast;
       if (prod !== productFilterChart) return false;
@@ -546,6 +547,7 @@ export default function FormReviewPage() {
     if (searchProject && !r.project_name?.toLowerCase().includes(searchProject.toLowerCase()) &&
         !r.address?.toLowerCase().includes(searchProject.toLowerCase())) return false;
     if (searchHandler && !r.assign_name?.toLowerCase().includes(searchHandler.toLowerCase())) return false;
+    if (searchSalesName && !r.sales_name?.toLowerCase().includes(searchSalesName.toLowerCase())) return false;
     return true;
   });
 
@@ -563,6 +565,12 @@ export default function FormReviewPage() {
     const map: Record<string, number> = {};
     reviews.forEach(r => { map[r.reminder_category] = (map[r.reminder_category] || 0) + 1; });
     return Object.entries(map).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+  })();
+
+  const salesDivisionPieData = (() => {
+    const map: Record<string, number> = {};
+    reviews.forEach(r => { if (r.sales_division) map[r.sales_division] = (map[r.sales_division] || 0) + 1; });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
   })();
 
   const handlerPieData = (() => {
@@ -1226,28 +1234,64 @@ export default function FormReviewPage() {
         <div className="flex-1 p-5 space-y-5">
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'Total Demo Product', value: totalDemo, icon: '🖥️', color: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.25)' },
-              { label: 'Total Training / BAST', value: totalTraining, icon: '📌', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)', border: 'rgba(14,165,233,0.25)' },
-              { label: 'Belum Diisi', value: reviews.filter(r => !r.grade_product_knowledge && !r.grade_product_knowledge_bast).length, icon: '⏳', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
-              { label: 'Sudah Diisi', value: reviews.filter(r => r.grade_product_knowledge || r.grade_product_knowledge_bast).length, icon: '✅', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
-            ].map((card, i) => (
-              <div key={i} className="rounded-2xl p-4 transition-all hover:scale-[1.01]"
-                style={{ background: card.bg, border: `1px solid ${card.border}`, backdropFilter: 'blur(10px)' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{card.icon}</span>
-                  <span className="text-2xl font-black" style={{ color: card.color }}>{card.value}</span>
+              {
+                label: 'Total Review', value: reviews.length, sub: 'Semua form review',
+                gradient: 'linear-gradient(135deg,#4f46e5,#6d28d9)', icon: '⭐', shadow: 'rgba(79,70,229,0.35)',
+                onClick: () => { setFilterReviewCat('all'); setHandlerFilter(null); setProductFilterChart(null); },
+                active: filterReviewCat === 'all' && !handlerFilter && !productFilterChart,
+              },
+              {
+                label: 'Demo Product', value: totalDemo, sub: 'Review demo unit',
+                gradient: 'linear-gradient(135deg,#7c3aed,#5b21b6)', icon: '🖥️', shadow: 'rgba(124,58,237,0.35)',
+                onClick: () => setFilterReviewCat(filterReviewCat === 'Demo Product' ? 'all' : 'Demo Product'),
+                active: filterReviewCat === 'Demo Product',
+              },
+              {
+                label: 'Belum Diisi', value: reviews.filter(r => !r.grade_product_knowledge && !r.grade_product_knowledge_bast).length, sub: 'Menunggu input guest',
+                gradient: 'linear-gradient(135deg,#d97706,#b45309)', icon: '⏳', shadow: 'rgba(217,119,6,0.35)',
+                onClick: () => {},
+                active: false,
+              },
+              {
+                label: 'Sudah Diisi', value: reviews.filter(r => r.grade_product_knowledge || r.grade_product_knowledge_bast).length, sub: 'Review terselesaikan',
+                gradient: 'linear-gradient(135deg,#059669,#047857)', icon: '✅', shadow: 'rgba(5,150,105,0.35)',
+                onClick: () => {},
+                active: false,
+              },
+            ].map(card => (
+              <div key={card.label}
+                onClick={card.onClick}
+                className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
+                style={{
+                  background: card.gradient,
+                  boxShadow: card.active ? `0 6px 24px ${card.shadow}` : `0 4px 16px ${card.shadow}`,
+                  outline: card.active ? '3px solid white' : 'none',
+                  transform: card.active ? 'scale(1.04)' : undefined,
+                }}>
+                <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
+                {card.active && (
+                  <div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none" />
+                )}
+                <span className="text-3xl font-black text-white leading-none">{card.value}</span>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">{card.label}</p>
+                  <p className="text-[10px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{card.sub}</p>
                 </div>
-                <p className="text-xs font-bold text-gray-600 tracking-wide">{card.label}</p>
+                {card.active && <span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
               </div>
             ))}
           </div>
 
           {/* Mini Pie Charts */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <MiniPieChart data={categoryPieData} title="Kategori Kegiatan" icon="📋"
-              activeFilter={filterReviewCat !== 'all' ? filterReviewCat : null} />
+              activeFilter={filterReviewCat !== 'all' ? filterReviewCat : null}
+              onSliceClick={label => setFilterReviewCat(prev => (prev === label ? 'all' : label as any))} />
+            <MiniPieChart data={salesDivisionPieData} title="Divisi Sales" icon="👤"
+              activeFilter={salesDivisionFilter}
+              onSliceClick={label => setSalesDivisionFilter(prev => prev === label ? null : label)} />
             <MiniPieChart data={handlerPieData} title="Handler Team PTS" icon="👥"
               activeFilter={handlerFilter}
               onSliceClick={label => setHandlerFilter(prev => prev === label ? null : label)} />
@@ -1257,67 +1301,91 @@ export default function FormReviewPage() {
           </div>
 
           {/* Table */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.09)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
-            {/* Table Header Controls */}
-            <div className="px-5 py-4 flex flex-wrap items-center gap-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              <div className="flex items-center gap-2 flex-1 min-w-[180px]">
-                <span className="text-base">⭐</span>
-                <h2 className="font-bold text-slate-800 text-sm tracking-wide">Form Review Demo Produk & BAST</h2>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+            {/* Table Header */}
+            <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Review List</span>
+                <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{tableReviews.length}</span>
               </div>
-
-              {/* Switch Tab */}
-              <div className="flex rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(124,58,237,0.25)' }}>
-                {(['Demo Product', 'BAST'] as const).map(tab => (
-                  <button key={tab} onClick={() => setSwitchTab(tab)}
-                    className="px-4 py-2 text-xs font-bold transition-all"
-                    style={switchTab === tab
-                      ? { background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white' }
-                      : { background: 'transparent', color: '#7c3aed' }}>
-                    {tab === 'Demo Product' ? '🖥️' : '📌'} {tab}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                {/* Switch Tab */}
+                <div className="flex rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(124,58,237,0.25)' }}>
+                  {(['Demo Product', 'BAST'] as const).map(tab => (
+                    <button key={tab} onClick={() => setSwitchTab(tab)}
+                      className="px-4 py-2 text-xs font-bold transition-all"
+                      style={switchTab === tab
+                        ? { background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white' }
+                        : { background: 'transparent', color: '#7c3aed' }}>
+                      {tab === 'Demo Product' ? '🖥️' : '📌'} {tab}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={fetchReviews}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-gray-500 transition-all hover:bg-gray-50 flex items-center gap-1.5"
+                  style={{ border: '1px solid rgba(0,0,0,0.12)' }}>
+                  🔄 Refresh
+                </button>
               </div>
-
-              {/* Search */}
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-                <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
-                  placeholder="Cari project / lokasi..."
-                  className="pl-9 pr-4 py-2 rounded-xl text-xs bg-white outline-none transition-all focus:ring-2 focus:ring-violet-400/30"
-                  style={{ border: '1.5px solid rgba(0,0,0,0.12)', minWidth: 180 }} />
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">👤</span>
-                <input value={searchHandler} onChange={e => setSearchHandler(e.target.value)}
-                  placeholder="Cari handler..."
-                  className="pl-9 pr-4 py-2 rounded-xl text-xs bg-white outline-none transition-all focus:ring-2 focus:ring-violet-400/30"
-                  style={{ border: '1.5px solid rgba(0,0,0,0.12)', minWidth: 140 }} />
-              </div>
-
-              {/* Filter */}
-              <select value={filterReviewCat} onChange={e => setFilterReviewCat(e.target.value as any)}
-                className="px-3 py-2 rounded-xl text-xs bg-white outline-none"
-                style={{ border: '1.5px solid rgba(0,0,0,0.12)' }}>
-                <option value="all">Semua Kategori</option>
-                <option value="Demo Product">Demo Product</option>
-                <option value="BAST">BAST</option>
-              </select>
-
-              <button onClick={fetchReviews}
-                className="px-3 py-2 rounded-xl text-xs font-bold text-violet-600 transition-all hover:bg-violet-50"
-                style={{ border: '1.5px solid rgba(124,58,237,0.3)' }}>
-                🔄
-              </button>
             </div>
 
+            {/* Filter Bar — sama persis dengan Reminder Schedule */}
+            <div className="px-5 py-3 flex flex-wrap gap-3 items-end border-b border-gray-100 bg-gray-50/50">
+              <div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">🔍 Search Project / Lokasi</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">🔍</span>
+                  <input value={searchProject} onChange={e => setSearchProject(e.target.value)}
+                    className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-violet-300 transition-all"
+                    placeholder="Search project / lokasi..." style={{ minWidth: 180 }} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">👤 Sales Name</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👤</span>
+                  <input value={searchSalesName} onChange={e => setSearchSalesName(e.target.value)}
+                    className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-violet-300 transition-all"
+                    placeholder="Search sales..." />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Team Handler</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">👷</span>
+                  <input value={searchHandler} onChange={e => setSearchHandler(e.target.value)}
+                    className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-violet-300 transition-all"
+                    placeholder="Search handler..." />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Kategori</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[11px]">📋</span>
+                  <select value={filterReviewCat} onChange={e => setFilterReviewCat(e.target.value as any)}
+                    className="w-full rounded-lg pl-7 pr-3 py-1.5 text-xs outline-none bg-gray-50 border border-gray-200 focus:bg-white focus:border-violet-300 appearance-none cursor-pointer transition-all">
+                    <option value="all">Semua Kategori</option>
+                    <option value="Demo Product">Demo Product</option>
+                    <option value="BAST">BAST</option>
+                  </select>
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none">▼</span>
+                </div>
+              </div>
+            </div>
             {/* Active Filters Chips */}
-            {(handlerFilter || productFilterChart) && (
+            {(handlerFilter || productFilterChart || salesDivisionFilter) && (
               <div className="px-5 py-2 flex items-center gap-2 flex-wrap" style={{ background: 'rgba(124,58,237,0.04)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter Aktif:</span>
+                {salesDivisionFilter && (
+                  <button onClick={() => setSalesDivisionFilter(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-purple-700 hover:bg-purple-100 transition-all"
+                    style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                    👤 {salesDivisionFilter} ✕
+                  </button>
+                )}
                 {handlerFilter && (
                   <button onClick={() => setHandlerFilter(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-violet-700 hover:bg-violet-100 transition-all"
                     style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
-                    👤 {handlerFilter} ✕
+                    👷 {handlerFilter} ✕
                   </button>
                 )}
                 {productFilterChart && (
@@ -1341,16 +1409,27 @@ export default function FormReviewPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '4%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '17%' }} />
+                    <col style={{ width: '10%' }} />
+                    {switchTab === 'BAST' && <col style={{ width: '10%' }} />}
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '6%' }} />
+                  </colgroup>
                   <thead>
-                    <tr style={{ background: 'rgba(248,250,252,0.95)', borderBottom: '1.5px solid rgba(0,0,0,0.07)' }}>
+                    <tr className="bg-gray-50 border-b-2 border-gray-100">
                       {['No', 'Project', 'Lokasi', 'Sales', 'Handler',
                         switchTab === 'Demo Product' ? 'Product Demo' : 'Product BAST',
                         switchTab === 'Demo Product' ? 'Grade PK' : 'Grade Training',
                         switchTab === 'BAST' ? 'Grade PK' : null,
-                        'Status', 'Aksi'].filter(Boolean).map((h, i) => (
-                        <th key={i} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-gray-500 whitespace-nowrap"
-                          style={{ borderRight: '1px solid rgba(0,0,0,0.06)' }}>{h}</th>
+                        'Status', 'ACT'].filter(Boolean).map((h, i) => (
+                        <th key={i} className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1363,8 +1442,8 @@ export default function FormReviewPage() {
                       return (
                         <tr key={r.id}
                           onClick={() => setDetailReview(r)}
-                          className="cursor-pointer transition-all hover:bg-violet-50/40"
-                          style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                          className="border-b border-gray-100 hover:bg-violet-50/30 transition-colors cursor-pointer bg-white border-l-4 border-l-transparent"
+                          >
                           {/* No */}
                           <td className="px-3 py-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 align-middle">{idx + 1}</td>
                           {/* Project */}
@@ -1394,9 +1473,7 @@ export default function FormReviewPage() {
                           {/* Product */}
                           <td className="px-3 py-3 border-r border-gray-100 align-middle">
                             <div className="text-[10px] text-gray-600 max-w-[120px] line-clamp-2">
-                              {isDemo
-                                ? (r.product_demo || r.product || '—')
-                                : (r.product_bast || r.product || '—')}
+                              {isDemo ? (r.product_demo || '—') : (r.product_bast || '—')}
                             </div>
                           </td>
                           {/* Grade 1 */}
