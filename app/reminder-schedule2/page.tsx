@@ -914,6 +914,7 @@ export default function ReminderSchedulePage() {
                   assigned_to: reminder.assigned_to,
                   reminder_category: reminder.category,
                   review_category: reviewCategory,
+                  product: reminder.product || '',
                   // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
                   guest_fullname: resolvedGuest?.full_name ?? salesName,
                   // guest_username untuk filter di Form Review page
@@ -1053,6 +1054,7 @@ export default function ReminderSchedulePage() {
           assigned_to: r.assigned_to,
           reminder_category: r.category,
           review_category: reviewCategory,
+          product: r.product || '',
           // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
           guest_fullname: resolvedGuest.full_name ?? salesName,
           // guest_username untuk filter di Form Review page
@@ -2377,12 +2379,11 @@ export default function ReminderSchedulePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
-                          <col style={{ width: '4%' }} />
-                          <col style={{ width: '13%' }} />
+                          <col style={{ width: '14%' }} />
                           <col style={{ width: '10%' }} />
+                          <col style={{ width: '11%' }} />
+                          <col style={{ width: '9%' }} />
                           <col style={{ width: '10%' }} />
-                          <col style={{ width: '9%' }} />
-                          <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '6%' }} />
@@ -2390,7 +2391,6 @@ export default function ReminderSchedulePage() {
                         </colgroup>
                         <thead>
                           <tr className="bg-gray-50 border-b-2 border-gray-100">
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Kegiatan</th>
@@ -2399,18 +2399,16 @@ export default function ReminderSchedulePage() {
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
-                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">Action</th>
+                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredReminders.map((r, idx) => {
+                          {filteredReminders.map((r) => {
                             const today = isDueToday(r.due_date);
                             return (
                               <tr key={r.id}
                                 className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
                                 >
-                                {/* No */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle text-[11px] font-bold text-gray-400">{idx + 1}</td>
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
@@ -2433,12 +2431,6 @@ export default function ReminderSchedulePage() {
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
-                                    {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
-                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-1"
-                                      >
-                                      ⭐ {/*r.sales_name*/}
-                                    </div>
-                                  )}
                                   </div>
                                   {r.category === 'Troubleshooting' && (
                                     <button
@@ -2453,6 +2445,12 @@ export default function ReminderSchedulePage() {
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
+                                  {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
+                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
+                                      style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
+                                      ⭐ {r.sales_name}
+                                    </div>
+                                  )}
                                 </td>
                                 {/* Handler */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
