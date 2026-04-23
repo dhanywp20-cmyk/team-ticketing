@@ -234,6 +234,8 @@ export default function FormReviewPage() {
   const [currentUser, setCurrentUser] = useState<GuestUser | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [dashLoading, setDashLoading] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const [loadingBar, setLoadingBar] = useState(0); // 0-100 progress bar
 
   // Data
   const [reviews, setReviews] = useState<ReviewForm[]>([]);
@@ -301,7 +303,15 @@ export default function FormReviewPage() {
       setIsLoggedIn(true);
     }
 
-    fetchReviewsQuiet(user);
+    // Loading bar animasi
+    setLoadingBar(20);
+    const t1 = setTimeout(() => setLoadingBar(60), 200);
+    const t2 = setTimeout(() => setLoadingBar(85), 500);
+
+    fetchReviewsQuiet(user).then(() => {
+      setLoadingBar(100);
+      setTimeout(() => { setLoadingBar(0); setAppReady(true); }, 300);
+    });
 
     // Realtime subscription
     const ch = supabase.channel('form-reviews-rt')
@@ -312,7 +322,7 @@ export default function FormReviewPage() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(ch); };
+    return () => { supabase.removeChannel(ch); clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   // Session timeout
@@ -343,32 +353,47 @@ export default function FormReviewPage() {
 
     let query = supabase.from('form_reviews').select('*').order('created_at', { ascending: false });
 
-    // Guest hanya melihat data milik mereka.
-    // Prioritas: guest_username (data baru) ATAU sales_name === full_name (data lama / fallback)
-    // Menggunakan OR filter agar data lama yang belum punya guest_username tetap muncul.
+    // Guest hanya melihat data milik mereka (OR filter untuk kompatibilitas data lama)
     if (activeUser?.role === 'guest') {
-      // Supabase OR filter: guest_username = username ATAU sales_name = full_name
       query = query.or(
         `guest_username.eq.${activeUser.username},sales_name.eq.${activeUser.full_name}`
       );
     }
+    // Team: hanya lihat form review yang di-handle oleh mereka (assigned_to = username)
+    else if (activeUser?.role === 'team') {
+      query = query.eq('assigned_to', activeUser.username);
+    }
+    // Admin: lihat semua
 
     const { data, error } = await query;
     if (!error && data) {
       setReviews(data as ReviewForm[]);
-      // Cek pending reviews untuk notif
+
+      // ── Notif untuk Guest: pending review yang belum diisi
       if (activeUser?.role === 'guest') {
         const pending = (data as ReviewForm[]).filter(r => !r.grade_product_knowledge && !r.grade_product_knowledge_bast);
         setMyPendingReviews(pending);
         if (pending.length > 0) setTimeout(() => setShowNotificationPopup(true), 800);
+      }
+
+      // ── Notif untuk Team: form review milik mereka yang BELUM diisi guest
+      if (activeUser?.role === 'team') {
+        const pendingByGuest = (data as ReviewForm[]).filter(r =>
+          !r.grade_product_knowledge && !r.grade_product_knowledge_bast
+        );
+        setMyPendingReviews(pendingByGuest);
+        if (pendingByGuest.length > 0) setTimeout(() => setShowNotificationPopup(true), 800);
       }
     }
   };
 
   const fetchReviews = async () => {
     setListLoading(true);
+    setLoadingBar(30);
+    setTimeout(() => setLoadingBar(70), 200);
     await fetchReviewsQuiet();
-    setTimeout(() => setListLoading(false), 400);
+    setLoadingBar(100);
+    setTimeout(() => { setLoadingBar(0); setListLoading(false); }, 300);
   };
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
@@ -547,8 +572,13 @@ export default function FormReviewPage() {
 
   const myActivePendingReviews = reviews.filter(r =>
     currentUser && (
-      r.guest_username === currentUser.username ||
-      r.sales_name === currentUser.full_name
+      // Guest: review miliknya yang belum diisi
+      (currentUser.role === 'guest' && (
+        r.guest_username === currentUser.username ||
+        r.sales_name === currentUser.full_name
+      )) ||
+      // Team: review yang dia handle, tapi guest belum isi
+      (currentUser.role === 'team' && r.assigned_to === currentUser.username)
     ) &&
     !r.grade_product_knowledge && !r.grade_product_knowledge_bast
   );
@@ -964,11 +994,14 @@ export default function FormReviewPage() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-1">
-                  <button onClick={() => openEdit(detailReview)}
-                    className="flex-1 text-white py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
-                    style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', boxShadow: '0 3px 12px rgba(124,58,237,0.3)' }}>
-                    ✏️ Edit / Isi Review
-                  </button>
+                  {/* Edit hanya untuk admin dan guest (bukan team) */}
+                  {(isAdmin || isGuest) && (
+                    <button onClick={() => openEdit(detailReview)}
+                      className="flex-1 text-white py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.01] flex items-center justify-center gap-2"
+                      style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', boxShadow: '0 3px 12px rgba(124,58,237,0.3)' }}>
+                      ✏️ Edit / Isi Review
+                    </button>
+                  )}
                   {isAdmin && (
                     <button onClick={() => { setDetailReview(null); openDeleteModal(detailReview); }}
                       className="px-5 py-3 rounded-xl font-bold text-sm text-red-600 transition-all hover:bg-red-50 hover:scale-[1.01] flex items-center gap-2"
@@ -992,13 +1025,19 @@ export default function FormReviewPage() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
               style={{ animation: 'scale-in 0.3s ease-out' }}>
-              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+              <div className="p-5 border-b-2 border-yellow-300" style={{ background: isTeam ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl animate-bounce">🔔</span>
+                    <span className="text-3xl animate-bounce">{isTeam ? '⭐' : '🔔'}</span>
                     <div>
-                      <h3 className="text-lg font-bold text-white">Review Menunggu Kamu</h3>
-                      <p className="text-sm text-white/90">{myPendingReviews.length} form review yang perlu diisi</p>
+                      <h3 className="text-lg font-bold text-white">
+                        {isTeam ? 'Review Belum Diisi Guest' : 'Review Menunggu Kamu'}
+                      </h3>
+                      <p className="text-sm text-white/90">
+                        {isTeam
+                          ? `${myPendingReviews.length} jadwal kamu belum di-review oleh Guest`
+                          : `${myPendingReviews.length} form review yang perlu kamu isi`}
+                      </p>
                     </div>
                   </div>
                   <button onClick={() => setShowNotificationPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
@@ -1019,11 +1058,14 @@ export default function FormReviewPage() {
                         </div>
                         <p className="font-bold text-sm text-gray-800 truncate">{r.project_name || '—'}</p>
                         {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
+                        {isTeam && r.sales_name && (
+                          <p className="text-xs text-violet-600 font-semibold mt-0.5">👤 Guest: {r.sales_name}</p>
+                        )}
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700"
                           style={{ background: '#fef3c7', border: '1px solid #f59e0b' }}>⏳ Belum Diisi</span>
-                        <p className="text-[10px] text-gray-500 mt-1">{r.assign_name}</p>
+                        <p className="text-[10px] text-gray-500 mt-1">{isTeam ? r.sales_name : r.assign_name}</p>
                       </div>
                     </div>
                   </div>
@@ -1032,7 +1074,7 @@ export default function FormReviewPage() {
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button onClick={() => setShowNotificationPopup(false)}
                   className="w-full text-white py-3 rounded-xl font-bold transition-all"
-                  style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                  style={{ background: isTeam ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
                   ✕ Tutup
                 </button>
               </div>
@@ -1045,13 +1087,17 @@ export default function FormReviewPage() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden border-4 border-yellow-400"
               style={{ animation: 'scale-in 0.3s ease-out' }}>
-              <div className="p-5 border-b-2 border-yellow-300" style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+              <div className="p-5 border-b-2 border-yellow-300" style={{ background: isTeam ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl">🔔</span>
+                    <span className="text-3xl">{isTeam ? '⭐' : '🔔'}</span>
                     <div>
-                      <h3 className="text-lg font-bold text-white">Review Aktif Kamu</h3>
-                      <p className="text-sm text-white/90">{myActivePendingReviews.length} belum diisi</p>
+                      <h3 className="text-lg font-bold text-white">
+                        {isTeam ? 'Review Belum Diisi Guest' : 'Review Aktif Kamu'}
+                      </h3>
+                      <p className="text-sm text-white/90">
+                        {myActivePendingReviews.length} belum diisi
+                      </p>
                     </div>
                   </div>
                   <button onClick={() => setShowBellPopup(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button>
@@ -1061,7 +1107,9 @@ export default function FormReviewPage() {
                 {myActivePendingReviews.length === 0 ? (
                   <div className="text-center py-10 text-gray-500">
                     <div className="text-5xl mb-3">✅</div>
-                    <p className="font-semibold">Semua review sudah diisi</p>
+                    <p className="font-semibold">
+                      {isTeam ? 'Semua Guest sudah mengisi review' : 'Semua review sudah diisi'}
+                    </p>
                   </div>
                 ) : myActivePendingReviews.map(r => (
                   <div key={r.id} onClick={() => { setDetailReview(r); setShowBellPopup(false); }}
@@ -1075,6 +1123,9 @@ export default function FormReviewPage() {
                         </span>
                         <p className="font-bold text-sm text-gray-800 truncate">{r.project_name || '—'}</p>
                         {r.address && <p className="text-xs text-gray-500 mt-0.5">📍 {r.address}</p>}
+                        {isTeam && r.sales_name && (
+                          <p className="text-xs text-violet-600 font-semibold mt-0.5">👤 Guest: {r.sales_name}</p>
+                        )}
                       </div>
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700"
                         style={{ background: '#fef3c7', border: '1px solid #f59e0b' }}>⏳ Belum</span>
@@ -1085,7 +1136,7 @@ export default function FormReviewPage() {
               <div className="p-4 border-t-2 border-gray-200 bg-gray-50">
                 <button onClick={() => setShowBellPopup(false)}
                   className="w-full text-white py-3 rounded-xl font-bold transition-all"
-                  style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
+                  style={{ background: isTeam ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
                   ✕ Tutup
                 </button>
               </div>
@@ -1094,8 +1145,25 @@ export default function FormReviewPage() {
         )}
 
         {/* ── HEADER ── */}
-        <div className="sticky top-0 z-50 px-6 py-3 flex items-center justify-between"
+        <div className="sticky top-0 z-50"
           style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          {/* Loading Bar */}
+          {loadingBar > 0 && (
+            <div className="absolute top-0 left-0 w-full h-0.5 z-[60] overflow-hidden" style={{ background: 'rgba(124,58,237,0.15)' }}>
+              <div
+                className="h-full transition-all duration-300 ease-out"
+                style={{
+                  width: `${loadingBar}%`,
+                  background: 'linear-gradient(90deg,#7c3aed,#a78bfa,#7c3aed)',
+                  backgroundSize: '200% 100%',
+                  animation: loadingBar < 100 ? 'shimmer 1.2s infinite' : 'none',
+                  opacity: loadingBar === 100 ? 0 : 1,
+                  transition: 'width 0.3s ease-out, opacity 0.3s ease-out',
+                }}
+              />
+            </div>
+          )}
+          <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
@@ -1138,6 +1206,7 @@ export default function FormReviewPage() {
               </svg>
             </button>
           </div>
+        </div>
         </div>
 
         {/* ── MAIN CONTENT ── */}
@@ -1341,7 +1410,9 @@ export default function FormReviewPage() {
                           <td className="px-3 py-1 align-middle text-center" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1">
                               <button onClick={() => setDetailReview(r)} title="Detail" className="text-blue-500 hover:text-blue-700 transition-colors text-sm">👁</button>
-                              <button onClick={() => openEdit(r)} title="Edit / Isi Review" className="text-violet-500 hover:text-violet-700 transition-colors text-sm">✏️</button>
+                              {(isAdmin || isGuest) && (
+                                <button onClick={() => openEdit(r)} title="Edit / Isi Review" className="text-violet-500 hover:text-violet-700 transition-colors text-sm">✏️</button>
+                              )}
                               {isAdmin && (
                                 <button onClick={() => openDeleteModal(r)} title="Hapus" className="text-red-400 hover:text-red-600 transition-colors text-sm">🗑️</button>
                               )}
@@ -1361,13 +1432,6 @@ export default function FormReviewPage() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-          <div className="px-6 py-4">
-            <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
-          </div>
-        </div>
-
       </div>
 
       <style jsx>{`
@@ -1378,6 +1442,10 @@ export default function FormReviewPage() {
         @keyframes scale-in {
           from { opacity:0; transform:scale(0.92); }
           to   { opacity:1; transform:scale(1); }
+        }
+        @keyframes shimmer {
+          0% { background-position: 200% center; }
+          100% { background-position: -200% center; }
         }
         select option { background: #ffffff; color: #1e293b; }
         input[type="date"]::-webkit-calendar-picker-indicator,
