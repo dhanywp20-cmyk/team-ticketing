@@ -914,7 +914,9 @@ export default function ReminderSchedulePage() {
                   assigned_to: reminder.assigned_to,
                   reminder_category: reminder.category,
                   review_category: reviewCategory,
-                  // ⚠️ KRITIS: guest_username wajib diisi agar Guest bisa filter & melihat form review-nya
+                  // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
+                  guest_fullname: resolvedGuest?.full_name ?? salesName,
+                  // guest_username untuk filter di Form Review page
                   guest_username: resolvedGuest?.username ?? '',
                 }]);
 
@@ -1051,6 +1053,9 @@ export default function ReminderSchedulePage() {
           assigned_to: r.assigned_to,
           reminder_category: r.category,
           review_category: reviewCategory,
+          // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
+          guest_fullname: resolvedGuest.full_name ?? salesName,
+          // guest_username untuk filter di Form Review page
           guest_username: resolvedGuest.username,
         }]);
         if (reviewErr) {
