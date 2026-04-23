@@ -625,6 +625,9 @@ export default function ReminderSchedulePage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const statusPhotoRef = useRef<HTMLInputElement>(null);
 
+  // ─── Resend Form Review ────────────────────────────────────────────────────
+  const [resendingFormReview, setResendingFormReview] = useState(false);
+
   const notify = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3500);
@@ -878,21 +881,18 @@ export default function ReminderSchedulePage() {
           const salesName = reminder.sales_name?.trim();
           if (isTriggerCategory && salesName) {
             try {
-              // Lookup guest user berdasarkan full_name === sales_name, role === guest
-              // Ini penting: guest_username harus diisi agar Guest bisa melihat form review mereka
-              const guestUser = guestUsers.find(g => g.full_name === salesName);
+              // Selalu fetch guest dari DB (tidak andalkan state guestUsers yang bisa saja belum terisi)
+              const { data: guestFromDb } = await supabase
+                .from('users')
+                .select('id, username, full_name, role, phone_number, sales_division')
+                .eq('role', 'guest')
+                .eq('full_name', salesName)
+                .maybeSingle();
 
-              // Jika guestUser tidak ada di state, coba fetch dari DB
-              let resolvedGuest = guestUser;
-              if (!resolvedGuest) {
-                const { data: guestFromDb } = await supabase
-                  .from('users')
-                  .select('id, username, full_name, role, phone_number, sales_division')
-                  .eq('role', 'guest')
-                  .eq('full_name', salesName)
-                  .maybeSingle();
-                if (guestFromDb) resolvedGuest = guestFromDb as GuestUser;
-              }
+              // Fallback ke guestUsers state jika DB tidak return
+              const resolvedGuest = guestFromDb ?? guestUsers.find(g => g.full_name === salesName) ?? null;
+
+              console.log('[Auto form_review] Resolved guest:', resolvedGuest?.username, '| salesName:', salesName);
 
               // Cek apakah sudah ada form_review untuk reminder ini
               const { data: existingReview } = await supabase
@@ -922,6 +922,7 @@ export default function ReminderSchedulePage() {
                   console.error('[Auto form_review] Gagal insert:', reviewErr.message);
                 } else {
                   console.log('[Auto form_review] ✅ Form review dibuat untuk sales:', salesName, '| guest_username:', resolvedGuest?.username ?? 'TIDAK DITEMUKAN');
+                  notify('success', `Form review otomatis dibuat untuk ${salesName}!`);
 
                   // Kirim WA notifikasi ke guest
                   if (resolvedGuest?.phone_number) {
@@ -937,11 +938,11 @@ export default function ReminderSchedulePage() {
                       `Terima kasih! 🙏`;
                     await sendFonnteWA(resolvedGuest.phone_number, guestMsg);
                   } else {
-                    console.warn('[Auto form_review] Guest tidak memiliki nomor WA:', salesName);
+                    console.warn('[Auto form_review] Guest tidak punya nomor WA atau tidak ditemukan:', salesName);
                   }
                 }
               } else {
-                console.log('[Auto form_review] Form review sudah ada untuk reminder ini:', reminder.id);
+                console.log('[Auto form_review] Form review sudah ada untuk reminder:', reminder.id);
               }
             } catch (reviewEx) {
               console.warn('[Auto form_review] Exception:', reviewEx);
@@ -982,6 +983,108 @@ export default function ReminderSchedulePage() {
     setStatusPhoto(null);
     setStatusPhotoPreview(null);
     setUpdatingStatus(false);
+  };
+
+  // ─── Resend / Manual Send Form Review ke Guest ────────────────────────────
+  const handleResendFormReview = async (r: Reminder) => {
+    if (!r.sales_name?.trim()) {
+      notify('error', 'Reminder ini tidak memiliki Sales yang terpilih!');
+      return;
+    }
+    const isTrigger = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category);
+    if (!isTrigger) {
+      notify('error', `Kategori "${r.category}" tidak memerlukan form review.`);
+      return;
+    }
+    if (r.status !== 'done') {
+      notify('error', 'Status reminder harus Completed untuk mengirim form review!');
+      return;
+    }
+
+    setResendingFormReview(true);
+    try {
+      const salesName = r.sales_name.trim();
+
+      // Selalu fetch guest terbaru dari DB berdasarkan full_name === sales_name
+      const { data: guestFromDb } = await supabase
+        .from('users')
+        .select('id, username, full_name, role, phone_number, sales_division')
+        .eq('role', 'guest')
+        .eq('full_name', salesName)
+        .maybeSingle();
+
+      const resolvedGuest = guestFromDb ?? guestUsers.find(g => g.full_name === salesName) ?? null;
+
+      if (!resolvedGuest) {
+        notify('error', `Guest dengan nama "${salesName}" tidak ditemukan di database!`);
+        setResendingFormReview(false);
+        return;
+      }
+
+      // Cek apakah form_review sudah ada
+      const { data: existingReview } = await supabase
+        .from('form_reviews')
+        .select('id, guest_username')
+        .eq('reminder_id', r.id)
+        .eq('sales_name', salesName)
+        .maybeSingle();
+
+      if (existingReview) {
+        // Patch guest_username jika masih kosong (data lama)
+        if (!existingReview.guest_username && resolvedGuest.username) {
+          await supabase.from('form_reviews')
+            .update({ guest_username: resolvedGuest.username })
+            .eq('id', existingReview.id);
+          console.log('[Resend] Patch guest_username:', resolvedGuest.username);
+        }
+        // Form sudah ada — hanya kirim ulang WA
+      } else {
+        // Buat form_review baru
+        const reviewCategory = r.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+        const { error: reviewErr } = await supabase.from('form_reviews').insert([{
+          reminder_id: r.id,
+          project_name: r.project_name,
+          address: r.address || '',
+          sales_name: salesName,
+          sales_division: r.sales_division || '',
+          assign_name: r.assign_name,
+          assigned_to: r.assigned_to,
+          reminder_category: r.category,
+          review_category: reviewCategory,
+          guest_username: resolvedGuest.username,
+        }]);
+        if (reviewErr) {
+          notify('error', 'Gagal membuat form review: ' + reviewErr.message);
+          setResendingFormReview(false);
+          return;
+        }
+        console.log('[Resend] ✅ Form review baru dibuat untuk:', salesName);
+      }
+
+      // Kirim / kirim ulang WA notif ke Guest
+      if (resolvedGuest.phone_number) {
+        const guestMsg =
+          `⭐ *FORM REVIEW — PTS IVP*\n\n` +
+          `Halo *${resolvedGuest.full_name}*!\n\n` +
+          `Jadwal *${r.category}* untuk project:\n` +
+          `📋 *${r.project_name}*\n` +
+          `📍 ${r.address || '-'}\n` +
+          `🛠️ Handler: ${r.assign_name}\n\n` +
+          `telah selesai dilaksanakan oleh tim kami.\n\n` +
+          `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
+          `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
+          `Terima kasih! 🙏`;
+        const waResult = await sendFonnteWA(resolvedGuest.phone_number, guestMsg);
+        if (waResult.ok) notify('success', `Form review & WA berhasil dikirim ke ${resolvedGuest.full_name}!`);
+        else notify('success', `Form review OK. WA gagal: ${waResult.reason ?? 'unknown'}`);
+      } else {
+        notify('success', `Form review dibuat untuk ${resolvedGuest.full_name}. (Nomor WA tidak ada)`);
+      }
+    } catch (ex: any) {
+      console.error('[Resend form_review] Exception:', ex);
+      notify('error', 'Terjadi kesalahan: ' + ex.message);
+    }
+    setResendingFormReview(false);
   };
 
   const openEdit = (r: Reminder) => {
@@ -1802,13 +1905,21 @@ export default function ReminderSchedulePage() {
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(124,58,237,0.04)' }}>
                         <span className="text-base flex-shrink-0">⭐</span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7c3aed' }}>Guest Review</p>
+                          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7c3aed' }}>Guest Review (Sales)</p>
                           <p className="text-sm font-semibold text-violet-700">{detailReminder.sales_name}</p>
                           {detailReminder.sales_division && <p className="text-[10px] text-violet-500">{detailReminder.sales_division}</p>}
                         </div>
-                        {detailReminder.status === 'done' && (
-                          <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ background: '#7c3aed' }}>Form Terkirim ✓</span>
-                        )}
+                        <div className="flex flex-col items-end gap-1">
+                          {detailReminder.status === 'done' ? (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ background: '#7c3aed' }}>
+                              Form Review ✓
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'rgba(245,158,11,0.15)', color: '#d97706', border: '1px solid rgba(245,158,11,0.4)' }}>
+                              ⏳ Setelah Completed
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
@@ -1966,6 +2077,22 @@ export default function ReminderSchedulePage() {
                         className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
                         style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
                         📅 Re-Schedule
+                      </button>
+                    )}
+                    {/* Resend Form Review — muncul jika kategori trigger & status done & ada sales_name */}
+                    {(isAdmin || currentUser?.role === 'team') &&
+                      detailReminder.status === 'done' &&
+                      detailReminder.sales_name?.trim() &&
+                      (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(detailReminder.category) && (
+                      <button
+                        onClick={() => handleResendFormReview(detailReminder)}
+                        disabled={resendingFormReview}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white', boxShadow: '0 4px 12px rgba(124,58,237,0.3)' }}>
+                        {resendingFormReview
+                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : '⭐'}
+                        {resendingFormReview ? 'Mengirim...' : 'Resend Form Review'}
                       </button>
                     )}
                     {/* Send WA — admin only */}
