@@ -2449,7 +2449,7 @@ export default function ReminderSchedulePage() {
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
                                   {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
                                     <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5"
-                                      style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
+                                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
                                       ⭐ {/*r.sales_name*/}
                                     </div>
                                   )}
