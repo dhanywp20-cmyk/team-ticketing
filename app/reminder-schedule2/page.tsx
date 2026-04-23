@@ -904,6 +904,7 @@ export default function ReminderSchedulePage() {
 
               if (!existingReview) {
                 const reviewCategory = reminder.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+                const productValue = reminder.product?.trim() || '';
                 const { error: reviewErr } = await supabase.from('form_reviews').insert([{
                   reminder_id: reminder.id,
                   project_name: reminder.project_name,
@@ -914,6 +915,10 @@ export default function ReminderSchedulePage() {
                   assigned_to: reminder.assigned_to,
                   reminder_category: reminder.category,
                   review_category: reviewCategory,
+                  // Auto-insert product ke kolom yang sesuai berdasarkan review_category
+                  ...(reviewCategory === 'Demo Product'
+                    ? { product_demo: productValue }
+                    : { product_bast: productValue }),
                   // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
                   guest_fullname: resolvedGuest?.full_name ?? salesName,
                   // guest_username untuk filter di Form Review page
@@ -1043,6 +1048,7 @@ export default function ReminderSchedulePage() {
       } else {
         // Buat form_review baru
         const reviewCategory = r.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+        const productValue = r.product?.trim() || '';
         const { error: reviewErr } = await supabase.from('form_reviews').insert([{
           reminder_id: r.id,
           project_name: r.project_name,
@@ -1053,6 +1059,10 @@ export default function ReminderSchedulePage() {
           assigned_to: r.assigned_to,
           reminder_category: r.category,
           review_category: reviewCategory,
+          // Auto-insert product ke kolom yang sesuai berdasarkan review_category
+          ...(reviewCategory === 'Demo Product'
+            ? { product_demo: productValue }
+            : { product_bast: productValue }),
           // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
           guest_fullname: resolvedGuest.full_name ?? salesName,
           // guest_username untuk filter di Form Review page
