@@ -2448,8 +2448,8 @@ export default function ReminderSchedulePage() {
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
                                   {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
-                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5"
-                                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-1"
+                                      >
                                       ⭐ {/*r.sales_name*/}
                                     </div>
                                   )}
@@ -2461,7 +2461,7 @@ export default function ReminderSchedulePage() {
                                       style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
                                       {r.assign_name?.charAt(0)?.toUpperCase() || '?'}
                                     </div>
-                                    <span className="text-[8px] font-bold text-gray-800 truncate">{r.assign_name}</span>
+                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assign_name}</span>
                                   </div>
                                 </td>
                                 {/* PIC */}
