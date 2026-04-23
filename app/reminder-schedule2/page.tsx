@@ -2377,12 +2377,12 @@ export default function ReminderSchedulePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
-                          <col style={{ width: '3%' }} />
-                          <col style={{ width: '14%' }} />
+                          <col style={{ width: '4%' }} />
+                          <col style={{ width: '13%' }} />
                           <col style={{ width: '10%' }} />
-                          <col style={{ width: '11%' }} />
+                          <col style={{ width: '10%' }} />
                           <col style={{ width: '9%' }} />
-                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '6%' }} />
@@ -2399,18 +2399,18 @@ export default function ReminderSchedulePage() {
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
-                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
+                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredReminders.map((r) => {
+                          {filteredReminders.map((r, idx) => {
                             const today = isDueToday(r.due_date);
                             return (
                               <tr key={r.id}
                                 className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
                                 >
                                 {/* No */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">{idx + 1}</td>
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle text-[11px] font-bold text-gray-400">{idx + 1}</td>
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
@@ -2448,9 +2448,9 @@ export default function ReminderSchedulePage() {
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
                                   {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
-                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
+                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5"
                                       style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)' }}>
-                                      ⭐ {r.sales_name}
+                                      ⭐ {/*r.sales_name*/}
                                     </div>
                                   )}
                                 </td>
@@ -2461,7 +2461,7 @@ export default function ReminderSchedulePage() {
                                       style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
                                       {r.assign_name?.charAt(0)?.toUpperCase() || '?'}
                                     </div>
-                                    <span className="text-[10px] font-bold text-gray-800 truncate">{r.assign_name}</span>
+                                    <span className="text-[8px] font-bold text-gray-800 truncate">{r.assign_name}</span>
                                   </div>
                                 </td>
                                 {/* PIC */}
