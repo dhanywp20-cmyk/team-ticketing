@@ -67,8 +67,8 @@ type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface Reminder {
   id: string;
-  title?: string;       // kolom lama di DB (beberapa row pakai 'title')
-  project_name: string; // kolom baru (fallback dari title)
+  title?: string;
+  project_name: string;
   description: string;
   assigned_to: string;
   assign_name: string;
@@ -89,7 +89,6 @@ interface Reminder {
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
   product?: string;
-  // guest_fullname dihapus — link ke form_reviews menggunakan sales_name + sales_division
 }
 
 interface TeamUser {
@@ -114,7 +113,6 @@ interface GuestUser {
 const REVIEW_TRIGGER_CATEGORIES = ['Demo Product', 'Konfigurasi & Training', 'Training'] as const;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
 const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: string; border: string; dot: string }> = {
   low:    { label: 'Low',    color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.4)', dot: '#94a3b8' },
   medium: { label: 'Medium', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.4)',  dot: '#f59e0b' },
@@ -807,6 +805,7 @@ export default function ReminderSchedulePage() {
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
         `*Nama Project: ${formData.project_name}*\n` +
         `*Deskripsi: ${formData.description}*\n` +
+        `📦 *Product: ${formData.product}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.address || '-'}\n` +
         `👤 Sales: ${formData.sales_name}${formData.sales_division ? ' - ' + formData.sales_division : ''}\n` +
@@ -870,7 +869,8 @@ export default function ReminderSchedulePage() {
             const msg =
               `✅ *JADWAL SELESAI — PTS IVP*\n\n` +
               `Terima kasih *${handlerUser.full_name}*!\n` +
-              `Jadwal *${reminder.project_name}* telah ditandai *Completed*.\n` +
+              `Jadwal *${reminder.project_name}* sudah *Selesai*.\n` +
+              `📦 *Product: ${formData.product}*\n` +
               `🏷️ ${reminder.category} · ${formatDate(reminder.due_date)}\n` +
               `\nTetap semangat! 💪`;
             await sendFonnteWA(handlerUser.phone_number, msg);
@@ -937,6 +937,8 @@ export default function ReminderSchedulePage() {
                       `⭐ *REVIEW DIMINTA — PTS IVP*\n\n` +
                       `Halo *${resolvedGuest.full_name}*!\n\n` +
                       `Jadwal *${reminder.category}* untuk project:\n` +
+                      `*Kategori: ${formData.category}*\n` +
+                      `📦 *Product: ${formData.product}*\n` +
                       `📋 *${reminder.project_name}*\n` +
                       `📍 ${reminder.address || '-'}\n\n` +
                       `telah selesai dilaksanakan oleh tim kami.\n\n` +
@@ -1081,10 +1083,12 @@ export default function ReminderSchedulePage() {
         const guestMsg =
           `⭐ *FORM REVIEW — PTS IVP*\n\n` +
           `Halo *${resolvedGuest.full_name}*!\n\n` +
-          `Jadwal *${r.category}* untuk project:\n` +
-          `📋 *${r.project_name}*\n` +
-          `📍 ${r.address || '-'}\n` +
-          `🛠️ Handler: ${r.assign_name}\n\n` +
+          `Jadwal *${reminder.category}* untuk project:\n` +
+          `📋 *${reminder.project_name}*\n` +
+          `*Kategori: ${formData.category}*\n` +
+          `📦 *Product: ${formData.product}*\n` +
+          `📍 ${reminder.address || '-'}\n\n` +
+          (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           `telah selesai dilaksanakan oleh tim kami.\n\n` +
           `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
           `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
@@ -1139,8 +1143,13 @@ export default function ReminderSchedulePage() {
           `📅 *JADWAL DIUBAH — PTS IVP*\n\n` +
           `Halo *${handlerUser.full_name}*, jadwal kamu telah di-reschedule:\n\n` +
           `*Project: ${rescheduleTarget.project_name}*\n` +
+          `*Kategori: ${formData.category}*\n` +
+          `📦 *Product: ${formData.product}*\n` +
           `📌 Jadwal Lama: ${formatDate(rescheduleTarget.due_date)} ${rescheduleTarget.due_time}\n` +
           `📅 Jadwal Baru: *${formatDate(newDate)} ${newTime}*\n` +
+          (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
+          (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
+          (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           (reason ? `📝 Alasan: ${reason}\n` : '') +
           `\n🔗 https://team-ticketing.vercel.app/dashboard`;
         await sendFonnteWA(handlerUser.phone_number, msg);
@@ -1177,7 +1186,8 @@ export default function ReminderSchedulePage() {
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
       `*Nama Project: ${r.project_name}*\n` +
       `*Deskripsi: ${r.description}*\n` +
-      `🏷️ Kategori: ${r.category}\n` +
+      `*Kategori: ${formData.category}*\n` +
+      `📦 *Product: ${formData.product}*\n` +
       `📍 Lokasi: ${r.address || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
       `    Divisi Sales: ${r.sales_division || '-'}\n` +
@@ -2390,8 +2400,8 @@ export default function ReminderSchedulePage() {
                           <col style={{ width: '4%' }} />
                           <col style={{ width: '13%' }} />
                           <col style={{ width: '10%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '9%' }} />
+                          <col style={{ width: '13%' }} />
+                          <col style={{ width: '6%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
