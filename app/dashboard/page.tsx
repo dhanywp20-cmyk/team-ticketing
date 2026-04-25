@@ -1041,9 +1041,7 @@ export default function Dashboard() {
       title: 'Form Review Demo & BAST', icon: '⭐', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
       description: 'Platform review Demo Produk & BAST dari Reminder Schedule',
-      items: [
-        { name: 'Platform Review', url: '/form-review', icon: '⭐', internal: true, embed: true },
-      ]
+      items: [{ name: 'Platform Review', url: '/form-review', icon: '⭐', internal: true, embed: true }]
     },
     {
       title: 'Ticket Troubleshooting', icon: '🎫', key: 'ticket-troubleshooting',
@@ -1056,9 +1054,9 @@ export default function Dashboard() {
       gradient: 'from-emerald-700 via-emerald-600 to-emerald-500',
       description: 'Activity tracking & performance metrics',
       items: [
-        { name: 'Submit Report', url: 'https://docs.google.com/forms/d/e/1FAIpQLSf2cCEPlQQcCR1IZ3GRx-ImgdJJ15rMxAoph77aNYmbl15gvw/viewform?embedded=true', icon: '✍️', embed: true },
-        { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&single=true', icon: '📑', embed: true },
-        { name: 'View Summary', url: 'https://onedrive.live.com/edit?cid=25d404c0b5ee2b43&id=25D404C0B5EE2B43!s232e8289fcce47eaa1561794879e62bc&resid=25D404C0B5EE2B43!s232e8289fcce47eaa1561794879e62bc&ithint=file%2Cxlsx&embed=1&em=2&AllowTyping=True&ActiveCell=%27Report%27!H3&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True%2CTrue&edaebf=ctrl&migratedtospo=true', icon: '📊', embed: true }
+        { name: 'Submit Daily Report', url: 'https://docs.google.com/forms/d/e/1FAIpQLSf2cCEPlQQcCR1IZ3GRx-ImgdJJ15rMxAoph77aNYmbl15gvw/viewform?embedded=true', icon: '✍️', embed: true },
+        { name: 'View Daily Report', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMeC3gBgeCAe5YNoVE4RfdANVyjx7xmtTA7C-G40KhExzgvAJ4cGTcyFcgbp4WWx7laBdC3VZrBGd0/pubhtml?gid=1408443365&single=true', icon: '📑', embed: true },
+        { name: 'Chart Daily Report', url: 'https://onedrive.live.com/edit?cid=25d404c0b5ee2b43&id=25D404C0B5EE2B43!s232e8289fcce47eaa1561794879e62bc&resid=25D404C0B5EE2B43!s232e8289fcce47eaa1561794879e62bc&ithint=file%2Cxlsx&embed=1&em=2&AllowTyping=True&ActiveCell=%27Report%27!H3&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True%2CTrue&edaebf=ctrl&migratedtospo=true', icon: '📊', embed: true }
       ]
     },
     {
@@ -1072,8 +1070,8 @@ export default function Dashboard() {
       gradient: 'from-amber-700 via-amber-600 to-amber-500',
       description: 'Equipment check-in & check-out tracking',
       items: [
-        { name: 'Submit Movement', url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true', icon: '✍️', embed: true },
-        { name: 'View Database', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true', icon: '📑', embed: true }
+        { name: 'Submit Movement Log', url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true', icon: '✍️', embed: true },
+        { name: 'View Movement Log', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true', icon: '📑', embed: true }
       ]
     },
   ];
@@ -1267,7 +1265,7 @@ export default function Dashboard() {
         style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
         onClick={isSingleInternal ? () => handleMenuClick(menu.items[0], menu.title) : undefined}
       >
-        <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
+        <div className={`bg-gradient-to-br ${menu.gradient} ${isSingleInternal ? 'p-8' : 'p-6'} relative overflow-hidden`}>
           <div className="absolute inset-0 opacity-10">
             <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
             <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white" />
@@ -1560,7 +1558,7 @@ export default function Dashboard() {
             {!sidebarCollapsed && <span className="tracking-wide">Main Menu</span>}
           </button>
 
-          {!sidebarCollapsed && <p className="px-1 mb-3 text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: 'rgba(0,0,0,0.45)' }}>Navigation</p>}
+          {!sidebarCollapsed && <div className="mb-3" />}
 
           {menuLoading ? (
             <div className="flex items-center justify-center py-10">
@@ -1594,107 +1592,83 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
+
               {/* ── Project group ── */}
               {visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key)).length > 0 && (
                 <div>
-                  <p className="px-2 mb-1.5 text-[9px] font-bold tracking-[0.18em] uppercase" style={{ color: 'rgba(15,23,42,0.4)' }}>Project</p>
-                  <div className="space-y-1">
+                  <p className="px-1 mb-2 text-xs font-bold tracking-wide uppercase" style={{ color: 'rgba(0,0,0,0.55)' }}>Project</p>
+                  <div className="space-y-0.5">
                     {visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key)).map((menu) => {
+                      const MENU_ICONS: Record<string, JSX.Element> = {
+                        'reminder-schedule': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+                        'form-require-project': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+                        'form-bast': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>,
+                        'ticket-troubleshooting': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg>,
+                      };
                       if (menu.items.length === 1) {
                         const item = menu.items[0];
                         const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
                         return (
                           <button key={menu.key} onClick={() => handleMenuClick(item, menu.title)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left font-medium transition-all"
                             style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
-                            onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
-                            onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
-                            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{menu.icon}</span>
-                            <span className="truncate tracking-wide">{menu.title}</span>
+                            onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; }}
+                            onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                            <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.07)' }}>
+                              {MENU_ICONS[menu.key] ?? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2}/></svg>}
+                            </span>
+                            <span className="truncate text-sm tracking-wide">{menu.title}</span>
                             {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
                           </button>
                         );
                       }
-                      // Multi-item: card with header
-                      return (
-                        <div key={menu.key} className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                          <div className="flex items-center gap-2.5 px-4 py-2" style={{ background: 'rgba(0,0,0,0.05)' }}>
-                            <span className="text-sm">{menu.icon}</span>
-                            <span className="text-[10px] font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.65)' }}>{menu.title}</span>
-                          </div>
-                          <div className="px-2 py-1.5 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
-                            {menu.items.map((item, itemIndex) => {
-                              const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
-                              return (
-                                <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
-                                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm font-medium transition-all"
-                                  style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
-                                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
-                                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
-                                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{item.icon}</span>
-                                  <span className="truncate tracking-wide text-xs">{item.name}</span>
-                                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
+                      return null; // Project group has no multi-item menus currently
                     })}
                   </div>
                 </div>
               )}
 
-              {/* ── Internal Daily group ── */}
+              {/* ── Internal Daily group — fully flat, no sub-cards ── */}
               {visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key)).length > 0 && (
                 <div>
-                  <p className="px-2 mb-1.5 text-[9px] font-bold tracking-[0.18em] uppercase" style={{ color: 'rgba(15,23,42,0.4)' }}>Internal Daily</p>
-                  <div className="space-y-1">
-                    {visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key)).map((menu) => {
-                      if (menu.items.length === 1) {
-                        const item = menu.items[0];
+                  <p className="px-1 mb-2 text-xs font-bold tracking-wide uppercase" style={{ color: 'rgba(0,0,0,0.55)' }}>Internal Daily</p>
+                  <div className="space-y-0.5">
+                    {(() => {
+                      const ITEM_ICONS: Record<string, JSX.Element> = {
+                        'Submit Daily Report':   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+                        'View Daily Report':     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>,
+                        'Chart Daily Report':    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+                        'Access Database':       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>,
+                        'Submit Movement Log':   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" /></svg>,
+                        'View Movement Log':     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
+                      };
+                      const flatItems: { label: string; url: string; embed: boolean; external?: boolean; menuTitle: string; item: MenuItem['items'][0] }[] = [];
+                      visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key)).forEach(menu => {
+                        menu.items.forEach(item => flatItems.push({ label: item.name, url: item.url, embed: !!item.embed, external: item.external, menuTitle: menu.title, item }));
+                      });
+                      return flatItems.map(({ label, menuTitle, item }, idx) => {
                         const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
                         return (
-                          <button key={menu.key} onClick={() => handleMenuClick(item, menu.title)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
+                          <button key={idx} onClick={() => handleMenuClick(item, menuTitle)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left font-medium transition-all"
                             style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
-                            onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
-                            onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
-                            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{menu.icon}</span>
-                            <span className="truncate tracking-wide">{menu.title}</span>
-                            {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
+                            onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; }}
+                            onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                            <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.07)', color: isActive ? '#92600a' : '#475569' }}>
+                              {ITEM_ICONS[label] ?? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2}/></svg>}
+                            </span>
+                            <span className="truncate text-sm tracking-wide">{label}</span>
+                            {item.external && !item.embed && <svg className="ml-auto w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>}
+                            {isActive && !item.external && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
                           </button>
                         );
-                      }
-                      return (
-                        <div key={menu.key} className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                          <div className="flex items-center gap-2.5 px-4 py-2" style={{ background: 'rgba(0,0,0,0.05)' }}>
-                            <span className="text-sm">{menu.icon}</span>
-                            <span className="text-[10px] font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.65)' }}>{menu.title}</span>
-                          </div>
-                          <div className="px-2 py-1.5 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
-                            {menu.items.map((item, itemIndex) => {
-                              const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
-                              return (
-                                <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
-                                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm font-medium transition-all"
-                                  style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
-                                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
-                                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
-                                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{item.icon}</span>
-                                  <span className="truncate tracking-wide text-xs">{item.name}</span>
-                                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                      });
+                    })()}
                   </div>
                 </div>
               )}
+
             </div>
           )}
         </div>
