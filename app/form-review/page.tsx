@@ -1211,6 +1211,7 @@ export default function FormReviewPage() {
             </button>
           </div>
         </div>
+        </div>
 
         {/* ── MAIN CONTENT ── */}
         <div className="flex-1 p-5 space-y-5">
