@@ -2181,8 +2181,16 @@ export default function TicketingSystem() {
                 </div>
               )}
               <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                <button onClick={() => fetchData()} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: "white" }}>🔄 Refresh</button>
-                <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 2px 8px rgba(220,38,38,0.3)" }}>📊 Export Report</button>
+                <button onClick={() => fetchData()}  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60 bg-white">
+                  <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Refresh
+                </button>
+                <button onClick={exportToExcel} 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105"
+                  style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 2px 8px rgba(220,38,38,0.3)' }}>
+                  {exportLoading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '📊'}
+                  Export
+                </button>
               </div>
             </div>
 
@@ -2304,7 +2312,7 @@ export default function TicketingSystem() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed bg-white border-collapse">
-                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "4%" }} /><col style={{ width: "6%" }} /><col style={{ width: "4%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /></colgroup>
+                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "4%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /></colgroup>
                   <thead>
                     <tr className="bg-white border-b-2 border-gray-100">
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
@@ -2332,6 +2340,7 @@ export default function TicketingSystem() {
                             <div className="flex items-start gap-1">
                               {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                               <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
+                              {ticket.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {ticket.address.split(',')[0]}</div>}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
@@ -2341,7 +2350,7 @@ export default function TicketingSystem() {
                               <button
                                 onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
                                 className="text-[12px] text-gray-600 px-2 py-0.5 text-left break-words leading-tight"
-                                style={{ background: productFilter === ticket.product ? "#e2e3f0ff" : "#eef2ff", color: productFilter === ticket.product ? "white" : "#8076f0ff", borderColor: "#c7d2fe" }}
+                                style={{ background: productFilter === ticket.product ? "#4d58f3ff" : "#5e7cdfff", color: productFilter === ticket.product ? "white" : "#8076f0ff", borderColor: "#2b52ecff" }}
                               >{ticket.product}</button>
                             ) : <span className="text-gray-300 text-sm">—</span>}
                           </td>
