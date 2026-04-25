@@ -615,6 +615,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   const [ticketNotifs, setTicketNotifs]   = useState<NotificationItem[]>([]);
   const [requireNotifs, setRequireNotifs] = useState<NotificationItem[]>([]);
   const [reminderNotifs, setReminderNotifs] = useState<NotificationItem[]>([]);
+  const [reviewNotifs, setReviewNotifs]   = useState<NotificationItem[]>([]);
 
   const roleLC = (currentUser.role ?? '').trim().toLowerCase();
   const teamType = (currentUser.team_type ?? '').trim();
@@ -802,6 +803,72 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         }
       } catch (e) { console.error('[notif] reminder fetch error:', e); }
     }
+
+    // ── 4. Form Review Demo & BAST ──
+    // Admin/Superadmin : semua review belum diisi (grade kosong)
+    // Guest            : review milik sendiri (guest_username / sales_name)
+    // Team PTS         : review yang di-assign ke mereka
+    // Team Services    : tidak dapat notif review
+    try {
+      if (isEffectiveTeamServices) {
+        setReviewNotifs([]);
+      } else if (isAdmin) {
+        const { data } = await supabase
+          .from('form_reviews')
+          .select('id, project_name, reminder_category, sales_name, assign_name, created_at, grade_product_knowledge, grade_product_knowledge_bast, grade_training_customer')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        const pending = (data ?? []).filter((r: any) =>
+          !r.grade_product_knowledge && !r.grade_product_knowledge_bast && !r.grade_training_customer
+        );
+        setReviewNotifs(pending.map((r: any) => ({
+          id: r.id, type: 'require' as const,
+          title: r.project_name,
+          subtitle: `⭐ ${r.reminder_category} · ${r.sales_name}`,
+          time: r.created_at,
+          url: '/form-review', internalUrl: '/form-review',
+          menuTitle: 'Form Review Demo & BAST',
+        })));
+      } else if (isGuest) {
+        const { data } = await supabase
+          .from('form_reviews')
+          .select('id, project_name, reminder_category, sales_name, assign_name, created_at, grade_product_knowledge, grade_product_knowledge_bast, grade_training_customer')
+          .or(`guest_username.eq.${currentUser.username},sales_name.eq.${currentUser.full_name}`)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        const pending = (data ?? []).filter((r: any) =>
+          !r.grade_product_knowledge && !r.grade_product_knowledge_bast && !r.grade_training_customer
+        );
+        setReviewNotifs(pending.map((r: any) => ({
+          id: r.id, type: 'require' as const,
+          title: r.project_name,
+          subtitle: `⭐ ${r.reminder_category} · Belum diisi`,
+          time: r.created_at,
+          url: '/form-review', internalUrl: '/form-review',
+          menuTitle: 'Form Review Demo & BAST',
+        })));
+      } else if (isEffectiveTeamPTS) {
+        const { data } = await supabase
+          .from('form_reviews')
+          .select('id, project_name, reminder_category, sales_name, assign_name, created_at, grade_product_knowledge, grade_product_knowledge_bast, grade_training_customer')
+          .eq('assigned_to', currentUser.username)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        const pending = (data ?? []).filter((r: any) =>
+          !r.grade_product_knowledge && !r.grade_product_knowledge_bast && !r.grade_training_customer
+        );
+        setReviewNotifs(pending.map((r: any) => ({
+          id: r.id, type: 'require' as const,
+          title: r.project_name,
+          subtitle: `⭐ ${r.reminder_category} · ${r.sales_name}`,
+          time: r.created_at,
+          url: '/form-review', internalUrl: '/form-review',
+          menuTitle: 'Form Review Demo & BAST',
+        })));
+      } else {
+        setReviewNotifs([]);
+      }
+    } catch (e) { console.error('[notif] review fetch error:', e); }
   }, [currentUser, isAdmin, roleLC, teamType]);
 
   // Trigger fetchAll saat pertama mount dan setiap kali fetchAll berubah (= saat currentUser berubah)
@@ -828,10 +895,16 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         setTimeout(fetchAll, 400);
       })
       .subscribe();
+    const ch4 = supabase.channel('dash-notif-reviews-v2')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'form_reviews' }, () => {
+        setTimeout(fetchAll, 400);
+      })
+      .subscribe();
     return () => {
       supabase.removeChannel(ch1);
       supabase.removeChannel(ch2);
       supabase.removeChannel(ch3);
+      supabase.removeChannel(ch4);
     };
   }, [fetchAll]);
 
@@ -841,7 +914,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     }
   };
 
-  const totalCount = ticketNotifs.length + requireNotifs.length + reminderNotifs.length;
+  const totalCount = ticketNotifs.length + requireNotifs.length + reminderNotifs.length + reviewNotifs.length;
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-2xl"
@@ -912,6 +985,21 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         onItemClick={handleClick}
       />
       )}
+
+      {/* Review Bell — admin, guest, team PTS */}
+      {!isTeamServices && (
+      <NotifBell
+        icon="⭐"
+        label="Review"
+        count={reviewNotifs.length}
+        color="#7c3aed"
+        bgColor="rgba(245,243,255,0.9)"
+        borderColor="rgba(196,181,253,0.8)"
+        dotColor="#a78bfa"
+        items={reviewNotifs}
+        onItemClick={handleClick}
+      />
+      )}
     </div>
   );
 }
@@ -935,6 +1023,7 @@ export default function Dashboard() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [formRequireNotifCount, setFormRequireNotifCount] = useState(0);
+  const [formReviewNotifCount, setFormReviewNotifCount] = useState(0);
 
   const allMenuItems: MenuItem[] = [
     {
@@ -1014,6 +1103,13 @@ export default function Dashboard() {
     const fetchPending = async () => {
       const { count } = await supabase.from('project_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
       setFormRequireNotifCount(count ?? 0);
+      const { data: reviewData } = await supabase
+        .from('form_reviews')
+        .select('id, grade_product_knowledge, grade_product_knowledge_bast, grade_training_customer');
+      const pendingReviews = (reviewData ?? []).filter((r: any) =>
+        !r.grade_product_knowledge && !r.grade_product_knowledge_bast && !r.grade_training_customer
+      ).length;
+      setFormReviewNotifCount(pendingReviews);
     };
     fetchPending();
     const interval = setInterval(fetchPending, 30000);
@@ -1181,55 +1277,75 @@ export default function Dashboard() {
   const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
   const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
 
-  const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => (
-    <div
-      key={menu.key}
-      className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1"
-      style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
-    >
-      <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
-          <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="text-4xl">{menu.icon}</div>
-            <h3 className="text-xl font-bold tracking-tight text-white leading-tight">{menu.title}</h3>
-            {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
-              <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                {formRequireNotifCount}
-              </span>
-            )}
+  const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => {
+    const isSingleItem = menu.items.length === 1;
+    const singleItem = isSingleItem ? menu.items[0] : null;
+    const isRequireCard = menu.key === 'form-require-project';
+    const isReviewCard  = menu.key === 'form-bast';
+
+    const cardContent = (
+      <div
+        key={menu.key}
+        className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1 ${isSingleItem ? 'cursor-pointer group' : ''}`}
+        style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
+        onClick={isSingleItem ? () => handleMenuClick(singleItem!, menu.title) : undefined}
+      >
+        <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white" />
+            <div className="absolute -left-2 -bottom-2 w-16 h-16 rounded-full bg-white" />
           </div>
-          <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
-        </div>
-      </div>
-      <div className="p-5 space-y-3">
-        {menu.items.map((item, itemIndex) => (
-          <button
-            key={itemIndex}
-            onClick={() => handleMenuClick(item, menu.title)}
-            className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item"
-          >
-            {item.external && !item.embed ? (
-              <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            )}
-            <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
-            <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
-              {item.icon}
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-4xl">{menu.icon}</div>
+              <h3 className="text-xl font-bold tracking-tight text-white leading-tight">{menu.title}</h3>
+              {/* Badge notif Require */}
+              {isRequireCard && formRequireNotifCount > 0 && (
+                <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                  {formRequireNotifCount}
+                </span>
+              )}
+              {/* Badge notif Review */}
+              {isReviewCard && formReviewNotifCount > 0 && (
+                <span className="absolute top-3 right-3 bg-amber-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                  {formReviewNotifCount}
+                </span>
+              )}
             </div>
-          </button>
-        ))}
+            <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
+          </div>
+        </div>
+        {/* Multi-item cards still show buttons */}
+        {!isSingleItem && (
+          <div className="p-5 space-y-3">
+            {menu.items.map((item, itemIndex) => (
+              <button
+                key={itemIndex}
+                onClick={e => { e.stopPropagation(); handleMenuClick(item, menu.title); }}
+                className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-800 px-5 py-4 rounded-md font-semibold shadow-sm hover:shadow-md transition-all text-right flex items-center justify-end gap-4 group/item"
+              >
+                {item.external && !item.embed ? (
+                  <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-slate-400 transition-transform group-hover/item:-translate-x-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                )}
+                <span className="flex-1 text-sm tracking-wide text-right">{item.name}</span>
+                <div className="w-10 h-10 bg-white rounded-md shadow-sm flex items-center justify-center text-xl border border-slate-200 group-hover/item:scale-110 transition-transform flex-shrink-0">
+                  {item.icon}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+
+    return cardContent;
+  };
 
   if (!showSidebar) return (
     <div className="min-h-screen flex flex-col bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
@@ -1499,6 +1615,9 @@ export default function Dashboard() {
                           {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
                             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formRequireNotifCount}</span>
                           )}
+                          {menu.key === 'form-bast' && formReviewNotifCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formReviewNotifCount}</span>
+                          )}
                         </span>
                         <div className="flex flex-col gap-1 w-full">
                           {menu.items.map((item, itemIndex) => {
@@ -1528,6 +1647,9 @@ export default function Dashboard() {
                           {menu.icon}
                           {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
                             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formRequireNotifCount}</span>
+                          )}
+                          {menu.key === 'form-bast' && formReviewNotifCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formReviewNotifCount}</span>
                           )}
                         </span>
                         <span className="text-xs font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.65)' }}>{menu.title}</span>
