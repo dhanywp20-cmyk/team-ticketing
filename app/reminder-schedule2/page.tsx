@@ -1087,7 +1087,7 @@ export default function ReminderSchedulePage() {
           `📋 *${r.project_name}*\n` +
           `*Kategori: ${r.category}*\n` +
           `📦 *Product: ${r.product ?? '-'}*\n` +
-          `📍 ${reminder.address || '-'}\n\n` +
+          `📍 ${r.address || '-'}\n\n` +
           (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           `telah selesai dilaksanakan oleh tim kami.\n\n` +
           `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
