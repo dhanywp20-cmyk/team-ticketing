@@ -2315,6 +2315,7 @@ export default function TicketingSystem() {
                   <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "4%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /></colgroup>
                   <thead>
                     <tr className="bg-white border-b-2 border-gray-100">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
@@ -2336,12 +2337,13 @@ export default function TicketingSystem() {
                       const isActiveOverdue = overdue && ticket.status !== "Solved";
                       return (
                         <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white"}`}>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle text-[11px] font-bold text-gray-400">{index + 1}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex items-start gap-1">
                               {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                               <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
-                              {ticket.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {ticket.address.split(',')[0]}</div>}
                             </div>
+                            {ticket.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {ticket.address.split(',')[0]}</div>}
                             <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                            </td>
@@ -2349,8 +2351,8 @@ export default function TicketingSystem() {
                             {ticket.product ? (
                               <button
                                 onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                                className="text-[12px] text-gray-600 px-2 py-0.5 text-left break-words leading-tight"
-                                style={{ background: productFilter === ticket.product ? "#4d58f3ff" : "#5e7cdfff", color: productFilter === ticket.product ? "white" : "#8076f0ff", borderColor: "#2b52ecff" }}
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-left break-words leading-tight transition-all"
+                                style={{ background: productFilter === ticket.product ? '#6366f1' : '#eef2ff', color: productFilter === ticket.product ? 'white' : '#4338ca' }}
                               >{ticket.product}</button>
                             ) : <span className="text-gray-300 text-sm">—</span>}
                           </td>
