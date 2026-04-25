@@ -2312,10 +2312,25 @@ export default function TicketingSystem() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed bg-white border-collapse">
-                  <colgroup><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /><col style={{ width: "10%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "6%" }} /><col style={{ width: "5%" }} /><col style={{ width: "4%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /><col style={{ width: "2%" }} /></colgroup>
+                  <colgroup>
+                    <col style={{ width: "3%" }} />   {/* No */}
+                    <col style={{ width: "16%" }} />  {/* Project Name */}
+                    <col style={{ width: "11%" }} />  {/* Product */}
+                    <col style={{ width: "9%" }} />   {/* SN Unit */}
+                    <col style={{ width: "10%" }} />  {/* Issue */}
+                    <col style={{ width: "9%" }} />   {/* Assigned */}
+                    <col style={{ width: "9%" }} />   {/* Status */}
+                    <col style={{ width: "8%" }} />   {/* Sales */}
+                    <col style={{ width: "7%" }} />   {/* Created By */}
+                    <col style={{ width: "3%" }} />   {/* Action 1 */}
+                    <col style={{ width: "3%" }} />   {/* Action 2 */}
+                    <col style={{ width: "3%" }} />   {/* Action 3 */}
+                    <col style={{ width: "3%" }} />   {/* Action 4 */}
+                    <col style={{ width: "3%" }} />   {/* Action 5 */}
+                  </colgroup>
                   <thead>
                     <tr className="bg-white border-b-2 border-gray-100">
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
+                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
@@ -2337,7 +2352,7 @@ export default function TicketingSystem() {
                       const isActiveOverdue = overdue && ticket.status !== "Solved";
                       return (
                         <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white"}`}>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle text-[11px] font-bold text-gray-400">{index + 1}</td>
+                          <td className="px-2 py-3 border-r border-gray-100 align-middle text-center text-[11px] font-bold text-gray-400">{index + 1}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex items-start gap-1">
                               {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
