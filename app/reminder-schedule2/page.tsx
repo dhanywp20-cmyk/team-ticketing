@@ -1083,10 +1083,10 @@ export default function ReminderSchedulePage() {
         const guestMsg =
           `⭐ *FORM REVIEW — PTS IVP*\n\n` +
           `Halo *${resolvedGuest.full_name}*!\n\n` +
-          `Jadwal *${reminders.category}* untuk project:\n` +
-          `📋 *${reminders.project_name}*\n` +
-          `*Kategori: ${formData.category}*\n` +
-          `📦 *Product: ${formData.product}*\n` +
+          `Jadwal *${r.category}* untuk project:\n` +
+          `📋 *${r.project_name}*\n` +
+          `*Kategori: ${r.category}*\n` +
+          `📦 *Product: ${r.product ?? '-'}*\n` +
           `📍 ${reminder.address || '-'}\n\n` +
           (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           `telah selesai dilaksanakan oleh tim kami.\n\n` +
