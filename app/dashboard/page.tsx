@@ -1022,8 +1022,7 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [showSettings, setShowSettings] = useState(false);
-  const [formRequireNotifCount, setFormRequireNotifCount] = useState(0);
-  const [formReviewNotifCount, setFormReviewNotifCount] = useState(0);
+
 
   const allMenuItems: MenuItem[] = [
     {
@@ -1095,25 +1094,6 @@ export default function Dashboard() {
       setMenuLoading(false);
     }, 400);
     return () => clearTimeout(timer);
-  }, [currentUser]);
-
-  // Legacy bottom bell (kept for backward compat, hidden when notif bar shows)
-  useEffect(() => {
-    if (!currentUser || !['admin', 'superadmin', 'team_pts', 'team'].includes(currentUser.role?.toLowerCase() ?? '')) return;
-    const fetchPending = async () => {
-      const { count } = await supabase.from('project_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
-      setFormRequireNotifCount(count ?? 0);
-      const { data: reviewData } = await supabase
-        .from('form_reviews')
-        .select('id, grade_product_knowledge, grade_product_knowledge_bast, grade_training_customer');
-      const pendingReviews = (reviewData ?? []).filter((r: any) =>
-        !r.grade_product_knowledge && !r.grade_product_knowledge_bast && !r.grade_training_customer
-      ).length;
-      setFormReviewNotifCount(pendingReviews);
-    };
-    fetchPending();
-    const interval = setInterval(fetchPending, 30000);
-    return () => clearInterval(interval);
   }, [currentUser]);
 
   const handleLogin = async () => {
@@ -1278,17 +1258,14 @@ export default function Dashboard() {
   const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key));
 
   const renderMenuCard = (menu: MenuItem, index: number, _accentColor: string) => {
-    const isSingleItem = menu.items.length === 1;
-    const singleItem = isSingleItem ? menu.items[0] : null;
-    const isRequireCard = menu.key === 'form-require-project';
-    const isReviewCard  = menu.key === 'form-bast';
+    const isSingleInternal = menu.items.length === 1 && !menu.items[0].external;
 
-    const cardContent = (
+    return (
       <div
         key={menu.key}
-        className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1 ${isSingleItem ? 'cursor-pointer group' : ''}`}
+        className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-white/60 hover:-translate-y-1 ${isSingleInternal ? 'cursor-pointer group' : ''}`}
         style={{ animation: `fadeInUp 0.5s ease forwards`, animationDelay: `${index * 80}ms`, opacity: 0 }}
-        onClick={isSingleItem ? () => handleMenuClick(singleItem!, menu.title) : undefined}
+        onClick={isSingleInternal ? () => handleMenuClick(menu.items[0], menu.title) : undefined}
       >
         <div className={`bg-gradient-to-br ${menu.gradient} p-6 relative overflow-hidden`}>
           <div className="absolute inset-0 opacity-10">
@@ -1299,24 +1276,12 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 mb-2">
               <div className="text-4xl">{menu.icon}</div>
               <h3 className="text-xl font-bold tracking-tight text-white leading-tight">{menu.title}</h3>
-              {/* Badge notif Require */}
-              {isRequireCard && formRequireNotifCount > 0 && (
-                <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                  {formRequireNotifCount}
-                </span>
-              )}
-              {/* Badge notif Review */}
-              {isReviewCard && formReviewNotifCount > 0 && (
-                <span className="absolute top-3 right-3 bg-amber-500 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                  {formReviewNotifCount}
-                </span>
-              )}
             </div>
             <p className="text-white/90 text-sm font-medium line-clamp-2">{menu.description}</p>
           </div>
         </div>
-        {/* Multi-item cards still show buttons */}
-        {!isSingleItem && (
+        {/* Show buttons only for multi-item cards OR external single-item cards */}
+        {!isSingleInternal && (
           <div className="p-5 space-y-3">
             {menu.items.map((item, itemIndex) => (
               <button
@@ -1343,8 +1308,6 @@ export default function Dashboard() {
         )}
       </div>
     );
-
-    return cardContent;
   };
 
   if (!showSidebar) return (
@@ -1603,77 +1566,135 @@ export default function Dashboard() {
             <div className="flex items-center justify-center py-10">
               <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(226,168,75,0.4)', borderTopColor: '#e2a84b' }}></div>
             </div>
-          ) : (
-            <div className="space-y-2">
+          ) : sidebarCollapsed ? (
+            /* Collapsed: icon-only buttons */
+            <div className="space-y-1">
               {visibleMenuItems.map((menu) => (
-                <div key={menu.key}>
-                  {sidebarCollapsed ? (
-                    <div className="group relative">
-                      <div className="w-full rounded-xl p-2.5 flex flex-col items-center gap-1.5 cursor-default transition-all" style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.07)' }}>
-                        <span className="text-xl relative">
+                <div key={menu.key} className="group relative">
+                  <div className="flex flex-col gap-1">
+                    {menu.items.map((item, itemIndex) => {
+                      const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
+                      return (
+                        <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)} title={`${menu.title} — ${item.name}`}
+                          className="w-full h-9 rounded-lg flex items-center justify-center text-base transition-all"
+                          style={isActive ? { background: 'rgba(200,134,29,0.18)', border: '1px solid rgba(200,134,29,0.45)', color: '#b8760d' } : { background: 'rgba(0,0,0,0.04)', border: '1px solid transparent', color: '#64748b' }}>
                           {menu.icon}
-                          {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formRequireNotifCount}</span>
-                          )}
-                          {menu.key === 'form-bast' && formReviewNotifCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formReviewNotifCount}</span>
-                          )}
-                        </span>
-                        <div className="flex flex-col gap-1 w-full">
-                          {menu.items.map((item, itemIndex) => {
-                            const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
-                            return (
-                              <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)} title={`${menu.title} — ${item.name}`}
-                                className="w-full h-7 rounded-lg flex items-center justify-center text-sm transition-all"
-                                style={isActive ? { background: 'rgba(200,134,29,0.18)', border: '1px solid rgba(200,134,29,0.45)', color: '#b8760d' } : { background: 'rgba(0,0,0,0.05)', border: '1px solid transparent', color: '#64748b' }}>
-                                {item.icon}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))' }}>
-                        <div className="rounded-xl px-4 py-3 min-w-[160px]" style={{ background: '#f8fafc', border: '1px solid rgba(200,134,29,0.25)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
-                          <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#b8760d' }}>{menu.title}</p>
-                          {menu.items.map((item, idx) => <p key={idx} className="text-xs text-slate-500 leading-5">{item.icon} {item.name}</p>)}
-                        </div>
-                        <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent" style={{ borderRightColor: '#f8fafc' }} />
-                      </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.5))' }}>
+                    <div className="rounded-xl px-4 py-3 min-w-[160px]" style={{ background: '#f8fafc', border: '1px solid rgba(200,134,29,0.25)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+                      <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#b8760d' }}>{menu.title}</p>
+                      {menu.items.map((item, idx) => <p key={idx} className="text-xs text-slate-500 leading-5">{item.icon} {item.name}</p>)}
                     </div>
-                  ) : (
-                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
-                      <div className="flex items-center gap-2.5 px-4 py-2.5" style={{ background: 'rgba(0,0,0,0.05)' }}>
-                        <span className="text-base relative">
-                          {menu.icon}
-                          {menu.key === 'form-require-project' && formRequireNotifCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formRequireNotifCount}</span>
-                          )}
-                          {menu.key === 'form-bast' && formReviewNotifCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center animate-pulse">{formReviewNotifCount}</span>
-                          )}
-                        </span>
-                        <span className="text-xs font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.65)' }}>{menu.title}</span>
-                      </div>
-                      <div className="px-2 py-2 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
-                        {menu.items.map((item, itemIndex) => {
-                          const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
-                          return (
-                            <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
-                              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
-                              style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
-                              onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#0f172a'; } }}
-                              onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#1e293b'; } }}>
-                              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{item.icon}</span>
-                              <span className="truncate tracking-wide">{item.name}</span>
-                              {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent" style={{ borderRightColor: '#f8fafc' }} />
+                  </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* ── Project group ── */}
+              {visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key)).length > 0 && (
+                <div>
+                  <p className="px-2 mb-1.5 text-[9px] font-bold tracking-[0.18em] uppercase" style={{ color: 'rgba(15,23,42,0.4)' }}>Project</p>
+                  <div className="space-y-1">
+                    {visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key)).map((menu) => {
+                      if (menu.items.length === 1) {
+                        const item = menu.items[0];
+                        const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
+                        return (
+                          <button key={menu.key} onClick={() => handleMenuClick(item, menu.title)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
+                            style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
+                            onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
+                            onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
+                            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{menu.icon}</span>
+                            <span className="truncate tracking-wide">{menu.title}</span>
+                            {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
+                          </button>
+                        );
+                      }
+                      // Multi-item: card with header
+                      return (
+                        <div key={menu.key} className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
+                          <div className="flex items-center gap-2.5 px-4 py-2" style={{ background: 'rgba(0,0,0,0.05)' }}>
+                            <span className="text-sm">{menu.icon}</span>
+                            <span className="text-[10px] font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.65)' }}>{menu.title}</span>
+                          </div>
+                          <div className="px-2 py-1.5 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
+                            {menu.items.map((item, itemIndex) => {
+                              const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
+                              return (
+                                <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
+                                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm font-medium transition-all"
+                                  style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
+                                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
+                                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
+                                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{item.icon}</span>
+                                  <span className="truncate tracking-wide text-xs">{item.name}</span>
+                                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Internal Daily group ── */}
+              {visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key)).length > 0 && (
+                <div>
+                  <p className="px-2 mb-1.5 text-[9px] font-bold tracking-[0.18em] uppercase" style={{ color: 'rgba(15,23,42,0.4)' }}>Internal Daily</p>
+                  <div className="space-y-1">
+                    {visibleMenuItems.filter(m => INTERNAL_KEYS.includes(m.key)).map((menu) => {
+                      if (menu.items.length === 1) {
+                        const item = menu.items[0];
+                        const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
+                        return (
+                          <button key={menu.key} onClick={() => handleMenuClick(item, menu.title)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-all"
+                            style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
+                            onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
+                            onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
+                            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{menu.icon}</span>
+                            <span className="truncate tracking-wide">{menu.title}</span>
+                            {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
+                          </button>
+                        );
+                      }
+                      return (
+                        <div key={menu.key} className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
+                          <div className="flex items-center gap-2.5 px-4 py-2" style={{ background: 'rgba(0,0,0,0.05)' }}>
+                            <span className="text-sm">{menu.icon}</span>
+                            <span className="text-[10px] font-bold tracking-widest uppercase truncate" style={{ color: 'rgba(15,23,42,0.65)' }}>{menu.title}</span>
+                          </div>
+                          <div className="px-2 py-1.5 space-y-1" style={{ background: 'rgba(255,255,255,0.4)' }}>
+                            {menu.items.map((item, itemIndex) => {
+                              const isActive = (showTicketing && item.internal && internalUrl === item.url) || (iframeUrl === item.url);
+                              return (
+                                <button key={itemIndex} onClick={() => handleMenuClick(item, menu.title)}
+                                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm font-medium transition-all"
+                                  style={isActive ? { background: 'rgba(200,134,29,0.12)', border: '1px solid rgba(200,134,29,0.3)', color: '#92600a' } : { background: 'transparent', border: '1px solid transparent', color: '#1e293b' }}
+                                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.06)'; } }}
+                                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}>
+                                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-sm flex-shrink-0" style={{ background: isActive ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.06)' }}>{item.icon}</span>
+                                  <span className="truncate tracking-wide text-xs">{item.name}</span>
+                                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#b8760d' }} />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
