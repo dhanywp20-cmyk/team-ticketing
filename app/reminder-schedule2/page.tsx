@@ -870,7 +870,7 @@ export default function ReminderSchedulePage() {
               `✅ *JADWAL SELESAI — PTS IVP*\n\n` +
               `Terima kasih *${handlerUser.full_name}*!\n` +
               `Jadwal *${reminder.project_name}* sudah *Selesai*.\n` +
-              `📦 *Product: ${formData.product}*\n` +
+              `📦 *Product: ${reminder.product ?? '-'}*\n` +
               `🏷️ ${reminder.category} · ${formatDate(reminder.due_date)}\n` +
               `\nTetap semangat! 💪`;
             await sendFonnteWA(handlerUser.phone_number, msg);
@@ -937,8 +937,8 @@ export default function ReminderSchedulePage() {
                       `⭐ *REVIEW DIMINTA — PTS IVP*\n\n` +
                       `Halo *${resolvedGuest.full_name}*!\n\n` +
                       `Jadwal *${reminder.category}* untuk project:\n` +
-                      `*Kategori: ${formData.category}*\n` +
-                      `📦 *Product: ${formData.product}*\n` +
+                      `*Kategori: ${reminder.category}*\n` +
+                      `📦 *Product: ${reminder.product ?? '-'}*\n` +
                       `📋 *${reminder.project_name}*\n` +
                       `📍 ${reminder.address || '-'}\n\n` +
                       `telah selesai dilaksanakan oleh tim kami.\n\n` +
@@ -1087,7 +1087,7 @@ export default function ReminderSchedulePage() {
           `📋 *${r.project_name}*\n` +
           `*Kategori: ${r.category}*\n` +
           `📦 *Product: ${r.product ?? '-'}*\n` +
-          `📍 ${r.address || '-'}\n\n` +
+          `📍 ${reminder.address || '-'}\n\n` +
           (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
           `telah selesai dilaksanakan oleh tim kami.\n\n` +
           `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
@@ -1143,13 +1143,13 @@ export default function ReminderSchedulePage() {
           `📅 *JADWAL DIUBAH — PTS IVP*\n\n` +
           `Halo *${handlerUser.full_name}*, jadwal kamu telah di-reschedule:\n\n` +
           `*Project: ${rescheduleTarget.project_name}*\n` +
-          `*Kategori: ${formData.category}*\n` +
-          `📦 *Product: ${formData.product}*\n` +
+          `*Kategori: ${rescheduleTarget.category}*\n` +
+          `📦 *Product: ${rescheduleTarget.product ?? '-'}*\n` +
           `📌 Jadwal Lama: ${formatDate(rescheduleTarget.due_date)} ${rescheduleTarget.due_time}\n` +
           `📅 Jadwal Baru: *${formatDate(newDate)} ${newTime}*\n` +
-          (r.pic_name ? `🙋 PIC: ${r.pic_name}\n` : '') +
-          (r.pic_phone ? `📱 No. PIC: ${r.pic_phone}\n` : '') +
-          (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
+          (rescheduleTarget.pic_name ? `🙋 PIC: ${rescheduleTarget.pic_name}\n` : '') +
+          (rescheduleTarget.pic_phone ? `📱 No. PIC: ${rescheduleTarget.pic_phone}\n` : '') +
+          (rescheduleTarget.notes ? `📝 Catatan: ${rescheduleTarget.notes}\n` : '') +
           (reason ? `📝 Alasan: ${reason}\n` : '') +
           `\n🔗 https://team-ticketing.vercel.app/dashboard`;
         await sendFonnteWA(handlerUser.phone_number, msg);
@@ -1186,8 +1186,8 @@ export default function ReminderSchedulePage() {
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
       `*Nama Project: ${r.project_name}*\n` +
       `*Deskripsi: ${r.description}*\n` +
-      `*Kategori: ${formData.category}*\n` +
-      `📦 *Product: ${formData.product}*\n` +
+      `*Kategori: ${r.category}*\n` +
+      `📦 *Product: ${r.product ?? '-'}*\n` +
       `📍 Lokasi: ${r.address || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
       `    Divisi Sales: ${r.sales_division || '-'}\n` +
