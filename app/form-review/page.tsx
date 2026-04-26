@@ -1308,7 +1308,7 @@ export default function FormReviewPage() {
           </div>
 
           {/* Table */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(200,200,200,0.6)', backdropFilter: 'blur(12px)' }}>
             {/* Table Header */}
             <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -1343,7 +1343,7 @@ export default function FormReviewPage() {
             </div>
 
             {/* Filter Bar — sama persis dengan Reminder Schedule */}
-            <div className="px-5 py-3 flex flex-wrap gap-3 items-end border-b border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+            <div className="px-5 py-3 flex flex-wrap gap-3 items-end border-b border-gray-100" style={{ background: 'rgba(255,255,255,0.97)' }}>
               <div>
                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">🔍 Search Project / Lokasi</label>
                 <div className="relative">
@@ -1387,7 +1387,7 @@ export default function FormReviewPage() {
             </div>
             {/* Bulk delete bar — admin only, selectMode only */}
             {selectMode && isAdmin && selectedIds.size > 0 && (
-              <div className="px-5 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(124,58,237,0.07)' }}>
+              <div className="px-5 py-2.5 flex items-center justify-between border-b border-gray-200" style={{ background: 'rgba(124,58,237,0.07)' }}>
                 <span className="text-sm font-bold text-violet-700">{selectedIds.size} review dipilih</span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
@@ -1402,7 +1402,7 @@ export default function FormReviewPage() {
 
             {/* Active Filters Chips */}
             {(handlerFilter || productFilterChart || salesDivisionFilter || filterReviewCat !== 'all' || searchProject || searchSalesName || searchHandler) && (
-              <div className="px-5 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.92)' }}>
+              <div className="px-5 py-2.5 border-b border-gray-100 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.97)' }}>
                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
                 {filterReviewCat !== 'all' && (
                   <button onClick={() => setFilterReviewCat('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>📋 {filterReviewCat} ✕</button>
@@ -1456,13 +1456,13 @@ export default function FormReviewPage() {
                     <col style={{ width: '5%' }} />   {/* ACT */}
                   </colgroup>
                   <thead>
-                    <tr className="border-b-2 border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                    <tr className="border-b-2 border-gray-300" style={{ background: 'rgba(255,255,255,0.97)' }}>
                       {['No', 'Project',  'Kategori', 'Sales', 'Handler',
                         switchTab === 'Demo Product' ? 'Product Demo' : 'Product BAST',
                         switchTab === 'Demo Product' ? 'Grade PK' : 'Grade Training',
                         switchTab === 'BAST' ? 'Grade PK' : null,
                         'Status', 'ACT'].filter(Boolean).map((h, i) => (
-                        <th key={i} className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">
+                        <th key={i} className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">
                           {h === 'No' && selectMode && isAdmin
                             ? <input type="checkbox"
                                 checked={selectedIds.size === filteredReviews.length && filteredReviews.length > 0}
@@ -1481,32 +1481,32 @@ export default function FormReviewPage() {
                       return (
                         <tr key={r.id}
                           onClick={() => setDetailReview(r)}
-                          className="border-b border-white/30 hover:bg-violet-50/20 transition-colors cursor-pointer border-l-4 border-l-transparent"
+                          className="border-b border-gray-200 hover:bg-violet-50/20 transition-colors cursor-pointer border-l-4 border-l-transparent"
                           >
                           {/* No / Checkbox combined */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle text-center" onClick={e => e.stopPropagation()}>
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle text-center" onClick={e => e.stopPropagation()}>
                             {selectMode && isAdmin
                               ? <input type="checkbox" checked={selectedIds.has(r.id)}
                                   onChange={() => toggleSelectId(r.id)} className="w-4 h-4 rounded accent-violet-600 cursor-pointer" />
                               : <span className="text-[11px] font-bold text-gray-400">{idx + 1}</span>}
                           </td>
                           {/* Project */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             <div className="text-xs font-bold text-gray-800 leading-tight break-words">{r.project_name || '—'}</div>
                             {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address}</div>}
                             <div className="text-[10px] text-gray-400 mt-0.5">{r.created_at ? formatDatetime(r.created_at) : '—'}</div>
                           </td>
                           {/* Kategori */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             <div className="text-[10px] font-semibold text-violet-600 leading-tight">{r.reminder_category || '—'}</div>
                           </td>
                           {/* Sales */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             <div className="text-xs font-semibold text-gray-700 truncate max-w-[100px]">{r.sales_name || '—'}</div>
                             {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold">{r.sales_division}</div>}
                           </td>
                           {/* Handler */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             <div className="flex items-center gap-1">
                               <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                                 style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
@@ -1516,13 +1516,13 @@ export default function FormReviewPage() {
                             </div>
                           </td>
                           {/* Product */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             <div className="text-[10px] text-gray-600 max-w-[120px] line-clamp-2">
                               {isDemo ? (r.product_demo || '—') : (r.product_bast || '—')}
                             </div>
                           </td>
                           {/* Grade 1 */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             {isDemo
                               ? (r.grade_product_knowledge ? <StarRating value={r.grade_product_knowledge} disabled /> : <span className="text-gray-300 text-xs">—</span>)
                               : (r.grade_training_customer ? <StarRating value={r.grade_training_customer} disabled /> : <span className="text-gray-300 text-xs">—</span>)
@@ -1530,12 +1530,12 @@ export default function FormReviewPage() {
                           </td>
                           {/* Grade 2 (BAST only) */}
                           {!isDemo && (
-                            <td className="px-3 py-3 border-r border-white/30 align-middle">
+                            <td className="px-3 py-3 border-r border-gray-200 align-middle">
                               {r.grade_product_knowledge_bast ? <StarRating value={r.grade_product_knowledge_bast} disabled /> : <span className="text-gray-300 text-xs">—</span>}
                             </td>
                           )}
                           {/* Status */}
-                          <td className="px-3 py-3 border-r border-white/30 align-middle">
+                          <td className="px-3 py-3 border-r border-gray-200 align-middle">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold"
                               style={hasReview
                                 ? { background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }
@@ -1560,7 +1560,7 @@ export default function FormReviewPage() {
                     })}
                   </tbody>
                 </table>
-                <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-200" style={{ background: 'rgba(255,255,255,0.97)' }}>
                   <span className="text-[10px] text-gray-400">{tableReviews.length} review ditemukan ({switchTab})</span>
                   <span className="text-[10px] text-gray-400">{tableReviews.length} of {reviews.length} total</span>
                 </div>
