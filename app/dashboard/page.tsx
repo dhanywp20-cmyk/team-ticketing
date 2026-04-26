@@ -1105,25 +1105,25 @@ export default function Dashboard() {
     {
       title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
       gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
-      description: 'Jadwal & reminder pekerjaan team PTS',
+      description: 'Jadwal & reminder pekerjaan team PTS                 ',
       items: [{ name: 'Reminder', url: '/reminder-schedule2', icon: '⏰', internal: true, embed: true }]
     },
     {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
       gradient: 'from-violet-700 via-violet-600 to-violet-500',
-      description: 'Solution request form untuk project Sales',
+      description: 'Solution request form untuk project Sales                  ',
       items: [{ name: 'Submit Require', url: '/form-require-project2', icon: '📋', internal: true, embed: true }]
     },
     {
       title: 'Form Review Demo & BAST', icon: '⭐', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
-      description: 'Platform review Demo Produk & BAST',
+      description: 'Platform review Demo Produk & BAST'                         ,
       items: [{ name: 'Platform Review', url: '/form-review', icon: '⭐', internal: true, embed: true }]
     },
     {
       title: 'Ticket Troubleshooting', icon: '🎫', key: 'ticket-troubleshooting',
       gradient: 'from-rose-700 via-rose-600 to-rose-500',
-      description: 'Technical support & issue tracking',
+      description: 'Technical support & issue tracking                        ',
       items: [{ name: 'Ticket Management', url: '/ticketing', icon: '🔧', internal: true, embed: true }]
     },
     {
