@@ -57,6 +57,7 @@ interface User {
   password: string;
   full_name: string;
   role: string;
+  sales_division: string;
   team_type?: string;
 }
 
