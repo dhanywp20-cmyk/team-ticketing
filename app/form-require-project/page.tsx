@@ -16,6 +16,8 @@ interface User {
   password: string;
   full_name: string;
   role: string;
+  team_type?: string;
+  sales_division?: string;
   phone_number?: string;
   allowed_menus?: string[];
 }
@@ -60,6 +62,7 @@ interface ProjectRequest {
   suggest_tampilan: string;
   keterangan_lain: string;
   assign_name?: string;
+  ivp_assignee?: string;
   approved_by?: string;
   approved_at?: string;
   due_date?: string;
@@ -144,7 +147,7 @@ function MiniPieChart({
   const [hovered, setHovered] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return (
-    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.8)', backdropFilter: 'blur(10px)' }}>
       <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
       <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
     </div>
@@ -236,6 +239,8 @@ function LoadingScreen() {
 }
 
 // ─── Assign PTS Modal ─────────────────────────────────────────────────────────
+// Admin pilih: (1) Tim PTS handler, (2) Specific IVP Sales internal yang di-cc
+// IVP yang dipilih admin SAJA yang bisa lihat request ini
 
 function AssignPTSModal({
   req, onClose, onAssigned, currentUser,
@@ -243,85 +248,207 @@ function AssignPTSModal({
   req: ProjectRequest; onClose: () => void; onAssigned: () => void; currentUser: User;
 }) {
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
-  const [selected, setSelected] = useState(req.assign_name || '');
+  const [ivpUsers, setIvpUsers] = useState<User[]>([]);
+  const [selectedPTS, setSelectedPTS] = useState(req.assign_name || '');
+  const [selectedIVP, setSelectedIVP] = useState(req.ivp_assignee || '');
   const [saving, setSaving] = useState(false);
 
+  // Request dari external (non-IVP) wajib assign IVP Sales internal
+  const isExternal = !!(req.sales_division && req.sales_division.trim() && req.sales_division.trim().toUpperCase() !== 'IVP');
+
   useEffect(() => {
-    supabase.from('users').select('*').in('role', ['team_pts', 'team'])
-      .then(({ data }: { data: User[] | null }) => { if (data) setTeamMembers(data as User[]); });
+    // Fetch Team PTS
+    supabase.from('users')
+      .select('id, full_name, role, team_type, phone_number, sales_division')
+      .in('role', ['team_pts', 'team'])
+      .then(({ data }: { data: User[] | null }) => { if (data) setTeamMembers(data); });
+    // Fetch IVP Sales internal (guest dengan sales_division = IVP)
+    supabase.from('users')
+      .select('id, full_name, role, phone_number, sales_division')
+      .eq('role', 'guest')
+      .eq('sales_division', 'IVP')
+      .then(({ data }: { data: User[] | null }) => { if (data) setIvpUsers(data); });
   }, []);
 
   const handleSave = async () => {
-    if (!selected) return;
+    if (!selectedPTS) { alert('Pilih Tim PTS handler terlebih dahulu.'); return; }
+    if (isExternal && !selectedIVP) { alert('Request dari divisi external wajib assign IVP Sales internal.'); return; }
     setSaving(true);
-    const { error } = await supabase.from('project_requests')
-      .update({ assign_name: selected, status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString() })
-      .eq('id', req.id);
+
+    const updatePayload: Record<string, unknown> = {
+      assign_name: selectedPTS,
+      status: 'approved',
+      approved_by: currentUser.full_name,
+      approved_at: new Date().toISOString(),
+    };
+    if (isExternal) updatePayload.ivp_assignee = selectedIVP;
+
+    const { error } = await supabase.from('project_requests').update(updatePayload).eq('id', req.id);
     if (!error) {
+      const ivpNote = isExternal && selectedIVP ? ` IVP Sales yang di-assign: ${selectedIVP}.` : '';
       await supabase.from('project_messages').insert([{
-        request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
-        message: `✅ Request diapprove oleh ${currentUser.full_name} dan di-assign ke ${selected}. Tim PTS akan segera memproses.`,
+        request_id: req.id,
+        sender_id: currentUser.id,
+        sender_name: 'System',
+        sender_role: 'system',
+        message: `✅ Request diapprove oleh ${currentUser.full_name}. Assigned ke Tim PTS: ${selectedPTS}.${ivpNote}`,
       }]);
-      const selectedMember = teamMembers.find(m => m.full_name === selected);
-      if (selectedMember?.phone_number) {
-          const assignWaMsg = [
-            '🏗️ *Form Require Project \u2014 Assigned ke Kamu*',
-            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
-            `Halo *${selectedMember.full_name}*, kamu di-assign untuk request:`,
-            '',
-            `📋 *Project  :* ${req.project_name}`,
-            `🛋️ *Ruangan  :* ${req.room_name || '-'}`,
-            `🏢 *Sales    :* ${req.sales_name || '-'}`,
-            `👤 *Requester:* ${req.requester_name}`,
-            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
-            'Segera proses dan update status ya! 💪',
+
+      // WA notif ke PTS
+      const ptsMember = teamMembers.find(m => m.full_name === selectedPTS);
+      if (ptsMember?.phone_number) {
+        const lines = [
+          '🏗️ *Form Require Project — Assigned ke Kamu*',
+          '━━━━━━━━━━━━━━━━━━',
+          `📋 Project  : ${req.project_name}`,
+          `🛋️ Ruangan  : ${req.room_name || '-'}`,
+          `🏢 Sales    : ${req.sales_name || '-'} (${req.sales_division || '-'})`,
+          `👤 Requester: ${req.requester_name}`,
+          isExternal && selectedIVP ? `🔗 IVP CC   : ${selectedIVP}` : '',
+          '━━━━━━━━━━━━━━━━━━',
+          'Segera proses dan update status ya! 💪',
+          '🔗 https://team-ticketing.vercel.app/dashboard',
+        ].filter(Boolean).join('\n');
+        await sendWANotif({ type: 'reminder_wa', target: ptsMember.phone_number, message: lines });
+      }
+
+      // WA notif ke IVP yang di-assign
+      if (isExternal && selectedIVP) {
+        const ivpUser = ivpUsers.find(u => u.full_name === selectedIVP);
+        if (ivpUser?.phone_number) {
+          const lines = [
+            '🔗 *Form Require — Kamu Di-assign sebagai IVP Sales*',
+            '━━━━━━━━━━━━━━━━━━',
+            `📋 Project      : ${req.project_name}`,
+            `🏢 Sales Ext.   : ${req.sales_name} (${req.sales_division})`,
+            `👷 Tim PTS      : ${selectedPTS}`,
+            '━━━━━━━━━━━━━━━━━━',
+            'Akses portal untuk melihat detail dan ikut chat.',
             '🔗 https://team-ticketing.vercel.app/dashboard',
           ].join('\n');
-          await sendWANotif({ type: 'reminder_wa', target: selectedMember.phone_number, message: assignWaMsg });
+          await sendWANotif({ type: 'reminder_wa', target: ivpUser.phone_number, message: lines });
+        }
       }
       onAssigned();
+    } else {
+      alert('Gagal approve: ' + error.message);
     }
     setSaving(false);
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-teal-500 animate-scale-in overflow-hidden">
+      <div className="bg-white/90 rounded-2xl shadow-2xl w-full border-2 border-teal-500 overflow-hidden"
+        style={{ maxWidth: isExternal ? 680 : 460 }}>
+
+        {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-white text-lg">✅ Approve & Assign ke Tim PTS</h3>
-            <p className="text-teal-100 text-xs mt-0.5">{req.project_name}</p>
+            <h3 className="font-bold text-white text-lg">✅ Approve & Assign</h3>
+            <p className="text-teal-100 text-xs mt-0.5 flex items-center gap-2">
+              {req.project_name}
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isExternal ? 'bg-orange-400 text-white' : 'bg-teal-400 text-white'}`}>
+                {isExternal ? `External · ${req.sales_division}` : 'Internal IVP'}
+              </span>
+            </p>
           </div>
-          <button onClick={onClose} className="bg-white/20 hover:bg-white/30 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold transition-all">✕</button>
+          <button onClick={onClose} className="bg-white/20 hover:bg-white/30 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold">✕</button>
         </div>
-        <div className="p-6">
-          <p className="text-sm text-gray-600 mb-4 font-medium">Pilih anggota Tim PTS yang akan menangani request ini:</p>
-          {teamMembers.length === 0 ? (
-            <div className="text-center py-6 text-gray-400 text-sm"><div className="text-3xl mb-2">👥</div><p>Tidak ada Team PTS tersedia</p></div>
-          ) : (
-            <div className="space-y-2 mb-5">
-              {teamMembers.map(m => (
-                <button key={m.id} type="button" onClick={() => setSelected(m.full_name)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${selected === m.full_name ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-white'}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${selected === m.full_name ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                    {m.full_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className={`text-sm font-bold ${selected === m.full_name ? 'text-teal-700' : 'text-gray-700'}`}>{m.full_name}</p>
-                    <p className="text-xs text-gray-400">{m.role}{m.phone_number ? ` · 📱 ${m.phone_number}` : ''}</p>
-                  </div>
-                  {selected === m.full_name && <div className="ml-auto text-teal-600 font-bold">✓</div>}
-                </button>
-              ))}
+
+        {/* Info banner untuk external */}
+        {isExternal && (
+          <div className="px-6 py-3 flex items-start gap-3 border-b border-indigo-100" style={{ background: 'rgba(99,102,241,0.07)' }}>
+            <span className="text-xl flex-shrink-0">🔗</span>
+            <div>
+              <p className="text-sm font-bold text-indigo-700">Request dari Divisi External: {req.sales_division}</p>
+              <p className="text-xs text-indigo-600 mt-0.5">
+                Pilih <strong>Tim PTS</strong> yang akan menangani, dan pilih <strong>IVP Sales internal</strong> yang akan di-cc
+                untuk memantau dan berpartisipasi dalam project ini.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className={`p-6 ${isExternal ? 'grid grid-cols-2 gap-6' : ''}`}>
+
+          {/* Kolom kiri: Tim PTS */}
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+              👷 Tim PTS Handler <span className="text-red-500">*</span>
+            </p>
+            {teamMembers.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                <div className="text-4xl mb-2">👥</div>
+                <p>Tidak ada Team PTS tersedia</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {teamMembers.map(m => (
+                  <button key={m.id} type="button" onClick={() => setSelectedPTS(m.full_name)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all
+                      ${selectedPTS === m.full_name ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-white'}`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
+                      ${selectedPTS === m.full_name ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      {m.full_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold truncate ${selectedPTS === m.full_name ? 'text-teal-700' : 'text-gray-700'}`}>{m.full_name}</p>
+                      <p className="text-xs text-gray-400">{m.team_type || m.role}</p>
+                    </div>
+                    {selectedPTS === m.full_name && <span className="text-teal-600 font-bold flex-shrink-0">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Kolom kanan: IVP Sales — hanya untuk external */}
+          {isExternal && (
+            <div>
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                🔗 IVP Sales Internal <span className="text-red-500">*</span>
+              </p>
+              <p className="text-[11px] text-gray-500 mb-3">
+                Admin memilih <strong>satu akun IVP</strong> yang akan bisa melihat request ini dan ikut chat.
+              </p>
+              {ivpUsers.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  <div className="text-4xl mb-2">🏢</div>
+                  <p>Tidak ada akun IVP Sales terdaftar</p>
+                  <p className="text-xs mt-1">(Akun guest dengan sales_division = IVP)</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {ivpUsers.map(u => (
+                    <button key={u.id} type="button" onClick={() => setSelectedIVP(u.full_name)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all
+                        ${selectedIVP === u.full_name ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 bg-white'}`}>
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
+                        ${selectedIVP === u.full_name ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                        {u.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold truncate ${selectedIVP === u.full_name ? 'text-indigo-700' : 'text-gray-700'}`}>{u.full_name}</p>
+                        <p className="text-xs text-indigo-400">IVP Sales Internal</p>
+                      </div>
+                      {selectedIVP === u.full_name && <span className="text-indigo-600 font-bold flex-shrink-0">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
-            <button onClick={handleSave} disabled={!selected || saving}
-              className="flex-[2] bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menyimpan...</> : <>✅ Approve & Assign</>}
-            </button>
-          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3">
+          <button onClick={onClose} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={!selectedPTS || saving}
+            className="flex-[2] bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving
+              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menyimpan...</>
+              : <>✅ Approve & Assign</>}
+          </button>
         </div>
       </div>
     </div>
@@ -362,6 +489,7 @@ interface NewFormModalProps {
   submitting: boolean;
   onClose: () => void;
   onSubmit: () => void;
+  salesGuestUsers: {id:string;full_name:string;username:string;sales_division?:string}[];
 }
 
 function NewFormModal({
@@ -369,6 +497,7 @@ function NewFormModal({
   surveyPhotos, setSurveyPhotos, surveyPhotosPreviews, setSurveyPhotosPreviews,
   boqFormFile, setBoqFormFile,
   submitting, onClose, onSubmit,
+  salesGuestUsers,
 }: NewFormModalProps) {
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
   const boqFormRef = useRef<HTMLInputElement>(null);
@@ -415,7 +544,7 @@ function NewFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
+      <div className="bg-white/90 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">📋 Form Equipment Request — IVP</h2>
@@ -428,7 +557,7 @@ function NewFormModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
           {/* Project Info */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
               Informasi Project
@@ -453,25 +582,26 @@ function NewFormModal({
                   rows={4}
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                <div className="flex gap-2 items-center">
-                  <input value={form.sales_name} onChange={e => setForm(prev => ({ ...prev, sales_name: e.target.value }))}
-                    placeholder="Nama Sales / Account Manager"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-                  <select
-                    value={form.sales_division || ''}
-                    onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
-                    className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
-                    style={{ color: form.sales_division ? '#374151' : '#9ca3af' }}
-                  >
-                    <option value="" style={{ color: '#9ca3af' }}>Pilih divisi sales...</option>
-                    {SALES_DIVISIONS.map(div => (
-                      <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
-                    ))}
-                  </select>
+              {/* Sales: only shown for admin/team — guest auto-inserts from account on submit */}
+              {['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
+                  <div className="relative">
+                    <select value={form.sales_name} onChange={e => {
+                        const sel = salesGuestUsers.find(u => u.full_name === e.target.value);
+                        // Auto-set division in background — no separate division picker
+                        setForm(prev => ({ ...prev, sales_name: e.target.value, sales_division: sel?.sales_division || '' }));
+                      }}
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer">
+                      <option value="">— Pilih Sales —</option>
+                      {salesGuestUsers.map(u => (
+                        <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` (${u.sales_division})` : ''}</option>
+                      ))}
+                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
@@ -482,7 +612,7 @@ function NewFormModal({
           </div>
 
           {/* Kebutuhan & Solution */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
               Kategori Kebutuhan & Solution
@@ -505,7 +635,7 @@ function NewFormModal({
 
           {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
           {form.kebutuhan.includes('Signage') && (
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
               Layout Konten & Jaringan
@@ -531,7 +661,7 @@ function NewFormModal({
           )} {/* end Signage conditional */}
 
           {/* Source & Peripheral */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
               Source & Peripheral
@@ -614,7 +744,7 @@ function NewFormModal({
           </div>
 
           {/* Room & Other Info */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
               Ruangan & Informasi Lainnya
@@ -640,7 +770,7 @@ function NewFormModal({
           </div>
 
           {/* Foto Survey + BOQ Upload */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
               Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
@@ -728,7 +858,7 @@ function NewFormModal({
           </div>
         </div>
 
-        <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
+        <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white/90 flex-shrink-0">
           <button type="button" onClick={onClose}
             className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">
             Batal
@@ -812,6 +942,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [editFormModal, setEditFormModal] = useState(false);
   const [statusUpdateModal, setStatusUpdateModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [selectedNewStatus, setSelectedNewStatus] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
   const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [editFormData, setEditFormData] = useState({
@@ -835,9 +969,18 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const isTeamPTS = role === 'team_pts' || role === 'team';
   const isSuperAdmin = role === 'superadmin';
   const isAdmin = role === 'admin';
+  // Guest IVP = role guest dengan sales_division IVP (bisa lihat semua request)
+  const isIVPGuest = role === 'guest' && currentUser.sales_division === 'IVP';
+  // Guest non-IVP = role guest bukan IVP (hanya lihat request miliknya)
+  const isNonIVPGuest = role === 'guest' && currentUser.sales_division !== 'IVP';
+  // Bisa ubah status in_progress: hanya PTS yang di-assign ke request tsb
+  const canSetInProgress = (req: ProjectRequest) =>
+    isPTS && (isAdmin || isSuperAdmin || req.assign_name === currentUser.full_name);
 
   const initialForm: InitialFormType = {
-    project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
+    project_name: '', room_name: '', project_location: '',
+    sales_name: !isPTS ? (currentUser.full_name || '') : '',
+    sales_division: !isPTS ? (currentUser.sales_division?.trim() || '') : '',
     kebutuhan: [], kebutuhan_other: '',
     solution_product: [], solution_other: '',
     layout_signage: [], jaringan_cms: [],
@@ -851,6 +994,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     controller_automation: 'No', controller_type: [],
     ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
   };
+
+  // Guest/Sales users list for dropdown
+  const [salesGuestUsers, setSalesGuestUsers] = useState<{id:string;full_name:string;username:string;sales_division?:string}[]>([]);
+  useEffect(() => {
+    supabase.from('users').select('id, full_name, username, sales_division').eq('role', 'guest').then(({ data }: { data: {id:string;full_name:string;username:string;sales_division?:string}[] | null }) => {
+      if (data) setSalesGuestUsers(data);
+    });
+  }, []);
 
   const [form, setForm] = useState<InitialFormType>(initialForm);
   const [dueDateForm, setDueDateForm] = useState('');
@@ -866,7 +1017,15 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
-    if (!isPTS) {
+    if (isPTS) {
+      // admin/superadmin: semua request
+      // team PTS: semua request (filter assign ditampilkan di UI)
+    } else if (isIVPGuest) {
+      // IVP guest (internal sales): ONLY see requests where admin linked them via ivp_assignee
+      // Note: requires ivp_assignee column in project_requests table
+      query = query.eq('ivp_assignee', currentUser.full_name);
+    } else {
+      // non-IVP guest: hanya request miliknya sendiri
       query = query.eq('requester_id', currentUser.id);
     }
     const { data, error } = await query;
@@ -894,7 +1053,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     }
     setLoading(false);
     setAppReady(true);
-  }, [currentUser.id, isPTS]);
+  }, [currentUser.id, isPTS, isIVPGuest]);
 
   const fetchMessages = useCallback(async (requestId: string) => {
     const { data, error } = await supabase.from('project_messages').select('*').eq('request_id', requestId).order('created_at', { ascending: true });
@@ -1106,7 +1265,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       const payload = {
         project_name: form.project_name.trim(), room_name: form.room_name.trim(),
         project_location: form.project_location.trim(),
-        sales_name: form.sales_name.trim(), sales_division: form.sales_division?.trim() || '',
+        // Guest: always use account's sales_name & sales_division (not form which may be empty)
+        sales_name: (!isPTS ? (currentUser.full_name || form.sales_name).trim() : form.sales_name.trim()),
+        sales_division: (!isPTS ? (currentUser.sales_division || form.sales_division || '').trim() : (form.sales_division?.trim() || '')),
         kebutuhan: form.kebutuhan, kebutuhan_other: form.kebutuhan_other.trim(),
         solution_product: form.solution_product, solution_other: form.solution_other.trim(),
         layout_signage: form.layout_signage, jaringan_cms: form.jaringan_cms,
@@ -1189,18 +1350,25 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     finally { setSubmitting(false); }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Hapus ${selectedIds.size} request terpilih?`)) return;
+    setBulkDeleting(true);
+    const { error } = await supabase.from('project_requests').delete().in('id', Array.from(selectedIds));
+    if (!error) { setRequests(p => p.filter(r => !selectedIds.has(r.id))); setSelectedIds(new Set()); }
+    else alert('Gagal hapus: ' + error.message);
+    setBulkDeleting(false);
+  };
+  const toggleSelectId = (id: string) => setSelectedIds(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const toggleSelectAll = () => setSelectedIds(
+    prev => prev.size === filteredRequests.length ? new Set() : new Set(filteredRequests.map(r => r.id))
+  );
+
   const handleApprove = async (req: ProjectRequest) => {
-    if (isSuperAdmin || isAdmin) {
-      setAssignModal({ open: true, req });
-    } else {
-      const { error } = await supabase.from('project_requests').update({ status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString(), assign_name: currentUser.full_name }).eq('id', req.id);
-      if (error) { notify('error', 'Gagal approve: ' + error.message); return; }
-      notify('success', 'Request diapprove!');
-      fetchRequests();
-      if (selectedRequest?.id === req.id) setSelectedRequest(prev => prev ? { ...prev, status: 'approved', approved_by: currentUser.full_name, assign_name: currentUser.full_name } : null);
-      await supabase.from('project_messages').insert([{ request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system', message: `✅ Request telah diapprove oleh ${currentUser.full_name}. Tim PTS akan segera memproses.` }]);
-      if (selectedRequest?.id === req.id) fetchMessages(req.id);
-    }
+    // Hanya admin/superadmin yang bisa approve, selalu via AssignPTSModal untuk pilih PTS handler
+    setAssignModal({ open: true, req });
   };
 
   const handleReject = (req: ProjectRequest) => { setRejectNote(''); setRejectModal({ open: true, req }); };
@@ -1309,6 +1477,10 @@ Hubungi Admin untuk info lebih lanjut.
   const handleSendMessage = async () => {
     if (!msgText.trim() || !selectedRequest) return;
     if (selectedRequest.status === 'rejected') { notify('error', 'Request ini sudah ditolak. Tidak bisa mengirim pesan.'); return; }
+    if (selectedRequest.status === 'pending' && !isPTS) { notify('error', 'Request masih pending approval. Chat akan aktif setelah diapprove.'); return; }
+    // Semua pihak yang bisa lihat request bisa chat: PTS, IVP guest, pemilik request
+    const canChat = isPTS || isIVPGuest || selectedRequest.requester_id === currentUser.id;
+    if (!canChat) { notify('error', 'Anda tidak memiliki akses untuk mengirim pesan.'); return; }
     setSendingMsg(true);
     const { error } = await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: msgText.trim() }]);
     setSendingMsg(false);
@@ -1394,7 +1566,7 @@ Hubungi Admin untuk info lebih lanjut.
   .header-left p { font-size: 11px; opacity: 0.85; }
   .header-right { text-align: right; font-size: 11px; opacity: 0.85; line-height: 1.8; }
   .status-pill { display: inline-block; padding: 3px 14px; border-radius: 20px; font-size: 11px; font-weight: 700;
-    background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.5); color: white; margin-top: 6px; }
+    background: rgba(255,255,255,0.92); border: 1px solid rgba(255,255,255,0.5); color: white; margin-top: 6px; }
   .section { border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 16px; overflow: hidden; page-break-inside: avoid; }
   .section-title { background: #f1f5f9; padding: 8px 14px; font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.07em; color: #475569; border-bottom: 1px solid #e2e8f0; }
@@ -1461,6 +1633,7 @@ Hubungi Admin untuk info lebih lanjut.
           <div><span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor}22;color:${statusColor};border:1.5px solid ${statusColor}66">${selectedRequest.status.replace('_',' ').toUpperCase()}</span></div>
         </div>
         ${infoBox('PTS Handler (Assign)', selectedRequest.assign_name || '—')}
+        ${selectedRequest.ivp_assignee ? infoBox('IVP Sales (CC)', selectedRequest.ivp_assignee) : ''}
         ${infoBox('Approved By', selectedRequest.approved_by || '—')}
       </div>
       <div>
@@ -1680,7 +1853,7 @@ Hubungi Admin untuk info lebih lanjut.
 <body>
 <div class="header">
   <h1>🏗️ Form Equipment Request — IVP</h1>
-  <p>Dicetak: ${new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })} &nbsp;|&nbsp; <span class="status-badge" style="background:rgba(255,255,255,0.2);color:white;border-color:rgba(255,255,255,0.3)">${sc2.label}</span></p>
+  <p>Dicetak: ${new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })} &nbsp;|&nbsp; <span class="status-badge" style="background:rgba(255,255,255,0.2);color:white;border-color:rgba(255,255,255,0.92)">${sc2.label}</span></p>
 </div>
 
 <div class="section">
@@ -1807,6 +1980,7 @@ Hubungi Admin untuk info lebih lanjut.
           form={form}
           setForm={setForm}
           initialForm={initialForm}
+          salesGuestUsers={salesGuestUsers}
           dueDateForm={dueDateForm}
           setDueDateForm={setDueDateForm}
           surveyPhotos={surveyPhotos}
@@ -1926,7 +2100,7 @@ Hubungi Admin untuk info lebih lanjut.
         
 
         {/* TICKET LIST — matching reference style */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(200,200,200,0.6)', backdropFilter: 'blur(12px)' }}>
 
           {/* Header with title + actions — same as reference */}
           <div className="flex flex-wrap items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
@@ -1935,6 +2109,12 @@ Hubungi Admin untuk info lebih lanjut.
               <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{loading ? '…' : filteredRequests.length}</span>
             </div>
             <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              {(isAdmin || isSuperAdmin) && (
+                <button onClick={() => { setSelectMode(m => !m); setSelectedIds(new Set()); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectMode ? 'bg-red-50 border-red-300 text-red-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                  {selectMode ? '✕ Batal' : '☑ Select'}
+                </button>
+              )}
               <button onClick={fetchRequests} disabled={loading}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60" style={{ background: 'white' }}>
                 <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -1944,7 +2124,7 @@ Hubungi Admin untuk info lebih lanjut.
           </div>
 
           {/* Search + filter grid — labeled like reference */}
-          <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
+          <div className="px-6 py-3 border-b border-gray-100" style={{ background: 'rgba(255,255,255,0.97)' }}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Lokasi</label>
@@ -2031,9 +2211,24 @@ Hubungi Admin untuk info lebih lanjut.
           </div>
 
           {/* Active filter chips — inside table */}
+          {/* Bulk delete bar — admin only, selectMode only */}
+          {selectMode && (isAdmin || isSuperAdmin) && selectedIds.size > 0 && (
+            <div className="px-6 py-2.5 flex items-center justify-between border-b border-gray-200" style={{ background: 'rgba(13,148,136,0.07)' }}>
+              <span className="text-sm font-bold text-teal-700">{selectedIds.size} request dipilih</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
+                <button onClick={() => setBulkConfirm(true)} disabled={bulkDeleting}
+                  className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                  style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)' }}>
+                  {bulkDeleting ? '⏳ Menghapus...' : `🗑️ Hapus ${selectedIds.size}`}
+                </button>
+              </div>
+            </div>
+          )}
+
           {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
-            <div className="px-6 py-2.5 bg-teal-50/60 border-b border-teal-100 flex flex-wrap gap-2 items-center">
-              <span className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Filter Aktif:</span>
+            <div className="px-6 py-2.5 border-b border-gray-100 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.97)' }}>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
               {filterStatus !== 'all' && (
                 <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {filterStatus} ✕</button>
               )}
@@ -2060,7 +2255,7 @@ Hubungi Admin untuk info lebih lanjut.
                 setFilterHandler('all'); setFilterDivision('all'); setSearchQuery(''); setSearchSales('');
                 try { ['frp_filterStatus','frp_filterYear','frp_filterMonth','frp_filterHandler','frp_filterDivision','frp_searchQuery','frp_searchSales'].forEach(k => sessionStorage.removeItem(k)); } catch {}
               }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:bg-red-100 border border-red-200" style={{ background: 'rgba(220,38,38,0.08)', color: '#dc2626' }}>🗑️ Reset Semua</button>
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:opacity-80" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626', border: '1px solid rgba(220,38,38,0.25)' }}>🗑️ Reset Semua</button>
             </div>
           )}
           {loading ? (
@@ -2085,35 +2280,51 @@ Hubungi Admin untuk info lebih lanjut.
           ) : filteredRequests.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📭</div>
-              <p className="text-gray-600 font-medium">{searchQuery || searchSales || filterStatus !== 'all' ? 'Tidak ada request yang sesuai filter.' : 'Belum ada request.'}</p>
-              {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
+              <p className="text-gray-600 font-medium">{searchQuery || searchSales || filterStatus !== 'all' ? 'Tidak ada request yang sesuai filter.'
+                    : isIVPGuest
+                      ? 'Belum ada request yang di-assign ke akun kamu. Admin akan menghubungkan request dari sales external ke akun IVP kamu saat ada project baru.'
+                      : 'Belum ada request.'}</p>
+              {!isPTS && !isIVPGuest && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full bg-white border-collapse">
+              <table className="w-full border-collapse" style={{ background: 'transparent' }}>
                 <thead>
-                  <tr className="bg-white border-b-2 border-gray-100">
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Nama Project</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Lokasi / Ruangan</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Due Date</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
-                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide">Action</th>
+                  <tr className="border-b-2 border-gray-300" style={{ background: 'rgba(255,255,255,0.97)' }}>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">
+                      {selectMode && (isAdmin || isSuperAdmin)
+                        ? <input type="checkbox"
+                            checked={selectedIds.size === filteredRequests.length && filteredRequests.length > 0}
+                            onChange={toggleSelectAll} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" title="Pilih Semua" />
+                        : 'No'}
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Nama Project</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Lokasi / Ruangan</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Sales</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Handler</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Due Date</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Created By</th>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRequests.map((req) => {
+                  {filteredRequests.map((req, index) => {
                     const sc = statusConfig[req.status] || statusConfig.pending;
                     const unread = unreadMsgMap[req.id] || 0;
                     const dueStatus = getDueStatus(req.due_date, req.status);
                     const isToday = req.due_date === new Date().toISOString().split('T')[0];
                     return (
                       <tr key={req.id}
-                        className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors"
+                        className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                         style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
-                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                        <td className="px-2 py-3 border-r border-gray-200 align-middle text-center" onClick={e => e.stopPropagation()}>
+                          {selectMode && (isAdmin || isSuperAdmin)
+                            ? <input type="checkbox" checked={selectedIds.has(req.id)}
+                                onChange={() => toggleSelectId(req.id)} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
+                            : <span className="text-[11px] font-bold text-gray-500">{index + 1}</span>}
+                        </td>
+                        <td className="px-3 py-3 border-r border-gray-200 align-middle">
                           <div className="flex items-start gap-1.5">
                             {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse mt-1" />}
                             <div>
@@ -2123,7 +2334,7 @@ Hubungi Admin untuk info lebih lanjut.
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                        <td className="px-3 py-3 border-r border-gray-200 align-middle">
                           <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
                           {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5">🛋️ {req.room_name}</div>}
                         </td>
@@ -2162,10 +2373,17 @@ Hubungi Admin untuk info lebih lanjut.
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
                           <div className="text-sm font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
                           <div className="text-[10px] text-indigo-500 mt-0.5">{req.requester_name}</div>
+                          {/* IVP guest: badge penanda request dari divisi luar */}
+                          {isIVPGuest && req.sales_division && req.sales_division !== 'IVP' && (
+                            <div className="text-[9px] font-bold text-purple-600 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">
+                              Ext: {req.sales_division}
+                            </div>
+                          )}
                         </td>
                         <td className="px-2 py-3 align-middle text-center" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
-                            {isPTS && !isTeamPTS && req.status === 'pending' && (
+                            {/* Approve/Reject: admin/superadmin saja */}
+                            {(isAdmin || isSuperAdmin) && req.status === 'pending' && (
                               <>
                                 <button onClick={() => handleApprove(req)} title="Approve"
                                   className="w-7 h-7 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white border border-emerald-200 rounded-lg flex items-center justify-center transition-all">
@@ -2177,15 +2395,22 @@ Hubungi Admin untuk info lebih lanjut.
                                 </button>
                               </>
                             )}
+                            {/* Start In Progress: hanya PTS yang di-assign */}
+                            {isTeamPTS && req.status === 'approved' && req.assign_name === currentUser.full_name && (
+                              <button onClick={() => handleStatusUpdate(req, 'in_progress')} title="Mulai In Progress"
+                                className="w-7 h-7 bg-blue-50 hover:bg-blue-500 text-blue-600 hover:text-white border border-blue-200 rounded-lg flex items-center justify-center transition-all">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                              </button>
+                            )}
                             <button onClick={() => handleOpenDetail(req)} title="Lihat Detail"
-                              className="text-red-400 hover:text-red-600 transition-colors">
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                              className="text-blue-500 hover:text-blue-700 transition-colors">
+                              <span className="text-sm">👁</span>
                             </button>
                             {(isSuperAdmin || isAdmin) && (
-                              <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus Ticket"
-                                className="text-red-400 hover:text-red-600 transition-colors">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
+                              <button onClick={() => { setDeleteModal({ open: true, req }); setDeleteConfirmText(''); }} title="Hapus"
+                              className="text-red-400 hover:text-red-600 transition-colors">
+                              <span className="text-sm">🗑️</span>
+                            </button>
                             )}
                           </div>
                         </td>
@@ -2194,7 +2419,7 @@ Hubungi Admin untuk info lebih lanjut.
                   })}
                 </tbody>
               </table>
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200" style={{ background: 'rgba(255,255,255,0.97)' }}>
                 <span className="text-xs text-gray-400">{filteredRequests.length} request ditemukan</span>
                 <span className="text-xs text-gray-400">{filteredRequests.length > 0 ? `1–${filteredRequests.length}` : '0'} of {requests.length}</span>
               </div>
@@ -2203,10 +2428,38 @@ Hubungi Admin untuk info lebih lanjut.
         </div>
       </div>
 
+      {/* Bulk Delete Confirm Modal */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border-2 border-red-400">
+            <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4 flex items-center gap-3">
+              <span className="text-2xl">🗑️</span>
+              <div><h3 className="font-bold text-white">Hapus {selectedIds.size} Request?</h3>
+              <p className="text-red-100 text-xs mt-0.5">Tindakan ini tidak dapat dibatalkan</p></div>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-5">Kamu akan menghapus <strong>{selectedIds.size} request project</strong> yang dipilih secara permanen.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setBulkConfirm(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-50 transition-all text-sm">Batal</button>
+                <button onClick={async () => {
+                  setBulkConfirm(false); setBulkDeleting(true);
+                  const { error } = await supabase.from('project_requests').delete().in('id', Array.from(selectedIds));
+                  if (!error) { setRequests(p => p.filter(r => !selectedIds.has(r.id))); setSelectedIds(new Set()); setSelectMode(false); }
+                  else alert('Gagal: ' + error.message);
+                  setBulkDeleting(false);
+                }} className="flex-[2] bg-gradient-to-r from-red-600 to-red-700 text-white py-2.5 rounded-xl font-bold shadow-lg transition-all text-sm hover:from-red-700 hover:to-red-800">
+                  🗑️ Ya, Hapus Permanen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reject Modal */}
       {rejectModal.open && rejectModal.req && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
+          <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
             <div className="bg-gradient-to-r from-red-500 to-red-700 px-6 py-4">
               <h3 className="font-bold text-white text-lg">❌ Tolak Request</h3>
               <p className="text-red-100 text-xs mt-0.5">{rejectModal.req.project_name}</p>
@@ -2227,7 +2480,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Status Update Modal */}
       {statusUpdateModal.open && statusUpdateModal.req && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border border-gray-200 animate-scale-in overflow-hidden">
+          <div className="bg-white/90 rounded-2xl shadow-2xl max-w-sm w-full border border-gray-200 animate-scale-in overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-4 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-white text-base flex items-center gap-2">
@@ -2247,7 +2500,14 @@ Hubungi Admin untuk info lebih lanjut.
                   { value: 'completed', label: '🏆 Completed', color: 'border-purple-300 bg-purple-50 text-purple-700', active: 'border-purple-500 bg-purple-100' },
                   { value: 'rejected', label: '❌ Rejected', color: 'border-red-300 bg-red-50 text-red-700', active: 'border-red-500 bg-red-100' },
                   { value: 'pending', label: '⏳ Pending', color: 'border-amber-300 bg-amber-50 text-amber-700', active: 'border-amber-500 bg-amber-100' },
-                ].filter(s => s.value !== statusUpdateModal.req!.status).map(s => (
+                ].filter(s => {
+                  if (s.value === statusUpdateModal.req!.status) return false;
+                  // in_progress hanya bisa diset oleh PTS yang di-assign (atau admin)
+                  if (s.value === 'in_progress' && !canSetInProgress(statusUpdateModal.req!)) return false;
+                  // completed dan rejected hanya admin/superadmin atau assigned PTS
+                  if ((s.value === 'completed' || s.value === 'rejected') && isTeamPTS && statusUpdateModal.req!.assign_name !== currentUser.full_name) return false;
+                  return true;
+                }).map(s => (
                   <button key={s.value} type="button" onClick={() => setSelectedNewStatus(s.value)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all font-semibold text-sm ${selectedNewStatus === s.value ? s.active + ' shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedNewStatus === s.value ? 'border-current' : 'border-gray-300'}`}>
@@ -2280,7 +2540,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Delete Confirmation Modal */}
       {deleteModal.open && deleteModal.req && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in overflow-hidden" style={{ border: '1.5px solid #e5e7eb' }}>
+          <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in overflow-hidden" style={{ border: '1.5px solid #e5e7eb' }}>
             {/* Header */}
             <div className="p-6 pb-4">
               <div className="flex items-start gap-4 mb-4">
@@ -2343,7 +2603,7 @@ Hubungi Admin untuk info lebih lanjut.
       {showDetailModal && selectedRequest && detailSc && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-0"
           onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
-          <div className="bg-white w-full h-full animate-slide-up flex flex-col overflow-hidden"
+          <div className="bg-white/90 w-full h-full animate-slide-up flex flex-col overflow-hidden"
             style={{ border: 'none' }}>
 
             {/* Detail Modal Header */}
@@ -2365,12 +2625,13 @@ Hubungi Admin untuk info lebih lanjut.
                 </p>
               </div>
               <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                {isPTS && !isTeamPTS && detailIsPending && (
+                {/* Approve/Tolak: hanya admin/superadmin */}
+                {(isAdmin || isSuperAdmin) && detailIsPending && (
                   <>
                     <button onClick={() => { setAssignModal({ open: true, req: selectedRequest }); }}
                       className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                      Approve
+                      Approve & Assign PTS
                     </button>
                     <button onClick={() => handleReject(selectedRequest)}
                       className="bg-white/20 hover:bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-white/30 flex items-center gap-1.5">
@@ -2379,7 +2640,16 @@ Hubungi Admin untuk info lebih lanjut.
                     </button>
                   </>
                 )}
-                {isPTS && !isTeamPTS && !detailIsPending && (
+                {/* Info untuk PTS yang di-assign: tombol mulai in_progress */}
+                {isTeamPTS && selectedRequest?.status === 'approved' && selectedRequest?.assign_name === currentUser.full_name && (
+                  <button onClick={() => handleStatusUpdate(selectedRequest, 'in_progress')}
+                    className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Mulai In Progress
+                  </button>
+                )}
+                {/* Status update: admin/superadmin atau PTS yang di-assign */}
+                {isPTS && !detailIsPending && (isAdmin || isSuperAdmin || selectedRequest?.assign_name === currentUser.full_name) && (
                   <button onClick={() => { setSelectedNewStatus(''); setStatusUpdateModal({ open: true, req: selectedRequest }); }}
                     className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -2413,6 +2683,29 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
             </div>
 
+            {/* Warning: non-IVP guest has no sales_division */}
+            {isNonIVPGuest && !currentUser.sales_division && (
+              <div className="mx-4 my-2 px-4 py-3 rounded-xl flex items-center gap-3 border-2 border-amber-300" style={{ background: 'rgba(254,243,199,0.9)' }}>
+                <span className="text-2xl flex-shrink-0">⚠️</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-800">Sales Division belum diset di akun kamu!</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Hubungi admin untuk set <strong>Sales Division</strong> di profil akunmu. Tanpa ini, request tidak bisa di-link ke IVP Sales internal.</p>
+                </div>
+              </div>
+            )}
+
+            {/* IVP Guest info banner */}
+            {isIVPGuest && (
+              <div className="px-5 py-2 flex items-center gap-2 text-xs flex-shrink-0"
+                style={{ background: 'rgba(99,102,241,0.10)', borderBottom: '1px solid rgba(99,102,241,0.2)' }}>
+                <span>🔗</span>
+                <span className="text-indigo-700 font-semibold">
+                  Anda di-assign sebagai <strong>IVP Sales Internal</strong> untuk request dari divisi eksternal
+                  <strong> {selectedRequest.sales_division}</strong>. Anda dapat ikut chat dan memantau progress.
+                </span>
+              </div>
+            )}
+
             {/* Detail Modal Body — 2 columns: LEFT (info + attachments) | RIGHT (chat) */}
             <div className="flex-1 flex overflow-hidden min-h-0">
 
@@ -2420,8 +2713,22 @@ Hubungi Admin untuk info lebih lanjut.
               <div className="flex-[3] min-w-0 border-r border-gray-200 overflow-y-auto bg-gray-50">
                 <div className="p-5 space-y-5">
 
+                  {/* Assigned PTS — "in_progress" nudge */}
+                  {isTeamPTS && selectedRequest.status === 'approved' && selectedRequest.assign_name === currentUser.full_name && (
+                    <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+                      style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.25)' }}>
+                      <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <div>
+                        <p className="text-sm font-bold text-blue-700">Request ini di-assign ke kamu</p>
+                        <p className="text-xs text-blue-600 mt-0.5">Klik <strong>Mulai In Progress</strong> di atas untuk memulai pengerjaan. Setelah in progress, kamu dapat update status dan berkomunikasi via chat.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Project Info — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
                       Informasi Project
@@ -2447,7 +2754,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Kategori & Solution — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
                       Kategori Kebutuhan & Solution
@@ -2483,7 +2790,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Layout Konten & Jaringan — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
                       Layout Konten & Jaringan
@@ -2529,7 +2836,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Source & Peripheral — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
                       Source & Peripheral
@@ -2624,7 +2931,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Ruangan & Keterangan — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
                       Ruangan & Informasi Lainnya
@@ -2650,7 +2957,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Attachments Panel — prominent */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                         <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
@@ -2729,7 +3036,7 @@ Hubungi Admin untuk info lebih lanjut.
 
                   {/* Admin controls */}
                   {isPTS && !isTeamPTS && (
-                    <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                       <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                         <span className="w-7 h-7 bg-rose-500 text-white rounded-lg flex items-center justify-center text-xs shadow">⚙️</span>
                         Admin Controls
@@ -2766,7 +3073,7 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
 
               {/* RIGHT: Chat */}
-              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 1000 }}>
+              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white/95 min-w-0" style={{ minWidth: 1000 }}>
                 <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
@@ -2789,8 +3096,25 @@ Hubungi Admin untuk info lebih lanjut.
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[75%] flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
-                          <p className="text-[10px] text-gray-400 font-medium px-1">{isMe ? 'Saya' : msg.sender_name} · {new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
-                          <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${isMe ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}>
+                          {/* Role badge + name */}
+                          <p className="text-[10px] text-gray-400 font-medium px-1 flex items-center gap-1">
+                            {isMe ? 'Saya' : (
+                              <>
+                                {msg.sender_role === 'guest' ? '👤' : msg.sender_role === 'team_pts' || msg.sender_role === 'team' ? '👷' : msg.sender_role === 'admin' || msg.sender_role === 'superadmin' ? '⚙️' : '💬'}
+                                {' '}{msg.sender_name}
+                              </>
+                            )}
+                            {' · '}{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${
+                            isMe
+                              ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm'
+                              : msg.sender_role === 'guest'
+                                ? 'bg-blue-50 text-blue-800 border border-blue-200 rounded-tl-sm'
+                                : msg.sender_role === 'admin' || msg.sender_role === 'superadmin'
+                                  ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-sm'
+                                  : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                          }`}>
                             {msg.message}
                           </div>
                         </div>
@@ -2807,7 +3131,7 @@ Hubungi Admin untuk info lebih lanjut.
                     <div className="text-center text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl py-3">🔒 Chat tersedia setelah di-approve.</div>
                   ) : (
                     <div className="flex gap-2">
-                      <div className="flex-1 flex items-end gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-teal-500 transition-all">
+                      <div className="flex-1 flex items-end gap-2 bg-white/90 border border-gray-200 rounded-xl px-3 py-2 focus-within:border-teal-500 transition-all">
                         <textarea value={msgText} onChange={e => setMsgText(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                           placeholder="Ketik pesan... (Enter kirim)" rows={1}
@@ -2834,7 +3158,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Edit Form Modal */}
       {editFormModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9995] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
+          <div className="bg-white/90 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
             <div className="bg-gradient-to-r from-amber-500 to-amber-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-white">✏️ Edit Kebutuhan Project</h2>
@@ -2844,7 +3168,7 @@ Hubungi Admin untuk info lebih lanjut.
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
                   Informasi Project
@@ -2884,7 +3208,7 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
                   Kategori Kebutuhan & Solution
@@ -2906,7 +3230,7 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
 
               {editFormData.kebutuhan.includes('Signage') && (
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
                   Layout Konten & Jaringan
@@ -2930,7 +3254,7 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
               )}
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
                   Source & Peripheral
@@ -3012,7 +3336,7 @@ Hubungi Admin untuk info lebih lanjut.
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
                   Ruangan & Informasi Lainnya
@@ -3036,7 +3360,7 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               </div>
             </div>
-            <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
+            <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white/90 flex-shrink-0">
               <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
               <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
