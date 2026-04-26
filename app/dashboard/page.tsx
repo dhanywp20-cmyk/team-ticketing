@@ -1107,7 +1107,7 @@ export default function Dashboard() {
       gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
       description: 'Jadwal & reminder pekerjaan team PTS                 ',
       items: [
-        { name: '', url: ''}
+        { name: , url:}
         { name: 'Reminder', url: '/reminder-schedule2', icon: '⏰', internal: true, embed: true }
 
       ]
