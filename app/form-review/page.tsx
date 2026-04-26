@@ -1449,7 +1449,7 @@ export default function FormReviewPage() {
                     <col style={{ width: '10%' }} />  {/* Kategori */}
                     <col style={{ width: '9%' }} />   {/* Sales */}
                     <col style={{ width: '12%' }} />   {/* Handler */}
-                    <col style={{ width: '14%' }} />  {/* Product */}
+                    <col style={{ width: '12%' }} />  {/* Product */}
                     <col style={{ width: '10%' }} />  {/* Grade 1 */}
                     {switchTab === 'BAST' && <col style={{ width: '10%' }} />}  {/* Grade 2 */}
                     <col style={{ width: '9%' }} />   {/* Status */}
@@ -1517,7 +1517,7 @@ export default function FormReviewPage() {
                           </td>
                           {/* Product */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <div className="text-[8] font-bold text-gray-800 leading-tight break-words">
+                            <div className="text-[10px] font-semibold text-gray-700 leading-tight">
                               {isDemo ? (r.product_demo || '—') : (r.product_bast || '—')}
                             </div>
                           </td>
