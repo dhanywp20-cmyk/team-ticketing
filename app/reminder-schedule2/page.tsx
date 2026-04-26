@@ -89,6 +89,7 @@ interface Reminder {
   wa_sent_h1?: boolean;
   completion_photo_url?: string;
   product?: string;
+  updated_at?: string;
 }
 
 interface TeamUser {
@@ -97,7 +98,9 @@ interface TeamUser {
   full_name: string;
   role: string;
   team_type?: string;
+  sales_division?: string;
   phone_number?: string;
+  allowed_menus?: string[];
 }
 
 interface GuestUser {
@@ -290,7 +293,7 @@ function MiniPieChart({
   const [hov, setHov] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return (
-    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.8)', backdropFilter: 'blur(10px)' }}>
       <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
       <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
     </div>
@@ -313,7 +316,7 @@ function MiniPieChart({
   });
 
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(10px)' }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.8)', backdropFilter: 'blur(10px)' }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -389,7 +392,7 @@ function MiniCalendar({ reminders, calendarMonth, setCalendarMonth, selectedCalD
   const totalThisMonth = reminders.filter(r => r.due_date.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 
   return (
-    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.88)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 380 }}>
+    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)', width: 380 }}>
       <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
         <button onClick={() => setCalendarMonth(new Date(y, m-1, 1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
         <div className="text-center">
@@ -546,7 +549,7 @@ function RescheduleModal({
           <div className="flex gap-3 pt-1">
             <button onClick={onClose}
               className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
-              style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
+              style={{ background: 'rgba(255,255,255,0.95)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
               Batal
             </button>
             <button onClick={() => { if (newDate) onSave(newDate, newTime, reason); }}
@@ -601,6 +604,10 @@ export default function ReminderSchedulePage() {
   const [calendarMonth, setCalendarMonth]   = useState(new Date());
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
   // Kalender-only selection — tidak mempengaruhi filter list/chart/summary
   const [calOnlyDay, setCalOnlyDay]         = useState<string | null>(null);
   const [exportLoading, setExportLoading]   = useState(false);
@@ -716,7 +723,7 @@ export default function ReminderSchedulePage() {
   // Berjalan otomatis setiap hari tanpa perlu buka halaman
 
   const fetchTeamUsers = async () => {
-    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number').order('full_name');
+    const { data } = await supabase.from('users').select('id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus').order('full_name');
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
@@ -730,6 +737,24 @@ export default function ReminderSchedulePage() {
   };
 
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Hapus ${selectedIds.size} jadwal yang dipilih?`)) return;
+    setBulkDeleting(true);
+    const { error } = await supabase.from('service_reminders').delete().in('id', Array.from(selectedIds));
+    if (!error) { setReminders(p => p.filter(r => !selectedIds.has(r.id))); setSelectedIds(new Set()); }
+    else alert('Gagal: ' + error.message);
+    setBulkDeleting(false);
+  };
+
+  const toggleSelectId = (id: string) => setSelectedIds(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+
+  const toggleSelectAll = () => setSelectedIds(prev =>
+    prev.size === filteredReminders.length ? new Set() : new Set(filteredReminders.map(r => r.id))
+  );
+
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
     // Tentukan user: dari param → state → localStorage
     let activeUser: TeamUser | null = user ?? currentUser;
@@ -1250,6 +1275,20 @@ export default function ReminderSchedulePage() {
     if (searchProduct && !r.product?.toLowerCase().includes(searchProduct.toLowerCase())) return false;
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
     return true;
+  }).sort((a, b) => {
+    // Items yang baru di-reschedule (updated_at lebih baru dari created_at) naik ke atas
+    const aRescheduled = a.notes?.includes('[Re-Schedule') ?? false;
+    const bRescheduled = b.notes?.includes('[Re-Schedule') ?? false;
+    if (aRescheduled && !bRescheduled) return -1;
+    if (!aRescheduled && bRescheduled) return 1;
+    if (aRescheduled && bRescheduled) {
+      // Keduanya rescheduled, sort by updated_at desc (yang terbaru direschedule di atas)
+      const aTime = a.updated_at || a.created_at || '';
+      const bTime = b.updated_at || b.created_at || '';
+      return bTime.localeCompare(aTime);
+    }
+    // Non-rescheduled: sort by created_at desc (default)
+    return (b.created_at || '').localeCompare(a.created_at || '');
   });
 
   const todayCount      = reminders.filter(r => isDueToday(r.due_date) && r.status !== 'done' && r.status !== 'cancelled').length;
@@ -1294,10 +1333,14 @@ export default function ReminderSchedulePage() {
 
   // ─── Style helpers ─────────────────────────────────────────────────────────
   const inputCls = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40";
-  const inputStyle = { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.12)' };
+  const inputStyle = { background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.12)' };
 
   // ─── Login handler ─────────────────────────────────────────────────────────
   const handleLogout = () => {
+    setSelectMode(false); setSelectedIds(new Set()); setFilterStatus('all'); setFilterYear('all'); setFilterCategory('all');
+    setSearchProject(''); setSearchSales(''); setSearchDivisionSales('');
+    setSearchTeamHandler(''); setSearchProduct(''); setProductFilter(null);
+    setSelectedCalDay(null); setGuestSearch('');
     localStorage.removeItem('currentUser'); localStorage.removeItem('loginTime');
     setCurrentUser(null); setIsLoggedIn(false); setLoginTime(null);
     // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
@@ -1340,7 +1383,7 @@ export default function ReminderSchedulePage() {
             {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
           </div>
         )}
-        <div className="relative z-10 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md" style={{ border: '2px solid rgba(220,38,38,0.3)' }}>
+        <div className="relative z-10 bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md" style={{ border: '2px solid rgba(220,38,38,0.3)' }}>
           <div className="flex justify-center mb-5">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
               style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 6px 24px rgba(220,38,38,0.4)' }}>
@@ -1449,7 +1492,35 @@ export default function ReminderSchedulePage() {
         )}
 
         {/* ── FORM MODAL (Tambah / Edit Reminder) ── */}
-        {showFormModal && (
+        {/* Bulk Delete Confirm Modal */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border-2 border-red-400">
+            <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4 flex items-center gap-3">
+              <span className="text-2xl">🗑️</span>
+              <div><h3 className="font-bold text-white">Hapus {selectedIds.size} Jadwal?</h3>
+              <p className="text-red-100 text-xs mt-0.5">Tindakan ini tidak dapat dibatalkan</p></div>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-5">Kamu akan menghapus <strong>{selectedIds.size} jadwal</strong> yang dipilih secara permanen dari sistem.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setBulkConfirm(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-50 transition-all text-sm">Batal</button>
+                <button onClick={async () => {
+                  setBulkConfirm(false); setBulkDeleting(true);
+                  const { error } = await supabase.from('service_reminders').delete().in('id', Array.from(selectedIds));
+                  if (!error) { setReminders(p => p.filter(r => !selectedIds.has(r.id))); setSelectedIds(new Set()); setSelectMode(false); }
+                  else alert('Gagal: ' + error.message);
+                  setBulkDeleting(false);
+                }} className="flex-[2] bg-gradient-to-r from-red-600 to-red-700 text-white py-2.5 rounded-xl font-bold shadow-lg transition-all text-sm hover:from-red-700 hover:to-red-800">
+                  🗑️ Ya, Hapus Permanen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFormModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
             onClick={e => { if (e.target === e.currentTarget) { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); } }}>
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4"
@@ -1736,7 +1807,7 @@ export default function ReminderSchedulePage() {
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => { setShowFormModal(false); setEditingReminder(null); setFormData(emptyForm); }}
                     className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all"
-                    style={{ background: 'rgba(255,255,255,0.55)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
+                    style={{ background: 'rgba(255,255,255,0.95)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>
                     Batal
                   </button>
                   <button onClick={handleSave} disabled={saving}
@@ -1890,7 +1961,7 @@ export default function ReminderSchedulePage() {
                   <button
                     onClick={e => { e.stopPropagation(); setDetailReminder(null); router.push('/ticketing'); }}
                     className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-[1.03]"
-                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                    style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.92)' }}>
                     🎫 Buka Platform Ticketing
                   </button>
                 )}
@@ -2271,31 +2342,21 @@ export default function ReminderSchedulePage() {
               <div className="flex gap-4 items-start">
 
                 {/* ── TICKET LIST ── */}
-                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(12px)' }}>
+                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)' }}>
 
-                  {/* ── TICKET LIST header + filter chips + refresh/export ── */}
+                  {/* ── TICKET LIST header + refresh/export ── */}
                   <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule List</span>
                       <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{filteredReminders.length}</span>
                     </div>
-                    {/* Active filter chips */}
-                    {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
-                      <div className="flex flex-wrap gap-1.5 items-center my-1">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Filter:</span>
-                        {filterCategory !== 'all' && <button onClick={() => setFilterCategory('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>🏷️ {filterCategory} ✕</button>}
-                        {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#d97706' }}>Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕</button>}
-                        {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
-                        {searchDivisionSales && <button onClick={() => setSearchDivisionSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#ec4899' }}>Division: {searchDivisionSales} ✕</button>}
-                        {searchTeamHandler && <button onClick={() => setSearchTeamHandler('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>👷 {searchTeamHandler} ✕</button>}
-                        {searchProject && <button onClick={() => setSearchProject('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#475569' }}>🔍 {searchProject} ✕</button>}
-                        {productFilter && <button onClick={() => { setProductFilter(null); setSearchProduct(''); }} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#6366f1' }}>📦 {productFilter} ✕</button>}
-                        {selectedCalDay && <button onClick={() => setSelectedCalDay(null)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#0891b2' }}>📅 {formatDate(selectedCalDay)} ✕</button>}
-                        <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-gray-600 border border-gray-300 hover:bg-gray-50">Reset Semua</button>
-                      </div>
-                    )}
                     <div className="flex items-center gap-2">
+                      {(isAdmin || currentUser?.role === 'superadmin') && (
+                        <button onClick={() => { setSelectMode(m => !m); setSelectedIds(new Set()); }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectMode ? 'bg-red-50 border-red-300 text-red-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          {selectMode ? '✕ Batal' : '☑ Select'}
+                        </button>
+                      )}
                       <button onClick={fetchReminders} disabled={listLoading}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60 bg-white">
                         <svg className={`w-3.5 h-3.5 ${listLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -2311,7 +2372,7 @@ export default function ReminderSchedulePage() {
                   </div>
 
                   {/* ── Search / Filter bar — tepat di bawah TICKET LIST ── */}
-                  <div className="px-5 py-3 bg-white/60 border-b border-gray-100">
+                  <div className="px-5 py-3 border-b border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
                     <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
                       <div>
                         <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
@@ -2376,6 +2437,38 @@ export default function ReminderSchedulePage() {
                     </div>
                   </div>
 
+                  {/* Bulk delete bar — admin only, selectMode only */}
+                  {selectMode && (isAdmin || currentUser?.role === 'superadmin') && selectedIds.size > 0 && (
+                    <div className="px-5 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(220,38,38,0.07)' }}>
+                      <span className="text-sm font-bold text-red-700">{selectedIds.size} jadwal dipilih</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
+                        <button onClick={() => setBulkConfirm(true)} disabled={bulkDeleting}
+                          className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                          style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)' }}>
+                          {bulkDeleting ? '⏳ Menghapus...' : `🗑️ Hapus ${selectedIds.size}`}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Filter Aktif chips — di bawah filter bar ── */}
+                  {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
+                    <div className="px-5 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
+                      {filterCategory !== 'all' && <button onClick={() => setFilterCategory('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>🏷️ {filterCategory} ✕</button>}
+                      {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕</button>}
+                      {searchSales && <button onClick={() => setSearchSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>👤 {searchSales} ✕</button>}
+                      {searchDivisionSales && <button onClick={() => setSearchDivisionSales('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#ec4899' }}>Division: {searchDivisionSales} ✕</button>}
+                      {searchTeamHandler && <button onClick={() => setSearchTeamHandler('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>👷 {searchTeamHandler} ✕</button>}
+                      {searchProject && <button onClick={() => setSearchProject('')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#475569' }}>🔍 {searchProject} ✕</button>}
+                      {productFilter && <button onClick={() => { setProductFilter(null); setSearchProduct(''); }} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#6366f1' }}>📦 {productFilter} ✕</button>}
+                      {selectedCalDay && <button onClick={() => setSelectedCalDay(null)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#0891b2' }}>📅 {formatDate(selectedCalDay)} ✕</button>}
+                      <button onClick={() => { setFilterCategory('all'); setFilterStatus('all'); setSearchSales(''); setSearchDivisionSales(''); setSearchTeamHandler(''); setSearchProject(''); setSelectedCalDay(null); setProductFilter(null); setSearchProduct(''); }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:opacity-80" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626', border: '1px solid rgba(220,38,38,0.25)' }}>🗑️ Reset Semua</button>
+                    </div>
+                  )}
+
                   {/* ── TABLE ── */}
                   {listLoading ? (
                     <div className="space-y-2 p-4">
@@ -2395,7 +2488,7 @@ export default function ReminderSchedulePage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
+                      <table className="w-full border-collapse" style={{ tableLayout: 'fixed', background: 'transparent' }}>
                         <colgroup>
                           <col style={{ width: '4%' }} />
                           <col style={{ width: '13%' }} />
@@ -2409,17 +2502,23 @@ export default function ReminderSchedulePage() {
                           <col style={{ width: '8%' }} />
                         </colgroup>
                         <thead>
-                          <tr className="bg-gray-50 border-b-2 border-gray-100">
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Kegiatan</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Handler</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
-                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">Action</th>
+                          <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.92)" }}>
+                            <th className="px-3 py-2.5 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">
+                      {selectMode && (isAdmin || currentUser?.role === 'superadmin')
+                        ? <input type="checkbox"
+                            checked={selectedIds.size === filteredReminders.length && filteredReminders.length > 0}
+                            onChange={toggleSelectAll} className="w-4 h-4 rounded accent-red-600 cursor-pointer" title="Pilih Semua" />
+                        : 'No'}
+                    </th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Project</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Product</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Kegiatan</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Sales</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Handler</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">PIC</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Status</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Tanggal</th>
+                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wide">Action</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2427,18 +2526,23 @@ export default function ReminderSchedulePage() {
                             const today = isDueToday(r.due_date);
                             return (
                               <tr key={r.id}
-                                className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
+                                className={`border-b border-white/30 hover:bg-red-50/20 transition-colors cursor-pointer ${today ? 'bg-red-50/15 border-l-4 border-l-red-400' : 'border-l-4 border-l-transparent'}`}
                                 >
                                 {/* No */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle text-[11px] font-bold text-gray-400">{idx + 1}</td>
+                                <td className="px-3 py-3 border-r border-white/30 align-middle text-center" onClick={e => e.stopPropagation()}>
+                            {selectMode && (isAdmin || currentUser?.role === 'superadmin')
+                              ? <input type="checkbox" checked={selectedIds.has(r.id)}
+                                  onChange={() => toggleSelectId(r.id)} className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
+                              : <span className="text-[11px] font-bold text-gray-500">{idx + 1}</span>}
+                          </td>
                                 {/* Project */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
                                   {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address.split(',')[0]}</div>}
                                   <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
                                 </td>
                                 {/* Product */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   {r.product ? (
                                     <button
                                       onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
@@ -2449,7 +2553,7 @@ export default function ReminderSchedulePage() {
                                   ) : <span className="text-gray-300 text-xs">—</span>}
                                 </td>
                                 {/* Kegiatan */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
@@ -2470,12 +2574,12 @@ export default function ReminderSchedulePage() {
                                   )}
                                 </td>
                                 {/* Sales */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
                                 </td>
                                 {/* Handler */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   <div className="flex items-center gap-1">
                                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                                       style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
@@ -2485,7 +2589,7 @@ export default function ReminderSchedulePage() {
                                   </div>
                                 </td>
                                 {/* PIC */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   {r.pic_name ? (
                                     <>
                                       <div className="text-[10px] font-semibold text-gray-700 truncate">{r.pic_name}</div>
@@ -2494,12 +2598,12 @@ export default function ReminderSchedulePage() {
                                   ) : <span className="text-gray-300 text-xs">—</span>}
                                 </td>
                                 {/* Status */}
-                                <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                                <td className="px-3 py-3 border-r border-white/30 align-middle">
                                   <StatusBadge status={r.status} />
                                   {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
                                 </td>
                                 {/* Tanggal */}
-                                <td className="px-2 py-1 border-r border-gray-100 align-middle">
+                                <td className="px-2 py-1 border-r border-white/30 align-middle">
                                   <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-center"
                                     style={{
                                       background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
@@ -2543,7 +2647,7 @@ export default function ReminderSchedulePage() {
                           })}
                         </tbody>
                       </table>
-                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100 bg-white">
+                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
                         <span className="text-[10px] text-gray-400">{filteredReminders.length} jadwal ditemukan</span>
                         <span className="text-[10px] text-gray-400">{filteredReminders.length > 0 ? `1–${filteredReminders.length}` : '0'} of {reminders.length}</span>
                       </div>
