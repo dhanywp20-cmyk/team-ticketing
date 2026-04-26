@@ -288,7 +288,7 @@ function AssignPTSModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-teal-500 animate-scale-in overflow-hidden">
+      <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full border-2 border-teal-500 animate-scale-in overflow-hidden">
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-white text-lg">✅ Approve & Assign ke Tim PTS</h3>
@@ -419,7 +419,7 @@ function NewFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
+      <div className="bg-white/90 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">📋 Form Equipment Request — IVP</h2>
@@ -432,7 +432,7 @@ function NewFormModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
           {/* Project Info */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
               Informasi Project
@@ -457,49 +457,26 @@ function NewFormModal({
                   rows={4}
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                {!currentUser || ['admin','superadmin','team_pts','team'].includes((currentUser.role || '').toLowerCase().trim()) ? (
-                  /* PTS/Admin: dropdown list guest users + division dropdown */
-                  <div className="flex gap-2 items-center">
+              {/* Sales: only shown for admin/team — guest auto-inserts from account on submit */}
+              {['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
+                  <div className="relative">
                     <select value={form.sales_name} onChange={e => {
-                        const allUsers = (window as any).__frp_guestUsers as any[] || [];
-                        const sel = allUsers.find((u: any) => u.full_name === e.target.value);
-                        setForm(prev => ({ ...prev, sales_name: e.target.value, sales_division: sel?.sales_division || prev.sales_division }));
+                        const sel = salesGuestUsers.find(u => u.full_name === e.target.value);
+                        // Auto-set division in background — no separate division picker
+                        setForm(prev => ({ ...prev, sales_name: e.target.value, sales_division: sel?.sales_division || '' }));
                       }}
-                      className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer">
-                      <option value="">— Pilih Sales / Guest —</option>
+                      className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer">
+                      <option value="">— Pilih Sales —</option>
                       {salesGuestUsers.map(u => (
-                        <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` — ${u.sales_division}` : ''}</option>
+                        <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` (${u.sales_division})` : ''}</option>
                       ))}
                     </select>
-                    <select
-                      value={form.sales_division || ''}
-                      onChange={e => setForm(prev => ({ ...prev, sales_division: e.target.value }))}
-                      className="w-36 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
-                      style={{ color: form.sales_division ? '#374151' : '#9ca3af' }}
-                    >
-                      <option value="" style={{ color: '#9ca3af' }}>Divisi...</option>
-                      {SALES_DIVISIONS.map(div => (
-                        <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
-                      ))}
-                    </select>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
                   </div>
-                ) : (
-                  /* Guest: auto-filled read-only */
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 flex items-center gap-2"
-                      style={{ background: 'rgba(13,148,136,0.08)', border: '2px solid rgba(13,148,136,0.25)' }}>
-                      👤 {form.sales_name || currentUser.full_name}
-                      <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-200">Auto</span>
-                    </div>
-                    <div className="w-36 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 text-center"
-                      style={{ background: 'rgba(13,148,136,0.08)', border: '2px solid rgba(13,148,136,0.25)' }}>
-                      {form.sales_division || currentUser.sales_division || '—'}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
@@ -510,7 +487,7 @@ function NewFormModal({
           </div>
 
           {/* Kebutuhan & Solution */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
               Kategori Kebutuhan & Solution
@@ -533,7 +510,7 @@ function NewFormModal({
 
           {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
           {form.kebutuhan.includes('Signage') && (
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
               Layout Konten & Jaringan
@@ -559,7 +536,7 @@ function NewFormModal({
           )} {/* end Signage conditional */}
 
           {/* Source & Peripheral */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
               Source & Peripheral
@@ -642,7 +619,7 @@ function NewFormModal({
           </div>
 
           {/* Room & Other Info */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
               Ruangan & Informasi Lainnya
@@ -668,7 +645,7 @@ function NewFormModal({
           </div>
 
           {/* Foto Survey + BOQ Upload */}
-          <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+          <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
               Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
@@ -756,7 +733,7 @@ function NewFormModal({
           </div>
         </div>
 
-        <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
+        <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white/90 flex-shrink-0">
           <button type="button" onClick={onClose}
             className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">
             Batal
@@ -840,6 +817,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [editFormModal, setEditFormModal] = useState(false);
   const [statusUpdateModal, setStatusUpdateModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [selectedNewStatus, setSelectedNewStatus] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [editFormData, setEditFormData] = useState({
@@ -915,9 +894,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       // admin/superadmin: semua request
       // team PTS: semua request (filter assign ditampilkan di UI)
     } else if (isIVPGuest) {
-      // IVP guest: lihat semua request yang sudah approved/in_progress/completed
-      // (supaya bisa monitor & berpartisipasi, kecuali pending yang belum diproses)
-      query = query.in('status', ['approved', 'in_progress', 'completed', 'rejected']);
+      // IVP guest (sales internal): HANYA lihat request yang di-link admin ke mereka via ivp_assignee
+      query = query.eq('ivp_assignee', currentUser.full_name);
     } else {
       // non-IVP guest: hanya request miliknya sendiri
       query = query.eq('requester_id', currentUser.id);
@@ -1241,6 +1219,22 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
     finally { setSubmitting(false); }
   };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Hapus ${selectedIds.size} request terpilih?`)) return;
+    setBulkDeleting(true);
+    const { error } = await supabase.from('project_requests').delete().in('id', Array.from(selectedIds));
+    if (!error) { setRequests(p => p.filter(r => !selectedIds.has(r.id))); setSelectedIds(new Set()); }
+    else alert('Gagal hapus: ' + error.message);
+    setBulkDeleting(false);
+  };
+  const toggleSelectId = (id: string) => setSelectedIds(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const toggleSelectAll = () => setSelectedIds(
+    prev => prev.size === filteredRequests.length ? new Set() : new Set(filteredRequests.map(r => r.id))
+  );
 
   const handleApprove = async (req: ProjectRequest) => {
     // Hanya admin/superadmin yang bisa approve, selalu via AssignPTSModal untuk pilih PTS handler
@@ -2080,6 +2074,21 @@ Hubungi Admin untuk info lebih lanjut.
           </div>
 
           {/* Active filter chips — inside table */}
+          {/* Bulk delete bar */}
+          {selectedIds.size > 0 && (
+            <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(13,148,136,0.07)' }}>
+              <span className="text-sm font-bold text-teal-700">{selectedIds.size} request dipilih</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal</button>
+                <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                  className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                  style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)' }}>
+                  {bulkDeleting ? '⏳ Menghapus...' : `🗑️ Hapus ${selectedIds.size}`}
+                </button>
+              </div>
+            </div>
+          )}
+
           {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
             <div className="px-6 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.60)' }}>
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
@@ -2142,6 +2151,11 @@ Hubungi Admin untuk info lebih lanjut.
               <table className="w-full border-collapse" style={{ background: 'transparent' }}>
                 <thead>
                   <tr className="border-b-2 border-white/30" style={{ background: 'rgba(255,255,255,0.65)' }}>
+                    <th className="px-2 py-3 text-center border-r border-white/30 w-8">
+                      <input type="checkbox"
+                        checked={selectedIds.size === filteredRequests.length && filteredRequests.length > 0}
+                        onChange={toggleSelectAll} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
+                    </th>
                     <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">No</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Nama Project</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Lokasi / Ruangan</th>
@@ -2163,6 +2177,10 @@ Hubungi Admin untuk info lebih lanjut.
                       <tr key={req.id}
                         className="border-b border-white/30 hover:bg-white/30 transition-colors"
                         style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
+                        <td className="px-2 py-3 border-r border-white/30 align-middle text-center" onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" checked={selectedIds.has(req.id)}
+                            onChange={() => toggleSelectId(req.id)} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
+                        </td>
                         <td className="px-2 py-3 border-r border-white/30 align-middle text-center text-[11px] font-bold text-gray-500">{index + 1}</td>
                         <td className="px-3 py-3 border-r border-white/30 align-middle">
                           <div className="flex items-start gap-1.5">
@@ -2271,7 +2289,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Reject Modal */}
       {rejectModal.open && rejectModal.req && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
+          <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full border-2 border-red-400 animate-scale-in overflow-hidden">
             <div className="bg-gradient-to-r from-red-500 to-red-700 px-6 py-4">
               <h3 className="font-bold text-white text-lg">❌ Tolak Request</h3>
               <p className="text-red-100 text-xs mt-0.5">{rejectModal.req.project_name}</p>
@@ -2292,7 +2310,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Status Update Modal */}
       {statusUpdateModal.open && statusUpdateModal.req && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border border-gray-200 animate-scale-in overflow-hidden">
+          <div className="bg-white/90 rounded-2xl shadow-2xl max-w-sm w-full border border-gray-200 animate-scale-in overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-4 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-white text-base flex items-center gap-2">
@@ -2352,7 +2370,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Delete Confirmation Modal */}
       {deleteModal.open && deleteModal.req && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in overflow-hidden" style={{ border: '1.5px solid #e5e7eb' }}>
+          <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in overflow-hidden" style={{ border: '1.5px solid #e5e7eb' }}>
             {/* Header */}
             <div className="p-6 pb-4">
               <div className="flex items-start gap-4 mb-4">
@@ -2415,7 +2433,7 @@ Hubungi Admin untuk info lebih lanjut.
       {showDetailModal && selectedRequest && detailSc && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9990] p-0"
           onClick={e => { if (e.target === e.currentTarget) handleCloseDetail(); }}>
-          <div className="bg-white w-full h-full animate-slide-up flex flex-col overflow-hidden"
+          <div className="bg-white/90 w-full h-full animate-slide-up flex flex-col overflow-hidden"
             style={{ border: 'none' }}>
 
             {/* Detail Modal Header */}
@@ -2532,7 +2550,7 @@ Hubungi Admin untuk info lebih lanjut.
                   )}
 
                   {/* Project Info — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
                       Informasi Project
@@ -2558,7 +2576,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Kategori & Solution — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
                       Kategori Kebutuhan & Solution
@@ -2594,7 +2612,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Layout Konten & Jaringan — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
                       Layout Konten & Jaringan
@@ -2640,7 +2658,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Source & Peripheral — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
                       Source & Peripheral
@@ -2735,7 +2753,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Ruangan & Keterangan — form style */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
                       Ruangan & Informasi Lainnya
@@ -2761,7 +2779,7 @@ Hubungi Admin untuk info lebih lanjut.
                   </div>
 
                   {/* Attachments Panel — prominent */}
-                  <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                  <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                         <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
@@ -2840,7 +2858,7 @@ Hubungi Admin untuk info lebih lanjut.
 
                   {/* Admin controls */}
                   {isPTS && !isTeamPTS && (
-                    <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                    <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                       <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                         <span className="w-7 h-7 bg-rose-500 text-white rounded-lg flex items-center justify-center text-xs shadow">⚙️</span>
                         Admin Controls
@@ -2877,7 +2895,7 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
 
               {/* RIGHT: Chat */}
-              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white min-w-0" style={{ minWidth: 1000 }}>
+              <div className="flex-[1.2] flex flex-col overflow-hidden bg-white/80 min-w-0" style={{ minWidth: 1000 }}>
                 <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
@@ -2935,7 +2953,7 @@ Hubungi Admin untuk info lebih lanjut.
                     <div className="text-center text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl py-3">🔒 Chat tersedia setelah di-approve.</div>
                   ) : (
                     <div className="flex gap-2">
-                      <div className="flex-1 flex items-end gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-teal-500 transition-all">
+                      <div className="flex-1 flex items-end gap-2 bg-white/90 border border-gray-200 rounded-xl px-3 py-2 focus-within:border-teal-500 transition-all">
                         <textarea value={msgText} onChange={e => setMsgText(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                           placeholder="Ketik pesan... (Enter kirim)" rows={1}
@@ -2962,7 +2980,7 @@ Hubungi Admin untuk info lebih lanjut.
       {/* Edit Form Modal */}
       {editFormModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9995] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
+          <div className="bg-white/90 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-amber-400 animate-scale-in overflow-hidden">
             <div className="bg-gradient-to-r from-amber-500 to-amber-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-white">✏️ Edit Kebutuhan Project</h2>
@@ -2972,7 +2990,7 @@ Hubungi Admin untuk info lebih lanjut.
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
                   Informasi Project
@@ -3012,7 +3030,7 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
                   Kategori Kebutuhan & Solution
@@ -3034,7 +3052,7 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
 
               {editFormData.kebutuhan.includes('Signage') && (
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
                   Layout Konten & Jaringan
@@ -3058,7 +3076,7 @@ Hubungi Admin untuk info lebih lanjut.
               </div>
               )}
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
                   Source & Peripheral
@@ -3140,7 +3158,7 @@ Hubungi Admin untuk info lebih lanjut.
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+              <div className="bg-white/80 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
                   Ruangan & Informasi Lainnya
@@ -3164,7 +3182,7 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               </div>
             </div>
-            <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white flex-shrink-0">
+            <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white/90 flex-shrink-0">
               <button onClick={() => setEditFormModal(false)} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50">Batal</button>
               <button onClick={handleEditFormSubmit} className="flex-[2] bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
