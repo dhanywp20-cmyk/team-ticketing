@@ -1562,6 +1562,31 @@ export default function TicketingSystem() {
     if (win) { win.document.write(printContent); win.document.close(); setTimeout(() => win.print(), 300); }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Hapus ${selectedIds.size} ticket yang dipilih? Tindakan ini tidak bisa dibatalkan.`)) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("tickets").delete().in("id", ids);
+    if (!error) {
+      setTickets(prev => prev.filter(t => !selectedIds.has(t.id)));
+      setSelectedIds(new Set());
+    } else {
+      alert("Gagal menghapus: " + error.message);
+    }
+    setBulkDeleting(false);
+  };
+
+  const toggleSelectId = (id: string) => setSelectedIds(prev => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+
+  const toggleSelectAll = () => setSelectedIds(prev =>
+    prev.size === filteredTickets.length ? new Set() : new Set(filteredTickets.map(t => t.id))
+  );
+
   const exportToExcel = () => {
     const runExport = (XLSX: any) => {
       const exportTickets = currentUserTeamType === "Team Services" ? filteredTickets : tickets;
@@ -2309,7 +2334,16 @@ export default function TicketingSystem() {
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())}
                     className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
-                  <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                  <button onClick={async () => {
+                    if (selectedIds.size === 0) return;
+                    if (!window.confirm(`Hapus ${selectedIds.size} ticket yang dipilih?`)) return;
+                    setBulkDeleting(true);
+                    const ids = Array.from(selectedIds);
+                    const { error } = await supabase.from("tickets").delete().in("id", ids);
+                    if (!error) { setTickets(prev => prev.filter(t => !selectedIds.has(t.id))); setSelectedIds(new Set()); }
+                    else alert("Gagal: " + error.message);
+                    setBulkDeleting(false);
+                  }} disabled={bulkDeleting}
                     className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
                     style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)' }}>
                     {bulkDeleting ? '⏳ Menghapus...' : `🗑️ Hapus ${selectedIds.size} Ticket`}
