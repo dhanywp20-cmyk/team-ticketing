@@ -2388,14 +2388,15 @@ export default function TicketingSystem() {
                 <table className="w-full table-fixed border-collapse" style={{ background: "transparent" }}>
                   <colgroup>
                     <col style={{ width: "3%" }} />   {/* No */}
-                    <col style={{ width: "22%" }} />  {/* Project / Lokasi / Product */}
+                    <col style={{ width: "22%" }} />  {/* Project / Lokasi*/}
+                    <col style={{ width: "15%" }} />  {/* Product */}
                     <col style={{ width: "9%" }} />   {/* SN Unit */}
                     <col style={{ width: "10%" }} />  {/* Issue */}
                     <col style={{ width: "9%" }} />   {/* Assigned */}
                     <col style={{ width: "9%" }} />   {/* Status */}
                     <col style={{ width: "8%" }} />   {/* Sales */}
                     <col style={{ width: "7%" }} />   {/* Created By */}
-                    <col style={{ width: "15%" }} />  {/* Action (combined) */}
+                    <col style={{ width: "12%" }} />  {/* Action (combined) */}
                   </colgroup>
                   <thead>
                     <tr className="border-b-2 border-gray-100" style={{ background: "rgba(248,248,248,0.97)" }}>
@@ -2407,7 +2408,8 @@ export default function TicketingSystem() {
                               className="w-4 h-4 rounded accent-red-600 cursor-pointer" title="Pilih Semua" />
                           : 'No'}
                       </th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project / Lokasi / Product</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project / Lokasi</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Issue</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
@@ -2445,15 +2447,18 @@ export default function TicketingSystem() {
                                 <span className="truncate">{ticket.address.split(',')[0]}</span>
                               </div>
                             )}
-                            {ticket.product && (
+                            
+                            <div className="text-[10px] text-gray-400 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
+                            {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
+                          </td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
+                          {ticket.product && (
                               <button onClick={() => { setProductFilter(prev => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
                                 className="mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded break-words leading-tight transition-all inline-block"
                                 style={{ background: productFilter === ticket.product ? '#6366f1' : '#eef2ff', color: productFilter === ticket.product ? 'white' : '#4338ca' }}>
                                 📦 {ticket.product}
                               </button>
                             )}
-                            <div className="text-[10px] text-gray-400 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
-                            {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
                           </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-600 break-words leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
