@@ -2198,7 +2198,7 @@ export default function TicketingSystem() {
           )}
 
           {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
-          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.95)", border: "1px solid rgba(255,255,255,0.85)", backdropFilter: "blur(12px)" }}>
+          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.97)", border: "1px solid rgba(200,200,200,0.6)", backdropFilter: "blur(12px)" }}>
             {/* Header with title and actions */}
             <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
               <div className="flex items-center gap-3">
@@ -2226,7 +2226,7 @@ export default function TicketingSystem() {
             </div>
 
             {/* Integrated search filters row - like the image */}
-            <div className="px-6 py-3 border-b border-white/30" style={{ background: "rgba(255,255,255,0.92)" }}>
+            <div className="px-6 py-3 border-b border-gray-100" style={{ background: "rgba(255,255,255,0.97)" }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
@@ -2330,7 +2330,7 @@ export default function TicketingSystem() {
 
             {/* Bulk delete bar — admin only, selectMode only */}
             {selectMode && canAccessAccountSettings && selectedIds.size > 0 && (
-              <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(220,38,38,0.07)' }}>
+              <div className="px-6 py-2.5 flex items-center justify-between border-b border-gray-200" style={{ background: 'rgba(220,38,38,0.07)' }}>
                 <span className="text-sm font-bold text-red-700">{selectedIds.size} ticket dipilih</span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())}
@@ -2346,7 +2346,7 @@ export default function TicketingSystem() {
 
             {/* ── Filter Aktif chips — posisi di bawah filter bar ── */}
             {(filterStatus !== "All" || handlerFilter || salesDivisionFilter || productFilter || searchProject || searchSalesName || searchProduct) && (
-              <div className="px-6 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: "rgba(255,255,255,0.92)" }}>
+              <div className="px-6 py-2.5 border-b border-gray-100 flex flex-wrap gap-2 items-center" style={{ background: "rgba(255,255,255,0.97)" }}>
                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
                 {filterStatus !== "All" && (
                   <button onClick={() => setFilterStatus("All")} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: "#d97706" }}>Status: {filterStatus} ✕</button>
@@ -2388,18 +2388,17 @@ export default function TicketingSystem() {
                 <table className="w-full table-fixed border-collapse" style={{ background: "transparent" }}>
                   <colgroup>
                     <col style={{ width: "3%" }} />   {/* No */}
-                    <col style={{ width: "16%" }} />  {/* Project Name */}
-                    <col style={{ width: "13%" }} />  {/* Product */}
+                    <col style={{ width: "22%" }} />  {/* Project / Lokasi / Product */}
                     <col style={{ width: "9%" }} />   {/* SN Unit */}
                     <col style={{ width: "10%" }} />  {/* Issue */}
                     <col style={{ width: "9%" }} />   {/* Assigned */}
-                    <col style={{ width: "7%" }} />   {/* Status */}
+                    <col style={{ width: "9%" }} />   {/* Status */}
                     <col style={{ width: "8%" }} />   {/* Sales */}
                     <col style={{ width: "7%" }} />   {/* Created By */}
-                    <col style={{ width: "10%" }} />  {/* Action (combined) */}
+                    <col style={{ width: "15%" }} />  {/* Action (combined) */}
                   </colgroup>
                   <thead>
-                    <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
+                    <tr className="border-b-2 border-gray-100" style={{ background: "rgba(248,248,248,0.97)" }}>
                       <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">
                         {selectMode && canAccessAccountSettings
                           ? <input type="checkbox"
@@ -2408,8 +2407,7 @@ export default function TicketingSystem() {
                               className="w-4 h-4 rounded accent-red-600 cursor-pointer" title="Pilih Semua" />
                           : 'No'}
                       </th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project / Lokasi / Product</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">SN Unit</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Issue</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Assigned</th>
@@ -2436,23 +2434,26 @@ export default function TicketingSystem() {
                                   className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
                               : <span className="text-[11px] font-bold text-gray-400">{index + 1}</span>}
                           </td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle">
                             <div className="flex items-start gap-1">
                               {isActiveOverdue && <span className="text-red-500 text-xs mt-0.5 shrink-0" title="Overdue!">🚨</span>}
                               <div className="font-bold text-gray-800 text-sm break-words leading-tight">{ticket.project_name}</div>
                             </div>
-                            {ticket.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {ticket.address.split(',')[0]}</div>}
-                            <div className="text-xs text-gray-500 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
+                            {ticket.address && (
+                              <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5">
+                                <span>📍</span>
+                                <span className="truncate">{ticket.address.split(',')[0]}</span>
+                              </div>
+                            )}
+                            {ticket.product && (
+                              <button onClick={() => { setProductFilter(prev => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                                className="mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded break-words leading-tight transition-all inline-block"
+                                style={{ background: productFilter === ticket.product ? '#6366f1' : '#eef2ff', color: productFilter === ticket.product ? 'white' : '#4338ca' }}>
+                                📦 {ticket.product}
+                              </button>
+                            )}
+                            <div className="text-[10px] text-gray-400 mt-1">{ticket.created_at ? formatDateTime(ticket.created_at) : "-"}</div>
                             {isActiveOverdue && <div className="text-xs text-red-600 font-bold mt-0.5">⏰ OVERDUE</div>}
-                           </td>
-                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-2">
-                            {ticket.product ? (
-                              <button
-                                onClick={() => { setProductFilter((prev) => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-left break-words leading-tight transition-all"
-                                style={{ background: productFilter === ticket.product ? '#6366f1' : '#eef2ff', color: productFilter === ticket.product ? 'white' : '#4338ca' }}
-                              >{ticket.product}</button>
-                            ) : <span className="text-gray-300 text-sm">—</span>}
                           </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-600 break-words leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
@@ -2510,7 +2511,7 @@ export default function TicketingSystem() {
                     })}
                   </tbody>
                 </table>
-                <div className="flex items-center justify-between px-5 py-3 border-t border-white/30" style={{ background: "rgba(255,255,255,0.92)" }}><span className="text-xs text-gray-400">{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} ditemukan</span><span className="text-xs text-gray-400">{filteredTickets.length > 0 ? `1–${filteredTickets.length}` : "0"} of {tickets.length}</span></div>
+                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200" style={{ background: "rgba(255,255,255,0.97)" }}><span className="text-xs text-gray-400">{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} ditemukan</span><span className="text-xs text-gray-400">{filteredTickets.length > 0 ? `1–${filteredTickets.length}` : "0"} of {tickets.length}</span></div>
               </div>
             )}
           </div>
