@@ -122,13 +122,21 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       notify('error', 'Sales Division wajib diisi untuk role Guest!'); return;
     }
     setSaving(true);
-    const { error } = await supabase.from('users').insert([{
-      username: newUser.username, password: newUser.password,
-      full_name: newUser.full_name, role: newUser.role,
-      team_type: newUser.role === 'team' ? newUser.team_type : null,
-      sales_division: newUser.role === 'guest' ? newUser.sales_division : null,
+    // Build insert payload — avoid null for columns that might have NOT NULL constraint
+    const insertPayload: Record<string, unknown> = {
+      username: newUser.username,
+      password: newUser.password,
+      full_name: newUser.full_name,
+      role: newUser.role,
       allowed_menus: newUser.allowed_menus,
-    }]);
+    };
+    // team_type: only for team role
+    if (newUser.role === 'team') insertPayload.team_type = newUser.team_type || null;
+    // sales_division: for guest and sales roles
+    if (newUser.role === 'guest' || newUser.role === 'sales') {
+      insertPayload.sales_division = newUser.sales_division || null;
+    }
+    const { error } = await supabase.from('users').insert([insertPayload]);
     setSaving(false);
     if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
     notify('success', 'Akun berhasil ditambahkan!');
@@ -140,13 +148,22 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
   const handleSaveEdit = async () => {
     if (!editingUser) return;
     setSaving(true);
-    const { error } = await supabase.from('users').update({
-      username: editingUser.username, password: editingUser.password,
-      full_name: editingUser.full_name, role: editingUser.role,
-      team_type: editingUser.role === 'team' ? (editingUser.team_type ?? '') : null,
-      sales_division: editingUser.role === 'guest' ? (editingUser.sales_division ?? '') : null,
+    const updatePayload: Record<string, unknown> = {
+      username: editingUser.username,
+      password: editingUser.password,
+      full_name: editingUser.full_name,
+      role: editingUser.role,
       allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS,
-    }).eq('id', editingUser.id);
+    };
+    if (editingUser.role === 'team') updatePayload.team_type = editingUser.team_type ?? null;
+    if (editingUser.role === 'guest' || editingUser.role === 'sales') {
+      updatePayload.sales_division = editingUser.sales_division ?? null;
+    }
+    // For pending → being approved, preserve sales_division
+    if (editingUser.role === 'pending') {
+      updatePayload.sales_division = editingUser.sales_division ?? null;
+    }
+    const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id);
     setSaving(false);
     if (error) { notify('error', 'Gagal menyimpan: ' + error.message); return; }
     notify('success', 'Akun berhasil diperbarui!');
@@ -496,9 +513,9 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   </div>
                 </div>
               )}
-              {newUser.role === 'guest' && (
+              {(newUser.role === 'guest' || newUser.role === 'sales') && (
                 <div>
-                  <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Sales Division *</label>
+                  <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Sales Division {newUser.role === 'guest' ? '*' : ''}</label>
                   <select
                     value={newUser.sales_division}
                     onChange={e => setNewUser({ ...newUser, sales_division: e.target.value })}
@@ -1091,13 +1108,13 @@ export default function Dashboard() {
     {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
       gradient: 'from-violet-700 via-violet-600 to-violet-500',
-      description: 'request Solution untuk project sales',
+      description: 'Solution request form untuk project Sales & Account',
       items: [{ name: 'Submit Require', url: '/form-require-project2', icon: '📋', internal: true, embed: true }]
     },
     {
       title: 'Form Review Demo & BAST', icon: '⭐', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
-      description: 'review Demo Produk & BAST dari Sales',
+      description: 'Platform review Demo Produk & BAST dari Reminder Schedule',
       items: [{ name: 'Platform Review', url: '/form-review', icon: '⭐', internal: true, embed: true }]
     },
     {
@@ -1854,7 +1871,29 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="p-3" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+        <div className="p-3 space-y-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          {/* Account Settings — always visible at bottom of sidebar */}
+          {currentUser?.role === 'admin' || currentUser?.role === 'superadmin' ? (
+            <button
+              onClick={() => setShowSettings(true)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm ${sidebarCollapsed ? 'justify-center' : ''}`}
+              style={{ background: showSettings ? 'rgba(200,134,29,0.14)' : 'rgba(0,0,0,0.04)', border: `1px solid ${showSettings ? 'rgba(200,134,29,0.35)' : 'transparent'}`, color: showSettings ? '#92600a' : '#475569' }}
+              onMouseEnter={e => { if (!showSettings) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; }}
+              onMouseLeave={e => { if (!showSettings) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; }}
+              title="Account Settings"
+            >
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: showSettings ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.07)' }}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </span>
+              {!sidebarCollapsed && (
+                <span className="flex-1 text-left truncate tracking-wide">Account Settings</span>
+              )}
+            </button>
+          ) : null}
+
           {sidebarCollapsed && (
             <button onClick={() => setSidebarCollapsed(false)} className="w-full flex justify-center p-2 rounded-xl transition-all text-slate-400 hover:text-slate-700" style={{ background: 'rgba(0,0,0,0.05)' }} title="Expand sidebar">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M6 5l7 7-7 7" /></svg>
