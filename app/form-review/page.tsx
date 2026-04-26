@@ -1448,8 +1448,8 @@ export default function FormReviewPage() {
                     <col style={{ width: '18%' }} />  {/* Project */}
                     <col style={{ width: '10%' }} />  {/* Kategori */}
                     <col style={{ width: '9%' }} />   {/* Sales */}
-                    <col style={{ width: '9%' }} />   {/* Handler */}
-                    <col style={{ width: '17%' }} />  {/* Product */}
+                    <col style={{ width: '12%' }} />   {/* Handler */}
+                    <col style={{ width: '14%' }} />  {/* Product */}
                     <col style={{ width: '10%' }} />  {/* Grade 1 */}
                     {switchTab === 'BAST' && <col style={{ width: '10%' }} />}  {/* Grade 2 */}
                     <col style={{ width: '9%' }} />   {/* Status */}
@@ -1498,11 +1498,11 @@ export default function FormReviewPage() {
                           </td>
                           {/* Kategori */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <div className="text-[10px] font-semibold text-violet-600 leading-tight">{r.reminder_category || '—'}</div>
+                            <div className="text-[14px] font-semibold text-violet-600 leading-tight">{r.reminder_category || '—'}</div>
                           </td>
                           {/* Sales */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <div className="text-xs font-semibold text-gray-700 truncate max-w-[100px]">{r.sales_name || '—'}</div>
+                            <div className="text-[12px] font-semibold text-gray-700 truncate max-w-[100px]">{r.sales_name || '—'}</div>
                             {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold">{r.sales_division}</div>}
                           </td>
                           {/* Handler */}
@@ -1536,7 +1536,7 @@ export default function FormReviewPage() {
                           )}
                           {/* Status */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold"
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] font-bold"
                               style={hasReview
                                 ? { background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }
                                 : { background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>
