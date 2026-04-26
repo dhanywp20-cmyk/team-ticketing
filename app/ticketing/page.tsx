@@ -2389,9 +2389,9 @@ export default function TicketingSystem() {
                   <colgroup>
                     <col style={{ width: "3%" }} />   {/* No */}
                     <col style={{ width: "20%" }} />  {/* Project / Lokasi*/}
-                    <col style={{ width: "18%" }} />  {/* Product */}
+                    <col style={{ width: "14%" }} />  {/* Product */}
                     <col style={{ width: "9%" }} />   {/* SN Unit */}
-                    <col style={{ width: "10%" }} />  {/* Issue */}
+                    <col style={{ width: "16%" }} />  {/* Issue */}
                     <col style={{ width: "9%" }} />   {/* Assigned */}
                     <col style={{ width: "9%" }} />   {/* Status */}
                     <col style={{ width: "8%" }} />   {/* Sales */}
