@@ -948,6 +948,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
+  const [editDueDate, setEditDueDate] = useState('');
   const [editFormData, setEditFormData] = useState({
     project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
     kebutuhan: [] as string[], kebutuhan_other: '',
@@ -1021,9 +1022,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       // admin/superadmin: semua request
       // team PTS: semua request (filter assign ditampilkan di UI)
     } else if (isIVPGuest) {
-      // IVP guest (internal sales): ONLY see requests where admin linked them via ivp_assignee
-      // Note: requires ivp_assignee column in project_requests table
-      query = query.eq('ivp_assignee', currentUser.full_name);
+      // IVP guest (sales internal): see BOTH:
+      // 1. Their own requests (requester_id = their id)
+      // 2. External requests admin linked them to (ivp_assignee = their full_name)
+      query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
     } else {
       // non-IVP guest: hanya request miliknya sendiri
       query = query.eq('requester_id', currentUser.id);
@@ -1092,7 +1094,12 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   useEffect(() => {
     if (!isPTS) return;
-    const pendingCount = requests.filter(r => r.status === 'pending').length;
+    // For IVP guest: count approved requests linked to them (new assignments)
+    // For PTS/admin: count pending requests needing action
+    // For non-IVP guest: count own pending requests
+    const pendingCount = isIVPGuest
+      ? requests.filter(r => r.ivp_assignee === currentUser.full_name && (r.status === 'approved' || r.status === 'in_progress')).length
+      : requests.filter(r => r.status === 'pending').length;
     setUnreadCount(pendingCount);
   }, [requests, isPTS]);
 
@@ -1441,6 +1448,7 @@ Hubungi Admin untuk info lebih lanjut.
 
   const handleOpenEditForm = () => {
     if (!selectedRequest) return;
+    setEditDueDate(selectedRequest.due_date || '');
     setEditFormData({
       project_name: selectedRequest.project_name || '', room_name: selectedRequest.room_name || '',
       project_location: selectedRequest.project_location || '',
@@ -1464,12 +1472,17 @@ Hubungi Admin untuk info lebih lanjut.
 
   const handleEditFormSubmit = async () => {
     if (!selectedRequest) return;
-    const { error } = await supabase.from('project_requests').update({ ...editFormData, sales_division: editFormData.sales_division || '' }).eq('id', selectedRequest.id);
+    const updateData = { 
+      ...editFormData, 
+      sales_division: editFormData.sales_division || '',
+      due_date: editDueDate || null,
+    };
+    const { error } = await supabase.from('project_requests').update(updateData).eq('id', selectedRequest.id);
     if (error) { notify('error', 'Gagal menyimpan perubahan.'); return; }
     notify('success', 'Perubahan disimpan!');
     setEditFormModal(false);
     fetchRequests();
-    setSelectedRequest(prev => prev ? { ...prev, ...editFormData } : null);
+    setSelectedRequest(prev => prev ? { ...prev, ...editFormData, due_date: editDueDate || undefined } : null);
     await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: `✏️ Kebutuhan project diperbarui oleh ${currentUser.full_name}.` }]);
     fetchMessages(selectedRequest.id);
   };
@@ -1478,8 +1491,10 @@ Hubungi Admin untuk info lebih lanjut.
     if (!msgText.trim() || !selectedRequest) return;
     if (selectedRequest.status === 'rejected') { notify('error', 'Request ini sudah ditolak. Tidak bisa mengirim pesan.'); return; }
     if (selectedRequest.status === 'pending' && !isPTS) { notify('error', 'Request masih pending approval. Chat akan aktif setelah diapprove.'); return; }
-    // Semua pihak yang bisa lihat request bisa chat: PTS, IVP guest, pemilik request
-    const canChat = isPTS || isIVPGuest || selectedRequest.requester_id === currentUser.id;
+    // Semua pihak yang bisa lihat request bisa chat: PTS, IVP (own or linked), pemilik request
+    const isOwner = selectedRequest.requester_id === currentUser.id;
+    const isLinkedIVP = isIVPGuest && selectedRequest.ivp_assignee === currentUser.full_name;
+    const canChat = isPTS || isOwner || isLinkedIVP;
     if (!canChat) { notify('error', 'Anda tidak memiliki akses untuk mengirim pesan.'); return; }
     setSendingMsg(true);
     const { error } = await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: msgText.trim() }]);
@@ -2284,7 +2299,7 @@ Hubungi Admin untuk info lebih lanjut.
                     : isIVPGuest
                       ? 'Belum ada request yang di-assign ke akun kamu. Admin akan menghubungkan request dari sales external ke akun IVP kamu saat ada project baru.'
                       : 'Belum ada request.'}</p>
-              {!isPTS && !isIVPGuest && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
+              {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -2373,10 +2388,16 @@ Hubungi Admin untuk info lebih lanjut.
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
                           <div className="text-sm font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
                           <div className="text-[10px] text-indigo-500 mt-0.5">{req.requester_name}</div>
-                          {/* IVP guest: badge penanda request dari divisi luar */}
-                          {isIVPGuest && req.sales_division && req.sales_division !== 'IVP' && (
+                          {/* IVP guest: badge for external requests linked by admin */}
+                          {isIVPGuest && req.ivp_assignee === currentUser.full_name && req.requester_id !== currentUser.id && (
                             <div className="text-[9px] font-bold text-purple-600 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">
-                              Ext: {req.sales_division}
+                              🔗 Ext: {req.sales_division}
+                            </div>
+                          )}
+                          {/* IVP guest: badge for own requests */}
+                          {isIVPGuest && req.requester_id === currentUser.id && (
+                            <div className="text-[9px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">
+                              📋 Request Saya
                             </div>
                           )}
                         </td>
@@ -2695,7 +2716,7 @@ Hubungi Admin untuk info lebih lanjut.
             )}
 
             {/* IVP Guest info banner */}
-            {isIVPGuest && (
+            {isIVPGuest && selectedRequest.ivp_assignee === currentUser.full_name && selectedRequest.requester_id !== currentUser.id && (
               <div className="px-5 py-2 flex items-center gap-2 text-xs flex-shrink-0"
                 style={{ background: 'rgba(99,102,241,0.10)', borderBottom: '1px solid rgba(99,102,241,0.2)' }}>
                 <span>🔗</span>
@@ -3190,21 +3211,44 @@ Hubungi Admin untuk info lebih lanjut.
                       placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat" rows={4}
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white resize-none" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
-                    <div className="flex gap-2 items-center">
-                      <input value={editFormData.sales_name} onChange={e => setEditFormData(p => ({ ...p, sales_name: e.target.value }))}
-                        placeholder="Nama Sales / Account Manager" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white" />
-                      <select value={editFormData.sales_division || ''} onChange={e => setEditFormData(p => ({ ...p, sales_division: e.target.value }))}
-                        className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-amber-400 transition-all text-sm bg-white outline-none appearance-none cursor-pointer"
-                        style={{ color: editFormData.sales_division ? '#374151' : '#9ca3af' }}>
-                        <option value="" style={{ color: '#9ca3af' }}>Pilih divisi sales...</option>
-                        {SALES_DIVISIONS.map(div => (
-                          <option key={div} value={div} style={{ color: '#374151' }}>{div}</option>
-                        ))}
-                      </select>
+                  {/* Sales: hidden for guest (auto from account), admin/team can edit */}
+                  {isPTS && (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
+                      <div className="flex gap-2 items-center">
+                        <select value={editFormData.sales_name} onChange={e => {
+                            const sel = salesGuestUsers.find(u => u.full_name === e.target.value);
+                            setEditFormData(p => ({ ...p, sales_name: e.target.value, sales_division: sel?.sales_division || p.sales_division }));
+                          }}
+                          className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none bg-white appearance-none cursor-pointer">
+                          <option value="">— Pilih Sales —</option>
+                          {salesGuestUsers.map(u => (
+                            <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` (${u.sales_division})` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Target Selesai — semua role termasuk Guest bisa ubah */}
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-teal-500 text-white rounded-lg flex items-center justify-center text-xs shadow">📅</span>
+                  Target Selesai
+                </h3>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Target Selesai</label>
+                  <input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-amber-400 transition-all text-sm bg-white outline-none cursor-pointer"
+                    style={{ color: editDueDate ? '#374151' : '#9ca3af' }} />
+                  {editDueDate && (
+                    <p className="text-xs text-teal-600 font-semibold mt-1.5">
+                      📅 Target: {new Date(editDueDate + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
                 </div>
               </div>
 
