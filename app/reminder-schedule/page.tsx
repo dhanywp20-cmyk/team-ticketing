@@ -67,8 +67,8 @@ type RepeatType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 interface Reminder {
   id: string;
-  title?: string;       // kolom lama di DB (beberapa row pakai 'title')
-  project_name: string; // kolom baru (fallback dari title)
+  title?: string;
+  project_name: string;
   description: string;
   assigned_to: string;
   assign_name: string;
@@ -100,8 +100,19 @@ interface TeamUser {
   phone_number?: string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+interface GuestUser {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
+  phone_number?: string;
+  sales_division?: string;
+}
 
+// Kategori yang men-trigger auto form_review ke Guest
+const REVIEW_TRIGGER_CATEGORIES = ['Demo Product', 'Konfigurasi & Training', 'Training'] as const;
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; bg: string; border: string; dot: string }> = {
   low:    { label: 'Low',    color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.4)', dot: '#94a3b8' },
   medium: { label: 'Medium', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.4)',  dot: '#f59e0b' },
@@ -555,7 +566,7 @@ function RescheduleModal({
 
 export default function ReminderSchedulePage() {
   const router = useRouter();
-  const [appReady, setAppReady]             = useState(true);
+  const [appReady, setAppReady]             = useState(false);
   const [dashLoading, setDashLoading]       = useState(false);
   const [isLoggedIn, setIsLoggedIn]         = useState(false);
   const [loginForm, setLoginForm]           = useState({ username: '', password: '' });
@@ -565,6 +576,7 @@ export default function ReminderSchedulePage() {
   const [myReminders, setMyReminders]       = useState<Reminder[]>([]);
   const [currentUser, setCurrentUser]       = useState<TeamUser | null>(null);
   const [teamUsers, setTeamUsers]           = useState<TeamUser[]>([]);
+  const [guestUsers, setGuestUsers]         = useState<GuestUser[]>([]);
   const [reminders, setReminders]           = useState<Reminder[]>([]);
   const [listLoading, setListLoading]       = useState(false);
   const [saving, setSaving]                 = useState(false);
@@ -594,6 +606,11 @@ export default function ReminderSchedulePage() {
   const [exportLoading, setExportLoading]   = useState(false);
   const [sendingWA, setSendingWA]           = useState<string | null>(null);
 
+  // ─── Guest search state ───────────────────────────────────────────────────
+  const [guestSearch, setGuestSearch]         = useState('');
+  const [guestDropdownOpen, setGuestDropdownOpen] = useState(false);
+  const guestDropdownRef = useRef<HTMLDivElement>(null);
+
   // ─── Delete Modal State ───────────────────────────────────────────────────
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget]       = useState<Reminder | null>(null);
@@ -605,6 +622,9 @@ export default function ReminderSchedulePage() {
   const [statusPhotoPreview, setStatusPhotoPreview] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const statusPhotoRef = useRef<HTMLInputElement>(null);
+
+  // ─── Resend Form Review ────────────────────────────────────────────────────
+  const [resendingFormReview, setResendingFormReview] = useState(false);
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -638,8 +658,10 @@ export default function ReminderSchedulePage() {
     // Fetch parallel — tidak tunggu satu selesai dulu
     Promise.all([
       fetchTeamUsers(),
+      fetchGuestUsers(),
       fetchRemindersQuiet(user),
     ]).then(() => {
+      setAppReady(true); // ← tampilkan konten setelah data siap
       // Popup notif setelah data loaded
       if (user && (user.role === 'team' || user.role === 'admin')) {
         supabase
@@ -698,6 +720,15 @@ export default function ReminderSchedulePage() {
     if (data) setTeamUsers(data.filter((u: TeamUser) => u.team_type === 'Team PTS'));
   };
 
+  const fetchGuestUsers = async () => {
+    const { data } = await supabase
+      .from('users')
+      .select('id, username, full_name, role, phone_number, sales_division')
+      .eq('role', 'guest')
+      .order('full_name');
+    if (data) setGuestUsers(data as GuestUser[]);
+  };
+
   // 🔥 PERUBAHAN UTAMA: Urutkan berdasarkan created_at terbaru di paling atas
   const fetchRemindersQuiet = async (user?: TeamUser | null) => {
     // Tentukan user: dari param → state → localStorage
@@ -737,9 +768,17 @@ export default function ReminderSchedulePage() {
     if (!formData.project_name.trim())            { notify('error', 'Nama project wajib diisi!');  return; }
     if (!formData.assigned_to)             { notify('error', 'Pilih anggota team!');           return; }
     if (!formData.due_date)                { notify('error', 'Tanggal wajib diisi!');          return; }
-    if (!formData.sales_name.trim())       { notify('error', 'Nama Sales wajib diisi!');       return; }
-    if (!formData.sales_division.trim())       { notify('error', 'divisi sales wajib diisi!');       return; }
     if (!formData.address.trim()) { notify('error', 'Lokasi Project wajib diisi!');  return; }
+
+    const isTriggerCat = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(formData.category);
+    if (!formData.sales_name?.trim()) {
+      notify('error', 'Pilih Sales wajib diisi!');
+      return;
+    }
+    if (isTriggerCat && !formData.sales_name?.trim()) {
+      notify('error', `Kategori "${formData.category}" memerlukan pilihan Guest / Sales untuk form review!`);
+      return;
+    }
 
     const assignee = teamUsers.find(u => u.username === formData.assigned_to);
     const payload = { ...formData, assign_name: assignee?.full_name ?? formData.assigned_to, created_by: currentUser?.username ?? 'system' };
@@ -766,6 +805,7 @@ export default function ReminderSchedulePage() {
         `Halo *${assigneeName}*, kamu mendapat jadwal baru:\n\n` +
         `*Nama Project: ${formData.project_name}*\n` +
         `*Deskripsi: ${formData.description}*\n` +
+        `📦 *Product: ${formData.product}*\n` +
         `🏷️ Kategori: ${formData.category}\n` +
         `📍 Lokasi: ${formData.address || '-'}\n` +
         `👤 Sales: ${formData.sales_name}${formData.sales_division ? ' - ' + formData.sales_division : ''}\n` +
@@ -829,10 +869,93 @@ export default function ReminderSchedulePage() {
             const msg =
               `✅ *JADWAL SELESAI — PTS IVP*\n\n` +
               `Terima kasih *${handlerUser.full_name}*!\n` +
-              `Jadwal *${reminder.project_name}* telah ditandai *Completed*.\n` +
+              `Jadwal *${reminder.project_name}* sudah *Selesai*.\n` +
+              `📦 *Product: ${reminder.product ?? '-'}*\n` +
               `🏷️ ${reminder.category} · ${formatDate(reminder.due_date)}\n` +
               `\nTetap semangat! 💪`;
             await sendFonnteWA(handlerUser.phone_number, msg);
+          }
+
+          // ── Auto-insert ke form_reviews jika kategori trigger & ada sales_name ──
+          const isTriggerCategory = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(reminder.category);
+          const salesName = reminder.sales_name?.trim();
+          if (isTriggerCategory && salesName) {
+            try {
+              // Selalu fetch guest dari DB (tidak andalkan state guestUsers yang bisa saja belum terisi)
+              const { data: guestFromDb } = await supabase
+                .from('users')
+                .select('id, username, full_name, role, phone_number, sales_division')
+                .eq('role', 'guest')
+                .eq('full_name', salesName)
+                .maybeSingle();
+
+              // Fallback ke guestUsers state jika DB tidak return
+              const resolvedGuest = guestFromDb ?? guestUsers.find(g => g.full_name === salesName) ?? null;
+
+              console.log('[Auto form_review] Resolved guest:', resolvedGuest?.username, '| salesName:', salesName);
+
+              // Cek apakah sudah ada form_review untuk reminder ini
+              const { data: existingReview } = await supabase
+                .from('form_reviews')
+                .select('id')
+                .eq('reminder_id', reminder.id)
+                .eq('sales_name', salesName)
+                .maybeSingle();
+
+              if (!existingReview) {
+                const reviewCategory = reminder.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+                const productValue = reminder.product?.trim() || '';
+                const { error: reviewErr } = await supabase.from('form_reviews').insert([{
+                  reminder_id: reminder.id,
+                  project_name: reminder.project_name,
+                  address: reminder.address || '',
+                  sales_name: salesName,
+                  sales_division: reminder.sales_division || '',
+                  assign_name: reminder.assign_name,
+                  assigned_to: reminder.assigned_to,
+                  reminder_category: reminder.category,
+                  review_category: reviewCategory,
+                  // Auto-insert product ke kolom yang sesuai berdasarkan review_category
+                  ...(reviewCategory === 'Demo Product'
+                    ? { product_demo: productValue }
+                    : { product_bast: productValue }),
+                  // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
+                  guest_fullname: resolvedGuest?.full_name ?? salesName,
+                  // guest_username untuk filter di Form Review page
+                  guest_username: resolvedGuest?.username ?? '',
+                }]);
+
+                if (reviewErr) {
+                  console.error('[Auto form_review] Gagal insert:', reviewErr.message);
+                } else {
+                  console.log('[Auto form_review] ✅ Form review dibuat untuk sales:', salesName, '| guest_username:', resolvedGuest?.username ?? 'TIDAK DITEMUKAN');
+                  notify('success', `Form review otomatis dibuat untuk ${salesName}!`);
+
+                  // Kirim WA notifikasi ke guest
+                  if (resolvedGuest?.phone_number) {
+                    const guestMsg =
+                      `⭐ *REVIEW DIMINTA — PTS IVP*\n\n` +
+                      `Halo *${resolvedGuest.full_name}*!\n\n` +
+                      `Jadwal *${reminder.category}* untuk project:\n` +
+                      `*Kategori: ${reminder.category}*\n` +
+                      `📦 *Product: ${reminder.product ?? '-'}*\n` +
+                      `📋 *${reminder.project_name}*\n` +
+                      `📍 ${reminder.address || '-'}\n\n` +
+                      `telah selesai dilaksanakan oleh tim kami.\n\n` +
+                      `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
+                      `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
+                      `Terima kasih! 🙏`;
+                    await sendFonnteWA(resolvedGuest.phone_number, guestMsg);
+                  } else {
+                    console.warn('[Auto form_review] Guest tidak punya nomor WA atau tidak ditemukan:', salesName);
+                  }
+                }
+              } else {
+                console.log('[Auto form_review] Form review sudah ada untuk reminder:', reminder.id);
+              }
+            } catch (reviewEx) {
+              console.warn('[Auto form_review] Exception:', reviewEx);
+            }
           }
         }
       } catch (waEx) { console.warn('[status done] WA failed:', waEx); }
@@ -869,6 +992,118 @@ export default function ReminderSchedulePage() {
     setStatusPhoto(null);
     setStatusPhotoPreview(null);
     setUpdatingStatus(false);
+  };
+
+  // ─── Resend / Manual Send Form Review ke Guest ────────────────────────────
+  const handleResendFormReview = async (r: Reminder) => {
+    if (!r.sales_name?.trim()) {
+      notify('error', 'Reminder ini tidak memiliki Sales yang terpilih!');
+      return;
+    }
+    const isTrigger = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category);
+    if (!isTrigger) {
+      notify('error', `Kategori "${r.category}" tidak memerlukan form review.`);
+      return;
+    }
+    if (r.status !== 'done') {
+      notify('error', 'Status reminder harus Completed untuk mengirim form review!');
+      return;
+    }
+
+    setResendingFormReview(true);
+    try {
+      const salesName = r.sales_name.trim();
+
+      // Selalu fetch guest terbaru dari DB berdasarkan full_name === sales_name
+      const { data: guestFromDb } = await supabase
+        .from('users')
+        .select('id, username, full_name, role, phone_number, sales_division')
+        .eq('role', 'guest')
+        .eq('full_name', salesName)
+        .maybeSingle();
+
+      const resolvedGuest = guestFromDb ?? guestUsers.find(g => g.full_name === salesName) ?? null;
+
+      if (!resolvedGuest) {
+        notify('error', `Guest dengan nama "${salesName}" tidak ditemukan di database!`);
+        setResendingFormReview(false);
+        return;
+      }
+
+      // Cek apakah form_review sudah ada
+      const { data: existingReview } = await supabase
+        .from('form_reviews')
+        .select('id, guest_username')
+        .eq('reminder_id', r.id)
+        .eq('sales_name', salesName)
+        .maybeSingle();
+
+      if (existingReview) {
+        // Patch guest_username jika masih kosong (data lama)
+        if (!existingReview.guest_username && resolvedGuest.username) {
+          await supabase.from('form_reviews')
+            .update({ guest_username: resolvedGuest.username })
+            .eq('id', existingReview.id);
+          console.log('[Resend] Patch guest_username:', resolvedGuest.username);
+        }
+        // Form sudah ada — hanya kirim ulang WA
+      } else {
+        // Buat form_review baru
+        const reviewCategory = r.category === 'Demo Product' ? 'Demo Product' : 'BAST';
+        const productValue = r.product?.trim() || '';
+        const { error: reviewErr } = await supabase.from('form_reviews').insert([{
+          reminder_id: r.id,
+          project_name: r.project_name,
+          address: r.address || '',
+          sales_name: salesName,
+          sales_division: r.sales_division || '',
+          assign_name: r.assign_name,
+          assigned_to: r.assigned_to,
+          reminder_category: r.category,
+          review_category: reviewCategory,
+          // Auto-insert product ke kolom yang sesuai berdasarkan review_category
+          ...(reviewCategory === 'Demo Product'
+            ? { product_demo: productValue }
+            : { product_bast: productValue }),
+          // guest_fullname = full_name Guest (= sales_name), wajib NOT NULL
+          guest_fullname: resolvedGuest.full_name ?? salesName,
+          // guest_username untuk filter di Form Review page
+          guest_username: resolvedGuest.username,
+        }]);
+        if (reviewErr) {
+          notify('error', 'Gagal membuat form review: ' + reviewErr.message);
+          setResendingFormReview(false);
+          return;
+        }
+        console.log('[Resend] ✅ Form review baru dibuat untuk:', salesName);
+      }
+
+      // Kirim / kirim ulang WA notif ke Guest
+      if (resolvedGuest.phone_number) {
+        const guestMsg =
+          `⭐ *FORM REVIEW — PTS IVP*\n\n` +
+          `Halo *${resolvedGuest.full_name}*!\n\n` +
+          `Jadwal *${r.category}* untuk project:\n` +
+          `📋 *${r.project_name}*\n` +
+          `*Kategori: ${r.category}*\n` +
+          `📦 *Product: ${r.product ?? '-'}*\n` +
+          `📍 ${r.address || '-'}\n\n` +
+          (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
+          `telah selesai dilaksanakan oleh tim kami.\n\n` +
+          `Mohon berikan penilaian / review Anda melalui dashboard:\n` +
+          `🔗 https://team-ticketing.vercel.app/dashboard\n\n` +
+          `Terima kasih! 🙏`;
+        const waResult = await sendFonnteWA(resolvedGuest.phone_number, guestMsg);
+        if (waResult.ok) notify('success', `Form review & WA berhasil dikirim ke ${resolvedGuest.full_name}!`);
+        else notify('success', `Form review OK. WA gagal: ${waResult.reason ?? 'unknown'}`);
+      } else {
+        notify('success', `Form review dibuat untuk ${resolvedGuest.full_name}. (Nomor WA tidak ada)`);
+      }
+    } catch (ex: any) {
+      console.error('[Resend form_review] Exception:', ex);
+      notify('error', 'Terjadi kesalahan: ' + ex.message);
+    }
+    setResendingFormReview(false);
   };
 
   const openEdit = (r: Reminder) => {
@@ -908,8 +1143,13 @@ export default function ReminderSchedulePage() {
           `📅 *JADWAL DIUBAH — PTS IVP*\n\n` +
           `Halo *${handlerUser.full_name}*, jadwal kamu telah di-reschedule:\n\n` +
           `*Project: ${rescheduleTarget.project_name}*\n` +
+          `*Kategori: ${rescheduleTarget.category}*\n` +
+          `📦 *Product: ${rescheduleTarget.product ?? '-'}*\n` +
           `📌 Jadwal Lama: ${formatDate(rescheduleTarget.due_date)} ${rescheduleTarget.due_time}\n` +
           `📅 Jadwal Baru: *${formatDate(newDate)} ${newTime}*\n` +
+          (rescheduleTarget.pic_name ? `🙋 PIC: ${rescheduleTarget.pic_name}\n` : '') +
+          (rescheduleTarget.pic_phone ? `📱 No. PIC: ${rescheduleTarget.pic_phone}\n` : '') +
+          (rescheduleTarget.notes ? `📝 Catatan: ${rescheduleTarget.notes}\n` : '') +
           (reason ? `📝 Alasan: ${reason}\n` : '') +
           `\n🔗 https://team-ticketing.vercel.app/dashboard`;
         await sendFonnteWA(handlerUser.phone_number, msg);
@@ -944,9 +1184,10 @@ export default function ReminderSchedulePage() {
     const msg =
       `📋 *REMINDER JADWAL PTS IVP*\n\n` +
       `Halo *${handlerData.full_name}*, ada jadwal yang perlu kamu kerjakan:\n\n` +
-      `*Nama Project: ${formData.project_name}*\n` +
-      `*Deskripsi: ${formData.description}*\n` +
-      `🏷️ Kategori: ${r.category}\n` +
+      `*Nama Project: ${r.project_name}*\n` +
+      `*Deskripsi: ${r.description}*\n` +
+      `*Kategori: ${r.category}*\n` +
+      `📦 *Product: ${r.product ?? '-'}*\n` +
       `📍 Lokasi: ${r.address || '-'}\n` +
       `👤 Sales: ${r.sales_name || '-'}\n` +
       `    Divisi Sales: ${r.sales_division || '-'}\n` +
@@ -1085,8 +1326,8 @@ export default function ReminderSchedulePage() {
     } catch { notify('error', 'Terjadi kesalahan.'); }
   };
 
-  // ─── Not ready ─────────────────────────────────────────────────────────────
-  // Render langsung tanpa loading gate (sama seperti ticketing)
+  // ─── Not ready — tampilkan loading screen saat pertama kali fetch data ────
+  if (!appReady) return <LoadingScreen />;
 
   // ─── Login page ────────────────────────────────────────────────────────────
   if (!isLoggedIn) {
@@ -1322,30 +1563,139 @@ export default function ReminderSchedulePage() {
                   </div>
                 </FormField>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Nama Sales *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                      <input value={formData.sales_name} onChange={e => fd({ sales_name: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle} placeholder="Dhany" />
+                {/* ── Pilih Sales — selalu tampil untuk semua kategori ── */}
+                {(() => {
+                  const isTrigger = (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(formData.category);
+                  return (
+                    <div className="rounded-xl p-4 space-y-3"
+                      style={isTrigger
+                        ? { background: 'rgba(124,58,237,0.06)', border: '1.5px solid rgba(124,58,237,0.25)' }
+                        : { background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.1)' }}>
+
+                      {/* Banner ⭐ hanya untuk trigger categories */}
+                      {isTrigger && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">⭐</span>
+                            <p className="text-sm font-bold text-violet-700">Assign Guest untuk Form Review</p>
+                          </div>
+                          <p className="text-xs text-violet-600 -mt-1">
+                            Kategori <strong>{formData.category}</strong> memerlukan review dari Guest / Sales. Pengingat Guest / Sales mengisi kepuasan pelanggan.
+                          </p>
+                        </>
+                      )}
+
+                      <FormField label="Pilih Sales *">
+                        <div className="relative" ref={guestDropdownRef}>
+                          {/* Search + display input */}
+                          <div
+                            className="w-full rounded-xl px-4 py-3 text-sm flex items-center justify-between cursor-pointer transition-all"
+                            style={{
+                              ...inputStyle,
+                              borderColor: guestDropdownOpen
+                                ? (isTrigger ? 'rgba(124,58,237,0.6)' : 'rgba(99,102,241,0.5)')
+                                : (isTrigger ? 'rgba(124,58,237,0.35)' : 'rgba(0,0,0,0.15)'),
+                              boxShadow: guestDropdownOpen ? '0 0 0 3px rgba(124,58,237,0.1)' : undefined,
+                            }}
+                            onClick={() => { setGuestDropdownOpen(o => !o); if (!guestDropdownOpen) setGuestSearch(''); }}
+                          >
+                            {formData.sales_name
+                              ? <span className="font-semibold text-slate-800">{formData.sales_name} <span className={`font-normal ${isTrigger ? 'text-violet-500' : 'text-slate-500'}`}>{formData.sales_division ? `· ${formData.sales_division}` : ''}</span></span>
+                              : <span className="text-slate-400">-- Pilih Sales --</span>
+                            }
+                            <svg className={`w-4 h-4 flex-shrink-0 transition-transform ${guestDropdownOpen ? 'rotate-180' : ''} ${isTrigger ? 'text-violet-400' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+
+                          {/* Dropdown panel */}
+                          {guestDropdownOpen && (
+                            <div className="absolute z-50 mt-1 w-full rounded-xl shadow-xl overflow-hidden"
+                              style={{ background: 'white', border: '1.5px solid rgba(124,58,237,0.3)', maxHeight: '240px' }}>
+                              {/* Search box */}
+                              <div className="p-2 border-b" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400 text-sm">🔍</span>
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={guestSearch}
+                                    onChange={e => setGuestSearch(e.target.value)}
+                                    placeholder="Cari nama sales / guest..."
+                                    className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                                    style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', color: '#1e293b' }}
+                                    onClick={e => e.stopPropagation()}
+                                  />
+                                </div>
+                              </div>
+                              {/* Options */}
+                              <div className="overflow-y-auto" style={{ maxHeight: '180px' }}>
+                                {/* Clear option */}
+                                <div
+                                  className="px-4 py-2.5 text-sm cursor-pointer hover:bg-violet-50 text-slate-400 italic"
+                                  onClick={() => { fd({ sales_name: '', sales_division: '' }); setGuestDropdownOpen(false); setGuestSearch(''); }}
+                                >
+                                  -- Pilih Sales --
+                                </div>
+                                {guestUsers
+                                  .filter(u =>
+                                    !guestSearch.trim() ||
+                                    u.full_name.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                    u.username.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                    (u.sales_division ?? '').toLowerCase().includes(guestSearch.toLowerCase())
+                                  )
+                                  .map(u => (
+                                    <div
+                                      key={u.id}
+                                      className="px-4 py-2.5 cursor-pointer transition-colors flex items-center justify-between gap-2"
+                                      style={{
+                                        background: formData.sales_name === u.full_name ? 'rgba(124,58,237,0.1)' : undefined,
+                                        borderLeft: formData.sales_name === u.full_name ? '3px solid #7c3aed' : '3px solid transparent',
+                                      }}
+                                      onMouseEnter={e => { if (formData.sales_name !== u.full_name) (e.currentTarget as HTMLDivElement).style.background = 'rgba(124,58,237,0.05)'; }}
+                                      onMouseLeave={e => { if (formData.sales_name !== u.full_name) (e.currentTarget as HTMLDivElement).style.background = ''; }}
+                                      onClick={() => {
+                                        fd({ sales_name: u.full_name, sales_division: u.sales_division ?? '' });
+                                        setGuestDropdownOpen(false);
+                                        setGuestSearch('');
+                                      }}
+                                    >
+                                      <div>
+                                        <p className="text-sm font-semibold text-slate-800">{u.full_name}</p>
+                                        <p className="text-xs text-violet-500">@{u.username}{u.sales_division ? ` · ${u.sales_division}` : ''}</p>
+                                      </div>
+                                      {formData.sales_name === u.full_name && <span className="text-violet-600 text-sm">✓</span>}
+                                    </div>
+                                  ))
+                                }
+                                {guestSearch.trim() && guestUsers.filter(u =>
+                                  u.full_name.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                  u.username.toLowerCase().includes(guestSearch.toLowerCase()) ||
+                                  (u.sales_division ?? '').toLowerCase().includes(guestSearch.toLowerCase())
+                                ).length === 0 && (
+                                  <div className="px-4 py-4 text-center text-xs text-gray-400">Tidak ada sales ditemukan</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {/* Close dropdown on outside click */}
+                        {guestDropdownOpen && (
+                          <div className="fixed inset-0 z-40" onClick={() => { setGuestDropdownOpen(false); setGuestSearch(''); }} />
+                        )}
+                      </FormField>
+
+                      {/* Konfirmasi form review — hanya untuk trigger categories */}
+                      {isTrigger && formData.sales_name && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                          <span className="text-sm">✅</span>
+                          <p className="text-xs font-semibold text-violet-700">
+                            Form review akan otomatis muncul di akun <strong>{formData.sales_name}</strong> setelah status jadwal ini diubah ke <strong>Completed</strong>.
+                            {formData.sales_division && <span className="ml-1 text-violet-500">· Divisi: <strong>{formData.sales_division}</strong></span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  </FormField>
-                  <FormField label="Divisi *">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2"></span>
-                      <select
-                        value={formData.sales_division}
-                        onChange={e => fd({ sales_division: e.target.value })}
-                        className={`${inputCls} pl-9`} style={inputStyle}
-                      >
-                        <option value=""> Pilih Divisi..</option>
-                        {SALES_DIVISIONS.map(div => (
-                          <option key={div} value={div}>{div}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </FormField>
-                </div>
+                  );
+                })()}
 
                 <SectionHeader icon="🎯" title="PIC Project (Opsional)" />
 
@@ -1576,6 +1926,27 @@ export default function ReminderSchedulePage() {
                   <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
                     {detailReminder.product && <InfoRow icon="📦" label="Product / Unit" value={detailReminder.product} />}
                     <InfoRow icon="👤" label="Nama Sales & Divisi" value={[detailReminder.sales_name, detailReminder.sales_division].filter(Boolean).join(' / ')} />
+                    {detailReminder.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(detailReminder.category) && (
+                      <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(124,58,237,0.04)' }}>
+                        <span className="text-base flex-shrink-0">⭐</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7c3aed' }}>Guest Review (Sales)</p>
+                          <p className="text-sm font-semibold text-violet-700">{detailReminder.sales_name}</p>
+                          {detailReminder.sales_division && <p className="text-[10px] text-violet-500">{detailReminder.sales_division}</p>}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {detailReminder.status === 'done' ? (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ background: '#7c3aed' }}>
+                              Form Review ✓
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'rgba(245,158,11,0.15)', color: '#d97706', border: '1px solid rgba(245,158,11,0.4)' }}>
+                              ⏳ Setelah Completed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {detailReminder.pic_name && <InfoRow icon="🙋" label="Nama PIC Project" value={detailReminder.pic_name} />}
                     {detailReminder.pic_phone && (
                       <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
@@ -1731,6 +2102,22 @@ export default function ReminderSchedulePage() {
                         className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
                         style={{ background: 'linear-gradient(135deg,#d97706,#b45309)', color: 'white', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}>
                         📅 Re-Schedule
+                      </button>
+                    )}
+                    {/* Resend Form Review — muncul jika kategori trigger & status done & ada sales_name */}
+                    {(isAdmin || currentUser?.role === 'team') &&
+                      detailReminder.status === 'done' &&
+                      detailReminder.sales_name?.trim() &&
+                      (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(detailReminder.category) && (
+                      <button
+                        onClick={() => handleResendFormReview(detailReminder)}
+                        disabled={resendingFormReview}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white', boxShadow: '0 4px 12px rgba(124,58,237,0.3)' }}>
+                        {resendingFormReview
+                          ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          : '⭐'}
+                        {resendingFormReview ? 'Mengirim...' : 'Resend Form Review'}
                       </button>
                     )}
                     {/* Send WA — admin only */}
@@ -2010,11 +2397,12 @@ export default function ReminderSchedulePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full bg-white border-collapse" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
-                          <col style={{ width: '14%' }} />
+                          <col style={{ width: '4%' }} />
+                          <col style={{ width: '13%' }} />
                           <col style={{ width: '10%' }} />
-                          <col style={{ width: '11%' }} />
+                          <col style={{ width: '13%' }} />
+                          <col style={{ width: '6%' }} />
                           <col style={{ width: '9%' }} />
-                          <col style={{ width: '10%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '9%' }} />
                           <col style={{ width: '6%' }} />
@@ -2022,6 +2410,7 @@ export default function ReminderSchedulePage() {
                         </colgroup>
                         <thead>
                           <tr className="bg-gray-50 border-b-2 border-gray-100">
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Kegiatan</th>
@@ -2030,16 +2419,18 @@ export default function ReminderSchedulePage() {
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">PIC</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-r border-gray-100">Tanggal</th>
-                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">ACT</th>
+                            <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wide">Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredReminders.map((r) => {
+                          {filteredReminders.map((r, idx) => {
                             const today = isDueToday(r.due_date);
                             return (
                               <tr key={r.id}
                                 className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/20 border-l-4 border-l-red-400' : 'bg-white border-l-4 border-l-transparent'}`}
-                                onClick={() => setDetailReminder(r)}>
+                                >
+                                {/* No */}
+                                <td className="px-3 py-3 border-r border-gray-100 align-middle text-[11px] font-bold text-gray-400">{idx + 1}</td>
                                 {/* Project */}
                                 <td className="px-3 py-3 border-r border-gray-100 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
@@ -2062,6 +2453,12 @@ export default function ReminderSchedulePage() {
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
+                                    {r.sales_name && (REVIEW_TRIGGER_CATEGORIES as readonly string[]).includes(r.category) && (
+                                    <div className="inline-flex items-center gap-1 mt-1 px-1.5 py-1"
+                                      >
+                                      ⭐ {/*r.sales_name*/}
+                                    </div>
+                                  )}
                                   </div>
                                   {r.category === 'Troubleshooting' && (
                                     <button
@@ -2122,20 +2519,20 @@ export default function ReminderSchedulePage() {
                                   <div className="flex flex-nowrap items-center justify-center gap-1">
                                     {/* Detail */}
                                     <button onClick={() => setDetailReminder(r)} title="Detail"
-                                      className="text-blue-500 hover:text-blue-700 transition-colors p-0.5">
+                                      className="text-blue-500 hover:text-blue-700 transition-colors">
                                       <span className="text-sm">👁</span>
                                     </button>
                                     {/* Re-Schedule — semua team PTS & admin bisa lihat */}
                                     {(isAdmin || currentUser?.role === 'team') && r.status !== 'done' && (
                                       <button onClick={() => setRescheduleTarget(r)} title="Re-Schedule"
-                                        className="text-amber-500 hover:text-amber-700 transition-colors p-0.5">
+                                        className="text-amber-500 hover:text-amber-700 transition-colors">
                                         <span className="text-sm">📅</span>
                                       </button>
                                     )}
                                     {/* Hapus — admin only */}
                                     {isAdmin && (
                                       <button onClick={() => openDeleteModal(r)} title="Hapus"
-                                        className="text-red-400 hover:text-red-600 transition-colors p-0.5">
+                                        className="text-red-400 hover:text-red-600 transition-colors">
                                         <span className="text-sm">🗑️</span>
                                       </button>
                                     )}
