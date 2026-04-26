@@ -156,13 +156,16 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS,
     };
     if (editingUser.role === 'team') updatePayload.team_type = editingUser.team_type ?? null;
+    else if (editingUser.team_type === 'Pending Approval') {
+      // Admin meng-approve: hapus team_type 'Pending Approval', set ke null atau Guest
+      updatePayload.team_type = null;
+      updatePayload.sales_division = editingUser.sales_division ?? null;
+    }
     if (editingUser.role === 'guest' || editingUser.role === 'sales') {
       updatePayload.sales_division = editingUser.sales_division ?? null;
     }
-    // For pending → being approved, preserve sales_division
-    if (editingUser.role === 'pending') {
-      updatePayload.sales_division = editingUser.sales_division ?? null;
-    }
+    // For Pending Approval users being approved — clear team_type and set proper role
+    // (handled by admin selecting role in edit form)
     const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id);
     setSaving(false);
     if (error) { notify('error', 'Gagal menyimpan: ' + error.message); return; }
@@ -289,7 +292,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
                       <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value, team_type: '', sales_division: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
-                        {editingUser.role === 'pending' && <option value="pending">⏳ Pending (Menunggu Approval)</option>}
+                        {editingUser.team_type === 'Pending Approval' && <option value="guest" disabled>⏳ Pending Approval — pilih role di bawah</option>}
                         <option value="guest">Guest</option>
                         <option value="team">Team</option>
                         <option value="sales">Sales</option>
@@ -365,7 +368,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     ).length} akun ditemukan
                   </p>
                   {/* Pending users section */}
-                  {users.filter(u => u.role === 'pending' && (
+                  {users.filter(u => u.team_type === 'Pending Approval' && (
                     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (searchQuery === '' || 'pending'.includes(searchQuery.toLowerCase()))
@@ -374,10 +377,10 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">⏳ Menunggu Persetujuan</span>
                         <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                          {users.filter(u => u.role === 'pending').length}
+                          {users.filter(u => u.team_type === 'Pending Approval').length}
                         </span>
                       </div>
-                      {users.filter(u => u.role === 'pending' && (
+                      {users.filter(u => u.team_type === 'Pending Approval' && (
                         !searchQuery ||
                         u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         u.username?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -395,7 +398,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                               </div>
                             </div>
                             <div className="flex gap-2 flex-shrink-0">
-                              <button onClick={() => setEditingUser(user)}
+                              <button onClick={() => setEditingUser({ ...user, role: 'guest' })}
                                 className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm">
                                 ✅ Approve & Set Role
                               </button>
@@ -411,7 +414,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   )}
                   {/* Active users list */}
                   {users
-                    .filter(u => u.role !== 'pending' && (
+                    .filter(u => u.team_type !== 'Pending Approval' && (
                       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       u.role?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1172,6 +1175,11 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase.from('users').select('*').eq('username', loginForm.username).eq('password', loginForm.password).single();
       if (error || !data) { alert('Username atau password salah!'); return; }
+      // Blokir user yang masih Pending Approval
+      if (data.team_type === 'Pending Approval') {
+        alert('Akun kamu masih menunggu persetujuan admin.\nKamu akan dihubungi setelah akun diaktifkan.');
+        return;
+      }
       setCurrentUser(data);
       setIsLoggedIn(true);
       const now = Date.now();
@@ -1192,14 +1200,15 @@ export default function Dashboard() {
       // Check if username already exists
       const { data: existing } = await supabase.from('users').select('id').eq('username', username.trim().toLowerCase()).maybeSingle();
       if (existing) { alert('Username / email sudah terdaftar. Gunakan username lain.'); setRegisterLoading(false); return; }
-      // Insert pending user — role: 'pending', no allowed_menus yet
+      // Insert user dengan role 'guest' tapi team_type 'Pending Approval' sebagai penanda belum diapprove admin
+      // (role 'pending' tidak ada di CHECK constraint Supabase)
       const { error } = await supabase.from('users').insert([{
         full_name: full_name.trim(),
         username: username.trim().toLowerCase(),
         password: password,
-        role: 'pending',
+        role: 'guest',
         sales_division: sales_division,
-        team_type: 'Guest',
+        team_type: 'Pending Approval',
         allowed_menus: [],
       }]);
       if (error) throw error;
