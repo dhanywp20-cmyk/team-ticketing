@@ -1498,7 +1498,7 @@ export default function FormReviewPage() {
                           </td>
                           {/* Kategori */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <div className="text-[14px] font-semibold text-violet-600 leading-tight">{r.reminder_category || '—'}</div>
+                            <div className="text-[12px] font-semibold text-violet-600 leading-tight">{r.reminder_category || '—'}</div>
                           </td>
                           {/* Sales */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
@@ -1512,12 +1512,12 @@ export default function FormReviewPage() {
                                 style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>
                                 {r.assign_name?.charAt(0)?.toUpperCase() || '?'}
                               </div>
-                              <span className="text-[10px] font-bold text-gray-800 truncate max-w-[80px]">{r.assign_name}</span>
+                              <span className="text-[12px] font-bold text-gray-800 leading-tight break-words">{r.assign_name}</span>
                             </div>
                           </td>
                           {/* Product */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <div className="text-[10px] text-gray-600 max-w-[120px] line-clamp-2">
+                            <div className="text-[12] font-bold text-gray-800 leading-tight break-words">
                               {isDemo ? (r.product_demo || '—') : (r.product_bast || '—')}
                             </div>
                           </td>
