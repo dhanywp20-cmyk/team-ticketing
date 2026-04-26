@@ -272,6 +272,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Role</label>
                       <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value, team_type: '', sales_division: '' })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                        {editingUser.role === 'pending' && <option value="pending">⏳ Pending (Menunggu Approval)</option>}
                         <option value="guest">Guest</option>
                         <option value="team">Team</option>
                         <option value="sales">Sales</option>
@@ -346,12 +347,58 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                       u.role?.toLowerCase().includes(searchQuery.toLowerCase())
                     ).length} akun ditemukan
                   </p>
+                  {/* Pending users section */}
+                  {users.filter(u => u.role === 'pending' && (
+                    u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (searchQuery === '' || 'pending'.includes(searchQuery.toLowerCase()))
+                  )).length > 0 && (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">⏳ Menunggu Persetujuan</span>
+                        <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                          {users.filter(u => u.role === 'pending').length}
+                        </span>
+                      </div>
+                      {users.filter(u => u.role === 'pending' && (
+                        !searchQuery ||
+                        u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        u.username?.toLowerCase().includes(searchQuery.toLowerCase())
+                      )).map(user => (
+                        <div key={user.id} className="rounded-xl p-4 mb-2 border-2 border-amber-300" style={{ background: 'rgba(254,243,199,0.7)' }}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm bg-amber-200 text-amber-800">
+                                {user.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 text-sm">{user.full_name}</p>
+                                <p className="text-xs text-slate-500">@{user.username}</p>
+                                {user.sales_division && <p className="text-xs text-amber-700 font-semibold mt-0.5">🏢 {user.sales_division}</p>}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button onClick={() => setEditingUser(user)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm">
+                                ✅ Approve & Set Role
+                              </button>
+                              <button onClick={() => handleDeleteUser(user.id)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">
+                                Tolak
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Active users list */}
                   {users
-                    .filter(u =>
+                    .filter(u => u.role !== 'pending' && (
                       u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       u.role?.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
+                    ))
                     .map(user => (
                     <div key={user.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-all">
                       <div className="flex items-start justify-between gap-3">
@@ -367,10 +414,10 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                               <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
                               {user.team_type && (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-rose-100 text-rose-600 border border-rose-200">
-                                  {user.team_type === 'Team PTS' ? '👥' : '👥'} {user.team_type}
+                                  👥 {user.team_type}
                                 </span>
                               )}
-                              {user.role === 'guest' && user.sales_division && (
+                              {user.sales_division && (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-violet-100 text-violet-600 border border-violet-200">
                                   🏢 {user.sales_division}
                                 </span>
@@ -383,7 +430,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                           <button onClick={() => handleDeleteUser(user.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">Hapus</button>
                         </div>
                       </div>
-                      {user.allowed_menus && (
+                      {user.allowed_menus && user.allowed_menus.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {user.allowed_menus.map(key => (
                             <span key={key} className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 text-slate-600">
@@ -1011,6 +1058,16 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [showRegister, setShowRegister] = useState(false);
+  const [registerForm, setRegisterForm] = useState({
+    full_name: '',
+    username: '',
+    password: '',
+    confirm_password: '',
+    sales_division: '',
+  });
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [menuLoading, setMenuLoading] = useState(false);
 
@@ -1034,13 +1091,13 @@ export default function Dashboard() {
     {
       title: 'Form Require Project', icon: '🏗️', key: 'form-require-project',
       gradient: 'from-violet-700 via-violet-600 to-violet-500',
-      description: 'Solution request form untuk project Sales & Account',
+      description: 'request Solution untuk project sales',
       items: [{ name: 'Submit Require', url: '/form-require-project2', icon: '📋', internal: true, embed: true }]
     },
     {
       title: 'Form Review Demo & BAST', icon: '⭐', key: 'form-bast',
       gradient: 'from-slate-700 via-slate-600 to-slate-500',
-      description: 'Platform review Demo Produk & BAST dari Reminder Schedule',
+      description: 'review Demo Produk & BAST dari Sales',
       items: [{ name: 'Platform Review', url: '/form-review', icon: '⭐', internal: true, embed: true }]
     },
     {
@@ -1104,6 +1161,37 @@ export default function Dashboard() {
       localStorage.setItem('currentUser', JSON.stringify(data));
       localStorage.setItem('loginTime', now.toString());
     } catch { alert('Login gagal!'); }
+  };
+
+  const handleRegister = async () => {
+    const { full_name, username, password, confirm_password, sales_division } = registerForm;
+    if (!full_name.trim()) { alert('Nama lengkap wajib diisi!'); return; }
+    if (!username.trim()) { alert('Email / username wajib diisi!'); return; }
+    if (!password || password.length < 6) { alert('Password minimal 6 karakter!'); return; }
+    if (password !== confirm_password) { alert('Konfirmasi password tidak cocok!'); return; }
+    if (!sales_division) { alert('Pilih divisi sales!'); return; }
+    setRegisterLoading(true);
+    try {
+      // Check if username already exists
+      const { data: existing } = await supabase.from('users').select('id').eq('username', username.trim().toLowerCase()).maybeSingle();
+      if (existing) { alert('Username / email sudah terdaftar. Gunakan username lain.'); setRegisterLoading(false); return; }
+      // Insert pending user — role: 'pending', no allowed_menus yet
+      const { error } = await supabase.from('users').insert([{
+        full_name: full_name.trim(),
+        username: username.trim().toLowerCase(),
+        password: password,
+        role: 'pending',
+        sales_division: sales_division,
+        team_type: 'Guest',
+        allowed_menus: [],
+      }]);
+      if (error) throw error;
+      setRegisterSuccess(true);
+      setRegisterForm({ full_name: '', username: '', password: '', confirm_password: '', sales_division: '' });
+    } catch (err: any) {
+      alert('Registrasi gagal: ' + err.message);
+    }
+    setRegisterLoading(false);
   };
 
   const handleLogout = () => {
@@ -1211,32 +1299,125 @@ export default function Dashboard() {
 
   if (!isLoggedIn) return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-fixed p-4" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
-      <div className="bg-white/75 backdrop-blur-sm rounded-lg shadow-2xl p-10 w-full max-w-md border border-slate-200">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-rose-600 to-rose-700 rounded-full mb-4 shadow-lg">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">Work Management</h1>
-          <p className="text-slate-600 font-medium">Support System - IndoVisual</p>
-        </div>
-        <div className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">USERNAME</label>
-            <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-              className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-              placeholder="Enter your username" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-2 text-slate-700 tracking-wide">PASSWORD</label>
-            <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-              className="w-full border border-slate-300 rounded-md px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all bg-white text-slate-800 font-medium"
-              placeholder="Enter your password" onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
-          </div>
-          <button onClick={handleLogin} className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-4 rounded-md hover:from-rose-700 hover:to-rose-800 font-semibold shadow-lg hover:shadow-xl transition-all tracking-wide">
-            Sign In to Portal
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl w-full border border-white/60" style={{ maxWidth: showRegister ? 480 : 420 }}>
+
+        {/* Tab toggle */}
+        <div className="flex rounded-t-2xl overflow-hidden">
+          <button onClick={() => { setShowRegister(false); setRegisterSuccess(false); }}
+            className={`flex-1 py-4 text-sm font-bold tracking-wide transition-all ${!showRegister ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-md' : 'bg-white/60 text-slate-500 hover:text-slate-700'}`}>
+            🔐 Sign In
           </button>
+          <button onClick={() => { setShowRegister(true); setRegisterSuccess(false); }}
+            className={`flex-1 py-4 text-sm font-bold tracking-wide transition-all ${showRegister ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md' : 'bg-white/60 text-slate-500 hover:text-slate-700'}`}>
+            📝 Register
+          </button>
+        </div>
+
+        <div className="p-8">
+          {/* Header */}
+          <div className="text-center mb-7">
+            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg ${showRegister ? 'bg-gradient-to-br from-indigo-600 to-indigo-700' : 'bg-gradient-to-br from-rose-600 to-rose-700'}`}>
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {showRegister
+                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                }
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 mb-1 tracking-tight">Work Management</h1>
+            <p className="text-slate-500 text-sm font-medium">Support System — IndoVisual</p>
+          </div>
+
+          {/* LOGIN FORM */}
+          {!showRegister && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Username</label>
+                <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 transition-all bg-white text-slate-800 font-medium text-sm"
+                  placeholder="Enter your username" onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Password</label>
+                <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 transition-all bg-white text-slate-800 font-medium text-sm"
+                  placeholder="Enter your password" onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
+              </div>
+              <button onClick={handleLogin} className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3.5 rounded-xl hover:from-rose-700 hover:to-rose-800 font-bold shadow-lg transition-all tracking-wide text-sm mt-2">
+                🔐 Sign In to Portal
+              </button>
+              <p className="text-center text-xs text-slate-400 pt-1">Belum punya akun? <button onClick={() => setShowRegister(true)} className="text-indigo-600 font-bold hover:underline">Daftar di sini</button></p>
+            </div>
+          )}
+
+          {/* REGISTER FORM */}
+          {showRegister && (
+            <div>
+              {registerSuccess ? (
+                <div className="text-center py-4">
+                  <div className="text-6xl mb-4">🎉</div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Registrasi Berhasil!</h3>
+                  <p className="text-sm text-slate-600 mb-1">Akun kamu sudah terkirim untuk review.</p>
+                  <p className="text-sm text-slate-500 mb-6">Admin akan menentukan role dan menu akses kamu. Kamu akan dihubungi setelah disetujui.</p>
+                  <button onClick={() => { setShowRegister(false); setRegisterSuccess(false); }}
+                    className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-xl font-bold text-sm transition-all hover:opacity-90">
+                    ← Kembali ke Login
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Nama Lengkap *</label>
+                    <input type="text" value={registerForm.full_name} onChange={e => setRegisterForm({ ...registerForm, full_name: e.target.value })}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-white text-slate-800 text-sm font-medium"
+                      placeholder="Nama lengkap kamu" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Email / Username *</label>
+                    <input type="text" value={registerForm.username} onChange={e => setRegisterForm({ ...registerForm, username: e.target.value })}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-white text-slate-800 text-sm font-medium"
+                      placeholder="email atau username unik" />
+                    <p className="text-[10px] text-slate-400 mt-1">Akan digunakan untuk login ke sistem</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Divisi Sales *</label>
+                    <div className="relative">
+                      <select value={registerForm.sales_division} onChange={e => setRegisterForm({ ...registerForm, sales_division: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-white text-slate-800 text-sm appearance-none cursor-pointer">
+                        <option value="">— Pilih Divisi Sales —</option>
+                        {SALES_DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▾</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Password *</label>
+                      <input type="password" value={registerForm.password} onChange={e => setRegisterForm({ ...registerForm, password: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-white text-slate-800 text-sm font-medium"
+                        placeholder="Min. 6 karakter" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Konfirmasi *</label>
+                      <input type="password" value={registerForm.confirm_password} onChange={e => setRegisterForm({ ...registerForm, confirm_password: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-white text-slate-800 text-sm font-medium"
+                        placeholder="Ulangi password"
+                        onKeyDown={e => e.key === 'Enter' && handleRegister()} />
+                    </div>
+                  </div>
+                  <div className="rounded-xl px-4 py-3 text-xs" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                    <p className="text-indigo-700 font-semibold">ℹ️ Info Pendaftaran</p>
+                    <p className="text-indigo-600 mt-1">Setelah mendaftar, akun kamu akan <strong>menunggu persetujuan admin</strong> untuk penentuan role dan menu akses. Kamu akan dihubungi via WA atau email.</p>
+                  </div>
+                  <button onClick={handleRegister} disabled={registerLoading}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-3.5 rounded-xl font-bold text-sm transition-all hover:from-indigo-700 hover:to-indigo-800 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg">
+                    {registerLoading ? '⏳ Mendaftarkan...' : '📝 Daftar Sekarang'}
+                  </button>
+                  <p className="text-center text-xs text-slate-400">Sudah punya akun? <button onClick={() => setShowRegister(false)} className="text-rose-600 font-bold hover:underline">Login di sini</button></p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
