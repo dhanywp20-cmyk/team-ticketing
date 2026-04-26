@@ -548,6 +548,7 @@ export default function TicketingSystem() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
   const [newMapping, setNewMapping] = useState({ guestUsername: "", projectName: "" });
 
   const getJakartaDateString = () => {
@@ -2334,16 +2335,7 @@ export default function TicketingSystem() {
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())}
                     className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
-                  <button onClick={async () => {
-                    if (selectedIds.size === 0) return;
-                    if (!window.confirm(`Hapus ${selectedIds.size} ticket yang dipilih?`)) return;
-                    setBulkDeleting(true);
-                    const ids = Array.from(selectedIds);
-                    const { error } = await supabase.from("tickets").delete().in("id", ids);
-                    if (!error) { setTickets(prev => prev.filter(t => !selectedIds.has(t.id))); setSelectedIds(new Set()); }
-                    else alert("Gagal: " + error.message);
-                    setBulkDeleting(false);
-                  }} disabled={bulkDeleting}
+                  <button onClick={() => setBulkConfirm(true)} disabled={bulkDeleting}
                     className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
                     style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)' }}>
                     {bulkDeleting ? '⏳ Menghapus...' : `🗑️ Hapus ${selectedIds.size} Ticket`}
@@ -2404,11 +2396,7 @@ export default function TicketingSystem() {
                     <col style={{ width: "9%" }} />   {/* Status */}
                     <col style={{ width: "8%" }} />   {/* Sales */}
                     <col style={{ width: "7%" }} />   {/* Created By */}
-                    <col style={{ width: "3%" }} />   {/* Action 1 */}
-                    <col style={{ width: "3%" }} />   {/* Action 2 */}
-                    <col style={{ width: "3%" }} />   {/* Action 3 */}
-                    <col style={{ width: "3%" }} />   {/* Action 4 */}
-                    <col style={{ width: "3%" }} />   {/* Action 5 */}
+                    <col style={{ width: "15%" }} />  {/* Action (combined) */}
                   </colgroup>
                   <thead>
                     <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
@@ -2428,7 +2416,7 @@ export default function TicketingSystem() {
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Status</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Sales</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Created By</th>
-                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide" colSpan={canAccessAccountSettings ? 5 : 3}>Action</th>
+                      <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2486,17 +2474,37 @@ export default function TicketingSystem() {
                            </td>
                           <td className="px-2 py-3 border-r border-gray-100 align-middle"><div className="text-xs text-gray-600 break-words leading-tight">{ticket.sales_name || "—"}</div>{ticket.sales_division && <div className="text-xs text-purple-500 font-semibold mt-0.5">{ticket.sales_division}</div>}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-600 break-words leading-tight">{creatorLabel}</div></td>
-                          <td className="px-0 py-2 text-center align-middle">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <div className="flex items-center justify-center gap-0.5 mb-0.5"><span className="text-gray-400 text-xs">🗒️</span>{ticket.activity_logs && ticket.activity_logs.length > 0 && <span className="bg-red-600 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none" style={{ fontSize: "10px" }}>{ticket.activity_logs.length}</span>}</div>
-                              <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-sm">👁</span></button>
-                              {ticket.status === "Solved" && canUpdateTicket && <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assign_name || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors" title="Re-open"><span className="text-sm">🔓</span></button>}
+                          <td className="px-1 py-2 align-middle">
+                            <div className="flex flex-wrap items-center justify-center gap-1.5">
+                              {/* Activity log badge + View */}
+                              <div className="relative inline-flex">
+                                <button onClick={() => { setSelectedTicket(ticket); setShowTicketDetailPopup(true); }} className="text-red-600 hover:text-red-800 transition-colors" title="View"><span className="text-sm">👁</span></button>
+                                {ticket.activity_logs && ticket.activity_logs.length > 0 && (
+                                  <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">{ticket.activity_logs.length}</span>
+                                )}
+                              </div>
+                              {/* Flowchart */}
+                              <button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors" title="Flowchart"><span className="text-sm">📊</span></button>
+                              {/* Print PDF */}
+                              <button onClick={() => exportToPDF(ticket)} className="text-green-600 hover:text-green-800 transition-colors" title="Print PDF"><span className="text-sm">🖨️</span></button>
+                              {/* Waiting Approval — admin only */}
+                              {canAccessAccountSettings && ticket.status === "Waiting Approval" && (
+                                <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors animate-pulse" title="Approve"><span className="text-sm">✅</span></button>
+                              )}
+                              {/* Re-open */}
+                              {ticket.status === "Solved" && canUpdateTicket && (
+                                <button onClick={() => { setReopenTargetTicket(ticket); setReopenAssignee(ticket.assign_name || ""); setReopenNotes(""); setShowReopenModal(true); }} className="text-amber-600 hover:text-amber-800 transition-colors" title="Re-open"><span className="text-sm">🔓</span></button>
+                              )}
+                              {/* Hapus — admin only */}
+                              {canAccessAccountSettings && (
+                                <button onClick={() => { setDeleteTargetTicket(ticket); setDeleteConfirmText(""); setShowDeleteModal(true); }} className="text-red-500 hover:text-red-700 transition-colors" title="Hapus Ticket"><span className="text-sm">🗑️</span></button>
+                              )}
+                              {/* Overdue Setting — admin only */}
+                              {canAccessAccountSettings && (
+                                <button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-sm">⏰</span></button>
+                              )}
                             </div>
-                           </td>
-                          <td className="px-0 py-2 align-middle text-center"><button onClick={() => { setSummaryTicket(ticket); setShowActivitySummary(true); }} className="text-blue-600 hover:text-blue-800 transition-colors mx-auto block" title="Flowchart"><span className="text-sm">📊</span></button>{canAccessAccountSettings && ticket.status === "Waiting Approval" && <button onClick={() => { setApprovalTicket(ticket); setApprovalAssignee(""); setShowApprovalModal(true); }} className="text-orange-600 hover:text-orange-800 transition-colors mx-auto block mt-0.5 animate-pulse" title="Approve"><span className="text-sm">✅</span></button>}</td>
-                          <td className="px-0 py-2 align-middle text-center"><button onClick={() => exportToPDF(ticket)} className="text-green-600 hover:text-green-800 transition-colors mx-auto block" title="Print PDF"><span className="text-sm">🖨️</span></button></td>
-                          {canAccessAccountSettings && (<td className="px-0 py-2 align-middle text-center"><button onClick={() => { setDeleteTargetTicket(ticket); setDeleteConfirmText(""); setShowDeleteModal(true); }} className="text-red-500 hover:text-red-700 transition-colors mx-auto block" title="Hapus Ticket"><span className="text-sm">🗑️</span></button></td>)}
-                          {canAccessAccountSettings && (<td className="px-0 py-2 align-middle text-center"><button onClick={() => { setOverdueTargetTicket(ticket); const existing = getOverdueSetting(ticket.id); setOverdueForm({ due_hours: existing?.due_hours ? String(existing.due_hours) : "48" }); setShowOverdueSetting(true); }} className={`transition-colors mx-auto block ${overdueSetting ? "text-red-600 hover:text-red-800" : "text-gray-400 hover:text-gray-600"}`} title="Overdue Setting"><span className="text-sm">⏰</span></button></td>)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -2510,6 +2518,42 @@ export default function TicketingSystem() {
 
         {/* ── All modals remain the same as original (notifications, detail popup, etc.) ── */}
         {/* ... (all other modals - notification popup, ticket detail, update form, approval modals, etc. remain unchanged) ... */}
+
+        {/* Bulk Delete Confirm Modal */}
+        {bulkConfirm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border-2 border-red-400">
+              <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4 flex items-center gap-3">
+                <span className="text-2xl">🗑️</span>
+                <div>
+                  <h3 className="font-bold text-white">Hapus {selectedIds.size} Ticket?</h3>
+                  <p className="text-red-100 text-xs mt-0.5">Tindakan ini tidak dapat dibatalkan</p>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-gray-600 mb-5">
+                  Kamu akan menghapus <strong>{selectedIds.size} ticket</strong> yang dipilih secara permanen dari sistem.
+                </p>
+                <div className="flex gap-3">
+                  <button onClick={() => setBulkConfirm(false)}
+                    className="flex-1 border-2 border-gray-300 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-50 transition-all text-sm">
+                    Batal
+                  </button>
+                  <button onClick={async () => {
+                    setBulkConfirm(false); setBulkDeleting(true);
+                    const ids = Array.from(selectedIds);
+                    const { error } = await supabase.from("tickets").delete().in("id", ids);
+                    if (!error) { setTickets(prev => prev.filter(t => !selectedIds.has(t.id))); setSelectedIds(new Set()); setSelectMode(false); }
+                    else alert("Gagal: " + error.message);
+                    setBulkDeleting(false);
+                  }} className="flex-[2] bg-gradient-to-r from-red-600 to-red-700 text-white py-2.5 rounded-xl font-bold shadow-lg transition-all text-sm hover:from-red-700 hover:to-red-800">
+                    🗑️ Ya, Hapus Permanen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── NOTIFICATION POPUP (Redesigned) ── */}
         {showNotificationPopup && notifications.length > 0 && (
