@@ -1517,7 +1517,7 @@ export default function FormReviewPage() {
                           </td>
                           {/* Product */}
                           <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                            <div className="text-[12] font-bold text-gray-800 leading-tight break-words">
+                            <div className="text-[10] font-bold text-gray-800 leading-tight break-words">
                               {isDemo ? (r.product_demo || '—') : (r.product_bast || '—')}
                             </div>
                           </td>
