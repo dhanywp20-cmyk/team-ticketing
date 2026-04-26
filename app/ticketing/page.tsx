@@ -2389,14 +2389,14 @@ export default function TicketingSystem() {
                   <colgroup>
                     <col style={{ width: "3%" }} />   {/* No */}
                     <col style={{ width: "16%" }} />  {/* Project Name */}
-                    <col style={{ width: "11%" }} />  {/* Product */}
+                    <col style={{ width: "13%" }} />  {/* Product */}
                     <col style={{ width: "9%" }} />   {/* SN Unit */}
                     <col style={{ width: "10%" }} />  {/* Issue */}
                     <col style={{ width: "9%" }} />   {/* Assigned */}
-                    <col style={{ width: "9%" }} />   {/* Status */}
+                    <col style={{ width: "7%" }} />   {/* Status */}
                     <col style={{ width: "8%" }} />   {/* Sales */}
                     <col style={{ width: "7%" }} />   {/* Created By */}
-                    <col style={{ width: "8%" }} />  {/* Action (combined) */}
+                    <col style={{ width: "10%" }} />  {/* Action (combined) */}
                   </colgroup>
                   <thead>
                     <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
