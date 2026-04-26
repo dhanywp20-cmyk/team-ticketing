@@ -1021,7 +1021,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       // admin/superadmin: semua request
       // team PTS: semua request (filter assign ditampilkan di UI)
     } else if (isIVPGuest) {
-      // IVP guest (sales internal): HANYA lihat request yang di-link admin ke mereka via ivp_assignee
+      // IVP guest (internal sales): ONLY see requests where admin linked them via ivp_assignee
+      // Note: requires ivp_assignee column in project_requests table
       query = query.eq('ivp_assignee', currentUser.full_name);
     } else {
       // non-IVP guest: hanya request miliknya sendiri
@@ -2097,7 +2098,7 @@ Hubungi Admin untuk info lebih lanjut.
         
 
         {/* TICKET LIST — matching reference style */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(200,200,200,0.6)', backdropFilter: 'blur(12px)' }}>
 
           {/* Header with title + actions — same as reference */}
           <div className="flex flex-wrap items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
@@ -2121,7 +2122,7 @@ Hubungi Admin untuk info lebih lanjut.
           </div>
 
           {/* Search + filter grid — labeled like reference */}
-          <div className="px-6 py-3 border-b border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+          <div className="px-6 py-3 border-b border-gray-100" style={{ background: 'rgba(255,255,255,0.97)' }}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Lokasi</label>
@@ -2210,7 +2211,7 @@ Hubungi Admin untuk info lebih lanjut.
           {/* Active filter chips — inside table */}
           {/* Bulk delete bar — admin only, selectMode only */}
           {selectMode && (isAdmin || isSuperAdmin) && selectedIds.size > 0 && (
-            <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(13,148,136,0.07)' }}>
+            <div className="px-6 py-2.5 flex items-center justify-between border-b border-gray-200" style={{ background: 'rgba(13,148,136,0.07)' }}>
               <span className="text-sm font-bold text-teal-700">{selectedIds.size} request dipilih</span>
               <div className="flex items-center gap-2">
                 <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
@@ -2224,7 +2225,7 @@ Hubungi Admin untuk info lebih lanjut.
           )}
 
           {(filterStatus !== 'all' || filterYear !== 'all' || filterMonth !== 'all' || filterHandler !== 'all' || filterDivision !== 'all' || searchQuery || searchSales) && (
-            <div className="px-6 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.92)' }}>
+            <div className="px-6 py-2.5 border-b border-gray-100 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.97)' }}>
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
               {filterStatus !== 'all' && (
                 <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {filterStatus} ✕</button>
@@ -2277,28 +2278,31 @@ Hubungi Admin untuk info lebih lanjut.
           ) : filteredRequests.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📭</div>
-              <p className="text-gray-600 font-medium">{searchQuery || searchSales || filterStatus !== 'all' ? 'Tidak ada request yang sesuai filter.' : 'Belum ada request.'}</p>
-              {!isPTS && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
+              <p className="text-gray-600 font-medium">{searchQuery || searchSales || filterStatus !== 'all' ? 'Tidak ada request yang sesuai filter.'
+                    : isIVPGuest
+                      ? 'Belum ada request yang di-assign ke akun kamu. Admin akan menghubungkan request dari sales external ke akun IVP kamu saat ada project baru.'
+                      : 'Belum ada request.'}</p>
+              {!isPTS && !isIVPGuest && <button onClick={() => setShowNewFormModal(true)} className="mt-4 bg-teal-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition-all shadow-md">+ Buat Request Pertama</button>}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse" style={{ background: 'transparent' }}>
                 <thead>
-                  <tr className="border-b-2 border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
-                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">
+                  <tr className="border-b-2 border-gray-300" style={{ background: 'rgba(255,255,255,0.97)' }}>
+                    <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">
                       {selectMode && (isAdmin || isSuperAdmin)
                         ? <input type="checkbox"
                             checked={selectedIds.size === filteredRequests.length && filteredRequests.length > 0}
                             onChange={toggleSelectAll} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" title="Pilih Semua" />
                         : 'No'}
                     </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Nama Project</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Lokasi / Ruangan</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Sales</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Handler</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Status</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Due Date</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-white/30">Created By</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Nama Project</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Lokasi / Ruangan</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Sales</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Handler</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Status</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Due Date</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Created By</th>
                     <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
                   </tr>
                 </thead>
@@ -2310,15 +2314,15 @@ Hubungi Admin untuk info lebih lanjut.
                     const isToday = req.due_date === new Date().toISOString().split('T')[0];
                     return (
                       <tr key={req.id}
-                        className="border-b border-white/30 hover:bg-white/30 transition-colors"
+                        className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                         style={{ borderLeft: isToday ? '3px solid #0d9488' : '3px solid transparent' }}>
-                        <td className="px-2 py-3 border-r border-white/30 align-middle text-center" onClick={e => e.stopPropagation()}>
+                        <td className="px-2 py-3 border-r border-gray-200 align-middle text-center" onClick={e => e.stopPropagation()}>
                           {selectMode && (isAdmin || isSuperAdmin)
                             ? <input type="checkbox" checked={selectedIds.has(req.id)}
                                 onChange={() => toggleSelectId(req.id)} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
                             : <span className="text-[11px] font-bold text-gray-500">{index + 1}</span>}
                         </td>
-                        <td className="px-3 py-3 border-r border-white/30 align-middle">
+                        <td className="px-3 py-3 border-r border-gray-200 align-middle">
                           <div className="flex items-start gap-1.5">
                             {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse mt-1" />}
                             <div>
@@ -2328,7 +2332,7 @@ Hubungi Admin untuk info lebih lanjut.
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-3 border-r border-white/30 align-middle">
+                        <td className="px-3 py-3 border-r border-gray-200 align-middle">
                           <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
                           {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5">🛋️ {req.room_name}</div>}
                         </td>
@@ -2413,7 +2417,7 @@ Hubungi Admin untuk info lebih lanjut.
                   })}
                 </tbody>
               </table>
-              <div className="flex items-center justify-between px-5 py-3 border-t border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200" style={{ background: 'rgba(255,255,255,0.97)' }}>
                 <span className="text-xs text-gray-400">{filteredRequests.length} request ditemukan</span>
                 <span className="text-xs text-gray-400">{filteredRequests.length > 0 ? `1–${filteredRequests.length}` : '0'} of {requests.length}</span>
               </div>
