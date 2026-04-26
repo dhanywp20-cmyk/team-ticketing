@@ -254,7 +254,7 @@ function AssignPTSModal({
   const [saving, setSaving] = useState(false);
 
   // Request dari external (non-IVP) wajib assign IVP Sales internal
-  const isExternal = !!(req.sales_division && req.sales_division !== 'IVP');
+  const isExternal = !!(req.sales_division && req.sales_division.trim() && req.sales_division.trim().toUpperCase() !== 'IVP');
 
   useEffect(() => {
     // Fetch Team PTS
@@ -980,7 +980,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const initialForm: InitialFormType = {
     project_name: '', room_name: '', project_location: '',
     sales_name: !isPTS ? (currentUser.full_name || '') : '',
-    sales_division: !isPTS ? (currentUser.sales_division || '') : '',
+    sales_division: !isPTS ? (currentUser.sales_division?.trim() || '') : '',
     kebutuhan: [], kebutuhan_other: '',
     solution_product: [], solution_other: '',
     layout_signage: [], jaringan_cms: [],
@@ -1265,7 +1265,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       const payload = {
         project_name: form.project_name.trim(), room_name: form.room_name.trim(),
         project_location: form.project_location.trim(),
-        sales_name: form.sales_name.trim(), sales_division: form.sales_division?.trim() || '',
+        // Guest: always use account's sales_name & sales_division (not form which may be empty)
+        sales_name: (!isPTS ? (currentUser.full_name || form.sales_name).trim() : form.sales_name.trim()),
+        sales_division: (!isPTS ? (currentUser.sales_division || form.sales_division || '').trim() : (form.sales_division?.trim() || '')),
         kebutuhan: form.kebutuhan, kebutuhan_other: form.kebutuhan_other.trim(),
         solution_product: form.solution_product, solution_other: form.solution_other.trim(),
         layout_signage: form.layout_signage, jaringan_cms: form.jaringan_cms,
@@ -2680,6 +2682,17 @@ Hubungi Admin untuk info lebih lanjut.
                 </button>
               </div>
             </div>
+
+            {/* Warning: non-IVP guest has no sales_division */}
+            {isNonIVPGuest && !currentUser.sales_division && (
+              <div className="mx-4 my-2 px-4 py-3 rounded-xl flex items-center gap-3 border-2 border-amber-300" style={{ background: 'rgba(254,243,199,0.9)' }}>
+                <span className="text-2xl flex-shrink-0">⚠️</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-800">Sales Division belum diset di akun kamu!</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Hubungi admin untuk set <strong>Sales Division</strong> di profil akunmu. Tanpa ini, request tidak bisa di-link ke IVP Sales internal.</p>
+                </div>
+              </div>
+            )}
 
             {/* IVP Guest info banner */}
             {isIVPGuest && (
