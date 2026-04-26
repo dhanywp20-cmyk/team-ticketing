@@ -2388,8 +2388,8 @@ export default function TicketingSystem() {
                 <table className="w-full table-fixed border-collapse" style={{ background: "transparent" }}>
                   <colgroup>
                     <col style={{ width: "3%" }} />   {/* No */}
-                    <col style={{ width: "22%" }} />  {/* Project / Lokasi*/}
-                    <col style={{ width: "15%" }} />  {/* Product */}
+                    <col style={{ width: "20%" }} />  {/* Project / Lokasi*/}
+                    <col style={{ width: "18%" }} />  {/* Product */}
                     <col style={{ width: "9%" }} />   {/* SN Unit */}
                     <col style={{ width: "10%" }} />  {/* Issue */}
                     <col style={{ width: "9%" }} />   {/* Assigned */}
@@ -2454,7 +2454,7 @@ export default function TicketingSystem() {
                           <td className="px-3 py-3 border-r border-gray-100 align-middle">
                           {ticket.product && (
                               <button onClick={() => { setProductFilter(prev => prev === ticket.product ? null : (ticket.product ?? null)); ticketListRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                                className="mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded break-words leading-tight transition-all inline-block"
+                                className="mt-1 text-[14px] font-semibold px-1.5 py-0.5 rounded break-words leading-tight transition-all inline-block"
                                 style={{ background: productFilter === ticket.product ? '#6366f1' : '#eef2ff', color: productFilter === ticket.product ? 'white' : '#4338ca' }}>
                                 📦 {ticket.product}
                               </button>
