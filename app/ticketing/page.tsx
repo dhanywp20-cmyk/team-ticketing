@@ -57,8 +57,10 @@ interface User {
   password: string;
   full_name: string;
   role: string;
-  sales_division: string;
   team_type?: string;
+  sales_division?: string;
+  phone_number?: string;
+  allowed_menus?: string[];
 }
 
 interface TeamMember {
@@ -169,7 +171,7 @@ function StatusDonutCard({
   const [hov, setHov] = useState<number | null>(null);
   if (total === 0)
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
         <p className="text-gray-500 text-sm text-center py-4">Belum ada data</p>
       </div>
@@ -192,7 +194,7 @@ function StatusDonutCard({
     return { ...d, path, isFullCircle: false, i };
   });
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -244,7 +246,7 @@ function SalesDivisionDonutCard({
   const [hov, setHov] = useState<number | null>(null);
   if (total === 0)
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📊 Sales Division</p>
         <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
       </div>
@@ -267,7 +269,7 @@ function SalesDivisionDonutCard({
     return { ...d, path, isFullCircle: false, i };
   });
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📊 Sales Division</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -341,7 +343,7 @@ function HandlerDonutCard({
     return { ...d, path, isFullCircle: false, i };
   }) : [];
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
         <div className="flex bg-gray-100 rounded-lg p-0.5">
@@ -404,7 +406,7 @@ function ProductDonutCard({
   const [hov, setHov] = useState<number | null>(null);
   if (total === 0)
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📦 Product</p>
         <p className="text-gray-400 text-sm text-center py-4">Belum ada data product</p>
       </div>
@@ -427,7 +429,7 @@ function ProductDonutCard({
     return { ...d, path, isFullCircle: false, i };
   });
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.8)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📦 Product</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -542,6 +544,8 @@ export default function TicketingSystem() {
   const [showActivitySummary, setShowActivitySummary] = useState(false);
   const [summaryTicket, setSummaryTicket] = useState<Ticket | null>(null);
   const [selectedUserForPassword, setSelectedUserForPassword] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [newMapping, setNewMapping] = useState({ guestUsername: "", projectName: "" });
 
   const getJakartaDateString = () => {
@@ -780,12 +784,11 @@ export default function TicketingSystem() {
   };
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setLoginTime(null);
-    setSelectedTicket(null);
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem("loginTime");
+    setIsLoggedIn(false); setCurrentUser(null); setLoginTime(null); setSelectedTicket(null);
+    setHandlerFilter(null); setSalesDivisionFilter(null); setProductFilter(null);
+    setSearchProduct(""); setSearchProject(""); setSearchSalesName("");
+    setFilterYear("All"); setFilterStatus("All"); setSelectedHandlerTeam("All");
+    localStorage.removeItem("currentUser"); localStorage.removeItem("loginTime");
     // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
     const target = window.top !== window ? window.top : window;
     if (target) target.location.href = "/dashboard";
@@ -805,8 +808,8 @@ export default function TicketingSystem() {
       setTicketsLoading(true);
       const [membersData, usersData] = await Promise.all([
         // team_members tidak ada — ambil dari users dengan role team
-        supabase.from("users").select("id, username, full_name, role, team_type, phone_number").in("role", ["team", "team_pts"]).order("full_name"),
-        supabase.from("users").select("id, username, full_name, role, team_type"),
+        supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus").in("role", ["team", "team_pts"]).order("full_name"),
+        supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus"),
       ]);
       // Map users ke format TeamMember agar kompatibel dengan kode existing
       if (membersData.data) {
@@ -2167,7 +2170,7 @@ export default function TicketingSystem() {
           )}
 
           {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
-          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(255,255,255,0.85)", backdropFilter: "blur(12px)" }}>
+          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(255,255,255,0.85)", backdropFilter: "blur(12px)" }}>
             {/* Header with title and actions */}
             <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
               <div className="flex items-center gap-3">
@@ -2291,6 +2294,22 @@ export default function TicketingSystem() {
               </div>
             </div>
 
+            {/* Bulk delete bar */}
+            {selectedIds.size > 0 && (
+              <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(220,38,38,0.07)' }}>
+                <span className="text-sm font-bold text-red-700">{selectedIds.size} ticket dipilih</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedIds(new Set())}
+                    className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal</button>
+                  <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                    className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                    style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)' }}>
+                    {bulkDeleting ? '⏳ Menghapus...' : `🗑️ Hapus ${selectedIds.size} Ticket`}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ── Filter Aktif chips — posisi di bawah filter bar ── */}
             {(filterStatus !== "All" || handlerFilter || salesDivisionFilter || productFilter || searchProject || searchSalesName || searchProduct) && (
               <div className="px-6 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: "rgba(255,255,255,0.65)" }}>
@@ -2351,6 +2370,12 @@ export default function TicketingSystem() {
                   </colgroup>
                   <thead>
                     <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
+                      <th className="px-2 py-3 text-center border-r border-gray-100 w-8">
+                        <input type="checkbox"
+                          checked={selectedIds.size === filteredTickets.length && filteredTickets.length > 0}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
+                      </th>
                       <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
@@ -2373,6 +2398,11 @@ export default function TicketingSystem() {
                       const isActiveOverdue = overdue && ticket.status !== "Solved";
                       return (
                         <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white/40"}`}>
+                          <td className="px-2 py-3 border-r border-gray-100 align-middle text-center" onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={selectedIds.has(ticket.id)}
+                              onChange={() => toggleSelectId(ticket.id)}
+                              className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
+                          </td>
                           <td className="px-2 py-3 border-r border-gray-100 align-middle text-center text-[11px] font-bold text-gray-400">{index + 1}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex items-start gap-1">
@@ -2497,7 +2527,7 @@ export default function TicketingSystem() {
             <div className="flex items-start gap-3 w-full my-2" style={{ maxWidth: showUpdateForm ? '1120px' : '720px', transition: 'max-width 0.2s' }}>
 
               {/* LEFT: Detail */}
-              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex-1 min-w-0"
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden flex-1 min-w-0"
                 style={{ animation: "scale-in 0.25s ease-out", border: "1px solid rgba(0,0,0,0.1)", maxHeight: "94vh" }}>
                 {/* Header */}
                 <div className="px-5 py-4 relative" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
@@ -2624,7 +2654,7 @@ export default function TicketingSystem() {
 
               {/* RIGHT: Update Status Panel */}
               {showUpdateForm && canUpdateTicket && selectedTicket.status !== "Waiting Approval" && (currentUserTeamType === "Team Services" ? selectedTicket.services_status !== "Solved" && selectedTicket.services_status !== "Waiting Approval" : selectedTicket.status !== "Solved") && (
-                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex-shrink-0"
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden flex-shrink-0"
                   style={{ width: 340, animation: "scale-in 0.2s ease-out", border: "2px solid rgba(220,38,38,0.25)", maxHeight: "94vh" }}>
                   <div className="px-4 py-3" style={{ background: "linear-gradient(135deg,#dc2626,#991b1b)" }}>
                     <div className="flex items-center justify-between">
@@ -2642,7 +2672,7 @@ export default function TicketingSystem() {
                       <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">🔢 SN Unit</label>
                       <input type="text" value={newActivity.sn_unit} onChange={e => setNewActivity({ ...newActivity, sn_unit: e.target.value })}
                         placeholder="Update SN Unit..." className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40"
-                        style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                        style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
 
                     {/* Status flowchart buttons */}
@@ -2741,14 +2771,14 @@ export default function TicketingSystem() {
                           <textarea value={newActivity.action_taken} onChange={e => setNewActivity({ ...newActivity, action_taken: e.target.value })}
                             placeholder="Cek kabel HDMI, restart sistem..." rows={2}
                             className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40 resize-none"
-                            style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                            style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                         </div>
                         <div>
                           <label className="block text-[9px] font-bold mb-1 tracking-widest uppercase text-gray-400">📝 Notes *</label>
                           <textarea value={newActivity.notes} onChange={e => setNewActivity({ ...newActivity, notes: e.target.value })}
                             placeholder="Detail penanganan..." rows={3}
                             className="w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/40 resize-none"
-                            style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                            style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                         </div>
                       </>
                     )}
@@ -2852,8 +2882,8 @@ export default function TicketingSystem() {
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(75,85,99,0.3)" }}>
               <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">⚙️ Account Management</h2><button onClick={() => setShowAccountSettings(false)} className="text-gray-500 hover:text-gray-700 text-xl font-bold">✕</button></div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-blue-900">➕ Create New Account</h3><div className="space-y-3"><input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /><select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="admin">Administrator</option><option value="team">Team</option><option value="guest">Guest</option></select>{newUser.role === "team" && (<select value={newUser.team_type} onChange={(e) => setNewUser({ ...newUser, team_type: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="Team PTS">Team PTS</option><option value="Team Services">Team Services</option></select>)}<button onClick={createUser} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all">➕ Create Account</button></div></div>
-                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-orange-900">🔒 Change Password</h3><div className="space-y-3"><select value={selectedUserForPassword} onChange={(e) => { setSelectedUserForPassword(e.target.value); setChangePassword({ current: "", new: "", confirm: "" }); }} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">Select User</option>{users.map((u) => (<option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>))}</select>{selectedUserForPassword && (<><input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({ ...changePassword, current: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({ ...changePassword, new: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({ ...changePassword, confirm: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /><button onClick={updatePassword} className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all">🔒 Change Password</button></>)}</div></div>
+                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-blue-900">➕ Create New Account</h3><div className="space-y-3"><input type="text" placeholder="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="text" placeholder="Full Name" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /><select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="admin">Administrator</option><option value="team">Team</option><option value="guest">Guest</option></select>{newUser.role === "team" && (<select value={newUser.team_type} onChange={(e) => setNewUser({ ...newUser, team_type: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="Team PTS">Team PTS</option><option value="Team Services">Team Services</option></select>)}<button onClick={createUser} className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 font-bold transition-all">➕ Create Account</button></div></div>
+                <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-orange-900">🔒 Change Password</h3><div className="space-y-3"><select value={selectedUserForPassword} onChange={(e) => { setSelectedUserForPassword(e.target.value); setChangePassword({ current: "", new: "", confirm: "" }); }} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">Select User</option>{users.map((u) => (<option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>))}</select>{selectedUserForPassword && (<><input type="password" placeholder="Old Password" value={changePassword.current} onChange={(e) => setChangePassword({ ...changePassword, current: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="New Password" value={changePassword.new} onChange={(e) => setChangePassword({ ...changePassword, new: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /><input type="password" placeholder="Confirm Password" value={changePassword.confirm} onChange={(e) => setChangePassword({ ...changePassword, confirm: e.target.value })} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /><button onClick={updatePassword} className="w-full bg-gradient-to-r from-orange-600 to-orange-800 text-white py-3 rounded-xl hover:from-orange-700 hover:to-orange-900 font-bold transition-all">🔒 Change Password</button></>)}</div></div>
               </div>
               <div className="rounded-xl p-5" style={{ background: "rgba(255,255,255,0.6)", border: "1px solid rgba(0,0,0,0.08)" }}><h3 className="font-bold mb-4 text-gray-800">👥 User List</h3><div className="max-h-[400px] overflow-y-auto"><div className="space-y-2">{users.map((u) => (<div key={u.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex justify-between items-center"><div><p className="font-bold text-sm">{u.full_name}</p><p className="text-xs text-gray-600">@{u.username}</p></div><div className="flex gap-2"><span className={`text-xs px-2 py-1 rounded ${u.role === "admin" ? "bg-red-100 text-red-800" : u.role === "team" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}`}>{u.role === "admin" ? "Admin" : u.role === "team" ? "Team" : "Guest"}</span>{u.team_type && <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">{u.team_type}</span>}</div></div>))}</div></div></div>
             </div>
@@ -2921,14 +2951,14 @@ export default function TicketingSystem() {
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Project Name *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">📌</span>
-                      <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({ ...newTicket, project_name: e.target.value })} placeholder="Example: BCA Cibitung Project" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <input type="text" value={newTicket.project_name} onChange={(e) => setNewTicket({ ...newTicket, project_name: e.target.value })} placeholder="Example: BCA Cibitung Project" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📍 Address Detail</label>
                     <div className="relative">
                       <span className="absolute left-3 top-3">📍</span>
-                      <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <textarea value={newTicket.address} onChange={(e) => setNewTicket({ ...newTicket, address: e.target.value })} rows={2} placeholder="Example: Jl. Jend. Sudirman No. 1..." className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                 </div>
@@ -2939,14 +2969,14 @@ export default function TicketingSystem() {
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📦 Product / Brand</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">📦</span>
-                      <input type="text" value={newTicket.product} onChange={(e) => setNewTicket({ ...newTicket, product: e.target.value })} placeholder="Panasonic PT-MZ682, LG 75UL3Q, dll" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <input type="text" value={newTicket.product} onChange={(e) => setNewTicket({ ...newTicket, product: e.target.value })} placeholder="Panasonic PT-MZ682, LG 75UL3Q, dll" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>SN Unit <span className="text-gray-400 normal-case font-normal text-[10px]">(opsional)</span></label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">🔢</span>
-                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="SN12345678 (opsional)" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <input type="text" value={newTicket.sn_unit} onChange={(e) => setNewTicket({ ...newTicket, sn_unit: e.target.value })} placeholder="SN12345678 (opsional)" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                 </div>
@@ -2957,7 +2987,7 @@ export default function TicketingSystem() {
                     <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Customer Phone</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">📱</span>
-                      <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({ ...newTicket, customer_phone: e.target.value })} placeholder="Adi - 08xx-xxxx-xxxx" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                      <input type="text" value={newTicket.customer_phone} onChange={(e) => setNewTicket({ ...newTicket, customer_phone: e.target.value })} placeholder="Adi - 08xx-xxxx-xxxx" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                     </div>
                   </div>
                   <div>
@@ -2974,7 +3004,7 @@ export default function TicketingSystem() {
                   <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Issue Case *</label>
                   <div className="relative">
                     <span className="absolute left-3 top-3">⚠️</span>
-                    <input type="text" value={newTicket.issue_case} onChange={(e) => { const val = e.target.value; const words = val.trim().split(/\s+/).filter(Boolean); if (words.length < 4 || (words.length === 4 && !val.endsWith(" "))) setNewTicket({ ...newTicket, issue_case: val }); }} placeholder="Maks. 4 kata, contoh: Videowall Not Working" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                    <input type="text" value={newTicket.issue_case} onChange={(e) => { const val = e.target.value; const words = val.trim().split(/\s+/).filter(Boolean); if (words.length < 4 || (words.length === 4 && !val.endsWith(" "))) setNewTicket({ ...newTicket, issue_case: val }); }} placeholder="Maks. 4 kata, contoh: Videowall Not Working" className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                   </div>
                   <div className="flex justify-between items-center mt-1.5 px-1">
                     <span className="text-xs text-gray-500">Maksimal 4 kata</span>
@@ -2987,96 +3017,29 @@ export default function TicketingSystem() {
                 {/* Description */}
                 <div>
                   <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>📝 Detailed Description</label>
-                  <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} rows={3} placeholder="Explain the problem details..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} />
+                  <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} rows={3} placeholder="Explain the problem details..." className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} />
                 </div>
 
-                {/* Informasi Sales Section */}
-                <div className="flex items-center gap-2 pb-2 border-b pt-2" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
-                  <span className="text-lg">🏢</span>
-                  <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Sales</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Sales Name — auto untuk guest, dropdown untuk admin/team */}
+                {/* Sales: hidden for guest — auto-insert. Shown only for admin/team */}
+                {currentUser?.role !== "guest" && (
                   <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Name</label>
-                    {currentUser?.role === "guest" ? (
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                        <div className="w-full rounded-xl pl-9 pr-4 py-3 text-sm text-slate-700 font-semibold" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
-                          {newTicket.sales_name || currentUser.full_name}
-                          <span className="ml-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">Auto</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
-                        <select value={newTicket.sales_name} onChange={(e) => {
-                          const selected = users.find(u => u.full_name === e.target.value && u.role === "guest");
-                          setNewTicket({ ...newTicket, sales_name: e.target.value, sales_division: selected?.sales_division || newTicket.sales_division });
-                        }} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                          <option value="">— Pilih Sales / Guest —</option>
-                          {users.filter(u => u.role === "guest").map(u => (
-                            <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` — ${u.sales_division}` : ""}</option>
-                          ))}
-                        </select>
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Sales Division — auto untuk guest, dropdown untuk admin/team */}
-                  <div>
-                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Division</label>
-                    {currentUser?.role === "guest" ? (
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🏢</span>
-                        <div className="w-full rounded-xl pl-9 pr-4 py-3 text-sm text-slate-700 font-semibold" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
-                          {newTicket.sales_division || currentUser.sales_division || "—"}
-                          <span className="ml-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">Auto</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🏢</span>
-                        <select value={newTicket.sales_division} onChange={(e) => setNewTicket({ ...newTicket, sales_division: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                          <option value="">— Pilih Division —</option>
-                          {SALES_DIVISIONS.map((div) => (<option key={div} value={div}>{div}</option>))}
-                        </select>
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Status & Assign - khusus admin */}
-                {currentUser?.role === "admin" && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Status</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">🏷️</span>
-                        <select value={newTicket.status} onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                          <option value="Pending">🟡 Pending</option>
-                          <option value="Call">📞 Call</option>
-                          <option value="Onsite">🚗 Onsite</option>
-                          <option value="In Progress">🔵 In Progress</option>
-                          <option value="Solved">✅ Solved</option>
-                        </select>
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
+                    <div className="flex items-center gap-2 pb-2 border-b pt-2 mb-3" style={{ borderColor: "rgba(0,0,0,0.1)" }}>
+                      <span className="text-lg">🏢</span>
+                      <span className="text-sm font-bold tracking-wide text-slate-700">Informasi Sales</span>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Assign To *</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2">👨‍💼</span>
-                        <select value={newTicket.assign_name} onChange={(e) => setNewTicket({ ...newTicket, assign_name: e.target.value })} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}>
-                          <option value="">— Pilih Handler —</option>
-                          <optgroup label="Team PTS">
-                            {teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}
-                          </optgroup>
-                        </select>
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
-                      </div>
+                    <label className="block text-xs font-bold mb-1.5 tracking-widest uppercase" style={{ color: "#94a3b8" }}>Sales Name</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">👤</span>
+                      <select value={newTicket.sales_name} onChange={(e) => {
+                        const sel = users.find(u => u.full_name === e.target.value && u.role === "guest");
+                        setNewTicket({ ...newTicket, sales_name: e.target.value, sales_division: sel?.sales_division || "" });
+                      }} className="w-full rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all text-slate-800 focus:ring-2 focus:ring-red-500/40 appearance-none cursor-pointer" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}>
+                        <option value="">— Pilih Sales —</option>
+                        {users.filter(u => u.role === "guest").map(u => (
+                          <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` (${u.sales_division})` : ""}</option>
+                        ))}
+                      </select>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
                     </div>
                   </div>
                 )}
@@ -3117,7 +3080,7 @@ export default function TicketingSystem() {
 
                 {/* Action Buttons - Red gradient like ReminderSchedule */}
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setShowNewTicket(false)} className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all" style={{ background: "rgba(255,255,255,0.90)", color: "#64748b", border: "1px solid rgba(0,0,0,0.12)" }}>
+                  <button onClick={() => setShowNewTicket(false)} className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all" style={{ background: "rgba(255,255,255,0.80)", color: "#64748b", border: "1px solid rgba(0,0,0,0.12)" }}>
                     Batal
                   </button>
                   <button onClick={createTicket} disabled={uploading} className="flex-1 text-white py-3 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50" style={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.35)" }}>
@@ -3147,7 +3110,7 @@ export default function TicketingSystem() {
             <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(245,158,11,0.5)" }}>
               <div className="flex items-center gap-3 mb-5"><span className="text-3xl">🔓</span><div><h3 className="text-lg font-bold text-gray-800">Re-open Ticket</h3><p className="text-xs text-gray-500">{reopenTargetTicket.project_name} · {reopenTargetTicket.issue_case}</p></div></div>
               <div className="rounded-xl p-3 mb-4 text-xs" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "#b45309" }}>⚠️ Status akan berubah ke <strong>Pending</strong> dan activity log baru ditambahkan otomatis.</div>
-              <div className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-gray-700">Assign ke Handler *</label><select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">— Pilih Handler —</option>{teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}</select></div><div><label className="block text-sm font-bold mb-1 text-gray-700">Alasan (opsional)</label><textarea value={reopenNotes} onChange={(e) => setReopenNotes(e.target.value)} placeholder="Masalah muncul kembali..." rows={3} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.90)", border: "1px solid rgba(0,0,0,0.12)" }} /></div><div className="grid grid-cols-2 gap-3"><button onClick={reopenTicket} disabled={uploading || !reopenAssignee} className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{uploading ? "⏳..." : "🔓 Re-open"}</button><button onClick={() => { setShowReopenModal(false); setReopenTargetTicket(null); setReopenAssignee(""); setReopenNotes(""); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button></div></div>
+              <div className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-gray-700">Assign ke Handler *</label><select value={reopenAssignee} onChange={(e) => setReopenAssignee(e.target.value)} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }}><option value="">— Pilih Handler —</option>{teamPTSMembers.map((m) => (<option key={m.id} value={m.name}>{m.name}</option>))}</select></div><div><label className="block text-sm font-bold mb-1 text-gray-700">Alasan (opsional)</label><textarea value={reopenNotes} onChange={(e) => setReopenNotes(e.target.value)} placeholder="Masalah muncul kembali..." rows={3} className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500/40 resize-none" style={{ background: "rgba(255,255,255,0.80)", border: "1px solid rgba(0,0,0,0.12)" }} /></div><div className="grid grid-cols-2 gap-3"><button onClick={reopenTicket} disabled={uploading || !reopenAssignee} className="bg-gradient-to-r from-amber-500 to-amber-700 text-white py-2.5 rounded-xl font-bold hover:from-amber-600 hover:to-amber-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed">{uploading ? "⏳..." : "🔓 Re-open"}</button><button onClick={() => { setShowReopenModal(false); setReopenTargetTicket(null); setReopenAssignee(""); setReopenNotes(""); }} className="bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-all">Batal</button></div></div>
             </div>
           </div>
         )}
