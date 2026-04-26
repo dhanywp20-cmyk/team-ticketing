@@ -308,8 +308,7 @@ function AssignPTSModal({
           '━━━━━━━━━━━━━━━━━━',
           'Segera proses dan update status ya! 💪',
           '🔗 https://team-ticketing.vercel.app/dashboard',
-        ].filter(Boolean).join('
-');
+        ].filter(Boolean).join('\n');
         await sendWANotif({ type: 'reminder_wa', target: ptsMember.phone_number, message: lines });
       }
 
@@ -326,8 +325,7 @@ function AssignPTSModal({
             '━━━━━━━━━━━━━━━━━━',
             'Akses portal untuk melihat detail dan ikut chat.',
             '🔗 https://team-ticketing.vercel.app/dashboard',
-          ].join('
-');
+          ].join('\n');
           await sendWANotif({ type: 'reminder_wa', target: ivpUser.phone_number, message: lines });
         }
       }
