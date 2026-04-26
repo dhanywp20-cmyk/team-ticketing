@@ -2387,8 +2387,7 @@ Hubungi Admin untuk info lebih lanjut.
                           ) : <span className="text-gray-300 text-xs">—</span>}
                         </td>
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
-                          <div className="text-sm font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
-                          <div className="text-[10px] text-indigo-500 mt-0.5">{req.sales_division}</div>
+                          <div className="text-[11px] font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
                           {/* IVP guest: badge for external requests linked by admin */}
                           {isIVPGuest && req.ivp_assignee === currentUser.full_name && req.requester_id !== currentUser.id && (
                             <div className="text-[9px] font-bold text-purple-600 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">
