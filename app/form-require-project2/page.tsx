@@ -62,6 +62,7 @@ interface ProjectRequest {
   suggest_tampilan: string;
   keterangan_lain: string;
   assign_name?: string;
+  ivp_assignee?: string;
   approved_by?: string;
   approved_at?: string;
   due_date?: string;
@@ -238,6 +239,8 @@ function LoadingScreen() {
 }
 
 // ─── Assign PTS Modal ─────────────────────────────────────────────────────────
+// Admin pilih: (1) Tim PTS handler, (2) Specific IVP Sales internal yang di-cc
+// IVP yang dipilih admin SAJA yang bisa lihat request ini
 
 function AssignPTSModal({
   req, onClose, onAssigned, currentUser,
@@ -245,85 +248,209 @@ function AssignPTSModal({
   req: ProjectRequest; onClose: () => void; onAssigned: () => void; currentUser: User;
 }) {
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
-  const [selected, setSelected] = useState(req.assign_name || '');
+  const [ivpUsers, setIvpUsers] = useState<User[]>([]);
+  const [selectedPTS, setSelectedPTS] = useState(req.assign_name || '');
+  const [selectedIVP, setSelectedIVP] = useState(req.ivp_assignee || '');
   const [saving, setSaving] = useState(false);
 
+  // Request dari external (non-IVP) wajib assign IVP Sales internal
+  const isExternal = !!(req.sales_division && req.sales_division !== 'IVP');
+
   useEffect(() => {
-    supabase.from('users').select('id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus').in('role', ['team_pts', 'team'])
-      .then(({ data }: { data: User[] | null }) => { if (data) setTeamMembers(data as User[]); });
+    // Fetch Team PTS
+    supabase.from('users')
+      .select('id, full_name, role, team_type, phone_number, sales_division')
+      .in('role', ['team_pts', 'team'])
+      .then(({ data }: { data: User[] | null }) => { if (data) setTeamMembers(data); });
+    // Fetch IVP Sales internal (guest dengan sales_division = IVP)
+    supabase.from('users')
+      .select('id, full_name, role, phone_number, sales_division')
+      .eq('role', 'guest')
+      .eq('sales_division', 'IVP')
+      .then(({ data }: { data: User[] | null }) => { if (data) setIvpUsers(data); });
   }, []);
 
   const handleSave = async () => {
-    if (!selected) return;
+    if (!selectedPTS) { alert('Pilih Tim PTS handler terlebih dahulu.'); return; }
+    if (isExternal && !selectedIVP) { alert('Request dari divisi external wajib assign IVP Sales internal.'); return; }
     setSaving(true);
-    const { error } = await supabase.from('project_requests')
-      .update({ assign_name: selected, status: 'approved', approved_by: currentUser.full_name, approved_at: new Date().toISOString() })
-      .eq('id', req.id);
+
+    const updatePayload: Record<string, unknown> = {
+      assign_name: selectedPTS,
+      status: 'approved',
+      approved_by: currentUser.full_name,
+      approved_at: new Date().toISOString(),
+    };
+    if (isExternal) updatePayload.ivp_assignee = selectedIVP;
+
+    const { error } = await supabase.from('project_requests').update(updatePayload).eq('id', req.id);
     if (!error) {
+      const ivpNote = isExternal && selectedIVP ? ` IVP Sales yang di-assign: ${selectedIVP}.` : '';
       await supabase.from('project_messages').insert([{
-        request_id: req.id, sender_id: currentUser.id, sender_name: 'System', sender_role: 'system',
-        message: `✅ Request diapprove oleh ${currentUser.full_name} dan di-assign ke ${selected}. Tim PTS akan segera memproses.`,
+        request_id: req.id,
+        sender_id: currentUser.id,
+        sender_name: 'System',
+        sender_role: 'system',
+        message: `✅ Request diapprove oleh ${currentUser.full_name}. Assigned ke Tim PTS: ${selectedPTS}.${ivpNote}`,
       }]);
-      const selectedMember = teamMembers.find(m => m.full_name === selected);
-      if (selectedMember?.phone_number) {
-          const assignWaMsg = [
-            '🏗️ *Form Require Project \u2014 Assigned ke Kamu*',
-            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
-            `Halo *${selectedMember.full_name}*, kamu di-assign untuk request:`,
-            '',
-            `📋 *Project  :* ${req.project_name}`,
-            `🛋️ *Ruangan  :* ${req.room_name || '-'}`,
-            `🏢 *Sales    :* ${req.sales_name || '-'}`,
-            `👤 *Requester:* ${req.requester_name}`,
-            '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501',
-            'Segera proses dan update status ya! 💪',
+
+      // WA notif ke PTS
+      const ptsMember = teamMembers.find(m => m.full_name === selectedPTS);
+      if (ptsMember?.phone_number) {
+        const lines = [
+          '🏗️ *Form Require Project — Assigned ke Kamu*',
+          '━━━━━━━━━━━━━━━━━━',
+          `📋 Project  : ${req.project_name}`,
+          `🛋️ Ruangan  : ${req.room_name || '-'}`,
+          `🏢 Sales    : ${req.sales_name || '-'} (${req.sales_division || '-'})`,
+          `👤 Requester: ${req.requester_name}`,
+          isExternal && selectedIVP ? `🔗 IVP CC   : ${selectedIVP}` : '',
+          '━━━━━━━━━━━━━━━━━━',
+          'Segera proses dan update status ya! 💪',
+          '🔗 https://team-ticketing.vercel.app/dashboard',
+        ].filter(Boolean).join('
+');
+        await sendWANotif({ type: 'reminder_wa', target: ptsMember.phone_number, message: lines });
+      }
+
+      // WA notif ke IVP yang di-assign
+      if (isExternal && selectedIVP) {
+        const ivpUser = ivpUsers.find(u => u.full_name === selectedIVP);
+        if (ivpUser?.phone_number) {
+          const lines = [
+            '🔗 *Form Require — Kamu Di-assign sebagai IVP Sales*',
+            '━━━━━━━━━━━━━━━━━━',
+            `📋 Project      : ${req.project_name}`,
+            `🏢 Sales Ext.   : ${req.sales_name} (${req.sales_division})`,
+            `👷 Tim PTS      : ${selectedPTS}`,
+            '━━━━━━━━━━━━━━━━━━',
+            'Akses portal untuk melihat detail dan ikut chat.',
             '🔗 https://team-ticketing.vercel.app/dashboard',
-          ].join('\n');
-          await sendWANotif({ type: 'reminder_wa', target: selectedMember.phone_number, message: assignWaMsg });
+          ].join('
+');
+          await sendWANotif({ type: 'reminder_wa', target: ivpUser.phone_number, message: lines });
+        }
       }
       onAssigned();
+    } else {
+      alert('Gagal approve: ' + error.message);
     }
     setSaving(false);
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white/90 rounded-2xl shadow-2xl max-w-md w-full border-2 border-teal-500 animate-scale-in overflow-hidden">
+      <div className="bg-white/90 rounded-2xl shadow-2xl w-full border-2 border-teal-500 overflow-hidden"
+        style={{ maxWidth: isExternal ? 680 : 460 }}>
+
+        {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-white text-lg">✅ Approve & Assign ke Tim PTS</h3>
-            <p className="text-teal-100 text-xs mt-0.5">{req.project_name}</p>
+            <h3 className="font-bold text-white text-lg">✅ Approve & Assign</h3>
+            <p className="text-teal-100 text-xs mt-0.5 flex items-center gap-2">
+              {req.project_name}
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isExternal ? 'bg-orange-400 text-white' : 'bg-teal-400 text-white'}`}>
+                {isExternal ? `External · ${req.sales_division}` : 'Internal IVP'}
+              </span>
+            </p>
           </div>
-          <button onClick={onClose} className="bg-white/20 hover:bg-white/30 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold transition-all">✕</button>
+          <button onClick={onClose} className="bg-white/20 hover:bg-white/30 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold">✕</button>
         </div>
-        <div className="p-6">
-          <p className="text-sm text-gray-600 mb-4 font-medium">Pilih anggota Tim PTS yang akan menangani request ini:</p>
-          {teamMembers.length === 0 ? (
-            <div className="text-center py-6 text-gray-400 text-sm"><div className="text-3xl mb-2">👥</div><p>Tidak ada Team PTS tersedia</p></div>
-          ) : (
-            <div className="space-y-2 mb-5">
-              {teamMembers.map(m => (
-                <button key={m.id} type="button" onClick={() => setSelected(m.full_name)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${selected === m.full_name ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-white'}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${selected === m.full_name ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                    {m.full_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className={`text-sm font-bold ${selected === m.full_name ? 'text-teal-700' : 'text-gray-700'}`}>{m.full_name}</p>
-                    <p className="text-xs text-gray-400">{m.role}{m.phone_number ? ` · 📱 ${m.phone_number}` : ''}</p>
-                  </div>
-                  {selected === m.full_name && <div className="ml-auto text-teal-600 font-bold">✓</div>}
-                </button>
-              ))}
+
+        {/* Info banner untuk external */}
+        {isExternal && (
+          <div className="px-6 py-3 flex items-start gap-3 border-b border-indigo-100" style={{ background: 'rgba(99,102,241,0.07)' }}>
+            <span className="text-xl flex-shrink-0">🔗</span>
+            <div>
+              <p className="text-sm font-bold text-indigo-700">Request dari Divisi External: {req.sales_division}</p>
+              <p className="text-xs text-indigo-600 mt-0.5">
+                Pilih <strong>Tim PTS</strong> yang akan menangani, dan pilih <strong>IVP Sales internal</strong> yang akan di-cc
+                untuk memantau dan berpartisipasi dalam project ini.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className={`p-6 ${isExternal ? 'grid grid-cols-2 gap-6' : ''}`}>
+
+          {/* Kolom kiri: Tim PTS */}
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+              👷 Tim PTS Handler <span className="text-red-500">*</span>
+            </p>
+            {teamMembers.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                <div className="text-4xl mb-2">👥</div>
+                <p>Tidak ada Team PTS tersedia</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {teamMembers.map(m => (
+                  <button key={m.id} type="button" onClick={() => setSelectedPTS(m.full_name)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all
+                      ${selectedPTS === m.full_name ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-white'}`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
+                      ${selectedPTS === m.full_name ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      {m.full_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold truncate ${selectedPTS === m.full_name ? 'text-teal-700' : 'text-gray-700'}`}>{m.full_name}</p>
+                      <p className="text-xs text-gray-400">{m.team_type || m.role}</p>
+                    </div>
+                    {selectedPTS === m.full_name && <span className="text-teal-600 font-bold flex-shrink-0">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Kolom kanan: IVP Sales — hanya untuk external */}
+          {isExternal && (
+            <div>
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                🔗 IVP Sales Internal <span className="text-red-500">*</span>
+              </p>
+              <p className="text-[11px] text-gray-500 mb-3">
+                Admin memilih <strong>satu akun IVP</strong> yang akan bisa melihat request ini dan ikut chat.
+              </p>
+              {ivpUsers.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  <div className="text-4xl mb-2">🏢</div>
+                  <p>Tidak ada akun IVP Sales terdaftar</p>
+                  <p className="text-xs mt-1">(Akun guest dengan sales_division = IVP)</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {ivpUsers.map(u => (
+                    <button key={u.id} type="button" onClick={() => setSelectedIVP(u.full_name)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all
+                        ${selectedIVP === u.full_name ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 bg-white'}`}>
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
+                        ${selectedIVP === u.full_name ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                        {u.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold truncate ${selectedIVP === u.full_name ? 'text-indigo-700' : 'text-gray-700'}`}>{u.full_name}</p>
+                        <p className="text-xs text-indigo-400">IVP Sales Internal</p>
+                      </div>
+                      {selectedIVP === u.full_name && <span className="text-indigo-600 font-bold flex-shrink-0">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
-            <button onClick={handleSave} disabled={!selected || saving}
-              className="flex-[2] bg-gradient-to-r from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-900 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menyimpan...</> : <>✅ Approve & Assign</>}
-            </button>
-          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3">
+          <button onClick={onClose} className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={!selectedPTS || saving}
+            className="flex-[2] bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving
+              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Menyimpan...</>
+              : <>✅ Approve & Assign</>}
+          </button>
         </div>
       </div>
     </div>
@@ -1503,6 +1630,7 @@ Hubungi Admin untuk info lebih lanjut.
           <div><span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor}22;color:${statusColor};border:1.5px solid ${statusColor}66">${selectedRequest.status.replace('_',' ').toUpperCase()}</span></div>
         </div>
         ${infoBox('PTS Handler (Assign)', selectedRequest.assign_name || '—')}
+        ${selectedRequest.ivp_assignee ? infoBox('IVP Sales (CC)', selectedRequest.ivp_assignee) : ''}
         ${infoBox('Approved By', selectedRequest.approved_by || '—')}
       </div>
       <div>
@@ -2519,11 +2647,8 @@ Hubungi Admin untuk info lebih lanjut.
                 style={{ background: 'rgba(99,102,241,0.10)', borderBottom: '1px solid rgba(99,102,241,0.2)' }}>
                 <span>🔗</span>
                 <span className="text-indigo-700 font-semibold">
-                  Anda melihat request ini sebagai <strong>IVP Sales Internal</strong>
-                  {selectedRequest.sales_division && selectedRequest.sales_division !== 'IVP'
-                    ? ` — dari divisi eksternal: ${selectedRequest.sales_division}`
-                    : ''
-                  }. Anda dapat berpartisipasi dalam chat dan memantau progress.
+                  Anda di-assign sebagai <strong>IVP Sales Internal</strong> untuk request dari divisi eksternal
+                  <strong> {selectedRequest.sales_division}</strong>. Anda dapat ikut chat dan memantau progress.
                 </span>
               </div>
             )}
