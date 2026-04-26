@@ -2342,7 +2342,7 @@ export default function ReminderSchedulePage() {
               <div className="flex gap-4 items-start">
 
                 {/* ── TICKET LIST ── */}
-                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)' }}>
+                <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(200,200,200,0.6)', backdropFilter: 'blur(12px)' }}>
 
                   {/* ── TICKET LIST header + refresh/export ── */}
                   <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100">
@@ -2372,7 +2372,7 @@ export default function ReminderSchedulePage() {
                   </div>
 
                   {/* ── Search / Filter bar — tepat di bawah TICKET LIST ── */}
-                  <div className="px-5 py-3 border-b border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                  <div className="px-5 py-3 border-b border-gray-100" style={{ background: 'rgba(255,255,255,0.97)' }}>
                     <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
                       <div>
                         <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
@@ -2439,7 +2439,7 @@ export default function ReminderSchedulePage() {
 
                   {/* Bulk delete bar — admin only, selectMode only */}
                   {selectMode && (isAdmin || currentUser?.role === 'superadmin') && selectedIds.size > 0 && (
-                    <div className="px-5 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(220,38,38,0.07)' }}>
+                    <div className="px-5 py-2.5 flex items-center justify-between border-b border-gray-200" style={{ background: 'rgba(220,38,38,0.07)' }}>
                       <span className="text-sm font-bold text-red-700">{selectedIds.size} jadwal dipilih</span>
                       <div className="flex items-center gap-2">
                         <button onClick={() => setSelectedIds(new Set())} className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
@@ -2454,7 +2454,7 @@ export default function ReminderSchedulePage() {
 
                   {/* ── Filter Aktif chips — di bawah filter bar ── */}
                   {(filterCategory !== 'all' || filterStatus !== 'all' || searchSales || searchDivisionSales || searchTeamHandler || searchProject || selectedCalDay || productFilter || searchProduct) && (
-                    <div className="px-5 py-2.5 border-b border-white/30 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                    <div className="px-5 py-2.5 border-b border-gray-100 flex flex-wrap gap-2 items-center" style={{ background: 'rgba(255,255,255,0.97)' }}>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Filter Aktif:</span>
                       {filterCategory !== 'all' && <button onClick={() => setFilterCategory('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#7c3aed' }}>🏷️ {filterCategory} ✕</button>}
                       {filterStatus !== 'all' && <button onClick={() => setFilterStatus('all')} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold text-white transition-all hover:opacity-80" style={{ background: '#d97706' }}>Status: {STATUS_CONFIG[filterStatus as Status]?.label} ✕</button>}
@@ -2490,7 +2490,7 @@ export default function ReminderSchedulePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse" style={{ tableLayout: 'fixed', background: 'transparent' }}>
                         <colgroup>
-                          <col style={{ width: '4%' }} />
+                          <col style={{ width: '3%' }} />
                           <col style={{ width: '13%' }} />
                           <col style={{ width: '10%' }} />
                           <col style={{ width: '13%' }} />
@@ -2502,22 +2502,22 @@ export default function ReminderSchedulePage() {
                           <col style={{ width: '8%' }} />
                         </colgroup>
                         <thead>
-                          <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.92)" }}>
-                            <th className="px-3 py-2.5 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">
+                          <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.97)" }}>
+                            <th className="px-3 py-2.5 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">
                       {selectMode && (isAdmin || currentUser?.role === 'superadmin')
                         ? <input type="checkbox"
                             checked={selectedIds.size === filteredReminders.length && filteredReminders.length > 0}
                             onChange={toggleSelectAll} className="w-4 h-4 rounded accent-red-600 cursor-pointer" title="Pilih Semua" />
                         : 'No'}
                     </th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Project</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Product</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Kegiatan</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Sales</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Handler</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">PIC</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Status</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-white/30">Tanggal</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Project</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Product</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Kegiatan</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Sales</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Handler</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">PIC</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Status</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wide border-r border-gray-200">Tanggal</th>
                             <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wide">Action</th>
                           </tr>
                         </thead>
@@ -2526,23 +2526,23 @@ export default function ReminderSchedulePage() {
                             const today = isDueToday(r.due_date);
                             return (
                               <tr key={r.id}
-                                className={`border-b border-white/30 hover:bg-red-50/20 transition-colors cursor-pointer ${today ? 'bg-red-50/15 border-l-4 border-l-red-400' : 'border-l-4 border-l-transparent'}`}
+                                className={`border-b border-gray-200 hover:bg-red-50/30 transition-colors cursor-pointer ${today ? 'bg-red-50/15 border-l-4 border-l-red-400' : 'border-l-4 border-l-transparent'}`}
                                 >
                                 {/* No */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle text-center" onClick={e => e.stopPropagation()}>
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle text-center" onClick={e => e.stopPropagation()}>
                             {selectMode && (isAdmin || currentUser?.role === 'superadmin')
                               ? <input type="checkbox" checked={selectedIds.has(r.id)}
                                   onChange={() => toggleSelectId(r.id)} className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
                               : <span className="text-[11px] font-bold text-gray-500">{idx + 1}</span>}
                           </td>
                                 {/* Project */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   <div className="font-bold text-gray-800 text-xs leading-tight break-words">{(r.project_name || '').trim() || (r.title || '').trim() || '—'}</div>
                                   {r.address && <div className="text-[10px] text-gray-400 truncate mt-0.5">📍 {r.address.split(',')[0]}</div>}
                                   <div className="text-[10px] text-gray-400 mt-0.5">{formatDatetime(r.created_at).split(',')[0]}</div>
                                 </td>
                                 {/* Product */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   {r.product ? (
                                     <button
                                       onClick={e => { e.stopPropagation(); setProductFilter(productFilter === r.product ? null : (r.product ?? null)); }}
@@ -2553,7 +2553,7 @@ export default function ReminderSchedulePage() {
                                   ) : <span className="text-gray-300 text-xs">—</span>}
                                 </td>
                                 {/* Kegiatan */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm">{(CATEGORY_CONFIG[r.category] ?? { icon: '📁' }).icon}</span>
                                     <span className="text-[10px] font-semibold text-gray-700 leading-tight break-words">{r.category}</span>
@@ -2574,12 +2574,12 @@ export default function ReminderSchedulePage() {
                                   )}
                                 </td>
                                 {/* Sales */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   <div className="text-xs font-semibold text-gray-700 leading-tight truncate">{r.sales_name || '—'}</div>
                                   {r.sales_division && <div className="text-[10px] text-purple-600 font-semibold truncate mt-0.5">{r.sales_division}</div>}
                                 </td>
                                 {/* Handler */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   <div className="flex items-center gap-1">
                                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                                       style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
@@ -2589,7 +2589,7 @@ export default function ReminderSchedulePage() {
                                   </div>
                                 </td>
                                 {/* PIC */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   {r.pic_name ? (
                                     <>
                                       <div className="text-[10px] font-semibold text-gray-700 truncate">{r.pic_name}</div>
@@ -2598,12 +2598,12 @@ export default function ReminderSchedulePage() {
                                   ) : <span className="text-gray-300 text-xs">—</span>}
                                 </td>
                                 {/* Status */}
-                                <td className="px-3 py-3 border-r border-white/30 align-middle">
+                                <td className="px-3 py-3 border-r border-gray-200 align-middle">
                                   <StatusBadge status={r.status} />
                                   {r.wa_sent_h1 && <p className="text-[9px] font-bold text-green-600 mt-0.5">✅ WA H-1</p>}
                                 </td>
                                 {/* Tanggal */}
-                                <td className="px-2 py-1 border-r border-white/30 align-middle">
+                                <td className="px-2 py-1 border-r border-gray-200 align-middle">
                                   <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg text-center"
                                     style={{
                                       background: today ? 'rgba(220,38,38,0.12)' : 'rgba(99,102,241,0.08)',
@@ -2647,7 +2647,7 @@ export default function ReminderSchedulePage() {
                           })}
                         </tbody>
                       </table>
-                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/30" style={{ background: 'rgba(255,255,255,0.92)' }}>
+                      <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-200" style={{ background: 'rgba(255,255,255,0.97)' }}>
                         <span className="text-[10px] text-gray-400">{filteredReminders.length} jadwal ditemukan</span>
                         <span className="text-[10px] text-gray-400">{filteredReminders.length > 0 ? `1–${filteredReminders.length}` : '0'} of {reminders.length}</span>
                       </div>
