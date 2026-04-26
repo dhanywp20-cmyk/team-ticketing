@@ -168,9 +168,9 @@ function StatusDonutCard({
   const [hov, setHov] = useState<number | null>(null);
   if (total === 0)
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
-        <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
+        <p className="text-gray-500 text-sm text-center py-4">Belum ada data</p>
       </div>
     );
   let cumAngle = -Math.PI / 2;
@@ -191,7 +191,7 @@ function StatusDonutCard({
     return { ...d, path, isFullCircle: false, i };
   });
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -243,7 +243,7 @@ function SalesDivisionDonutCard({
   const [hov, setHov] = useState<number | null>(null);
   if (total === 0)
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📊 Sales Division</p>
         <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
       </div>
@@ -266,7 +266,7 @@ function SalesDivisionDonutCard({
     return { ...d, path, isFullCircle: false, i };
   });
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📊 Sales Division</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -340,7 +340,7 @@ function HandlerDonutCard({
     return { ...d, path, isFullCircle: false, i };
   }) : [];
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
         <div className="flex bg-gray-100 rounded-lg p-0.5">
@@ -403,7 +403,7 @@ function ProductDonutCard({
   const [hov, setHov] = useState<number | null>(null);
   if (total === 0)
     return (
-      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+      <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">📦 Product</p>
         <p className="text-gray-400 text-sm text-center py-4">Belum ada data product</p>
       </div>
@@ -426,7 +426,7 @@ function ProductDonutCard({
     return { ...d, path, isFullCircle: false, i };
   });
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(10px)" }}>
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.6)", backdropFilter: "blur(10px)" }}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📦 Product</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
@@ -2154,7 +2154,7 @@ export default function TicketingSystem() {
           )}
 
           {/* ── TICKET LIST (with integrated search/filter bar like image) ── */}
-          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.88)", border: "1px solid rgba(0,0,0,0.08)", backdropFilter: "blur(12px)" }}>
+          <div ref={ticketListRef} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.7)", backdropFilter: "blur(12px)" }}>
             {/* Header with title and actions */}
             <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b" style={{ borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
               <div className="flex items-center gap-3">
@@ -2195,7 +2195,7 @@ export default function TicketingSystem() {
             </div>
 
             {/* Integrated search filters row - like the image */}
-            <div className="px-6 py-3 bg-white/50 border-b border-gray-100">
+            <div className="px-6 py-3 border-b border-white/30" style={{ background: "rgba(255,255,255,0.25)" }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Search Project / Location</label>
@@ -2311,7 +2311,7 @@ export default function TicketingSystem() {
               <div className="text-center py-12"><div className="text-6xl mb-4">📭</div><p className="text-gray-600 font-medium">{searchProject || filterStatus !== "All" ? "No tickets match the search." : "No tickets yet. Create your first ticket!"}</p></div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full table-fixed bg-white border-collapse">
+                <table className="w-full table-fixed border-collapse" style={{ background: "transparent" }}>
                   <colgroup>
                     <col style={{ width: "3%" }} />   {/* No */}
                     <col style={{ width: "16%" }} />  {/* Project Name */}
@@ -2329,7 +2329,7 @@ export default function TicketingSystem() {
                     <col style={{ width: "3%" }} />   {/* Action 5 */}
                   </colgroup>
                   <thead>
-                    <tr className="bg-white border-b-2 border-gray-100">
+                    <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
                       <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
@@ -2351,7 +2351,7 @@ export default function TicketingSystem() {
                       const isSolvedOverdue = overdue && ticket.status === "Solved";
                       const isActiveOverdue = overdue && ticket.status !== "Solved";
                       return (
-                        <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white"}`}>
+                        <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white/40"}`}>
                           <td className="px-2 py-3 border-r border-gray-100 align-middle text-center text-[11px] font-bold text-gray-400">{index + 1}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex items-start gap-1">
@@ -2407,7 +2407,7 @@ export default function TicketingSystem() {
                     })}
                   </tbody>
                 </table>
-                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white"><span className="text-xs text-gray-400">{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} ditemukan</span><span className="text-xs text-gray-400">{filteredTickets.length > 0 ? `1–${filteredTickets.length}` : "0"} of {tickets.length}</span></div>
+                <div className="flex items-center justify-between px-5 py-3 border-t border-white/30" style={{ background: "rgba(255,255,255,0.25)" }}><span className="text-xs text-gray-400">{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} ditemukan</span><span className="text-xs text-gray-400">{filteredTickets.length > 0 ? `1–${filteredTickets.length}` : "0"} of {tickets.length}</span></div>
               </div>
             )}
           </div>
