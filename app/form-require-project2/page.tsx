@@ -2314,7 +2314,7 @@ Hubungi Admin untuk info lebih lanjut.
                         : 'No'}
                     </th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Nama Project</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Lokasi / Ruangan</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Ruangan / Solution</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Sales</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Handler</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Status</th>
@@ -2344,13 +2344,14 @@ Hubungi Admin untuk info lebih lanjut.
                             {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse mt-1" />}
                             <div>
                               <div className="font-bold text-gray-800 text-sm leading-tight">{req.project_name}</div>
+                              <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
                               {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
-                              <div className="text-xs text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>                             
                             </div>
                           </div>
                         </td>
                         <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                          <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
+                          <div className="text-sm text-gray-700 leading-tight">{req.solution_product || <span className="text-gray-300">—</span>}</div>
                           {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5">🛋️ {req.room_name}</div>}
                         </td>
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
@@ -2369,7 +2370,7 @@ Hubungi Admin untuk info lebih lanjut.
                         </td>
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
                           <div className="flex flex-col gap-1 items-start">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
+                            <span className={`px-2 py-0.5 text-xs font-bold border whitespace-nowrap ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
                             {req.status === 'pending' && isPTS && !isTeamPTS && <p className="text-[9px] font-bold text-red-500 animate-pulse">🔔 Perlu Approval</p>}
                           </div>
                         </td>
@@ -2387,7 +2388,7 @@ Hubungi Admin untuk info lebih lanjut.
                         </td>
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
                           <div className="text-sm font-semibold text-gray-800 leading-tight">{req.requester_name}</div>
-                          <div className="text-[10px] text-indigo-500 mt-0.5">{req.requester_name}</div>
+                          <div className="text-[10px] text-indigo-500 mt-0.5">{req.sales_division}</div>
                           {/* IVP guest: badge for external requests linked by admin */}
                           {isIVPGuest && req.ivp_assignee === currentUser.full_name && req.requester_id !== currentUser.id && (
                             <div className="text-[9px] font-bold text-purple-600 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">
