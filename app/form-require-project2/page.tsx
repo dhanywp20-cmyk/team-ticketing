@@ -892,7 +892,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   // Guest/Sales users list for dropdown
   const [salesGuestUsers, setSalesGuestUsers] = useState<{id:string;full_name:string;username:string;sales_division?:string}[]>([]);
   useEffect(() => {
-    supabase.from('users').select('id, full_name, username, sales_division').eq('role', 'guest').then(({ data }) => {
+    supabase.from('users').select('id, full_name, username, sales_division').eq('role', 'guest').then(({ data }: { data: {id:string;full_name:string;username:string;sales_division?:string}[] | null }) => {
       if (data) setSalesGuestUsers(data);
     });
   }, []);
