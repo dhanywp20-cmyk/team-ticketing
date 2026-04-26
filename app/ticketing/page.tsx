@@ -2396,7 +2396,7 @@ export default function TicketingSystem() {
                     <col style={{ width: "9%" }} />   {/* Status */}
                     <col style={{ width: "8%" }} />   {/* Sales */}
                     <col style={{ width: "7%" }} />   {/* Created By */}
-                    <col style={{ width: "15%" }} />  {/* Action (combined) */}
+                    <col style={{ width: "8%" }} />  {/* Action (combined) */}
                   </colgroup>
                   <thead>
                     <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
