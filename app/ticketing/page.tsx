@@ -57,7 +57,6 @@ interface User {
   password: string;
   full_name: string;
   role: string;
-  sales_division: string;
   team_type?: string;
 }
 
@@ -2321,7 +2320,7 @@ export default function TicketingSystem() {
             {ticketsLoading ? (
               <div className="space-y-3 py-2 p-4">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="animate-pulse flex gap-3 items-center bg-white/85 rounded-xl p-4 border border-gray-200">
+                  <div key={i} className="animate-pulse flex gap-3 items-center bg-white/60 rounded-xl p-4 border border-gray-200">
                     <div className="flex-1 space-y-2"><div className="h-4 bg-gray-200 rounded w-2/5"></div><div className="h-3 bg-gray-100 rounded w-1/4"></div></div>
                     <div className="h-4 bg-gray-200 rounded w-1/6"></div><div className="h-4 bg-gray-200 rounded w-1/5"></div><div className="h-6 bg-gray-200 rounded-full w-20"></div><div className="h-8 bg-gray-200 rounded-lg w-16"></div>
                   </div>
@@ -2492,7 +2491,7 @@ export default function TicketingSystem() {
 
         {/* ── TICKET DETAIL POPUP — detail kiri + update panel kanan ── */}
         {showTicketDetailPopup && selectedTicket && (
-          <div className="fixed inset-0 bg-black/65 flex items-center justify-center z-[9999] p-3 overflow-y-auto"
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-3 overflow-y-auto"
             onClick={e => { if (e.target === e.currentTarget) { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); } }}>
             <div className="flex items-start gap-3 w-full my-2" style={{ maxWidth: showUpdateForm ? '1120px' : '720px', transition: 'max-width 0.2s' }}>
 
