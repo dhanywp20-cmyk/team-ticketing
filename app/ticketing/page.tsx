@@ -1,3 +1,4 @@
+// v2 - fixed setSelectedHandlerTeam type
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -546,6 +547,7 @@ export default function TicketingSystem() {
   const [selectedUserForPassword, setSelectedUserForPassword] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
   const [newMapping, setNewMapping] = useState({ guestUsername: "", projectName: "" });
 
   const getJakartaDateString = () => {
@@ -785,9 +787,9 @@ export default function TicketingSystem() {
 
   const handleLogout = () => {
     setIsLoggedIn(false); setCurrentUser(null); setLoginTime(null); setSelectedTicket(null);
-    setHandlerFilter(null); setSalesDivisionFilter(null); setProductFilter(null);
+    setSelectMode(false); setSelectedIds(new Set()); setHandlerFilter(null); setSalesDivisionFilter(null); setProductFilter(null);
     setSearchProduct(""); setSearchProject(""); setSearchSalesName("");
-    setFilterYear("All"); setFilterStatus("All"); setSelectedHandlerTeam("All");
+    setFilterYear("All"); setFilterStatus("All"); setSelectedHandlerTeam("PTS");
     localStorage.removeItem("currentUser"); localStorage.removeItem("loginTime");
     // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
     const target = window.top !== window ? window.top : window;
@@ -2178,6 +2180,12 @@ export default function TicketingSystem() {
                 <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{ticketsLoading ? "..." : filteredTickets.length}</span>
               </div>
               <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                {canAccessAccountSettings && (
+                  <button onClick={() => { setSelectMode(m => !m); setSelectedIds(new Set()); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${selectMode ? 'bg-red-50 border-red-300 text-red-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    {selectMode ? '✕ Batal' : '☑ Select'}
+                  </button>
+                )}
                 <button onClick={() => fetchData()}  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:bg-gray-100 border border-gray-200 text-gray-600 disabled:opacity-60 bg-white">
                   <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                   Refresh
@@ -2294,13 +2302,13 @@ export default function TicketingSystem() {
               </div>
             </div>
 
-            {/* Bulk delete bar */}
-            {selectedIds.size > 0 && (
+            {/* Bulk delete bar — admin only, selectMode only */}
+            {selectMode && canAccessAccountSettings && selectedIds.size > 0 && (
               <div className="px-6 py-2.5 flex items-center justify-between border-b border-white/30" style={{ background: 'rgba(220,38,38,0.07)' }}>
                 <span className="text-sm font-bold text-red-700">{selectedIds.size} ticket dipilih</span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setSelectedIds(new Set())}
-                    className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal</button>
+                    className="text-xs text-gray-500 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Batal Pilih</button>
                   <button onClick={handleBulkDelete} disabled={bulkDeleting}
                     className="text-xs font-bold text-white px-4 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
                     style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)' }}>
@@ -2370,12 +2378,14 @@ export default function TicketingSystem() {
                   </colgroup>
                   <thead>
                     <tr className="border-b-2 border-gray-100" style={{ background: "rgba(255,255,255,0.35)" }}>
-                      <th className="px-2 py-3 text-center border-r border-gray-100 w-8">
-                        <input type="checkbox"
-                          checked={selectedIds.size === filteredTickets.length && filteredTickets.length > 0}
-                          onChange={toggleSelectAll}
-                          className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
-                      </th>
+                      {selectMode && canAccessAccountSettings && (
+                        <th className="px-2 py-3 text-center border-r border-gray-100 w-8">
+                          <input type="checkbox"
+                            checked={selectedIds.size === filteredTickets.length && filteredTickets.length > 0}
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
+                        </th>
+                      )}
                       <th className="px-2 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">No</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Project Name</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide border-r border-gray-100">Product</th>
@@ -2398,11 +2408,13 @@ export default function TicketingSystem() {
                       const isActiveOverdue = overdue && ticket.status !== "Solved";
                       return (
                         <tr key={ticket.id} className={`border-b border-gray-100 hover:bg-gray-50/70 transition-colors ${isActiveOverdue ? "bg-red-50 border-l-4 border-l-red-400" : isSolvedOverdue ? "bg-purple-50/60 border-l-4 border-l-purple-300" : "bg-white/40"}`}>
-                          <td className="px-2 py-3 border-r border-gray-100 align-middle text-center" onClick={e => e.stopPropagation()}>
-                            <input type="checkbox" checked={selectedIds.has(ticket.id)}
-                              onChange={() => toggleSelectId(ticket.id)}
-                              className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
-                          </td>
+                          {selectMode && canAccessAccountSettings && (
+                            <td className="px-2 py-3 border-r border-gray-100 align-middle text-center" onClick={e => e.stopPropagation()}>
+                              <input type="checkbox" checked={selectedIds.has(ticket.id)}
+                                onChange={() => toggleSelectId(ticket.id)}
+                                className="w-4 h-4 rounded accent-red-600 cursor-pointer" />
+                            </td>
+                          )}
                           <td className="px-2 py-3 border-r border-gray-100 align-middle text-center text-[11px] font-bold text-gray-400">{index + 1}</td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex items-start gap-1">
