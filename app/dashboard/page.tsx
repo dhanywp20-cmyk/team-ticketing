@@ -1562,6 +1562,19 @@ export default function Dashboard() {
                   <p className="text-[9px] font-bold tracking-widest uppercase text-amber-600">{currentUser?.role}</p>
                 </div>
               </div>
+              {(['admin', 'superadmin'].includes(currentUser?.role?.toLowerCase() ?? '')) && (
+                <button onClick={() => setShowSettings(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#4338ca' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.15)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.08)'; }}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Settings
+                </button>
+              )}
               <button onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
                 style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', color: '#b91c1c' }}
@@ -1867,28 +1880,6 @@ export default function Dashboard() {
         </div>
 
         <div className="p-3 space-y-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-          {/* Account Settings — always visible at bottom of sidebar */}
-          {currentUser?.role === 'admin' || currentUser?.role === 'superadmin' ? (
-            <button
-              onClick={() => setShowSettings(true)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm ${sidebarCollapsed ? 'justify-center' : ''}`}
-              style={{ background: showSettings ? 'rgba(200,134,29,0.14)' : 'rgba(0,0,0,0.04)', border: `1px solid ${showSettings ? 'rgba(200,134,29,0.35)' : 'transparent'}`, color: showSettings ? '#92600a' : '#475569' }}
-              onMouseEnter={e => { if (!showSettings) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; }}
-              onMouseLeave={e => { if (!showSettings) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; }}
-              title="Account Settings"
-            >
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: showSettings ? 'rgba(200,134,29,0.15)' : 'rgba(0,0,0,0.07)' }}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </span>
-              {!sidebarCollapsed && (
-                <span className="flex-1 text-left truncate tracking-wide">Account Settings</span>
-              )}
-            </button>
-          ) : null}
-
           {sidebarCollapsed && (
             <button onClick={() => setSidebarCollapsed(false)} className="w-full flex justify-center p-2 rounded-xl transition-all text-slate-400 hover:text-slate-700" style={{ background: 'rgba(0,0,0,0.05)' }} title="Expand sidebar">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M6 5l7 7-7 7" /></svg>
@@ -1912,8 +1903,8 @@ export default function Dashboard() {
 			  ) : null}
 			</div>
 
-			<div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg">
-			  <div className="px-6 py-5">
+			<div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg w-full">
+			  <div className="w-full px-6 py-5 flex items-center justify-center">
 				<p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
 			  </div>
 			</div>
