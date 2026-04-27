@@ -1185,7 +1185,7 @@ export default function TicketingSystem() {
     } else {
       if (!validStatusesPTS.includes(newActivity.new_status)) { alert("Invalid status! Use: Pending, In Progress, or Solved"); return; }
     }
-    if (newActivity.assign_to_services && !newActivity.services_assignee) { alert("Select assignee from Team Services!"); return; }
+    // services always goes to "Admin Team Services" — no assignee selection needed
     try {
       setUploading(true);
       setShowLoadingPopup(true);
@@ -1260,9 +1260,9 @@ export default function TicketingSystem() {
         if (newActivity.assign_to_services) {
           updateData.current_team = "Team Services";
           updateData.services_status = "Waiting Approval";
-          updateData.assign_name = newActivity.services_assignee;
+          // assign_name stays as current PTS handler, services team will handle internally
           supabase.functions.invoke("send-email", {
-            body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: newActivity.services_assignee, snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
+            body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: "Admin Team Services", snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
           }).then(({ error }) => { if (error) console.error("Email error:", error); });
           try {
             // Upsert ticket ke supabaseServices — update jika sudah ada, insert jika belum
@@ -1277,8 +1277,8 @@ export default function TicketingSystem() {
               product: (selectedTicket as any).product || null,
               issue_case: selectedTicket.issue_case,
               description: selectedTicket.description || null,
-              assign_name: newActivity.services_assignee,
-              assigned_to: newActivity.services_assignee,
+              assign_name: "Admin Team Services",
+              assigned_to: "Admin Team Services",
               date: selectedTicket.date,
               status: "Waiting Approval",
               services_status: "Waiting Approval",
@@ -1937,6 +1937,34 @@ export default function TicketingSystem() {
   }, [currentUser]);
 
   useEffect(() => { if (currentUser) fetchData(); }, [currentUser]);
+
+  // ── REALTIME: Auto-update dari KEDUA Supabase (PTS + Services) ─────────────
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const chPTS = supabase.channel("pts-tickets-autorefresh")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => {
+        setTimeout(() => fetchData(currentUser), 400);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_logs" }, () => {
+        setTimeout(() => fetchData(currentUser), 400);
+      })
+      .subscribe();
+    let chSvc: any = null;
+    try {
+      chSvc = supabaseServices.channel("svc-tickets-autorefresh")
+        .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => {
+          setTimeout(() => fetchData(currentUser), 600);
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "activity_logs" }, () => {
+          setTimeout(() => fetchData(currentUser), 600);
+        })
+        .subscribe();
+    } catch (e) { console.warn("[Realtime] Services DB subscription failed:", e); }
+    return () => {
+      supabase.removeChannel(chPTS);
+      if (chSvc) try { supabaseServices.removeChannel(chSvc); } catch { /* ignore */ }
+    };
+  }, [isLoggedIn, currentUser]);
 
   const canCreateTicket = true;
   const canUpdateTicket = currentUser?.role !== "guest";
@@ -2943,16 +2971,18 @@ export default function TicketingSystem() {
                       <div className="rounded-lg p-2.5" style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)' }}>
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <input type="checkbox" id="assign-svc-r" checked={newActivity.assign_to_services}
-                            onChange={e => setNewActivity({ ...newActivity, assign_to_services: e.target.checked, services_assignee: "" })}
+                            onChange={e => setNewActivity({ ...newActivity, assign_to_services: e.target.checked })}
                             className="w-3.5 h-3.5 accent-purple-600" />
                           <label htmlFor="assign-svc-r" className="text-[10px] font-bold text-purple-700">Teruskan ke Team Services</label>
                         </div>
                         {newActivity.assign_to_services && (
-                          <select value={newActivity.services_assignee} onChange={e => setNewActivity({ ...newActivity, services_assignee: e.target.value })}
-                            className="w-full rounded-lg px-2.5 py-1.5 text-xs border border-purple-200 mt-1" style={{ background: 'white' }}>
-                            <option value="">Pilih anggota Team Services</option>
-                            {teamMembers.filter(m => m.team_type === "Team Services").map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                          </select>
+                          <div className="flex items-center gap-2 mt-1.5 px-2 py-1.5 rounded-lg" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
+                            <span className="text-xs">🔧</span>
+                            <div>
+                              <p className="text-[10px] font-bold text-purple-800">Admin Team Services</p>
+                              <p className="text-[9px] text-purple-600">Ticket akan diteruskan ke platform Team Services. Mereka yang akan assign ke anggota tim.</p>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
