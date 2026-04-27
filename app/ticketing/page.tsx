@@ -775,14 +775,31 @@ export default function TicketingSystem() {
 
   const handleLogin = async () => {
     try {
+      // Coba login ke supabase utama (Team PTS) dulu
       const { data, error } = await supabase.from("users").select("*").eq("username", loginForm.username).eq("password", loginForm.password).single();
-      if (error || !data) { alert("Incorrect username or password!"); return; }
-      const now = Date.now();
-      setCurrentUser(data);
-      setIsLoggedIn(true);
-      setLoginTime(now);
-      localStorage.setItem("currentUser", JSON.stringify(data));
-      localStorage.setItem("loginTime", now.toString());
+      if (!error && data) {
+        const now = Date.now();
+        setCurrentUser(data);
+        setIsLoggedIn(true);
+        setLoginTime(now);
+        localStorage.setItem("currentUser", JSON.stringify(data));
+        localStorage.setItem("loginTime", now.toString());
+        return;
+      }
+      // Fallback: coba login ke supabaseServices (Team Services)
+      const { data: svcData, error: svcError } = await supabaseServices.from("users").select("*").eq("username", loginForm.username).eq("password", loginForm.password).single();
+      if (!svcError && svcData) {
+        const now = Date.now();
+        // Pastikan team_type = "Team Services"
+        const svcUser = { ...svcData, team_type: svcData.team_type || "Team Services" };
+        setCurrentUser(svcUser);
+        setIsLoggedIn(true);
+        setLoginTime(now);
+        localStorage.setItem("currentUser", JSON.stringify(svcUser));
+        localStorage.setItem("loginTime", now.toString());
+        return;
+      }
+      alert("Incorrect username or password!");
     } catch (err) { alert("Login failed!"); }
   };
 
@@ -814,17 +831,51 @@ export default function TicketingSystem() {
         supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus").in("role", ["team", "team_pts"]).order("full_name"),
         supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus"),
       ]);
+
+      // ── Ambil juga team members dari supabaseServices (role = "team") ──────
+      let servicesMembersRaw: any[] = [];
+      try {
+        const { data: svcMembers } = await supabaseServices
+          .from("users")
+          .select("id, username, full_name, role, team_type, phone_number, sales_division")
+          .eq("role", "team")
+          .order("full_name");
+        if (svcMembers) servicesMembersRaw = svcMembers;
+      } catch (svcMemberErr) {
+        console.warn("Could not fetch Services DB team members:", svcMemberErr);
+      }
+
       // Map users ke format TeamMember agar kompatibel dengan kode existing
       if (membersData.data) {
-        membersData.data = (membersData.data as any[]).map((u: any) => ({
+        const ptsMapped = (membersData.data as any[]).map((u: any) => ({
           id: u.id,
-          name: u.full_name,      // name = full_name
+          name: u.full_name,
           username: u.username,
           photo_url: "",
           role: u.role,
           team_type: u.team_type || "Team PTS",
           phone_number: u.phone_number,
         }));
+
+        // Map services members — pastikan team_type = "Team Services"
+        const svcMapped = servicesMembersRaw.map((u: any) => ({
+          id: `svc_${u.id}`,
+          name: u.full_name,
+          username: u.username,
+          photo_url: "",
+          role: u.role,
+          team_type: "Team Services",
+          phone_number: u.phone_number,
+        }));
+
+        // Gabungkan, hindari duplikat berdasarkan username
+        const combined = [...ptsMapped];
+        for (const sm of svcMapped) {
+          if (!combined.find((m) => m.username === sm.username)) {
+            combined.push(sm);
+          }
+        }
+        membersData.data = combined as any;
       }
       const activeUser = userOverride !== undefined ? userOverride : currentUser;
       if (activeUser?.role === "guest") {
@@ -1122,11 +1173,11 @@ export default function TicketingSystem() {
   const addActivity = async () => {
     const SERVICES_SIMPLE = ["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"];
     const isSimpleStatus = newActivity.new_status === "Call" || newActivity.new_status === "Onsite";
-    const isSvcSimple = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase())?.team_type === "Team Services" && SERVICES_SIMPLE.includes(newActivity.new_status);
+    const isSvcSimple = (teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase())?.team_type || currentUser?.team_type) === "Team Services" && SERVICES_SIMPLE.includes(newActivity.new_status);
     if (!isSimpleStatus && !isSvcSimple && !newActivity.notes) { alert("Notes must be filled!"); return; }
     if (!selectedTicket) { alert("No ticket selected!"); return; }
     const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase());
-    const teamType = member?.team_type || "Team PTS";
+    const teamType = member?.team_type || currentUser?.team_type || "Team PTS";
     const isServicesTeam = teamType === "Team Services";
     const validStatusesPTS = ["Waiting Approval", "Pending", "Call", "Onsite", "In Progress", "Solved"];
     if (isServicesTeam) {
@@ -1200,7 +1251,10 @@ export default function TicketingSystem() {
         updateData.services_status = effectiveStatus;
         const { error: svcErr } = await supabaseServices.from("tickets").update(updateData).eq("id", selectedTicket.id);
         if (svcErr) console.warn("Services DB ticket update failed:", svcErr.message);
-        await supabase.from("tickets").update({ services_status: effectiveStatus }).eq("id", selectedTicket.id);
+        // Sync ke supabase utama: services_status + sn_unit jika ada
+        const mainSyncData: any = { services_status: effectiveStatus };
+        if (newActivity.sn_unit) mainSyncData.sn_unit = newActivity.sn_unit;
+        await supabase.from("tickets").update(mainSyncData).eq("id", selectedTicket.id);
       } else {
         updateData.status = effectiveStatus;
         if (newActivity.assign_to_services) {
@@ -1211,25 +1265,31 @@ export default function TicketingSystem() {
             body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: newActivity.services_assignee, snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
           }).then(({ error }) => { if (error) console.error("Email error:", error); });
           try {
-            const { data: existSvc } = await supabaseServices.from("tickets").select("id").eq("id", selectedTicket.id).maybeSingle();
-            if (!existSvc) {
-              await supabaseServices.from("tickets").insert([{
-                id: selectedTicket.id,
-                project_name: selectedTicket.project_name,
-                address: selectedTicket.address || null,
-                customer_phone: selectedTicket.customer_phone || null,
-                sales_name: selectedTicket.sales_name || null,
-                sn_unit: selectedTicket.sn_unit || null,
-                issue_case: selectedTicket.issue_case,
-                description: selectedTicket.description || null,
-                assign_name: newActivity.services_assignee,
-                date: selectedTicket.date,
-                status: "Waiting Approval",
-                services_status: "Waiting Approval",
-                current_team: "Team Services",
-                created_by: selectedTicket.created_by || null,
-              }]);
-            }
+            // Upsert ticket ke supabaseServices — update jika sudah ada, insert jika belum
+            const svcTicketPayload: any = {
+              id: selectedTicket.id,
+              project_name: selectedTicket.project_name,
+              address: selectedTicket.address || null,
+              customer_phone: selectedTicket.customer_phone || null,
+              sales_name: selectedTicket.sales_name || null,
+              sales_division: selectedTicket.sales_division || null,
+              sn_unit: selectedTicket.sn_unit || null,
+              product: (selectedTicket as any).product || null,
+              issue_case: selectedTicket.issue_case,
+              description: selectedTicket.description || null,
+              assign_name: newActivity.services_assignee,
+              assigned_to: newActivity.services_assignee,
+              date: selectedTicket.date,
+              status: "Waiting Approval",
+              services_status: "Waiting Approval",
+              current_team: "Team Services",
+              created_by: selectedTicket.created_by || null,
+            };
+            const { error: svcUpsertErr } = await supabaseServices
+              .from("tickets")
+              .upsert([svcTicketPayload], { onConflict: "id" });
+            if (svcUpsertErr) console.warn("Could not upsert ticket to Services DB:", svcUpsertErr.message);
+            else console.log("[Services DB] ✅ Ticket upserted ke supabaseServices:", selectedTicket.id);
           } catch (svcInsertErr) { console.warn("Could not mirror ticket to Services DB:", svcInsertErr); }
         }
         const { error: updateError } = await supabase.from("tickets").update(updateData).eq("id", selectedTicket.id);
@@ -1741,7 +1801,8 @@ export default function TicketingSystem() {
   const currentUserTeamType = useMemo(() => {
     if (!currentUser) return "Team PTS";
     const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
-    return member?.team_type || "Team PTS";
+    // Fallback ke currentUser.team_type jika member belum ter-load (misal login dari supabaseServices)
+    return member?.team_type || currentUser.team_type || "Team PTS";
   }, [currentUser, teamMembers]);
 
   const filteredTickets = useMemo(() => {
