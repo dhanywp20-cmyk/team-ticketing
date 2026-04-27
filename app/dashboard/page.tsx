@@ -1902,12 +1902,6 @@ export default function Dashboard() {
 				<iframe src={iframeUrl} className="w-full h-full border-0" title={iframeTitle} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
 			  ) : null}
 			</div>
-
-			<div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg w-full">
-			  <div className="w-full px-6 py-5 flex items-center justify-center">
-				<p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
-			  </div>
-			</div>
 		  </>
 		</div>
 
@@ -1915,6 +1909,13 @@ export default function Dashboard() {
         @keyframes dropIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
       `}</style>
       </div>{/* end BODY flex row */}
+
+      {/* ── FOOTER — full width, outside sidebar+content row ── */}
+      <div className="bg-white/75 backdrop-blur-sm border-t border-slate-200 shadow-lg flex-shrink-0">
+        <div className="w-full px-6 py-4 flex items-center justify-center">
+          <p className="text-slate-700 text-sm font-semibold tracking-wide text-center">© 2026 IndoVisual - Work Management Support (PTS IVP)</p>
+        </div>
+      </div>
     </div>
   );
 }
