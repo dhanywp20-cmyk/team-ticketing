@@ -234,6 +234,7 @@ export default function FormReviewPage() {
   const router = useRouter();
 
   // Auth
+  const [initializing, setInitializing] = useState(true); // prevent flash login
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<GuestUser | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -313,6 +314,8 @@ export default function FormReviewPage() {
       setCurrentUser(user);
       setIsLoggedIn(true);
     }
+    // Done reading localStorage — no more flash login
+    setInitializing(false);
 
     // Set pesan loading sesuai role
     if (user?.role === 'guest') setLoadingMessage('Memuat form review Anda...');
@@ -631,6 +634,8 @@ export default function FormReviewPage() {
   // ─── Login Page ─────────────────────────────────────────────────────────────
 
   if (!isLoggedIn) {
+    // Saat masih baca localStorage, jangan tampilkan login — hindari flash
+    if (initializing) return null;
     return (
       <div className="min-h-screen flex items-center justify-center relative"
         style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
