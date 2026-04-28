@@ -2532,7 +2532,27 @@ export default function TicketingSystem() {
                           </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-600 break-words leading-tight">{ticket.sn_unit || "—"}</div></td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-[13px] text-gray-700 break-words leading-tight">{ticket.issue_case}</div></td>
-                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4"><div className="text-sm text-gray-700 break-words leading-tight">{ticket.assign_name}</div><div className="text-xs text-purple-600 mt-0.5">{ticket.current_team}</div></td>
+                          <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
+                            <div className="text-sm text-gray-700 break-words leading-tight">{ticket.assign_name}</div>
+                            {/* Tampilkan team handler (dari users), bukan current_team ticket */}
+                            {(() => {
+                              const handler = teamMembers.find(m => m.name === ticket.assign_name);
+                              const handlerTeam = handler?.team_type || "Team PTS";
+                              const isServices = ticket.current_team === "Team Services" || !!ticket.services_status;
+                              return (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-xs font-semibold" style={{ color: handlerTeam === "Team Services" ? "#7c3aed" : "#2563eb" }}>
+                                    {handlerTeam}
+                                  </span>
+                                  {isServices && handlerTeam !== "Team Services" && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
+                                      → Svc
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="px-3 py-3 border-r border-gray-100 align-middle py-4">
                             <div className="flex flex-col gap-1 items-start">
                               <span className={`px-2 py-0.5 text-xs font-bold ${ticket.status === "Waiting Approval" ? statusColors["Waiting Approval"] : statusColors[ticket.status] || statusColors["Pending"]}`}>{ticket.status === "Waiting Approval" ? "⏳ Waiting Approval" : ticket.status}</span>
