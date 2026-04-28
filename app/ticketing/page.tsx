@@ -775,31 +775,14 @@ export default function TicketingSystem() {
 
   const handleLogin = async () => {
     try {
-      // Coba login ke supabase utama (Team PTS) dulu
       const { data, error } = await supabase.from("users").select("*").eq("username", loginForm.username).eq("password", loginForm.password).single();
-      if (!error && data) {
-        const now = Date.now();
-        setCurrentUser(data);
-        setIsLoggedIn(true);
-        setLoginTime(now);
-        localStorage.setItem("currentUser", JSON.stringify(data));
-        localStorage.setItem("loginTime", now.toString());
-        return;
-      }
-      // Fallback: coba login ke supabaseServices (Team Services)
-      const { data: svcData, error: svcError } = await supabaseServices.from("users").select("*").eq("username", loginForm.username).eq("password", loginForm.password).single();
-      if (!svcError && svcData) {
-        const now = Date.now();
-        // Pastikan team_type = "Team Services"
-        const svcUser = { ...svcData, team_type: svcData.team_type || "Team Services" };
-        setCurrentUser(svcUser);
-        setIsLoggedIn(true);
-        setLoginTime(now);
-        localStorage.setItem("currentUser", JSON.stringify(svcUser));
-        localStorage.setItem("loginTime", now.toString());
-        return;
-      }
-      alert("Incorrect username or password!");
+      if (error || !data) { alert("Incorrect username or password!"); return; }
+      const now = Date.now();
+      setCurrentUser(data);
+      setIsLoggedIn(true);
+      setLoginTime(now);
+      localStorage.setItem("currentUser", JSON.stringify(data));
+      localStorage.setItem("loginTime", now.toString());
     } catch (err) { alert("Login failed!"); }
   };
 
@@ -831,51 +814,17 @@ export default function TicketingSystem() {
         supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus").in("role", ["team", "team_pts"]).order("full_name"),
         supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus"),
       ]);
-
-      // ── Ambil juga team members dari supabaseServices (role = "team") ──────
-      let servicesMembersRaw: any[] = [];
-      try {
-        const { data: svcMembers } = await supabaseServices
-          .from("users")
-          .select("id, username, full_name, role, team_type, phone_number, sales_division")
-          .eq("role", "team")
-          .order("full_name");
-        if (svcMembers) servicesMembersRaw = svcMembers;
-      } catch (svcMemberErr) {
-        console.warn("Could not fetch Services DB team members:", svcMemberErr);
-      }
-
       // Map users ke format TeamMember agar kompatibel dengan kode existing
       if (membersData.data) {
-        const ptsMapped = (membersData.data as any[]).map((u: any) => ({
+        membersData.data = (membersData.data as any[]).map((u: any) => ({
           id: u.id,
-          name: u.full_name,
+          name: u.full_name,      // name = full_name
           username: u.username,
           photo_url: "",
           role: u.role,
           team_type: u.team_type || "Team PTS",
           phone_number: u.phone_number,
         }));
-
-        // Map services members — pastikan team_type = "Team Services"
-        const svcMapped = servicesMembersRaw.map((u: any) => ({
-          id: `svc_${u.id}`,
-          name: u.full_name,
-          username: u.username,
-          photo_url: "",
-          role: u.role,
-          team_type: "Team Services",
-          phone_number: u.phone_number,
-        }));
-
-        // Gabungkan, hindari duplikat berdasarkan username
-        const combined = [...ptsMapped];
-        for (const sm of svcMapped) {
-          if (!combined.find((m) => m.username === sm.username)) {
-            combined.push(sm);
-          }
-        }
-        membersData.data = combined as any;
       }
       const activeUser = userOverride !== undefined ? userOverride : currentUser;
       if (activeUser?.role === "guest") {
@@ -1173,11 +1122,11 @@ export default function TicketingSystem() {
   const addActivity = async () => {
     const SERVICES_SIMPLE = ["Warranty", "Out Of Warranty", "Waiting PO from Sales", "Submit RMA", "Waiting sparepart"];
     const isSimpleStatus = newActivity.new_status === "Call" || newActivity.new_status === "Onsite";
-    const isSvcSimple = (teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase())?.team_type || currentUser?.team_type) === "Team Services" && SERVICES_SIMPLE.includes(newActivity.new_status);
+    const isSvcSimple = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase())?.team_type === "Team Services" && SERVICES_SIMPLE.includes(newActivity.new_status);
     if (!isSimpleStatus && !isSvcSimple && !newActivity.notes) { alert("Notes must be filled!"); return; }
     if (!selectedTicket) { alert("No ticket selected!"); return; }
     const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser?.username || "").toLowerCase());
-    const teamType = member?.team_type || currentUser?.team_type || "Team PTS";
+    const teamType = member?.team_type || "Team PTS";
     const isServicesTeam = teamType === "Team Services";
     const validStatusesPTS = ["Waiting Approval", "Pending", "Call", "Onsite", "In Progress", "Solved"];
     if (isServicesTeam) {
@@ -1185,7 +1134,7 @@ export default function TicketingSystem() {
     } else {
       if (!validStatusesPTS.includes(newActivity.new_status)) { alert("Invalid status! Use: Pending, In Progress, or Solved"); return; }
     }
-    // services always goes to "Admin Team Services" — no assignee selection needed
+    // services_assignee no longer required - admin Services will assign internally
     try {
       setUploading(true);
       setShowLoadingPopup(true);
@@ -1251,45 +1200,76 @@ export default function TicketingSystem() {
         updateData.services_status = effectiveStatus;
         const { error: svcErr } = await supabaseServices.from("tickets").update(updateData).eq("id", selectedTicket.id);
         if (svcErr) console.warn("Services DB ticket update failed:", svcErr.message);
-        // Sync ke supabase utama: services_status + sn_unit jika ada
-        const mainSyncData: any = { services_status: effectiveStatus };
-        if (newActivity.sn_unit) mainSyncData.sn_unit = newActivity.sn_unit;
-        await supabase.from("tickets").update(mainSyncData).eq("id", selectedTicket.id);
+        await supabase.from("tickets").update({ services_status: effectiveStatus }).eq("id", selectedTicket.id);
       } else {
         updateData.status = effectiveStatus;
         if (newActivity.assign_to_services) {
+          // ── ASSIGN TO TEAM SERVICES ──
+          // current_team pindah ke Team Services, services_status = Waiting Approval
+          // assign_name TETAP handler PTS terakhir (tidak berubah ke nama anggota Services)
+          // Team Services admin yang akan assign ke anggota mereka sendiri
           updateData.current_team = "Team Services";
           updateData.services_status = "Waiting Approval";
-          // assign_name stays as current PTS handler, services team will handle internally
-          supabase.functions.invoke("send-email", {
-            body: { ticketId: selectedTicket.id, projectName: selectedTicket.project_name, issueCase: selectedTicket.issue_case, assignedTo: "Admin Team Services", snUnit: selectedTicket.sn_unit || "-", customerPhone: selectedTicket.customer_phone || "-", salesName: selectedTicket.sales_name || "-", activityLog: newActivity.notes || "-" }
-          }).then(({ error }) => { if (error) console.error("Email error:", error); });
+          // assign_name TIDAK diubah — tetap handler PTS terakhir
+          // (hanya current_team & services_status yang berubah di PTS DB)
+
+          // Kirim WA notif ke admin Team Services
           try {
-            // Upsert ticket ke supabaseServices — update jika sudah ada, insert jika belum
-            const svcTicketPayload: any = {
-              id: selectedTicket.id,
-              project_name: selectedTicket.project_name,
-              address: selectedTicket.address || null,
-              customer_phone: selectedTicket.customer_phone || null,
-              sales_name: selectedTicket.sales_name || null,
-              sales_division: selectedTicket.sales_division || null,
-              sn_unit: selectedTicket.sn_unit || null,
-              product: (selectedTicket as any).product || null,
-              issue_case: selectedTicket.issue_case,
-              description: selectedTicket.description || null,
-              assign_name: "Admin Team Services",
-              assigned_to: "Admin Team Services",
-              date: selectedTicket.date,
-              status: "Waiting Approval",
-              services_status: "Waiting Approval",
-              current_team: "Team Services",
-              created_by: selectedTicket.created_by || null,
-            };
-            const { error: svcUpsertErr } = await supabaseServices
-              .from("tickets")
-              .upsert([svcTicketPayload], { onConflict: "id" });
-            if (svcUpsertErr) console.warn("Could not upsert ticket to Services DB:", svcUpsertErr.message);
-            else console.log("[Services DB] ✅ Ticket upserted ke supabaseServices:", selectedTicket.id);
+            const { data: svcAdmins } = await supabaseServices.from("users")
+              .select("phone_number, full_name")
+              .eq("role", "admin")
+              .not("phone_number", "is", null)
+              .neq("phone_number", "");
+            if (svcAdmins && svcAdmins.length > 0) {
+              const waMsg = [
+                "🔔 *TICKET MASUK — Servisindo*",
+                "━━━━━━━━━━━━━━━━━━",
+                `📌 *Project:* ${selectedTicket.project_name}`,
+                `⚠️ *Issue:* ${selectedTicket.issue_case}`,
+                selectedTicket.product ? `📦 *Product:* ${selectedTicket.product}` : null,
+                selectedTicket.sn_unit ? `🔢 *SN:* ${selectedTicket.sn_unit}` : null,
+                selectedTicket.customer_phone ? `📱 *Telepon:* ${selectedTicket.customer_phone}` : null,
+                `👤 *Sales:* ${selectedTicket.sales_name || "-"}`,
+                newActivity.notes ? `📝 *Catatan:* ${newActivity.notes}` : null,
+                "━━━━━━━━━━━━━━━━━━",
+                "Silakan buka platform Servisindo untuk menerima dan assign ticket.",
+              ].filter(Boolean).join("\n");
+              for (const admin of svcAdmins) {
+                await sendWANotif({ type: "ticket_notif", target: admin.phone_number, message: waMsg });
+              }
+            }
+          } catch (waErr) { console.warn("WA to Services admin failed:", waErr); }
+
+          // Mirror ticket ke Services DB
+          try {
+            const { data: existSvc } = await supabaseServices.from("tickets").select("id").eq("id", selectedTicket.id).maybeSingle();
+            if (!existSvc) {
+              await supabaseServices.from("tickets").insert([{
+                id: selectedTicket.id,
+                pts_ticket_id: selectedTicket.id,
+                project_name: selectedTicket.project_name,
+                address: selectedTicket.address || null,
+                customer_phone: selectedTicket.customer_phone || null,
+                sales_name: selectedTicket.sales_name || null,
+                sales_division: selectedTicket.sales_division || null,
+                sn_unit: selectedTicket.sn_unit || null,
+                product: selectedTicket.product || null,
+                issue_case: selectedTicket.issue_case,
+                description: selectedTicket.description || null,
+                assign_name: "Admin Team Services", // akan di-assign ulang oleh admin Services
+                date: selectedTicket.date,
+                status: "Waiting Approval",
+                services_status: "Waiting Approval",
+                current_team: "Team Services",
+                created_by: selectedTicket.created_by || null,
+              }]);
+            } else {
+              // Update existing mirror
+              await supabaseServices.from("tickets").update({
+                services_status: "Waiting Approval",
+                current_team: "Team Services",
+              }).eq("id", selectedTicket.id);
+            }
           } catch (svcInsertErr) { console.warn("Could not mirror ticket to Services DB:", svcInsertErr); }
         }
         const { error: updateError } = await supabase.from("tickets").update(updateData).eq("id", selectedTicket.id);
@@ -1801,8 +1781,7 @@ export default function TicketingSystem() {
   const currentUserTeamType = useMemo(() => {
     if (!currentUser) return "Team PTS";
     const member = teamMembers.find((m) => (m.username || "").toLowerCase() === (currentUser.username || "").toLowerCase());
-    // Fallback ke currentUser.team_type jika member belum ter-load (misal login dari supabaseServices)
-    return member?.team_type || currentUser.team_type || "Team PTS";
+    return member?.team_type || "Team PTS";
   }, [currentUser, teamMembers]);
 
   const filteredTickets = useMemo(() => {
@@ -1938,31 +1917,33 @@ export default function TicketingSystem() {
 
   useEffect(() => { if (currentUser) fetchData(); }, [currentUser]);
 
-  // ── REALTIME: Auto-update dari KEDUA Supabase (PTS + Services) ─────────────
+  // ── Realtime subscription: auto-update tanpa refresh ─────────────────────
   useEffect(() => {
     if (!isLoggedIn) return;
-    const chPTS = supabase.channel("pts-tickets-autorefresh")
+    // PTS DB realtime
+    const ptsCh = supabase.channel("pts-tickets-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => {
-        setTimeout(() => fetchData(currentUser), 400);
+        fetchData(currentUser);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "activity_logs" }, () => {
-        setTimeout(() => fetchData(currentUser), 400);
+        fetchData(currentUser);
       })
       .subscribe();
-    let chSvc: any = null;
-    try {
-      chSvc = supabaseServices.channel("svc-tickets-autorefresh")
-        .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => {
-          setTimeout(() => fetchData(currentUser), 600);
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "activity_logs" }, () => {
-          setTimeout(() => fetchData(currentUser), 600);
-        })
-        .subscribe();
-    } catch (e) { console.warn("[Realtime] Services DB subscription failed:", e); }
+    // Services DB realtime (untuk update services_status dari platform Services)
+    const svcCh = supabaseServices.channel("svc-tickets-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => {
+        fetchData(currentUser);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_logs" }, () => {
+        fetchData(currentUser);
+      })
+      .subscribe();
+    // Polling fallback setiap 30 detik
+    const pollInterval = setInterval(() => fetchData(currentUser), 30000);
     return () => {
-      supabase.removeChannel(chPTS);
-      if (chSvc) try { supabaseServices.removeChannel(chSvc); } catch { /* ignore */ }
+      supabase.removeChannel(ptsCh);
+      supabaseServices.removeChannel(svcCh);
+      clearInterval(pollInterval);
     };
   }, [isLoggedIn, currentUser]);
 
@@ -2968,21 +2949,17 @@ export default function TicketingSystem() {
 
                     {/* Assign to Services */}
                     {currentUserTeamType !== "Team Services" && newActivity.new_status === "In Progress" && (
-                      <div className="rounded-lg p-2.5" style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)' }}>
-                        <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className="rounded-lg p-2.5" style={{ background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)' }}>
+                        <div className="flex items-center gap-1.5 mb-1">
                           <input type="checkbox" id="assign-svc-r" checked={newActivity.assign_to_services}
-                            onChange={e => setNewActivity({ ...newActivity, assign_to_services: e.target.checked })}
-                            className="w-3.5 h-3.5 accent-purple-600" />
-                          <label htmlFor="assign-svc-r" className="text-[10px] font-bold text-purple-700">Teruskan ke Team Services</label>
+                            onChange={e => setNewActivity({ ...newActivity, assign_to_services: e.target.checked, services_assignee: "" })}
+                            className="w-3.5 h-3.5 accent-red-600" />
+                          <label htmlFor="assign-svc-r" className="text-[10px] font-bold text-red-700">🔧 Teruskan ke Team Services</label>
                         </div>
                         {newActivity.assign_to_services && (
-                          <div className="flex items-center gap-2 mt-1.5 px-2 py-1.5 rounded-lg" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' }}>
-                            <span className="text-xs">🔧</span>
-                            <div>
-                              <p className="text-[10px] font-bold text-purple-800">Admin Team Services</p>
-                              <p className="text-[9px] text-purple-600">Ticket akan diteruskan ke platform Team Services. Mereka yang akan assign ke anggota tim.</p>
-                            </div>
-                          </div>
+                          <p className="text-[10px] text-red-500 mt-1 font-medium">
+                            Ticket akan dikirim ke Admin Team Services. Mereka yang akan assign ke anggota tim mereka.
+                          </p>
                         )}
                       </div>
                     )}
