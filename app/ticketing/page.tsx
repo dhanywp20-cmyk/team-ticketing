@@ -1174,7 +1174,9 @@ export default function TicketingSystem() {
         if (onsiteHasSchedule) autoNotes = `Dijadwalkan Onsite pada ${newActivity.onsite_schedule_date} pukul ${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute} WIB.`;
         else autoNotes = "Tim sedang Onsite ke lokasi customer.";
       } else if (isSvcSimpleCalc) autoNotes = svcSimpleNotes[newActivity.new_status] || newActivity.new_status;
-      const effectiveStatus = onsiteHasSchedule ? "Pending" : newActivity.new_status;
+      // Onsite + punya jadwal → status ticket = "Onsite" (bukan Pending)
+      // Activity log juga dicatat sebagai "Onsite"
+      const effectiveStatus = newActivity.new_status;
       const useAutoNotes = isSimpleStatusCalc || isSvcSimpleCalc;
       const activityData: any = {
         ticket_id: selectedTicket.id,
@@ -1276,9 +1278,11 @@ export default function TicketingSystem() {
         if (updateError) throw new Error(`Failed to update ticket: ${updateError.message}`);
 
         // ── AUTO-CREATE REMINDER saat status Onsite ──────────────────────────
-        // Jika team update status ke Onsite (dengan jadwal), otomatis buat
-        // reminder di tabel reminders sebagai kategori Troubleshooting
-        if (newActivity.new_status === "Onsite" && newActivity.onsite_use_schedule && newActivity.onsite_schedule_date) {
+        // Jika team update status ke Onsite, otomatis buat reminder di tabel
+        // reminders sebagai kategori Troubleshooting.
+        // Jika ada jadwal (onsite_use_schedule + date), gunakan tanggal tersebut.
+        // Jika tidak ada jadwal, gunakan tanggal hari ini.
+        if (newActivity.new_status === "Onsite") {
           try {
             const assignedUsername = currentUser?.username || "";
             // Cari full_name user
@@ -1289,13 +1293,22 @@ export default function TicketingSystem() {
               .single();
             const assignedName = userData?.full_name || assignedUsername;
 
+            const onsiteDueDate = (newActivity.onsite_use_schedule && newActivity.onsite_schedule_date)
+              ? newActivity.onsite_schedule_date
+              : new Date().toISOString().split("T")[0]; // fallback: hari ini
+            const onsiteDueTime = (newActivity.onsite_use_schedule && newActivity.onsite_schedule_date)
+              ? `${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute}`
+              : `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`;
+
             const reminderPayload = {
-              project_name: selectedTicket.project_name,   // kolom di table reminders = 'project_name'
+              project_name: selectedTicket.project_name,
               description: `[AUTO dari Ticketing] Issue: ${selectedTicket.issue_case}${selectedTicket.product ? ` | Product: ${selectedTicket.product}` : ""}`,
-              assign_name: assignedUsername,
-              assigned_name: assignedName,
-              due_date: newActivity.onsite_schedule_date,
-              due_time: `${newActivity.onsite_schedule_hour}:${newActivity.onsite_schedule_minute}`,
+              // assigned_to = username (FK ke users.username) — wajib untuk filter notif
+              assigned_to: assignedUsername,
+              // assign_name = full name untuk display
+              assign_name: assignedName,
+              due_date: onsiteDueDate,
+              due_time: onsiteDueTime,
               priority: "high",
               status: "pending",
               repeat: "none",
@@ -1307,7 +1320,8 @@ export default function TicketingSystem() {
               pic_phone: "",
               product: selectedTicket.product || selectedTicket.sn_unit || "",
               created_by: assignedUsername,
-              notes: `Ticket ID: ${selectedTicket.id} | Dibuat otomatis dari Platform Ticketing saat status Onsite`,
+              // ticket_id sebagai link reference ke Ticketing
+              notes: `Ticket ID: ${selectedTicket.id} | Project: ${selectedTicket.project_name} | Dibuat otomatis dari Platform Ticketing saat status Onsite dijadwalkan`,
             };
             const { error: reminderErr } = await supabase.from("reminders").insert([reminderPayload]);
             if (reminderErr) {
