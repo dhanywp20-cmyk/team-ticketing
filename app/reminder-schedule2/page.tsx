@@ -1278,13 +1278,7 @@ export default function ReminderSchedulePage() {
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
     return true;
   }).sort((a, b) => {
-    // Sort by due_date ascending (tanggal terdekat di atas)
-    const dateCompare = (a.due_date || '').localeCompare(b.due_date || '');
-    if (dateCompare !== 0) return dateCompare;
-    // Tiebreaker: due_time ascending
-    const timeCompare = (a.due_time || '').localeCompare(b.due_time || '');
-    if (timeCompare !== 0) return timeCompare;
-    // Tiebreaker terakhir: created_at desc (yang lebih baru di atas jika same date+time)
+    // Sort by created_at desc (yang paling baru dibuat di atas)
     return (b.created_at || '').localeCompare(a.created_at || '');
   });
 
