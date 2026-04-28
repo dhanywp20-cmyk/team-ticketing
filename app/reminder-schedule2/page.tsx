@@ -963,6 +963,7 @@ export default function ReminderSchedulePage() {
                       `Halo *${resolvedGuest.full_name}*!\n\n` +
                       `Jadwal *${reminder.category}* untuk project:\n` +
                       `*Kategori: ${reminder.category}*\n` +
+                      `*Team kami: ${reminder.assign_name}*\n` +
                       `📦 *Product: ${reminder.product ?? '-'}*\n` +
                       `📋 *${reminder.project_name}*\n` +
                       `📍 ${reminder.address || '-'}\n\n` +
