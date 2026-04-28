@@ -769,8 +769,7 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Foto Survey + BOQ Upload — hanya untuk guest/sales (bukan team PTS) */}
-          {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
+          {/* Foto Survey + BOQ Upload */}
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
@@ -857,7 +856,6 @@ function NewFormModal({
               </div>
             </div>
           </div>
-          )} {/* end kondisional upload foto/boq untuk non-team */}
         </div>
 
         <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white/90 flex-shrink-0">
@@ -950,10 +948,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [downloadingPackage, setDownloadingPackage] = useState(false);
   const [assignModal, setAssignModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
-  // Pop-up notif tiket aktif (pending/in_progress) saat masuk platform
-  const [ticketPopupShown, setTicketPopupShown] = useState(false);
-  const [showTicketPopup, setShowTicketPopup] = useState(false);
-  const [bellDropdownOpen, setBellDropdownOpen] = useState(false);
   const [editDueDate, setEditDueDate] = useState('');
   const [editFormData, setEditFormData] = useState({
     project_name: '', room_name: '', project_location: '', sales_name: '', sales_division: '',
@@ -1080,16 +1074,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   }, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
-
-  // Popup tiket pending/in_progress — muncul sekali saat masuk platform
-  useEffect(() => {
-    if (!appReady || ticketPopupShown) return;
-    const activeTickets = requests.filter(r => r.status === 'pending' || r.status === 'in_progress');
-    if (activeTickets.length > 0) {
-      setShowTicketPopup(true);
-      setTicketPopupShown(true);
-    }
-  }, [appReady, requests, ticketPopupShown]);
 
   useEffect(() => {
     const channel = supabase.channel('global_messages_notif')
@@ -1944,47 +1928,30 @@ Hubungi Admin untuk info lebih lanjut.
 </body></html>`;
       zipFiles.push({ name: `${folderName}/01_Form_Detail_${projectSlug}.html`, data: enc.encode(formHtml) });
 
-      // ── 2-4. Download LATEST revision per structured category (SLD/BOQ/3D) + all general ────
-      const structuredCats: { cat: 'sld' | 'boq' | 'design3d'; prefix: string }[] = [
+      // ── 2-5. Download attachment files by category ────────────────────────
+      const cats: { cat: ProjectAttachment['attachment_category']; prefix: string }[] = [
         { cat: 'sld', prefix: '02_SLD' },
         { cat: 'boq', prefix: '03_BOQ' },
         { cat: 'design3d', prefix: '04_Design3D' },
+        { cat: 'general', prefix: '05_Files' },
       ];
 
-      for (const { cat, prefix } of structuredCats) {
-        // Sort by revision_version desc, take only the latest
-        const catFiles = attachments
-          .filter(a => a.attachment_category === cat)
-          .sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
-        const latest = catFiles[0];
-        if (!latest) continue;
-        try {
-          const resp = await fetch(latest.file_url);
-          if (resp.ok) {
-            const arrayBuf = await resp.arrayBuffer();
-            const revStr = latest.revision_version ? `_Rev${latest.revision_version}` : '';
-            zipFiles.push({
-              name: `${folderName}/${prefix}${revStr}_${latest.file_name}`,
-              data: new Uint8Array(arrayBuf),
-            });
-          }
-        } catch { /* skip inaccessible files */ }
-      }
-
-      // General files — download all
-      const generalFiles = attachments.filter(a => a.attachment_category === 'general' || !a.attachment_category);
-      for (let i = 0; i < generalFiles.length; i++) {
-        const att = generalFiles[i];
-        try {
-          const resp = await fetch(att.file_url);
-          if (resp.ok) {
-            const arrayBuf = await resp.arrayBuffer();
-            zipFiles.push({
-              name: `${folderName}/05_Files_${i + 1}_${att.file_name}`,
-              data: new Uint8Array(arrayBuf),
-            });
-          }
-        } catch { /* skip inaccessible files */ }
+      for (const { cat, prefix } of cats) {
+        const catFiles = attachments.filter(a => a.attachment_category === cat);
+        for (let i = 0; i < catFiles.length; i++) {
+          const att = catFiles[i];
+          try {
+            const resp = await fetch(att.file_url);
+            if (resp.ok) {
+              const arrayBuf = await resp.arrayBuffer();
+              const revStr = att.revision_version ? `_Rev${att.revision_version}` : `_${i + 1}`;
+              zipFiles.push({
+                name: `${folderName}/${prefix}${revStr}_${att.file_name}`,
+                data: new Uint8Array(arrayBuf),
+              });
+            }
+          } catch { /* skip inaccessible files */ }
+        }
       }
 
       if (zipFiles.length === 0) {
@@ -2074,55 +2041,20 @@ Hubungi Admin untuk info lebih lanjut.
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Bell notif — tiket pending/in_progress */}
-            {(() => {
-              const activeTickets = requests.filter(r => r.status === 'pending' || r.status === 'in_progress');
-              if (activeTickets.length === 0) return null;
-              return (
-                <div className="relative">
-                  <button
-                    onClick={() => setBellDropdownOpen(o => !o)}
-                    className="relative flex items-center justify-center w-9 h-9 rounded-xl transition-all hover:bg-red-50"
-                    style={{ border: '1.5px solid rgba(239,68,68,0.35)', background: 'rgba(239,68,68,0.07)' }}>
-                    <svg className="w-5 h-5 text-red-500 animate-[wiggle_1.5s_ease-in-out_infinite]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                      {activeTickets.length}
-                    </span>
-                  </button>
-                  {bellDropdownOpen && (
-                    <div className="absolute right-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden animate-scale-in">
-                      <div className="bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 flex items-center justify-between">
-                        <p className="text-white text-xs font-bold">🔔 Tiket Aktif ({activeTickets.length})</p>
-                        <button onClick={() => setBellDropdownOpen(false)} className="text-white/70 hover:text-white text-xs font-bold">✕</button>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
-                        {activeTickets.map(req => {
-                          const sc = statusConfig[req.status];
-                          return (
-                            <button key={req.id} onClick={() => { setBellDropdownOpen(false); handleOpenDetail(req); }}
-                              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-all text-left">
-                              <span className={`mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-gray-800 truncate">{req.project_name}</p>
-                                <p className="text-[10px] text-gray-400 truncate">{req.sales_name} · {req.assign_name || 'Unassigned'}</p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            <button onClick={() => setShowNewFormModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-              Buat Request
-            </button>
+            {unreadCount > 0 && (
+              <span className="px-3 py-1.5 rounded-xl text-xs font-bold animate-pulse"
+                style={{ background: 'rgba(239,68,68,0.12)', color: '#dc2626', border: '1.5px solid rgba(239,68,68,0.3)' }}>
+                🔔 {unreadCount} pending
+              </span>
+            )}
+            {(true) && (
+              <button onClick={() => setShowNewFormModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                Buat Request
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -2584,20 +2516,17 @@ Hubungi Admin untuk info lebih lanjut.
               <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Pilih Status Baru</p>
               <div className="space-y-2 mb-5">
                 {[
-                  { value: 'pending', label: '⏳ Pending', color: 'border-amber-300 bg-amber-50 text-amber-700', active: 'border-amber-500 bg-amber-100' },
+                  { value: 'approved', label: '✅ Approved', color: 'border-teal-300 bg-teal-50 text-teal-700', active: 'border-teal-500 bg-teal-100' },
                   { value: 'in_progress', label: '🔄 In Progress', color: 'border-blue-300 bg-blue-50 text-blue-700', active: 'border-blue-500 bg-blue-100' },
                   { value: 'completed', label: '🏆 Completed', color: 'border-purple-300 bg-purple-50 text-purple-700', active: 'border-purple-500 bg-purple-100' },
-                  // rejected hanya untuk admin/superadmin
-                  ...(isAdmin || isSuperAdmin ? [
-                    { value: 'approved', label: '✅ Approved', color: 'border-teal-300 bg-teal-50 text-teal-700', active: 'border-teal-500 bg-teal-100' },
-                    { value: 'rejected', label: '❌ Rejected', color: 'border-red-300 bg-red-50 text-red-700', active: 'border-red-500 bg-red-100' },
-                  ] : []),
+                  { value: 'rejected', label: '❌ Rejected', color: 'border-red-300 bg-red-50 text-red-700', active: 'border-red-500 bg-red-100' },
+                  { value: 'pending', label: '⏳ Pending', color: 'border-amber-300 bg-amber-50 text-amber-700', active: 'border-amber-500 bg-amber-100' },
                 ].filter(s => {
                   if (s.value === statusUpdateModal.req!.status) return false;
                   // in_progress hanya bisa diset oleh PTS yang di-assign (atau admin)
                   if (s.value === 'in_progress' && !canSetInProgress(statusUpdateModal.req!)) return false;
-                  // completed hanya admin/superadmin atau assigned PTS
-                  if (s.value === 'completed' && isTeamPTS && statusUpdateModal.req!.assign_name !== currentUser.full_name) return false;
+                  // completed dan rejected hanya admin/superadmin atau assigned PTS
+                  if ((s.value === 'completed' || s.value === 'rejected') && isTeamPTS && statusUpdateModal.req!.assign_name !== currentUser.full_name) return false;
                   return true;
                 }).map(s => (
                   <button key={s.value} type="button" onClick={() => setSelectedNewStatus(s.value)}
@@ -2683,7 +2612,6 @@ Hubungi Admin untuk info lebih lanjut.
       <style jsx>{`
         @keyframes scale-in { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
         @keyframes slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes wiggle { 0%,100%{transform:rotate(0deg)} 15%{transform:rotate(-15deg)} 30%{transform:rotate(15deg)} 45%{transform:rotate(-10deg)} 60%{transform:rotate(10deg)} 75%{transform:rotate(-5deg)} 90%{transform:rotate(5deg)} }
         .animate-scale-in { animation: scale-in 0.2s ease-out; }
         .animate-slide-up { animation: slide-up 0.25s ease-out; }
         select option { background: #ffffff; color: #1e293b; }
@@ -2691,56 +2619,6 @@ Hubungi Admin untuk info lebih lanjut.
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(13,148,136,0.25); border-radius: 4px; }
       `}</style>
-
-      {/* POPUP TIKET AKTIF — muncul sekali saat masuk platform, hilang kalau semua completed */}
-      {showTicketPopup && (() => {
-        const activeTickets = requests.filter(r => r.status === 'pending' || r.status === 'in_progress');
-        if (activeTickets.length === 0) return null;
-        return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9996] p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in border-2 border-amber-400">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-base">Tiket Memerlukan Perhatian</h3>
-                    <p className="text-amber-100 text-xs">{activeTickets.length} tiket masih aktif</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowTicketPopup(false)} className="bg-white/20 hover:bg-white/30 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold">✕</button>
-              </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
-                {activeTickets.map(req => {
-                  const sc = statusConfig[req.status];
-                  return (
-                    <button key={req.id}
-                      onClick={() => { setShowTicketPopup(false); handleOpenDetail(req); }}
-                      className="w-full flex items-start gap-3 px-5 py-4 hover:bg-amber-50 transition-all text-left">
-                      <span className={`mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${sc.color} ${sc.bg} ${sc.border}`}>{sc.label}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-gray-800 truncate">{req.project_name}</p>
-                        <p className="text-xs text-gray-400 truncate">{req.sales_name}{req.assign_name ? ` · ${req.assign_name}` : ''}</p>
-                        {req.due_date && <p className="text-[10px] text-amber-600 font-semibold mt-0.5">📅 {formatDueDate(req.due_date)}</p>}
-                      </div>
-                      <svg className="w-4 h-4 text-gray-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
-                <button onClick={() => setShowTicketPopup(false)}
-                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-2.5 rounded-xl font-bold text-sm hover:opacity-90 transition-all">
-                  Tutup & Lihat Nanti
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* DETAIL MODAL */}
       {showDetailModal && selectedRequest && detailSc && (
@@ -3154,75 +3032,25 @@ Hubungi Admin untuk info lebih lanjut.
                         <p className="text-xs font-medium">Belum ada file diupload</p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {/* For structured categories: show LATEST prominently, history collapsed */}
-                        {(['sld','boq','design3d'] as const).filter(cat =>
-                          (activeAttachTab === 'all' || activeAttachTab === cat) &&
-                          attachments.some(a => a.attachment_category === cat)
-                        ).map(cat => {
-                          const catFiles = [...attachments.filter(a => a.attachment_category === cat)]
-                            .sort((a, b) => (b.revision_version || 0) - (a.revision_version || 0));
-                          const latest = catFiles[0];
-                          const history = catFiles.slice(1);
-                          const catLabel = cat === 'sld' ? 'SLD' : cat === 'boq' ? 'BOQ' : 'Design 3D';
-                          const catColor = cat === 'sld' ? 'blue' : cat === 'boq' ? 'emerald' : 'purple';
-                          return (
-                            <div key={cat} className={`rounded-xl border-2 overflow-hidden border-${catColor}-200`}>
-                              <div className={`px-3 py-1.5 flex items-center justify-between bg-${catColor}-50`}>
-                                <span className={`text-[10px] font-bold text-${catColor}-700 uppercase tracking-widest`}>{catLabel} — Versi Terbaru</span>
-                                {history.length > 0 && <span className={`text-[9px] font-bold text-${catColor}-500`}>{history.length} versi lama</span>}
-                              </div>
-                              {/* Latest */}
-                              <a href={latest.file_url} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-3 hover:bg-teal-50 transition-all cursor-pointer border-b border-gray-100">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl bg-${catColor}-100`}>
-                                  {latest.file_type?.includes('pdf') ? '📄' : latest.file_type?.startsWith('image') ? '🖼️' : '📊'}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs font-bold text-gray-800 truncate">{latest.file_name}</p>
-                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full bg-${catColor}-500 text-white whitespace-nowrap`}>
-                                      {latest.revision_version ? `Rev ${latest.revision_version}` : 'Latest'} ★
-                                    </span>
-                                  </div>
-                                  <p className="text-[10px] text-gray-400 mt-0.5">{formatFileSize(latest.file_size)} · {new Date(latest.uploaded_at).toLocaleDateString('id-ID')}</p>
-                                </div>
-                                <svg className="w-4 h-4 text-teal-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                              </a>
-                              {/* Version history */}
-                              {history.map(att => (
-                                <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-all cursor-pointer border-b border-gray-50 opacity-60">
-                                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm bg-gray-100">
-                                    {att.file_type?.includes('pdf') ? '📄' : att.file_type?.startsWith('image') ? '🖼️' : '📊'}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] font-semibold text-gray-500 truncate">{att.file_name}</p>
-                                    <p className="text-[9px] text-gray-400">{att.revision_version ? `Rev ${att.revision_version}` : ''} · {new Date(att.uploaded_at).toLocaleDateString('id-ID')}</p>
-                                  </div>
-                                  <svg className="w-3 h-3 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                </a>
-                              ))}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {(activeAttachTab === 'all' ? attachments : attachments.filter(a => a.attachment_category === activeAttachTab)).map(att => (
+                          <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
+                            className="group flex items-center gap-3 p-3 rounded-xl border-2 border-gray-100 hover:border-teal-300 hover:bg-teal-50 transition-all cursor-pointer">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${isFileType(att.file_type) ? 'bg-teal-50' : att.file_type.includes('pdf') ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                              {isFileType(att.file_type) ? '🖼️' : att.file_type.includes('pdf') ? '📄' : '📊'}
                             </div>
-                          );
-                        })}
-                        {/* General files */}
-                        {attachments.filter(a => a.attachment_category === 'general' || !a.attachment_category).length > 0 && (
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {attachments.filter(a => a.attachment_category === 'general' || !a.attachment_category).map(att => (
-                              <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
-                                className="group flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 hover:border-teal-300 hover:bg-teal-50 transition-all cursor-pointer">
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-lg bg-gray-50">
-                                  {att.file_type?.startsWith('image') ? '🖼️' : att.file_type?.includes('pdf') ? '📄' : '📎'}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[10px] font-bold text-gray-700 truncate group-hover:text-teal-700">{att.file_name}</p>
-                                  <p className="text-[9px] text-gray-400">{formatFileSize(att.file_size)}</p>
-                                </div>
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-gray-700 truncate group-hover:text-teal-700">{att.file_name}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{formatFileSize(att.file_size)}{att.revision_version ? ` · Rev ${att.revision_version}` : ''}</p>
+                              {att.attachment_category && att.attachment_category !== 'general' && (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-1 inline-block ${att.attachment_category === 'sld' ? 'bg-blue-100 text-blue-700' : att.attachment_category === 'boq' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                                  {att.attachment_category.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <svg className="w-4 h-4 text-gray-300 group-hover:text-teal-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </a>
+                        ))}
                       </div>
                     )}
                   </div>
