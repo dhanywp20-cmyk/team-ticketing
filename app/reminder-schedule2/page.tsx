@@ -1278,18 +1278,13 @@ export default function ReminderSchedulePage() {
     if (selectedCalDay && r.due_date !== selectedCalDay) return false;
     return true;
   }).sort((a, b) => {
-    // Items yang baru di-reschedule (updated_at lebih baru dari created_at) naik ke atas
-    const aRescheduled = a.notes?.includes('[Re-Schedule') ?? false;
-    const bRescheduled = b.notes?.includes('[Re-Schedule') ?? false;
-    if (aRescheduled && !bRescheduled) return -1;
-    if (!aRescheduled && bRescheduled) return 1;
-    if (aRescheduled && bRescheduled) {
-      // Keduanya rescheduled, sort by updated_at desc (yang terbaru direschedule di atas)
-      const aTime = a.updated_at || a.created_at || '';
-      const bTime = b.updated_at || b.created_at || '';
-      return bTime.localeCompare(aTime);
-    }
-    // Non-rescheduled: sort by created_at desc (default)
+    // Sort by due_date ascending (tanggal terdekat di atas)
+    const dateCompare = (a.due_date || '').localeCompare(b.due_date || '');
+    if (dateCompare !== 0) return dateCompare;
+    // Tiebreaker: due_time ascending
+    const timeCompare = (a.due_time || '').localeCompare(b.due_time || '');
+    if (timeCompare !== 0) return timeCompare;
+    // Tiebreaker terakhir: created_at desc (yang lebih baru di atas jika same date+time)
     return (b.created_at || '').localeCompare(a.created_at || '');
   });
 
