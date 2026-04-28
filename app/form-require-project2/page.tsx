@@ -3207,7 +3207,7 @@ Hubungi Admin untuk info lebih lanjut.
                           );
                         })}
                         {/* General files */}
-                        {(activeAttachTab === 'all' || activeAttachTab === 'all') && attachments.filter(a => a.attachment_category === 'general' || !a.attachment_category).length > 0 && (
+                        {attachments.filter(a => a.attachment_category === 'general' || !a.attachment_category).length > 0 && (
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                             {attachments.filter(a => a.attachment_category === 'general' || !a.attachment_category).map(att => (
                               <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer"
