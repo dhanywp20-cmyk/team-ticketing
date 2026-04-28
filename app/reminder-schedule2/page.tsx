@@ -1110,8 +1110,9 @@ export default function ReminderSchedulePage() {
           `⭐ *FORM REVIEW — PTS IVP*\n\n` +
           `Halo *${resolvedGuest.full_name}*!\n\n` +
           `Jadwal *${r.category}* untuk project:\n` +
-          `📋 *${r.project_name}*\n` +
           `*Kategori: ${r.category}*\n` +
+          `*Team kami: ${r.assign_name}*\n` +
+          `📋 *${r.project_name}*\n` +
           `📦 *Product: ${r.product ?? '-'}*\n` +
           `📍 ${r.address || '-'}\n\n` +
           (r.notes ? `📝 Catatan: ${r.notes}\n` : '') +
