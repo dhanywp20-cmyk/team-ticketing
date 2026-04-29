@@ -2390,7 +2390,7 @@ Hubungi Admin untuk info lebih lanjut.
                         ? <input type="checkbox"
                             checked={selectedIds.size === filteredRequests.length && filteredRequests.length > 0}
                             onChange={toggleSelectAll} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" title="Pilih Semua" />
-                        : 'No'}
+                        : 'ID'}
                     </th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Nama Project</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">Ruangan / Solution</th>
@@ -2417,12 +2417,9 @@ Hubungi Admin untuk info lebih lanjut.
                             ? <input type="checkbox" checked={selectedIds.has(req.id)}
                                 onChange={() => toggleSelectId(req.id)} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
                             : (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[11px] font-bold text-gray-500">{index + 1}</span>
-                                <span className="text-[9px] font-mono font-semibold text-gray-400 bg-gray-100 px-1 py-0.5 rounded tracking-wide uppercase" title={req.id}>
-                                  {req.id.replace(/-/g, '').slice(0, 8)}
-                                </span>
-                              </div>
+                              <span className="text-[9px] font-mono font-semibold text-gray-400 bg-gray-100 px-1 py-0.5 rounded tracking-wide uppercase" title={req.id}>
+                                {req.id.replace(/-/g, '').slice(0, 8)}
+                              </span>
                             )}
                         </td>
                         <td className="px-3 py-3 border-r border-gray-200 align-middle max-w-0">
