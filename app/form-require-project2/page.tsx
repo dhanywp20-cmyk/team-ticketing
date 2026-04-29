@@ -2371,7 +2371,18 @@ Hubungi Admin untuk info lebih lanjut.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse" style={{ background: 'transparent' }}>
+              <table className="w-full border-collapse table-fixed" style={{ background: 'transparent', minWidth: '900px' }}>
+                <colgroup>
+                  <col style={{ width: '40px' }} />
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '160px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '80px' }} />
+                </colgroup>
                 <thead>
                   <tr className="border-b-2 border-gray-300" style={{ background: 'rgba(255,255,255,0.97)' }}>
                     <th className="px-2 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide border-r border-gray-200">
@@ -2407,20 +2418,22 @@ Hubungi Admin untuk info lebih lanjut.
                                 onChange={() => toggleSelectId(req.id)} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
                             : <span className="text-[11px] font-bold text-gray-500">{index + 1}</span>}
                         </td>
-                        <td className="px-3 py-3 border-r border-gray-200 align-middle">
+                        <td className="px-3 py-3 border-r border-gray-200 align-middle max-w-0">
                           <div className="flex items-start gap-1.5">
                             {unread > 0 && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 animate-pulse mt-1" />}
-                            <div>
-                              <div className="font-bold text-gray-800 text-sm leading-tight">{req.project_name}</div>
-                              <div className="text-sm text-gray-700 leading-tight">{req.project_location || <span className="text-gray-300">—</span>}</div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-gray-800 text-sm leading-tight truncate" title={req.project_name}>{req.project_name}</div>
+                              {req.project_location && (
+                                <div className="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2 break-words" title={req.project_location}>{req.project_location}</div>
+                              )}
                               {unread > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">+{unread} pesan</span>}
                               <div className="text-xs text-gray-400 mt-0.5">{new Date(req.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>                             
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-3 border-r border-gray-200 align-middle">
-                          <div className="text-sm text-gray-700 leading-tight">{req.solution_product || <span className="text-gray-300">—</span>}</div>
-                          {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5">🛋️ {req.room_name}</div>}
+                        <td className="px-3 py-3 border-r border-gray-200 align-middle max-w-0">
+                          <div className="text-sm text-gray-700 leading-tight truncate" title={Array.isArray(req.solution_product) ? req.solution_product.join(', ') : req.solution_product}>{Array.isArray(req.solution_product) ? req.solution_product.join(', ') : (req.solution_product || <span className="text-gray-300">—</span>)}</div>
+                          {req.room_name && <div className="text-xs text-teal-600 font-medium mt-0.5 truncate">🛋️ {req.room_name}</div>}
                         </td>
                         <td className="px-3 py-3 border-r border-gray-100 align-middle">
                           <div className="text-sm font-semibold text-gray-700 leading-tight">{req.sales_name || <span className="text-gray-300">—</span>}</div>
@@ -2876,23 +2889,64 @@ Hubungi Admin untuk info lebih lanjut.
                       <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
                       Informasi Project
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
-                      {[
-                        { k: 'Nama Project', v: selectedRequest.project_name, full: true },
-                        { k: 'Nama Ruangan', v: selectedRequest.room_name },
-                        { k: 'Lokasi Project', v: selectedRequest.project_location },
-                        { k: 'Sales / Account', v: selectedRequest.sales_name },
-                        { k: 'Divisi Sales', v: selectedRequest.sales_division },
-                        { k: 'Requester', v: selectedRequest.requester_name },
-                        { k: 'PTS Handler', v: selectedRequest.assign_name ? `🔧 ${selectedRequest.assign_name}` : undefined },
-                        { k: 'Target Selesai', v: selectedRequest.due_date ? `📅 ${formatDueDate(selectedRequest.due_date)}${detailDueStatus ? ` (${detailDueStatus.label})` : ''}` : undefined },
-                        { k: 'Status', v: detailSc?.label },
-                      ].filter(item => item.v).map(item => (
-                        <div key={item.k} className={item.full ? 'col-span-2 md:col-span-3' : ''}>
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">{item.k}</label>
-                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{item.v}</p>
+                    <div className="space-y-4">
+                      {/* Nama Project — full width */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Project</label>
+                        <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.project_name}</p>
+                      </div>
+                      {/* Lokasi Project — full width, tepat di bawah Nama Project */}
+                      {selectedRequest.project_location && (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project</label>
+                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-words whitespace-pre-wrap">{selectedRequest.project_location}</p>
                         </div>
-                      ))}
+                      )}
+                      {/* Row: Nama Ruangan, Sales/Account */}
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                        {selectedRequest.room_name && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.room_name}</p>
+                          </div>
+                        )}
+                        {selectedRequest.sales_name && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.sales_name}</p>
+                          </div>
+                        )}
+                        {selectedRequest.sales_division && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Divisi Sales</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.sales_division}</p>
+                          </div>
+                        )}
+                        {selectedRequest.requester_name && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Requester</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.requester_name}</p>
+                          </div>
+                        )}
+                        {selectedRequest.assign_name && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">PTS Handler</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">🔧 {selectedRequest.assign_name}</p>
+                          </div>
+                        )}
+                        {selectedRequest.due_date && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">📅 {formatDueDate(selectedRequest.due_date)}{detailDueStatus ? ` (${detailDueStatus.label})` : ''}</p>
+                          </div>
+                        )}
+                        {detailSc?.label && (
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Status</label>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{detailSc.label}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
