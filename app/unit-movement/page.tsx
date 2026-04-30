@@ -499,7 +499,8 @@ export default function UnitMovementPage() {
     notify('success','Log berhasil dihapus!'); fetchLogs();
   };
 
-  const isAdmin = ['admin','superadmin'].includes(currentUser?.role?.toLowerCase()??'');
+  const isAdmin   = ['admin','superadmin'].includes(currentUser?.role?.toLowerCase()??'');
+  const canAddLog = isAdmin || ['team','team_pts'].includes(currentUser?.role?.toLowerCase()??'');
 
   const availableYears = useMemo(()=>{
     const yrs=new Set<string>(); logs.forEach(l=>{ if(l.tanggal) yrs.add(l.tanggal.substring(0,4)); });
@@ -603,7 +604,7 @@ export default function UnitMovementPage() {
               <p className="text-[10px] text-gray-500 font-medium">PTS IVP — Equipment Tracking</p>
             </div>
           </div>
-          {isAdmin&&(
+          {canAddLog&&(
             <button onClick={()=>setEditLog(null)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
               style={{background:'linear-gradient(135deg,#f59e0b,#d97706)',boxShadow:'0 2px 8px rgba(245,158,11,0.35)'}}>
