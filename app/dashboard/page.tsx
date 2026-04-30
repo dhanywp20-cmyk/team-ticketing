@@ -1141,9 +1141,8 @@ export default function Dashboard() {
       gradient: 'from-amber-700 via-amber-600 to-amber-500',
       description: 'Equipment check-in & check-out tracking',
       items: [
-        { name: 'Submit Movement Log', url: 'https://docs.google.com/forms/d/e/1FAIpQLSfnfNZ1y96xei0KdMDewxGRr2nALwA0ZLW-kKPyGh5_YhK4HA/viewform?embedded=true', icon: '✍️', embed: true },
-        { name: 'View Movement Log', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIVshcP1qgXMwm121wufhmpEIze-I_99qaQb1ZnuUbekpvOV-xsfKX4p-16d1UHzG3mRHIpQcNriav/pubhtml?gid=383533237&single=true', icon: '📑', embed: true }
-      ]
+		  { name: 'Unit Movement Log', url: '/unit-movement', icon: '🚚', internal: true, embed: true }
+		]
     },
   ];
 
