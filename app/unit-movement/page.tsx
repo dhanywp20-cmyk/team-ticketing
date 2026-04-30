@@ -437,7 +437,7 @@ function AddEditModal({ log, currentUser, teamMembers, onClose, onSave }: {
 export default function UnitMovementPage() {
   const [currentUser, setCurrentUser] = useState<User|null>(null);
   const [isLoggedIn,  setIsLoggedIn]  = useState(false);
-  const [loginForm,   setLoginForm]   = useState({username:'',password:''});
+  const [appReady,    setAppReady]    = useState(false); // full page loading state
 
   const [logs,        setLogs]        = useState<MovementLog[]>([]);
   const [loading,     setLoading]     = useState(false);
@@ -459,30 +459,23 @@ export default function UnitMovementPage() {
 
   useEffect(()=>{
     const saved = localStorage.getItem('currentUser');
-    if (saved) { const u=JSON.parse(saved) as User; setCurrentUser(u); setIsLoggedIn(true); }
+    if (saved) {
+      const u = JSON.parse(saved) as User;
+      setCurrentUser(u);
+      setIsLoggedIn(true);
+    }
+    // Short delay so iframe renders cleanly before showing content
+    setTimeout(() => setAppReady(true), 300);
   },[]);
 
   useEffect(()=>{
-    if (!isLoggedIn) return;
+    if (!isLoggedIn||!appReady) return;
     fetchLogs(); fetchTeamMembers();
     const ch = supabase.channel('movement-rt')
       .on('postgres_changes',{event:'*',schema:'public',table:'movement_logs'},()=>fetchLogs())
       .subscribe();
     return ()=>{ supabase.removeChannel(ch); };
-  },[isLoggedIn]);
-
-  const handleLogin = async () => {
-    const {data,error} = await supabase.from('users').select('*').eq('username',loginForm.username).eq('password',loginForm.password).single();
-    if (error||!data) { alert('Username atau password salah!'); return; }
-    if (data.team_type==='Pending Approval') { alert('Akun masih menunggu persetujuan.'); return; }
-    setCurrentUser(data); setIsLoggedIn(true);
-    localStorage.setItem('currentUser',JSON.stringify(data));
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false); setCurrentUser(null); localStorage.removeItem('currentUser');
-    const t=window.top!==window?window.top:window; if(t) t.location.href='/dashboard';
-  };
+  },[isLoggedIn, appReady]);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -543,22 +536,30 @@ export default function UnitMovementPage() {
     return Object.entries(c).map(([label,value],i)=>({label,value,color:COLORS[i%COLORS.length]})).sort((a,b)=>b.value-a.value);
   },[filteredLogs]);
 
+  // ─── Loading / Not Authenticated screen ────────────────────────────────────
+
+  if (!appReady) return (
+    <div className="min-h-screen flex items-center justify-center" style={{backgroundImage:'url(/IVP_Background.png)',backgroundSize:'cover'}}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-xl" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>🚚</div>
+        <div className="w-10 h-10 rounded-full" style={{border:'3px solid rgba(245,158,11,0.25)',borderTopColor:'#f59e0b',animation:'spin 0.8s linear infinite'}}/>
+        <p className="text-white/80 text-sm font-semibold tracking-wide">Memuat Unit Movement Log...</p>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
   if (!isLoggedIn) return (
-    <div className="min-h-screen flex items-center justify-center" style={{background:'linear-gradient(135deg,#1e293b,#0f172a)'}}>
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="p-6" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>
-          <div className="text-4xl mb-2">🚚</div>
-          <h1 className="text-white font-black text-xl">Unit Movement Log</h1>
-          <p className="text-amber-100 text-sm">PTS IVP — Movement Tracking</p>
-        </div>
-        <div className="p-6 space-y-4">
-          <input className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-amber-400 focus:bg-white transition-all"
-            placeholder="Username" value={loginForm.username} onChange={e=>setLoginForm(p=>({...p,username:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/>
-          <input type="password" className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-amber-400 focus:bg-white transition-all"
-            placeholder="Password" value={loginForm.password} onChange={e=>setLoginForm(p=>({...p,password:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/>
-          <button onClick={handleLogin} className="w-full py-3.5 rounded-xl text-sm font-bold text-white"
-            style={{background:'linear-gradient(135deg,#f59e0b,#d97706)',boxShadow:'0 4px 14px rgba(245,158,11,0.4)'}}>Masuk</button>
-        </div>
+    <div className="min-h-screen flex items-center justify-center" style={{backgroundImage:'url(/IVP_Background.png)',backgroundSize:'cover'}}>
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 text-center max-w-sm w-full mx-4">
+        <div className="text-4xl mb-3">🔒</div>
+        <h2 className="font-black text-gray-800 text-lg">Sesi Tidak Ditemukan</h2>
+        <p className="text-gray-500 text-sm mt-2 mb-5">Silakan login terlebih dahulu melalui halaman utama.</p>
+        <button onClick={()=>{ const t=window.top!==window?window.top:window; if(t) t.location.href='/dashboard'; }}
+          className="w-full py-3 rounded-xl text-sm font-bold text-white"
+          style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>
+          Kembali ke Dashboard
+        </button>
       </div>
     </div>
   );
@@ -592,7 +593,7 @@ export default function UnitMovementPage() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Header — tanpa logout & nama user (handled oleh dashboard) */}
       <div className="bg-white/85 backdrop-blur-md shadow-md sticky top-0 z-30" style={{borderBottom:'2px solid rgba(245,158,11,0.3)'}}>
         <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -602,37 +603,25 @@ export default function UnitMovementPage() {
               <p className="text-[10px] text-gray-500 font-medium">PTS IVP — Equipment Tracking</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isAdmin&&(
-              <button onClick={()=>setEditLog(null)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
-                style={{background:'linear-gradient(135deg,#f59e0b,#d97706)',boxShadow:'0 2px 8px rgba(245,158,11,0.35)'}}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
-                Tambah Log
-              </button>
-            )}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)'}}>
-              <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-[10px] font-bold">
-                {currentUser?.full_name?.[0]?.toUpperCase()}
-              </div>
-              <span className="text-xs font-semibold text-amber-800">{currentUser?.full_name}</span>
-            </div>
-            <button onClick={handleLogout} title="Logout" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          {isAdmin&&(
+            <button onClick={()=>setEditLog(null)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+              style={{background:'linear-gradient(135deg,#f59e0b,#d97706)',boxShadow:'0 2px 8px rgba(245,158,11,0.35)'}}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+              Tambah Log
             </button>
-          </div>
+          )}
         </div>
       </div>
 
       <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Stat Cards — 3 saja, tanpa Anggota PTS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             {label:'Total Log',     value:filteredLogs.length, icon:'📋', g:'linear-gradient(135deg,#6366f1,#4f46e5)', sh:'rgba(99,102,241,0.35)'},
             {label:'Barang Masuk',  value:filteredLogs.filter(l=>l.status_barang==='Masuk').length,  icon:'📥', g:'linear-gradient(135deg,#10b981,#059669)', sh:'rgba(16,185,129,0.35)'},
             {label:'Barang Keluar', value:filteredLogs.filter(l=>l.status_barang==='Keluar').length, icon:'📤', g:'linear-gradient(135deg,#ef4444,#dc2626)', sh:'rgba(239,68,68,0.35)'},
-            {label:'Anggota PTS',   value:new Set(filteredLogs.map(l=>l.nama_pts)).size, icon:'👥', g:'linear-gradient(135deg,#f59e0b,#d97706)', sh:'rgba(245,158,11,0.35)'},
           ].map(c=>(
             <div key={c.label} className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2" style={{background:c.g,boxShadow:`0 4px 16px ${c.sh}`}}>
               <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{c.icon}</div>
