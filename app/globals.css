@@ -1,3 +1,198 @@
 @tailwind base;
-@tailwind components;
 @tailwind utilities;
+@tailwind components;
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL MOBILE-FIRST CSS — PTS IVP Platform
+   Berlaku untuk: Dashboard, Ticketing, Reminder, Form, Movement
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Base ── */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Prevent iOS zoom on input focus ── */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* ── Fix iOS fixed background ── */
+.bg-fixed {
+  background-attachment: scroll !important;
+}
+
+img { max-width: 100%; height: auto; }
+
+/* ══════════════════════════════════════════════════════════
+   MOBILE OVERRIDES
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Prevent any element wider than screen */
+  * { max-width: 100vw; word-break: break-word; }
+
+  /* ── Sidebar hide ── */
+  [class*="w-\[288px\]"],
+  [class*="w-\[72px\]"]  { display: none !important; }
+
+  /* ── iframe full width ── */
+  iframe {
+    width: 100% !important;
+    min-width: unset !important;
+    max-width: 100vw !important;
+  }
+
+  /* ── Tables horizontal scroll ── */
+  table {
+    display: block !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    font-size: 12px !important;
+  }
+  th, td {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap;
+  }
+
+  /* ── Modals full width ── */
+  .fixed.inset-0 > div,
+  [class*="max-w-2xl"],
+  [class*="max-w-lg"],
+  [class*="max-w-xl"],
+  [class*="max-w-md"],
+  [class*="max-w-sm"] {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px !important;
+    border-radius: 16px !important;
+    max-height: calc(100dvh - 32px) !important;
+    overflow-y: auto !important;
+  }
+
+  /* ── Grid columns ── */
+  .grid.grid-cols-2,
+  .grid.grid-cols-3,
+  .grid.grid-cols-4  { grid-template-columns: 1fr !important; }
+
+  [class*="md\:grid-cols-4"],
+  [class*="md\:grid-cols-3"] { grid-template-columns: repeat(2,1fr) !important; }
+
+  /* ── Headings ── */
+  h1 { font-size: 16px !important; }
+  h2 { font-size: 14px !important; }
+  h3 { font-size: 13px !important; }
+
+  /* ── min-width table overrides ── */
+  [style*="min-width: 1100px"],
+  [style*="min-width: 900px"],
+  [style*="min-width: 1200px"] { min-width: unset !important; }
+
+  /* ── Padding reduction ── */
+  .px-6 { padding-left: 12px !important; padding-right: 12px !important; }
+  .px-4 { padding-left: 10px !important; padding-right: 10px !important; }
+  .py-6 { padding-top: 12px !important; padding-bottom: 12px !important; }
+  .gap-6 { gap: 12px !important; }
+
+  /* ── Max-width containers ── */
+  [class*="max-w-\[1600px\]"],
+  [class*="max-w-\[1200px\]"] {
+    max-width: 100% !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* ── Stat cards text ── */
+  .text-3xl { font-size: 24px !important; }
+
+  /* ── Filter bar wraps ── */
+  .flex.flex-wrap.items-center.gap-2 select,
+  .flex.flex-wrap.items-center.gap-2 input[type="text"] {
+    font-size: 13px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* ── Form inputs full width ── */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  select, textarea {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ── Sidebar + iframe layout ── */
+  .flex.h-screen { flex-direction: column !important; }
+  .flex.h-screen > div:first-child { display: none !important; }
+  .flex.h-screen > div:last-child { width: 100% !important; flex: 1 !important; }
+
+  /* ── Fixed background iOS fix ── */
+  [style*="background-attachment: fixed"],
+  [style*="backgroundAttachment: fixed"] {
+    background-attachment: scroll !important;
+    background-size: cover !important;
+  }
+
+  /* ── Overflow containers ── */
+  .overflow-x-auto {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* ── Rounded ── */
+  .rounded-2xl { border-radius: 12px !important; }
+
+  /* ── Line clamp allow more on mobile ── */
+  .line-clamp-1 { -webkit-line-clamp: 2 !important; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   EXTRA SMALL (< 390px)
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  th, td { padding: 6px 7px !important; font-size: 10px !important; }
+  h1 { font-size: 14px !important; }
+  .text-sm { font-size: 11px !important; }
+  [class*="md\:grid-cols"] { grid-template-columns: 1fr !important; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SAFE AREA — notch & gesture bar
+   ══════════════════════════════════════════════════════════ */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  body { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SCROLLBAR
+   ══════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+
+/* ══════════════════════════════════════════════════════════
+   ANIMATIONS
+   ══════════════════════════════════════════════════════════ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
