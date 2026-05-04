@@ -18,6 +18,7 @@ interface User {
   team_type?: string;
   phone_number?: string;
   sales_division?: string;
+  jabatan?: string;
   allowed_menus?: string[];
 }
 
@@ -87,6 +88,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     role: 'guest',
     team_type: '',
     sales_division: '',
+    jabatan: '',
     allowed_menus: ALL_MENU_KEYS,
   });
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -129,6 +131,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       full_name: newUser.full_name,
       role: newUser.role,
       allowed_menus: newUser.allowed_menus,
+      jabatan: newUser.jabatan || null,
     };
     if (newUser.role === 'team') insertPayload.team_type = newUser.team_type || null;
     if (newUser.role === 'guest' || newUser.role === 'sales') {
@@ -138,7 +141,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     setSaving(false);
     if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
     notify('success', 'Akun berhasil ditambahkan!');
-    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', allowed_menus: ALL_MENU_KEYS });
+    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS });
     setActiveTab('list');
     fetchUsers();
   };
@@ -152,6 +155,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       full_name: editingUser.full_name,
       role: editingUser.role,
       allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS,
+      jabatan: editingUser.jabatan ?? null,
     };
     if (editingUser.role === 'team') updatePayload.team_type = editingUser.team_type ?? null;
     else if (editingUser.team_type === 'Pending Approval') {
@@ -314,6 +318,10 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                             </select>
                           </div>
                         )}
+                        <div className="col-span-2">
+                          <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Jabatan / Posisi</label>
+                          <input value={editingUser.jabatan || ''} onChange={e => setEditingUser({ ...editingUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="Contoh: Sales Manager, Staff IT, Director" />
+                        </div>
                       </div>
                       <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
                       <div className="flex gap-3 pt-2">
@@ -337,6 +345,9 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                             <p className="text-xs text-slate-500">@{user.username}</p>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
+                              {user.jabatan && (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ {user.jabatan}</span>
+                              )}
                               {user.team_type && (
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-rose-100 text-rose-600 border border-rose-200">👥 {user.team_type}</span>
                               )}
@@ -387,6 +398,10 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     <option value="team">Team</option>
                     <option value="guest">Guest</option>
                   </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Jabatan / Posisi</label>
+                  <input value={newUser.jabatan} onChange={e => setNewUser({ ...newUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" placeholder="Contoh: Sales Manager, Staff IT, Director" />
                 </div>
               </div>
               {newUser.role === 'team' && (
@@ -459,8 +474,8 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [supervisorInfo, setSupervisorInfo] = useState<{ full_name: string; phone_number?: string; sales_division?: string } | null>(null);
-  const [subordinates, setSubordinates] = useState<{ full_name: string; username: string; sales_division?: string }[]>([]);
+  const [supervisors, setSupervisors] = useState<{ full_name: string; phone_number?: string; sales_division?: string; jabatan?: string }[]>([]);
+  const [subordinates, setSubordinates] = useState<{ full_name: string; username: string; sales_division?: string; jabatan?: string }[]>([]);
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -472,24 +487,23 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
       const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
       if (data) { setUserData(data); setPhoneInput(data.phone_number || ''); }
 
-      const { data: supMap } = await supabase
+      // Fetch ALL supervisors for this user (multiple allowed)
+      const { data: supMaps } = await supabase
         .from('user_supervisor_mappings')
         .select('supervisor_id')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
-      if (supMap?.supervisor_id) {
-        const { data: sup } = await supabase.from('users').select('full_name, phone_number, sales_division').eq('id', supMap.supervisor_id).single();
-        if (sup) setSupervisorInfo(sup);
+        .eq('user_id', currentUser.id);
+      if (supMaps && supMaps.length > 0) {
+        const ids = supMaps.map((s: any) => s.supervisor_id);
+        const { data: sups } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ids);
+        if (sups) setSupervisors(sups);
       }
 
-      const roleLC = currentUser.role?.toLowerCase();
-      if (roleLC === 'admin' || roleLC === 'superadmin' || currentUser.sales_division === 'IVP') {
-        const { data: subs } = await supabase.from('user_supervisor_mappings').select('user_id').eq('supervisor_id', currentUser.id);
-        if (subs && subs.length > 0) {
-          const ids = subs.map((s: any) => s.user_id);
-          const { data: subUsers } = await supabase.from('users').select('full_name, username, sales_division').in('id', ids);
-          if (subUsers) setSubordinates(subUsers);
-        }
+      // Fetch subordinates (who mapped this user as supervisor)
+      const { data: subMaps } = await supabase.from('user_supervisor_mappings').select('user_id').eq('supervisor_id', currentUser.id);
+      if (subMaps && subMaps.length > 0) {
+        const ids = subMaps.map((s: any) => s.user_id);
+        const { data: subUsers } = await supabase.from('users').select('full_name, username, sales_division, jabatan').in('id', ids);
+        if (subUsers) setSubordinates(subUsers);
       }
     })();
   }, []);
@@ -558,6 +572,9 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
             <div className="min-w-0 flex-1">
               <p className="font-bold text-slate-800 text-base truncate">{userData.full_name}</p>
               <p className="text-slate-500 text-sm">@{userData.username}</p>
+              {userData.jabatan && (
+                <p className="text-sm font-semibold text-indigo-700 mt-0.5">🏷️ {userData.jabatan}</p>
+              )}
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase border ${roleClass}`}>{userData.role}</span>
                 {userData.team_type && userData.team_type !== 'Pending Approval' && (
@@ -621,17 +638,30 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
             )}
           </div>
 
-          {/* Supervisor Info */}
-          {supervisorInfo && (
+          {/* Supervisors (multiple) */}
+          {supervisors.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-amber-200 bg-amber-100/60">
-                <div className="flex items-center gap-2"><span>👨‍💼</span><span className="font-bold text-amber-800 text-sm">Atasan / Supervisor Anda</span></div>
+                <div className="flex items-center gap-2">
+                  <span>👨‍💼</span>
+                  <span className="font-bold text-amber-800 text-sm">Atasan Anda ({supervisors.length})</span>
+                </div>
               </div>
-              <div className="px-4 py-3">
-                <p className="font-semibold text-amber-900 text-sm">{supervisorInfo.full_name}</p>
-                {supervisorInfo.sales_division && <p className="text-xs text-amber-700 mt-0.5">Divisi: {supervisorInfo.sales_division}</p>}
-                {supervisorInfo.phone_number && <p className="text-xs text-amber-700 mt-0.5">📱 {supervisorInfo.phone_number}</p>}
-                <p className="text-[10px] text-amber-600 mt-1.5">Atasan Anda akan di-CC otomatis di setiap ticket yang Anda buat atau yang di-assign ke Anda.</p>
+              <div className="px-4 py-3 space-y-2">
+                {supervisors.map((sup, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-amber-200 flex items-center justify-center text-xs font-black text-amber-800 flex-shrink-0 mt-0.5">{i + 1}</div>
+                    <div>
+                      <p className="font-semibold text-amber-900 text-sm">{sup.full_name}</p>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        {sup.jabatan && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🏷️ {sup.jabatan}</span>}
+                        {sup.sales_division && <span className="text-[10px] text-amber-600">Divisi: {sup.sales_division}</span>}
+                        {sup.phone_number && <span className="text-[10px] text-amber-600">📱 {sup.phone_number}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[10px] text-amber-600 mt-1 pt-1 border-t border-amber-200">Atasan Anda akan di-CC otomatis di setiap ticket yang Anda buat atau yang di-assign ke Anda.</p>
               </div>
             </div>
           )}
@@ -640,13 +670,18 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
           {subordinates.length > 0 && (
             <div className="rounded-xl border border-indigo-200 bg-indigo-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-indigo-200 bg-indigo-100/60">
-                <div className="flex items-center gap-2"><span>👥</span><span className="font-bold text-indigo-800 text-sm">Users yang Anda Handle ({subordinates.length})</span></div>
+                <div className="flex items-center gap-2"><span>👥</span><span className="font-bold text-indigo-800 text-sm">Bawahan Anda ({subordinates.length})</span></div>
               </div>
               <div className="px-4 py-3 flex flex-wrap gap-2">
                 {subordinates.map((sub, i) => (
-                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs">
-                    <span className="font-semibold text-indigo-800">{sub.full_name}</span>
-                    {sub.sales_division && <span className="text-indigo-500">({sub.sales_division})</span>}
+                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-indigo-200 text-xs">
+                    <div>
+                      <p className="font-semibold text-indigo-800">{sub.full_name}</p>
+                      <div className="flex gap-1.5 mt-0.5">
+                        {sub.jabatan && <span className="text-indigo-500 font-medium">{sub.jabatan}</span>}
+                        {sub.sales_division && <span className="text-indigo-400">· {sub.sales_division}</span>}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -716,13 +751,12 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
     if (selectedUserId === selectedSupervisorId) { notify('error', 'User dan supervisor tidak boleh sama.'); return; }
     const existing = mappings.find(m => m.user_id === selectedUserId && m.supervisor_id === selectedSupervisorId);
     if (existing) { notify('info', 'Mapping ini sudah ada.'); return; }
-    const oldMapping = mappings.find(m => m.user_id === selectedUserId);
-    if (oldMapping) await supabase.from('user_supervisor_mappings').delete().eq('id', oldMapping.id);
+    // Multiple supervisors allowed — no deletion of old mapping
     setSaving(true);
     const { error } = await supabase.from('user_supervisor_mappings').insert([{ user_id: selectedUserId, supervisor_id: selectedSupervisorId }]);
     if (error) { notify('error', 'Gagal menyimpan mapping: ' + error.message); }
     else {
-      notify('success', 'Mapping berhasil disimpan!');
+      notify('success', 'Mapping berhasil ditambahkan!');
       setSelectedUserId(''); setSelectedSupervisorId('');
       setActiveTab('list');
       await fetchAll();
@@ -738,15 +772,10 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
     await fetchAll();
   };
 
-  const supervisorCandidates = allUsers.filter(u => {
-    const r = u.role?.toLowerCase();
-    return r === 'admin' || r === 'superadmin' || (r === 'guest' && u.sales_division === 'IVP');
-  });
+  const supervisorCandidates = allUsers.filter(u => u.role?.toLowerCase() !== 'guest' || u.sales_division === 'IVP' || !!u.jabatan);
 
-  const mappableUsers = allUsers.filter(u => {
-    const r = u.role?.toLowerCase();
-    return r === 'guest' || r === 'team' || r === 'team_pts';
-  });
+  // All non-superadmin users can be mapped
+  const mappableUsers = allUsers;
 
   const filteredMappings = mappings.filter(m => {
     const user = getUserById(m.user_id);
@@ -786,7 +815,7 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
         <div className="px-6 py-3 bg-teal-50 border-b border-teal-100 flex items-start gap-2.5">
           <span className="text-base flex-shrink-0">ℹ️</span>
           <p className="text-xs text-teal-800 leading-relaxed">
-            Mapping ini menentukan siapa <strong>atasan/supervisor</strong> dari setiap user. Saat user membuat ticket atau di-assign ticket, supervisor yang ter-mapping akan otomatis <strong>di-CC melalui WhatsApp</strong>. IVP user (sales_division=IVP) juga bisa dijadikan supervisor untuk user dari divisi external.
+            Mapping ini menentukan siapa <strong>atasan/supervisor</strong> dari setiap user — bisa <strong>lebih dari satu</strong> untuk mendukung multi-layer hierarchy (misal: staff → manager → director). Semua atasan yang ter-mapping akan otomatis <strong>di-CC melalui WhatsApp</strong> saat ada ticket.
           </p>
         </div>
 
@@ -822,34 +851,65 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <p className="text-xs mt-1">Klik &ldquo;Tambah Mapping&rdquo; untuk mulai memetakan atasan ke users</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {filteredMappings.map(m => {
-                    const user = getUserById(m.user_id);
-                    const sup = getUserById(m.supervisor_id);
-                    return (
-                      <div key={m.id} className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white transition-all">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-bold text-slate-800 text-sm">{user?.full_name || m.user_id}</p>
-                            {getRolePill(user)}
+                // Group mappings by user_id
+                <div className="space-y-3">
+                  {(() => {
+                    const grouped: Record<string, typeof filteredMappings> = {};
+                    filteredMappings.forEach(m => {
+                      if (!grouped[m.user_id]) grouped[m.user_id] = [];
+                      grouped[m.user_id].push(m);
+                    });
+                    return Object.entries(grouped).map(([userId, userMappings]) => {
+                      const user = getUserById(userId);
+                      return (
+                        <div key={userId} className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                          {/* User header */}
+                          <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0"
+                              style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
+                              {user?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-slate-800 text-sm">{user?.full_name || userId}</p>
+                                {getRolePill(user)}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs text-slate-500">@{user?.username}</p>
+                                {user?.jabatan && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">🏷️ {user.jabatan}</span>}
+                                {user?.sales_division && <span className="text-[10px] text-slate-400">· {user.sales_division}</span>}
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-500">@{user?.username}{user?.sales_division ? ` · ${user.sales_division}` : ''}</p>
-                        </div>
-                        <div className="flex-shrink-0 text-slate-400 font-bold text-sm">→</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-bold text-teal-800 text-sm">{sup?.full_name || m.supervisor_id}</p>
-                            {getRolePill(sup)}
+                          {/* Supervisors list */}
+                          <div className="px-4 py-2 space-y-1.5">
+                            {userMappings.map(m => {
+                              const sup = getUserById(m.supervisor_id);
+                              return (
+                                <div key={m.id} className="flex items-center gap-3 py-1.5">
+                                  <div className="text-slate-400 text-xs font-bold flex-shrink-0">→</div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <p className="font-semibold text-teal-800 text-sm">{sup?.full_name || m.supervisor_id}</p>
+                                      {getRolePill(sup)}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-xs text-slate-500">@{sup?.username}</p>
+                                      {sup?.jabatan && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">🏷️ {sup.jabatan}</span>}
+                                      {sup?.phone_number && <span className="text-[10px] text-slate-400">📱 {sup.phone_number}</span>}
+                                    </div>
+                                  </div>
+                                  <button onClick={() => handleDeleteMapping(m.id)} className="flex-shrink-0 p-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <p className="text-xs text-slate-500">@{sup?.username}</p>
-                          {sup?.phone_number && <p className="text-[10px] text-slate-400">📱 {sup.phone_number}</p>}
                         </div>
-                        <button onClick={() => handleDeleteMapping(m.id)} className="flex-shrink-0 p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </>
@@ -858,41 +918,45 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
           {activeTab === 'add' && (
             <div className="max-w-xl space-y-5">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                <strong>Catatan:</strong> Setiap user hanya bisa punya 1 atasan. Jika user sudah punya mapping sebelumnya, mapping lama akan diganti otomatis.
+                <strong>Catatan:</strong> Satu user bisa punya <strong>lebih dari satu atasan</strong> (multi-layer hierarchy). Tambahkan mapping sebanyak yang dibutuhkan. Semua atasan yang ter-mapping akan di-CC via WA saat ada ticket.
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">👤 User (Bawahan)</label>
                 <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all appearance-none bg-white">
                   <option value="">— Pilih User —</option>
-                  {mappableUsers.map(u => (
+                  {mappableUsers.filter(u => u.id !== selectedSupervisorId).map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.full_name} (@{u.username}){u.sales_division ? ` · ${u.sales_division}` : ''}
-                      {mappings.find(m => m.user_id === u.id) ? ' ✏️ (sudah ada mapping)' : ''}
+                      {u.full_name} (@{u.username}){u.jabatan ? ` · ${u.jabatan}` : ''}{u.sales_division ? ` [${u.sales_division}]` : ''}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">👨‍💼 Supervisor / Atasan</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">👨‍💼 Atasan / Supervisor</label>
                 <select value={selectedSupervisorId} onChange={e => setSelectedSupervisorId(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all appearance-none bg-white">
-                  <option value="">— Pilih Supervisor —</option>
-                  <optgroup label="Admin / Superadmin">
-                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'admin' || u.role?.toLowerCase() === 'superadmin').map(u => (
-                      <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>
+                  <option value="">— Pilih Atasan —</option>
+                  <optgroup label="Superadmin / Admin">
+                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'superadmin' || u.role?.toLowerCase() === 'admin').map(u => (
+                      <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>{u.full_name}{u.jabatan ? ` · ${u.jabatan}` : ''}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="🔗 IVP Sales Internal">
-                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division === 'IVP').map(u => (
-                      <option key={u.id} value={u.id}>{u.full_name} (@{u.username}) — IVP</option>
+                  <optgroup label="Team">
+                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'team' || u.role?.toLowerCase() === 'team_pts').map(u => (
+                      <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>{u.full_name}{u.jabatan ? ` · ${u.jabatan}` : ''}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Guest / Sales">
+                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'guest' || u.role?.toLowerCase() === 'sales').map(u => (
+                      <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>{u.full_name}{u.jabatan ? ` · ${u.jabatan}` : ''}{u.sales_division ? ` [${u.sales_division}]` : ''}</option>
                     ))}
                   </optgroup>
                 </select>
                 {selectedSupervisorId && (() => {
                   const sup = getUserById(selectedSupervisorId);
                   return sup && !sup.phone_number ? (
-                    <p className="text-[10px] text-amber-600 mt-1.5">⚠️ Supervisor ini belum punya nomor WhatsApp — notifikasi CC tidak akan terkirim. Minta dia isi nomor di User Profile.</p>
+                    <p className="text-[10px] text-amber-600 mt-1.5">⚠️ Atasan ini belum punya nomor WhatsApp — notifikasi CC tidak akan terkirim. Minta dia isi nomor di User Profile.</p>
                   ) : null;
                 })()}
               </div>
@@ -923,7 +987,7 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
 
         <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex-shrink-0">
           <p className="text-[10px] text-slate-400">
-            Requires table: <code className="bg-slate-200 px-1 rounded">user_supervisor_mappings</code> — jalankan SQL migration jika belum ada.
+            Requires table: <code className="bg-slate-200 px-1 rounded">user_supervisor_mappings</code> (id, user_id, supervisor_id) — <strong>tanpa</strong> unique constraint pada user_id agar support multiple atasan. Tambahkan kolom <code className="bg-slate-200 px-1 rounded">jabatan</code> di tabel <code className="bg-slate-200 px-1 rounded">users</code>.
           </p>
         </div>
       </div>
@@ -1180,6 +1244,7 @@ export default function Dashboard() {
     password: '',
     confirm_password: '',
     sales_division: '',
+    jabatan: '',
   });
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
@@ -1296,12 +1361,13 @@ export default function Dashboard() {
         password: password,
         role: 'guest',
         sales_division: sales_division,
+        jabatan: registerForm.jabatan.trim() || null,
         team_type: 'Pending Approval',
         allowed_menus: [],
       }]);
       if (error) throw error;
       setRegisterSuccess(true);
-      setRegisterForm({ full_name: '', username: '', password: '', confirm_password: '', sales_division: '' });
+      setRegisterForm({ full_name: '', username: '', password: '', confirm_password: '', sales_division: '', jabatan: '' });
     } catch (err: any) {
       alert('Registrasi gagal: ' + err.message);
     }
@@ -1533,6 +1599,11 @@ export default function Dashboard() {
                         <option value="">-- Pilih Divisi --</option>
                         {SALES_DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Jabatan / Posisi</label>
+                      <input type="text" value={registerForm.jabatan} onChange={e => setRegisterForm({ ...registerForm, jabatan: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" placeholder="Contoh: Sales Executive, Manager, Staff" />
                     </div>
                     <button onClick={handleRegister} disabled={registerLoading}
                       className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
