@@ -204,13 +204,6 @@ interface Ticket {
   activity_logs?: ActivityLog[];
 }
 
-interface GuestMapping {
-  id: string;
-  guest_username: string;
-  project_name: string;
-  created_at: string;
-}
-
 interface OverdueSetting {
   id: string;
   ticket_id: string;
@@ -584,7 +577,6 @@ export default function TicketingSystem() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [guestMappings, setGuestMappings] = useState<GuestMapping[]>([]);
   const [overdueSettings, setOverdueSettings] = useState<OverdueSetting[]>([]);
   const [showOverdueSetting, setShowOverdueSetting] = useState(false);
   const [showReopenModal, setShowReopenModal] = useState(false);
@@ -616,7 +608,6 @@ export default function TicketingSystem() {
   const [reminderSaving, setReminderSaving] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
-  const [showGuestMapping, setShowGuestMapping] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showTicketDetailPopup, setShowTicketDetailPopup] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -886,14 +877,6 @@ export default function TicketingSystem() {
     // Redirect ke halaman login dashboard (parent window jika di dalam iframe)
     const target = window.top !== window ? window.top : window;
     if (target) target.location.href = "/dashboard";
-  };
-
-  const fetchGuestMappings = async () => {
-    try {
-      const { data, error } = await supabase.from("guest_mappings").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      setGuestMappings(data || []);
-    } catch (err: any) { console.error("Error fetching guest mappings:", err); }
   };
 
   const fetchData = async (userOverride?: User | null) => {
@@ -1199,8 +1182,6 @@ export default function TicketingSystem() {
       if (approvalTicket.created_by) {
         const creatorUser = users.find((u) => u.username === approvalTicket.created_by);
         if (creatorUser && creatorUser.role === "guest") {
-          const { data: existingMapping } = await supabase.from("guest_mappings").select("id").eq("guest_username", approvalTicket.created_by).eq("project_name", approvalTicket.project_name).maybeSingle();
-          if (!existingMapping) await supabase.from("guest_mappings").insert([{ guest_username: approvalTicket.created_by, project_name: approvalTicket.project_name }]);
         }
       }
       // ── WA ke handler yang di-assign ──────────────────────────────────────
@@ -1584,34 +1565,6 @@ export default function TicketingSystem() {
       await fetchData();
       alert("User created successfully!");
     } catch (err: any) { alert("Error: " + err.message); }
-  };
-
-  const addGuestMapping = async () => {
-    if (!newMapping.guestUsername || !newMapping.projectName) { alert("All fields must be filled!"); return; }
-    const guestUser = users.find((u) => u.username === newMapping.guestUsername && u.role === "guest");
-    if (!guestUser) { alert("Guest username not found or not a guest role!"); return; }
-    const projectExists = tickets.some((t) => t.project_name === newMapping.projectName);
-    if (!projectExists) { alert("Project name not found!"); return; }
-    try {
-      setUploading(true);
-      const { error } = await supabase.from("guest_mappings").insert([{ guest_username: newMapping.guestUsername, project_name: newMapping.projectName }]);
-      if (error) throw error;
-      setNewMapping({ guestUsername: "", projectName: "" });
-      await fetchGuestMappings();
-      setUploading(false);
-      alert("Guest mapping added successfully!");
-    } catch (err: any) { alert("Error: " + err.message); setUploading(false); }
-  };
-
-  const deleteGuestMapping = async (mappingId: string) => {
-    try {
-      setUploading(true);
-      const { error } = await supabase.from("guest_mappings").delete().eq("id", mappingId);
-      if (error) throw error;
-      await fetchGuestMappings();
-      setUploading(false);
-      alert("Guest mapping deleted successfully!");
-    } catch (err: any) { alert("Error: " + err.message); setUploading(false); }
   };
 
   const updatePassword = async () => {
@@ -2135,7 +2088,7 @@ export default function TicketingSystem() {
   }, [loginTime]);
 
   useEffect(() => {
-    if (currentUser?.role === "admin" || currentUser?.role === "superadmin") { fetchGuestMappings(); loadReminderSchedule(); }
+    if (currentUser?.role === "admin" || currentUser?.role === "superadmin") { loadReminderSchedule(); }
     if (currentUser) fetchOverdueSettings();
   }, [currentUser]);
 
@@ -2361,7 +2314,6 @@ export default function TicketingSystem() {
 
               {/* Guest Mapping button - Redesigned */}
               {canAccessAccountSettings && (
-                <button onClick={() => { setShowGuestMapping(!showGuestMapping); setShowAccountSettings(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", boxShadow: "0 2px 8px rgba(13,148,136,0.3)" }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
@@ -2371,7 +2323,7 @@ export default function TicketingSystem() {
 
               {/* Reminder button - Redesigned */}
               {canAccessAccountSettings && (
-                <button onClick={() => { setShowReminderSchedule(true); setShowAccountSettings(false); setShowGuestMapping(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#7c3aed,#6d28d9)", boxShadow: "0 2px 8px rgba(124,58,237,0.3)" }} title={`Reminder: ${getCronDisplay()}`}>
+                <button onClick={() => { setShowReminderSchedule(true); setShowAccountSettings(false); setShowNewTicket(false); }} className="flex items-center gap-1.5 text-white text-sm font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 hover:opacity-90" style={{ background: "linear-gradient(135deg,#7c3aed,#6d28d9)", boxShadow: "0 2px 8px rgba(124,58,237,0.3)" }} title={`Reminder: ${getCronDisplay()}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -2385,8 +2337,7 @@ export default function TicketingSystem() {
                   const nextShow = !showNewTicket;
                   setShowNewTicket(nextShow);
                   setShowAccountSettings(false);
-                  setShowGuestMapping(false);
-                  if (nextShow && currentUser?.role === "guest") {
+                                    if (nextShow && currentUser?.role === "guest") {
                     setNewTicket(prev => ({
                       ...prev,
                       sales_name: prev.sales_name || currentUser.full_name || "",
@@ -3297,35 +3248,6 @@ export default function TicketingSystem() {
         )}
 
         {/* ── GUEST MAPPING MODAL (Redesigned) ── */}
-        {showGuestMapping && canAccessAccountSettings && (() => {
-          const guestUsers = users.filter((u) => u.role === "guest");
-          const selectedGuestForMapping = newMapping.guestUsername;
-          const guestMappingsForSelected = guestMappings.filter((m) => m.guest_username === selectedGuestForMapping);
-          const mappedProjects = guestMappingsForSelected.map((m) => m.project_name);
-          const handleToggleProjectMapping = async (projectName: string) => {
-            if (!selectedGuestForMapping) return;
-            const isAlreadyMapped = mappedProjects.includes(projectName);
-            if (isAlreadyMapped) {
-              const mapping = guestMappings.find((m) => m.guest_username === selectedGuestForMapping && m.project_name === projectName);
-              if (mapping) await supabase.from("guest_mappings").delete().eq("id", mapping.id);
-            } else await supabase.from("guest_mappings").insert([{ guest_username: selectedGuestForMapping, project_name: projectName }]);
-            await fetchGuestMappings();
-          };
-          return (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col" style={{ animation: "scale-in 0.25s ease-out", border: "2px solid rgba(13,148,136,0.5)" }}>
-                <div className="p-5 border-b" style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", borderColor: "rgba(13,148,136,0.3)" }}>
-                  <div className="flex justify-between items-center"><div><h2 className="text-xl font-bold text-white">👥 Guest Project Mapping</h2><p className="text-teal-100 text-sm mt-0.5">Pilih user guest → centang project yang boleh diakses</p></div><button onClick={() => setShowGuestMapping(false)} className="text-white hover:bg-white/20 rounded-lg p-2 font-bold">✕</button></div>
-                </div>
-                <div className="flex flex-1 overflow-hidden min-h-0">
-                  <div className="w-56 border-r flex flex-col flex-shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}><div className="px-4 py-2.5" style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}><p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">User Guest</p></div><div className="flex-1 overflow-y-auto">{guestUsers.length === 0 ? (<div className="p-4 text-center text-gray-400 text-xs py-10"><div className="text-3xl mb-2">🙅</div><p>Belum ada user guest</p></div>) : guestUsers.map((u) => { const mappingCount = guestMappings.filter((m) => m.guest_username === u.username).length; const isSelected = selectedGuestForMapping === u.username; return (<button key={u.id} onClick={() => setNewMapping({ ...newMapping, guestUsername: u.username })} className={`w-full text-left px-4 py-3 border-b transition-all ${isSelected ? "bg-teal-50 border-l-4 border-l-teal-500" : "hover:bg-gray-50 border-l-4 border-l-transparent"}`} style={{ borderColor: "rgba(0,0,0,0.05)" }}><p className={`text-sm font-bold truncate ${isSelected ? "text-teal-700" : "text-gray-700"}`}>{u.full_name}</p><p className="text-xs text-gray-400">{u.username}</p>{mappingCount > 0 && <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{mappingCount} project</span>}</button>); })}</div></div>
-                  <div className="flex-1 flex flex-col overflow-hidden min-h-0"><div className="px-4 py-2.5 flex items-center justify-between flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderBottom: "1px solid rgba(0,0,0,0.05)" }}><p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{selectedGuestForMapping ? `Project untuk ${selectedGuestForMapping}` : "Pilih guest terlebih dahulu"}</p>{selectedGuestForMapping && uniqueProjectNames.length > 0 && <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full">{mappedProjects.length}/{uniqueProjectNames.length}</span>}</div><div className="flex-1 overflow-y-auto p-3">{!selectedGuestForMapping ? (<div className="flex flex-col items-center justify-center h-full text-gray-400 py-12"><div className="text-5xl mb-3">👈</div><p className="text-sm font-medium">Pilih user guest di sebelah kiri</p></div>) : uniqueProjectNames.length === 0 ? (<div className="text-center text-gray-400 py-8 text-sm"><div className="text-3xl mb-2">📭</div><p>Belum ada project ticket tersedia</p></div>) : (<div className="space-y-1.5">{uniqueProjectNames.map((projectName) => { const isMapped = mappedProjects.includes(projectName); return (<button key={projectName} onClick={() => handleToggleProjectMapping(projectName)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${isMapped ? "border-teal-400 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:bg-teal-50/50"}`}><div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${isMapped ? "border-teal-500 bg-teal-500" : "border-gray-300 bg-white"}`}>{isMapped && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><span className="text-sm font-medium truncate flex-1">{projectName}</span>{isMapped && <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex-shrink-0">✓ Aktif</span>}</button>); })}</div>)}</div></div>
-                </div>
-                <div className="p-4 border-t flex-shrink-0" style={{ background: "rgba(0,0,0,0.03)", borderColor: "rgba(0,0,0,0.05)" }}><button onClick={() => setShowGuestMapping(false)} className="w-full bg-gradient-to-r from-teal-600 to-teal-800 text-white py-3 rounded-xl font-bold hover:from-teal-700 hover:to-teal-900 transition-all shadow-lg">✓ Selesai</button></div>
-              </div>
-            </div>
-          );
-        })()}
 
         {/* ── NEW TICKET MODAL  ── */}
         {showNewTicket && canCreateTicket && (
