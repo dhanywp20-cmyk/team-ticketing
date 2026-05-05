@@ -517,51 +517,27 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
       const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
       if (data) { setUserData(data); setPhoneInput(data.phone_number || ''); }
 
-      // Fetch atasan berdasarkan sales_division user (division_supervisor_mappings)
       const userDiv = currentUser.sales_division;
       if (userDiv) {
-        const { data: supMaps } = await supabase
-          .from('division_supervisor_mappings')
-          .select('supervisor_id')
-          .eq('sales_division', userDiv);
+        const { data: supMaps } = await supabase.from('division_supervisor_mappings').select('supervisor_id').eq('sales_division', userDiv);
         if (supMaps && supMaps.length > 0) {
           const ids = supMaps.map((s: any) => s.supervisor_id);
           const { data: sups } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ids);
           if (sups) setSupervisors(sups);
         }
-
-        // Fetch IVP yang handle divisi ini
-        const { data: ivpMaps } = await supabase
-          .from('division_ivp_mappings')
-          .select('ivp_id')
-          .eq('sales_division', userDiv);
+        const { data: ivpMaps } = await supabase.from('division_ivp_mappings').select('ivp_id').eq('sales_division', userDiv);
         if (ivpMaps && ivpMaps.length > 0) {
           const ivpIds = ivpMaps.map((s: any) => s.ivp_id);
           const { data: ivps } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ivpIds);
-          // Mark IVP as special subordinate-style info — add to supervisors with role marker
-          if (ivps) {
-            setSupervisors(prev => [
-              ...prev,
-              ...ivps.map((iv: any) => ({ ...iv, _isIVP: true })),
-            ]);
-          }
+          if (ivps) setSupervisors(prev => [...prev, ...ivps.map((iv: any) => ({ ...iv, _isIVP: true }))]);
         }
       }
 
-      // Fetch bawahan: semua user di divisi yang atasan-nya adalah user ini
       if (currentUser.jabatan && ['Supervisor', 'Manager', 'Deputy General Manager', 'General Manager', 'Direktur'].includes(currentUser.jabatan)) {
-        const { data: divMaps } = await supabase
-          .from('division_supervisor_mappings')
-          .select('sales_division')
-          .eq('supervisor_id', currentUser.id);
+        const { data: divMaps } = await supabase.from('division_supervisor_mappings').select('sales_division').eq('supervisor_id', currentUser.id);
         if (divMaps && divMaps.length > 0) {
           const divs = divMaps.map((m: any) => m.sales_division);
-          const { data: subUsers } = await supabase
-            .from('users')
-            .select('full_name, username, sales_division, jabatan')
-            .in('sales_division', divs)
-            .eq('role', 'guest')
-            .neq('sales_division', 'IVP');
+          const { data: subUsers } = await supabase.from('users').select('full_name, username, sales_division, jabatan').in('sales_division', divs).eq('role', 'guest').neq('sales_division', 'IVP');
           if (subUsers) setSubordinates(subUsers);
         }
       }
@@ -597,23 +573,23 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
   const initials = userData.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
   const jabatanCfg = userData.jabatan ? JABATAN_CONFIG[userData.jabatan as JabatanType] : null;
 
-  // Sort supervisors by jabatan tier descending (Direktur first)
   const sortedSupervisors = [...supervisors].sort((a, b) => {
     const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
     const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
     return tb - ta;
   });
-
-  // Sort subordinates by jabatan tier descending
   const sortedSubordinates = [...subordinates].sort((a, b) => {
     const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
     const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
     return tb - ta;
   });
 
+  const atasanList = sortedSupervisors.filter((s: any) => !s._isIVP);
+  const ivpList = sortedSupervisors.filter((s: any) => s._isIVP);
+
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto flex flex-col border border-slate-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto flex flex-col border border-slate-200">
 
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
@@ -641,16 +617,16 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
 
         <div className="p-5 space-y-4">
 
-          {/* ── IDENTITY CARD ── */}
+          {/* ── ROW 1: Identity card (avatar + info) ── */}
           <div className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: jabatanCfg?.border ?? '#e2e8f0' }}>
-            {/* Avatar row */}
+            {/* Avatar + name row */}
             <div className="flex items-center gap-4 px-5 py-4" style={{ background: jabatanCfg ? `linear-gradient(135deg, ${jabatanCfg.bg}, white)` : 'linear-gradient(135deg, #f8fafc, white)' }}>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0 shadow-sm"
                 style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-black text-slate-900 text-lg leading-tight truncate">{userData.full_name}</p>
+                <p className="font-black text-slate-900 text-xl leading-tight truncate">{userData.full_name}</p>
                 <p className="text-slate-500 text-sm font-medium">@{userData.username}</p>
                 {jabatanCfg ? (
                   <div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
@@ -664,160 +640,193 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
               </div>
             </div>
 
-            {/* Detail grid */}
-            <div className="divide-y divide-slate-100">
-              <div className="grid grid-cols-2 divide-x divide-slate-100">
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Role Sistem</p>
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${roleClass}`}>{userData.role}</span>
-                </div>
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tim / Type</p>
-                  <p className="text-sm font-semibold text-slate-700">{userData.team_type && userData.team_type !== 'Pending Approval' ? userData.team_type : <span className="text-slate-400 italic">—</span>}</p>
-                </div>
+            {/* ── 3-column info grid ── */}
+            <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Role Sistem</p>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${roleClass}`}>{userData.role}</span>
               </div>
               <div className="px-4 py-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sales Division</p>
                 <p className="text-sm font-semibold text-slate-700">{userData.sales_division || <span className="text-slate-400 italic">—</span>}</p>
               </div>
               <div className="px-4 py-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nomor WhatsApp</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tim / Type</p>
+                <p className="text-sm font-semibold text-slate-700">{userData.team_type && userData.team_type !== 'Pending Approval' ? userData.team_type : <span className="text-slate-400 italic">—</span>}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── ROW 2: WA + Password side by side ── */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* WhatsApp */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">📱 Nomor WhatsApp</p>
+              </div>
+              <div className="px-4 py-3">
                 {editPhone ? (
-                  <div className="space-y-2 mt-1">
-                    <input type="text" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="Contoh: 628123456789"
+                  <div className="space-y-2">
+                    <input type="text" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="628123456789"
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
-                    <p className="text-[10px] text-slate-400">Format internasional, tanpa spasi. Contoh: 628123456789</p>
+                    <p className="text-[10px] text-slate-400">Format internasional, tanpa spasi</p>
                     <div className="flex gap-2">
-                      <button onClick={handleSavePhone} disabled={saving} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
+                      <button onClick={handleSavePhone} disabled={saving} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
                         {saving ? 'Menyimpan...' : 'Simpan'}
                       </button>
                       <button onClick={() => { setEditPhone(false); setPhoneInput(userData.phone_number || ''); }}
-                        className="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
+                        className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-700">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold flex-1 min-w-0">
                       {userData.phone_number
-                        ? <span className="text-emerald-700">📱 {userData.phone_number}</span>
-                        : <span className="text-rose-500 italic text-xs">⚠️ Belum diisi — wajib untuk notifikasi WA</span>}
+                        ? <span className="text-emerald-700 truncate block">📱 {userData.phone_number}</span>
+                        : <span className="text-rose-500 italic text-xs">⚠️ Belum diisi</span>}
                     </p>
-                    <button onClick={() => setEditPhone(true)} className="text-xs text-indigo-600 font-bold hover:underline ml-2 flex-shrink-0">Edit</button>
+                    <button onClick={() => setEditPhone(true)} className="text-xs text-indigo-600 font-bold hover:underline flex-shrink-0">Edit</button>
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Password */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">🔒 Password</p>
+              </div>
               <div className="px-4 py-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Password</p>
                 {editPassword ? (
-                  <div className="space-y-2 mt-1">
-                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password baru (min. 6 karakter)"
+                  <div className="space-y-2">
+                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password baru (min. 6)"
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
-                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Konfirmasi password baru"
+                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Konfirmasi password"
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
                     <div className="flex gap-2">
-                      <button onClick={handleSavePassword} disabled={saving} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
-                        {saving ? 'Menyimpan...' : 'Simpan Password'}
+                      <button onClick={handleSavePassword} disabled={saving} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
+                        {saving ? 'Menyimpan...' : 'Simpan'}
                       </button>
                       <button onClick={() => { setEditPassword(false); setPasswordInput(''); setConfirmPassword(''); }}
-                        className="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
+                        className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-slate-400 tracking-widest">••••••••</p>
-                    <button onClick={() => setEditPassword(true)} className="text-xs text-indigo-600 font-bold hover:underline ml-2 flex-shrink-0">Ubah</button>
+                    <button onClick={() => setEditPassword(true)} className="text-xs text-indigo-600 font-bold hover:underline flex-shrink-0">Ubah</button>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* ── HIERARKI ATASAN ── */}
-          {sortedSupervisors.filter((s: any) => !s._isIVP).length > 0 && (
-            <div className="rounded-xl overflow-hidden border border-amber-200">
-              <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🔺</span>
-                  <span className="font-bold text-amber-800 text-sm">Atasan Divisi {userData.sales_division}</span>
+          {/* ── ROW 3: Hierarki (Atasan + IVP) side by side, Bawahan full width ── */}
+          {(atasanList.length > 0 || ivpList.length > 0 || sortedSubordinates.length > 0) && (
+            <div className="grid grid-cols-2 gap-4">
+              {/* Atasan */}
+              {atasanList.length > 0 && (
+                <div className="rounded-xl overflow-hidden border border-amber-200">
+                  <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span>🔺</span>
+                      <span className="font-bold text-amber-800 text-xs">Atasan · {userData.sales_division}</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">{atasanList.length}</span>
+                  </div>
+                  <div className="divide-y divide-amber-50">
+                    {atasanList.map((sup, i) => {
+                      const cfg = sup.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
+                      return (
+                        <div key={i} className="px-3 py-2.5 flex items-center gap-2.5 bg-white hover:bg-amber-50/40 transition-colors">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-base"
+                            style={{ background: cfg?.bg ?? '#f1f5f9', border: `1.5px solid ${cfg?.border ?? '#e2e8f0'}` }}>
+                            {cfg?.icon ?? '👤'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-800 text-sm truncate">{sup.full_name}</p>
+                            {sup.jabatan && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: cfg?.bg, color: cfg?.color }}>
+                                {cfg?.icon} {sup.jabatan}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
+                    <p className="text-[9px] text-amber-600 font-medium">✉️ Di-CC otomatis via WA</p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
-                  {sortedSupervisors.filter((s: any) => !s._isIVP).length} orang
-                </span>
-              </div>
-              <div className="divide-y divide-amber-100">
-                {sortedSupervisors.filter((s: any) => !s._isIVP).map((sup, i) => {
-                  const cfg = sup.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
-                  return (
-                    <div key={i} className="px-4 py-3 flex items-center gap-3 bg-white hover:bg-amber-50/40 transition-colors">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
-                        style={{ background: cfg?.bg ?? '#f1f5f9', border: `1.5px solid ${cfg?.border ?? '#e2e8f0'}` }}>
-                        {cfg?.icon ?? '👤'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-800 text-sm truncate">{sup.full_name}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {sup.jabatan && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: cfg?.bg, color: cfg?.color, border: `1px solid ${cfg?.border}` }}>
-                              {cfg?.icon} {sup.jabatan}
-                            </span>
-                          )}
-                          {sup.phone_number && <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span>}
+              )}
+
+              {/* IVP Account */}
+              {ivpList.length > 0 && (
+                <div className="rounded-xl overflow-hidden border border-violet-200">
+                  <div className="px-4 py-2.5 bg-violet-50 border-b border-violet-200 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span>🔗</span>
+                      <span className="font-bold text-violet-800 text-xs">IVP Account</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full border border-violet-200">{ivpList.length}</span>
+                  </div>
+                  <div className="divide-y divide-violet-50">
+                    {ivpList.map((ivp, i) => (
+                      <div key={i} className="px-3 py-2.5 flex items-center gap-2.5 bg-white hover:bg-violet-50/40 transition-colors">
+                        <div className="w-8 h-8 rounded-lg bg-violet-100 border border-violet-200 flex items-center justify-center font-bold text-sm text-violet-700 flex-shrink-0">
+                          {ivp.full_name?.charAt(0)?.toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold text-violet-900 text-sm truncate">{ivp.full_name}</p>
+                            <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-300 flex-shrink-0">IVP</span>
+                          </div>
+                          {ivp.phone_number
+                            ? <p className="text-[10px] text-emerald-600">📱 {ivp.phone_number}</p>
+                            : <p className="text-[10px] text-rose-400">⚠️ No WA</p>}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="px-4 py-2 bg-amber-50 border-t border-amber-100">
-                <p className="text-[10px] text-amber-600 font-medium">✉️ Di-CC otomatis via WA setiap ada ticket / jadwal dari divisi {userData.sales_division}.</p>
-              </div>
-            </div>
-          )}
-
-          {/* ── IVP HANDLER ── */}
-          {sortedSupervisors.filter((s: any) => s._isIVP).length > 0 && (
-            <div className="rounded-xl overflow-hidden border border-violet-200">
-              <div className="px-4 py-3 bg-violet-50 border-b border-violet-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🔗</span>
-                  <span className="font-bold text-violet-800 text-sm">IVP Account Handler</span>
-                </div>
-                <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">
-                  Handle divisi {userData.sales_division}
-                </span>
-              </div>
-              <div className="divide-y divide-violet-100">
-                {sortedSupervisors.filter((s: any) => s._isIVP).map((ivp, i) => (
-                  <div key={i} className="px-4 py-3 flex items-center gap-3 bg-white hover:bg-violet-50/40 transition-colors">
-                    <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center font-bold text-sm text-violet-700 flex-shrink-0">
-                      {ivp.full_name?.charAt(0)?.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-violet-900 text-sm">{ivp.full_name}</p>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-300 flex-shrink-0">🔗 IVP</span>
-                      </div>
-                      {ivp.phone_number
-                        ? <p className="text-[10px] text-emerald-600 mt-0.5">📱 {ivp.phone_number}</p>
-                        : <p className="text-[10px] text-rose-400 mt-0.5">⚠️ Belum ada nomor WA</p>}
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="px-4 py-2 bg-violet-50 border-t border-violet-100">
-                <p className="text-[10px] text-violet-600 font-medium">✉️ IVP di-CC otomatis dan melihat semua ticket dari divisi {userData.sales_division}.</p>
-              </div>
+                  <div className="px-3 py-2 bg-violet-50 border-t border-violet-100">
+                    <p className="text-[9px] text-violet-600 font-medium">✉️ Di-CC &amp; lihat ticket divisi ini</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Jika hanya ada salah satu dari Atasan/IVP, isi kolom lain dengan Bawahan */}
+              {atasanList.length === 0 && ivpList.length > 0 && sortedSubordinates.length > 0 && (
+                <div className="rounded-xl overflow-hidden border border-indigo-200">
+                  <div className="px-4 py-2.5 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5"><span>🔻</span><span className="font-bold text-indigo-800 text-xs">Bawahan Anda</span></div>
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full border border-indigo-200">{sortedSubordinates.length}</span>
+                  </div>
+                  <div className="p-3 flex flex-wrap gap-1.5 bg-white">
+                    {sortedSubordinates.map((sub, i) => {
+                      const cfg = sub.jabatan ? JABATAN_CONFIG[sub.jabatan as JabatanType] : null;
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs"
+                          style={{ background: cfg?.bg ?? '#f8fafc', borderColor: cfg?.border ?? '#e2e8f0' }}>
+                          <span className="flex-shrink-0">{cfg?.icon ?? '👤'}</span>
+                          <div>
+                            <p className="font-bold leading-tight" style={{ color: cfg?.color ?? '#374151' }}>{sub.full_name}</p>
+                            <p className="text-[9px] text-slate-400">{sub.jabatan || '—'}{sub.sales_division ? ` · ${sub.sales_division}` : ''}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* ── BAWAHAN ── */}
-          {sortedSubordinates.length > 0 && (
+          {/* ── ROW 4: Bawahan full width (jika ada keduanya atasan dan IVP) ── */}
+          {sortedSubordinates.length > 0 && (atasanList.length > 0 || (atasanList.length === 0 && ivpList.length === 0)) && (
             <div className="rounded-xl overflow-hidden border border-indigo-200">
-              <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🔻</span>
-                  <span className="font-bold text-indigo-800 text-sm">Bawahan Anda</span>
-                </div>
+              <div className="px-4 py-2.5 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between">
+                <div className="flex items-center gap-2"><span className="text-base">🔻</span><span className="font-bold text-indigo-800 text-sm">Bawahan Anda</span></div>
                 <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">{sortedSubordinates.length} orang</span>
               </div>
               <div className="p-3 flex flex-wrap gap-2 bg-white">
@@ -838,10 +847,10 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
             </div>
           )}
 
-          {/* ── MENU AKSES ── */}
+          {/* ── ROW 5: Menu Akses ── */}
           {userData.role?.toLowerCase() !== 'superadmin' && userData.role?.toLowerCase() !== 'admin' && userData.allowed_menus && userData.allowed_menus.length > 0 && (
             <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                 <div className="flex items-center gap-2"><span>🗂️</span><span className="font-bold text-slate-700 text-sm">Menu yang Dapat Diakses</span></div>
               </div>
               <div className="px-4 py-3 flex flex-wrap gap-1.5">
