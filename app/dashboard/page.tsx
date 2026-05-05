@@ -944,9 +944,11 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
 
   // Users grouped by sales_division (non-IVP guests = the "staff" yang akan ter-CC)
+  // Exclude users yang sudah jadi atasan (supervisor) agar tidak tampil di "Staff di Divisi Ini"
+  const supervisorIds = new Set(divSupMaps.map(m => m.supervisor_id));
   const usersByDiv: Record<string, User[]> = {};
   allUsers
-    .filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP')
+    .filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP' && !supervisorIds.has(u.id))
     .forEach(u => {
       const div = u.sales_division!;
       if (!usersByDiv[div]) usersByDiv[div] = [];
