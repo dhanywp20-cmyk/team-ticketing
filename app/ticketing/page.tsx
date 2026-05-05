@@ -1,4 +1,3 @@
-// v2 - fixed setSelectedHandlerTeam type
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
