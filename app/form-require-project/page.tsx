@@ -1059,7 +1059,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
       const handledDivisions = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
       if (handledDivisions.length > 0) {
-        const divFilter = handledDivisions.map(d => `sales_division.eq.${d}`).join(',');
+        const divFilter = handledDivisions.map((d: string) => `sales_division.eq.${d}`).join(',');
         query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name},${divFilter}`);
       } else {
         query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
