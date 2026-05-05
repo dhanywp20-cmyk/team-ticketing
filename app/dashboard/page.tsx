@@ -505,18 +505,53 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
       const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
       if (data) { setUserData(data); setPhoneInput(data.phone_number || ''); }
 
-      const { data: supMaps } = await supabase.from('user_supervisor_mappings').select('supervisor_id').eq('user_id', currentUser.id);
-      if (supMaps && supMaps.length > 0) {
-        const ids = supMaps.map((s: any) => s.supervisor_id);
-        const { data: sups } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ids);
-        if (sups) setSupervisors(sups);
+      // Fetch atasan berdasarkan sales_division user (division_supervisor_mappings)
+      const userDiv = currentUser.sales_division;
+      if (userDiv) {
+        const { data: supMaps } = await supabase
+          .from('division_supervisor_mappings')
+          .select('supervisor_id')
+          .eq('sales_division', userDiv);
+        if (supMaps && supMaps.length > 0) {
+          const ids = supMaps.map((s: any) => s.supervisor_id);
+          const { data: sups } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ids);
+          if (sups) setSupervisors(sups);
+        }
+
+        // Fetch IVP yang handle divisi ini
+        const { data: ivpMaps } = await supabase
+          .from('division_ivp_mappings')
+          .select('ivp_id')
+          .eq('sales_division', userDiv);
+        if (ivpMaps && ivpMaps.length > 0) {
+          const ivpIds = ivpMaps.map((s: any) => s.ivp_id);
+          const { data: ivps } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ivpIds);
+          // Mark IVP as special subordinate-style info — add to supervisors with role marker
+          if (ivps) {
+            setSupervisors(prev => [
+              ...prev,
+              ...ivps.map((iv: any) => ({ ...iv, _isIVP: true })),
+            ]);
+          }
+        }
       }
 
-      const { data: subMaps } = await supabase.from('user_supervisor_mappings').select('user_id').eq('supervisor_id', currentUser.id);
-      if (subMaps && subMaps.length > 0) {
-        const ids = subMaps.map((s: any) => s.user_id);
-        const { data: subUsers } = await supabase.from('users').select('full_name, username, sales_division, jabatan').in('id', ids);
-        if (subUsers) setSubordinates(subUsers);
+      // Fetch bawahan: semua user di divisi yang atasan-nya adalah user ini
+      if (currentUser.jabatan && ['Supervisor', 'Manager', 'General Manager', 'Direktur'].includes(currentUser.jabatan)) {
+        const { data: divMaps } = await supabase
+          .from('division_supervisor_mappings')
+          .select('sales_division')
+          .eq('supervisor_id', currentUser.id);
+        if (divMaps && divMaps.length > 0) {
+          const divs = divMaps.map((m: any) => m.sales_division);
+          const { data: subUsers } = await supabase
+            .from('users')
+            .select('full_name, username, sales_division, jabatan')
+            .in('sales_division', divs)
+            .eq('role', 'guest')
+            .neq('sales_division', 'IVP');
+          if (subUsers) setSubordinates(subUsers);
+        }
       }
     })();
   }, []);
@@ -686,17 +721,19 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
           </div>
 
           {/* ── HIERARKI ATASAN ── */}
-          {sortedSupervisors.length > 0 && (
+          {sortedSupervisors.filter((s: any) => !s._isIVP).length > 0 && (
             <div className="rounded-xl overflow-hidden border border-amber-200">
               <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-base">🔺</span>
-                  <span className="font-bold text-amber-800 text-sm">Hierarki Atasan Anda</span>
+                  <span className="font-bold text-amber-800 text-sm">Atasan Divisi {userData.sales_division}</span>
                 </div>
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">{sortedSupervisors.length} orang</span>
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                  {sortedSupervisors.filter((s: any) => !s._isIVP).length} orang
+                </span>
               </div>
               <div className="divide-y divide-amber-100">
-                {sortedSupervisors.map((sup, i) => {
+                {sortedSupervisors.filter((s: any) => !s._isIVP).map((sup, i) => {
                   const cfg = sup.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
                   return (
                     <div key={i} className="px-4 py-3 flex items-center gap-3 bg-white hover:bg-amber-50/40 transition-colors">
@@ -712,8 +749,7 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
                               {cfg?.icon} {sup.jabatan}
                             </span>
                           )}
-                          {sup.sales_division && <span className="text-[10px] text-slate-500 font-medium">🏢 {sup.sales_division}</span>}
-                          {sup.phone_number && <span className="text-[10px] text-slate-500">📱 {sup.phone_number}</span>}
+                          {sup.phone_number && <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span>}
                         </div>
                       </div>
                     </div>
@@ -721,7 +757,43 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
                 })}
               </div>
               <div className="px-4 py-2 bg-amber-50 border-t border-amber-100">
-                <p className="text-[10px] text-amber-600 font-medium">✉️ Semua atasan di atas otomatis di-CC via WA setiap ada ticket / jadwal yang terkait dengan Anda.</p>
+                <p className="text-[10px] text-amber-600 font-medium">✉️ Di-CC otomatis via WA setiap ada ticket / jadwal dari divisi {userData.sales_division}.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── IVP HANDLER ── */}
+          {sortedSupervisors.filter((s: any) => s._isIVP).length > 0 && (
+            <div className="rounded-xl overflow-hidden border border-violet-200">
+              <div className="px-4 py-3 bg-violet-50 border-b border-violet-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔗</span>
+                  <span className="font-bold text-violet-800 text-sm">IVP Account Handler</span>
+                </div>
+                <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">
+                  Handle divisi {userData.sales_division}
+                </span>
+              </div>
+              <div className="divide-y divide-violet-100">
+                {sortedSupervisors.filter((s: any) => s._isIVP).map((ivp, i) => (
+                  <div key={i} className="px-4 py-3 flex items-center gap-3 bg-white hover:bg-violet-50/40 transition-colors">
+                    <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center font-bold text-sm text-violet-700 flex-shrink-0">
+                      {ivp.full_name?.charAt(0)?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-violet-900 text-sm">{ivp.full_name}</p>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-300 flex-shrink-0">🔗 IVP</span>
+                      </div>
+                      {ivp.phone_number
+                        ? <p className="text-[10px] text-emerald-600 mt-0.5">📱 {ivp.phone_number}</p>
+                        : <p className="text-[10px] text-rose-400 mt-0.5">⚠️ Belum ada nomor WA</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-2 bg-violet-50 border-t border-violet-100">
+                <p className="text-[10px] text-violet-600 font-medium">✉️ IVP di-CC otomatis dan melihat semua ticket dari divisi {userData.sales_division}.</p>
               </div>
             </div>
           )}
@@ -870,6 +942,16 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const ivpByDiv: Record<string, typeof divIvpMaps> = {};
   divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
 
+  // Users grouped by sales_division (non-IVP guests = the "staff" yang akan ter-CC)
+  const usersByDiv: Record<string, User[]> = {};
+  allUsers
+    .filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP')
+    .forEach(u => {
+      const div = u.sales_division!;
+      if (!usersByDiv[div]) usersByDiv[div] = [];
+      usersByDiv[div].push(u);
+    });
+
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-slate-200">
@@ -975,47 +1057,87 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {Object.entries(atasanByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => (
-                      <div key={division} className="rounded-xl border border-amber-200 overflow-hidden">
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
-                          <span className="text-base">🏢</span>
-                          <span className="font-bold text-amber-800 text-sm">{division}</span>
-                          <span className="text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200 ml-auto">
-                            {maps.length} atasan
-                          </span>
-                        </div>
-                        <div className="divide-y divide-amber-50 bg-white">
-                          {maps.map(m => {
-                            const sup = getUserById(m.supervisor_id);
-                            const cfg = sup?.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
-                            return (
-                              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-                                  style={{ background: cfg?.bg ?? '#f9fafb', border: `1.5px solid ${cfg?.border ?? '#e5e7eb'}` }}>
-                                  {cfg?.icon ?? '👤'}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="font-bold text-sm" style={{ color: cfg?.color ?? '#374151' }}>{sup?.full_name ?? m.supervisor_id}</p>
-                                    {jabatanBadge(sup)}
+                    {Object.entries(atasanByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
+                      const divUsers = usersByDiv[division] ?? [];
+                      return (
+                        <div key={division} className="rounded-xl border border-amber-200 overflow-hidden">
+                          {/* Division header */}
+                          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
+                            <span className="text-base">🏢</span>
+                            <span className="font-bold text-amber-800 text-sm">{division}</span>
+                            <div className="ml-auto flex items-center gap-2">
+                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">
+                                👤 {divUsers.length} user
+                              </span>
+                              <span className="text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
+                                {maps.length} atasan
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Users in this division */}
+                          {divUsers.length > 0 && (
+                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff di Divisi Ini</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {divUsers.map(u => (
+                                  <div key={u.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs">
+                                    <div className="w-4 h-4 rounded-full flex items-center justify-center font-black text-[9px] flex-shrink-0"
+                                      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#78350f' }}>
+                                      {u.full_name?.charAt(0)?.toUpperCase()}
+                                    </div>
+                                    <span className="font-semibold text-slate-700">{u.full_name}</span>
+                                    {u.jabatan && (
+                                      <span className="text-[9px] font-bold px-1 py-0.5 rounded"
+                                        style={{ background: JABATAN_CONFIG[u.jabatan as JabatanType]?.bg ?? '#f1f5f9', color: JABATAN_CONFIG[u.jabatan as JabatanType]?.color ?? '#475569' }}>
+                                        {u.jabatan}
+                                      </span>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <p className="text-[10px] text-slate-400">@{sup?.username}</p>
-                                    {sup?.phone_number
-                                      ? <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span>
-                                      : <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
-                                  </div>
-                                </div>
-                                <button onClick={() => handleDeleteAtasan(m.id)}
-                                  className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
+                                ))}
                               </div>
-                            );
-                          })}
+                            </div>
+                          )}
+                          {divUsers.length === 0 && (
+                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                              <p className="text-[10px] text-slate-400 italic">Belum ada user Guest dengan divisi {division}</p>
+                            </div>
+                          )}
+
+                          {/* Atasan rows */}
+                          <div className="divide-y divide-amber-50 bg-white">
+                            {maps.map(m => {
+                              const sup = getUserById(m.supervisor_id);
+                              const cfg = sup?.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
+                              return (
+                                <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                                    style={{ background: cfg?.bg ?? '#f9fafb', border: `1.5px solid ${cfg?.border ?? '#e5e7eb'}` }}>
+                                    {cfg?.icon ?? '👤'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-bold text-sm" style={{ color: cfg?.color ?? '#374151' }}>{sup?.full_name ?? m.supervisor_id}</p>
+                                      {jabatanBadge(sup)}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-[10px] text-slate-400">@{sup?.username}</p>
+                                      {sup?.phone_number
+                                        ? <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span>
+                                        : <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
+                                    </div>
+                                  </div>
+                                  <button onClick={() => handleDeleteAtasan(m.id)}
+                                    className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1076,45 +1198,85 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {Object.entries(ivpByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => (
-                      <div key={division} className="rounded-xl border border-violet-200 overflow-hidden">
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 border-b border-violet-100">
-                          <span className="text-base">🏢</span>
-                          <span className="font-bold text-violet-800 text-sm">{division}</span>
-                          <span className="text-[10px] text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full border border-violet-200 ml-auto">
-                            {maps.length} IVP handler
-                          </span>
-                        </div>
-                        <div className="divide-y divide-violet-50 bg-white">
-                          {maps.map(m => {
-                            const ivp = getUserById(m.ivp_id);
-                            return (
-                              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-sm text-violet-700 flex-shrink-0">
-                                  {ivp?.full_name?.charAt(0)?.toUpperCase() ?? 'I'}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="font-bold text-violet-900 text-sm">{ivp?.full_name ?? m.ivp_id}</p>
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-300">🔗 IVP</span>
+                    {Object.entries(ivpByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
+                      const divUsers = usersByDiv[division] ?? [];
+                      return (
+                        <div key={division} className="rounded-xl border border-violet-200 overflow-hidden">
+                          {/* Division header */}
+                          <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 border-b border-violet-100">
+                            <span className="text-base">🏢</span>
+                            <span className="font-bold text-violet-800 text-sm">{division}</span>
+                            <div className="ml-auto flex items-center gap-2">
+                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">
+                                👤 {divUsers.length} user
+                              </span>
+                              <span className="text-[10px] text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full border border-violet-200">
+                                {maps.length} IVP handler
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Users in this division */}
+                          {divUsers.length > 0 && (
+                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff di Divisi Ini</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {divUsers.map(u => (
+                                  <div key={u.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs">
+                                    <div className="w-4 h-4 rounded-full flex items-center justify-center font-black text-[9px] flex-shrink-0"
+                                      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#78350f' }}>
+                                      {u.full_name?.charAt(0)?.toUpperCase()}
+                                    </div>
+                                    <span className="font-semibold text-slate-700">{u.full_name}</span>
+                                    {u.jabatan && (
+                                      <span className="text-[9px] font-bold px-1 py-0.5 rounded"
+                                        style={{ background: JABATAN_CONFIG[u.jabatan as JabatanType]?.bg ?? '#f1f5f9', color: JABATAN_CONFIG[u.jabatan as JabatanType]?.color ?? '#475569' }}>
+                                        {u.jabatan}
+                                      </span>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <p className="text-[10px] text-slate-400">@{ivp?.username}</p>
-                                    {ivp?.phone_number
-                                      ? <span className="text-[10px] text-emerald-600">📱 {ivp.phone_number}</span>
-                                      : <span className="text-[10px] text-rose-400">⚠️ No WA — CC tidak terkirim</span>}
-                                  </div>
-                                </div>
-                                <button onClick={() => handleDeleteIvp(m.id)}
-                                  className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
+                                ))}
                               </div>
-                            );
-                          })}
+                            </div>
+                          )}
+                          {divUsers.length === 0 && (
+                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                              <p className="text-[10px] text-slate-400 italic">Belum ada user Guest dengan divisi {division}</p>
+                            </div>
+                          )}
+
+                          {/* IVP rows */}
+                          <div className="divide-y divide-violet-50 bg-white">
+                            {maps.map(m => {
+                              const ivp = getUserById(m.ivp_id);
+                              return (
+                                <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-sm text-violet-700 flex-shrink-0">
+                                    {ivp?.full_name?.charAt(0)?.toUpperCase() ?? 'I'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-bold text-violet-900 text-sm">{ivp?.full_name ?? m.ivp_id}</p>
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-300">🔗 IVP</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-[10px] text-slate-400">@{ivp?.username}</p>
+                                      {ivp?.phone_number
+                                        ? <span className="text-[10px] text-emerald-600">📱 {ivp.phone_number}</span>
+                                        : <span className="text-[10px] text-rose-400">⚠️ No WA — CC tidak terkirim</span>}
+                                    </div>
+                                  </div>
+                                  <button onClick={() => handleDeleteIvp(m.id)}
+                                    className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
