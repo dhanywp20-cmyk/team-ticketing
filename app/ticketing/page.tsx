@@ -980,9 +980,10 @@ export default function TicketingSystem() {
             const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjectNames).order("created_at", { ascending: false });
             if (projectTickets) guestTickets = [...projectTickets];
           }
-          const { data: ownWaiting } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).eq("status", "Waiting Approval").order("created_at", { ascending: false });
-          if (ownWaiting) {
-            for (const t of ownWaiting) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
+          // Selalu tambahkan SEMUA ticket milik sendiri (created_by), tidak hanya Waiting Approval
+          const { data: ownAllTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).order("created_at", { ascending: false });
+          if (ownAllTickets) {
+            for (const t of ownAllTickets) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
           }
           setTickets(guestTickets);
           if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
