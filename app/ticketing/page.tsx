@@ -938,11 +938,35 @@ export default function TicketingSystem() {
           const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
 
           if (supervisedDivisions.length > 0) {
-            // Supervisor guest: lihat semua ticket dari divisi yang dia supervisi
+            // Ambil jabatan user saat ini untuk filter hierarki
+            const { data: selfUser } = await supabase.from("users").select("jabatan").eq("id", activeUser!.id).maybeSingle();
+            const selfJabatan = selfUser?.jabatan as string | undefined;
+            const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
+
+            // Ambil semua user di divisi → filter hanya yang tier LEBIH RENDAH (bawahan)
+            const { data: divUsers } = await supabase.from("users")
+              .select("id, username, jabatan")
+              .in("sales_division", supervisedDivisions)
+              .eq("role", "guest");
+
+            const allowedUsernames = (divUsers ?? [])
+              .filter((u: any) => {
+                if (!u.jabatan) return true;
+                const tier = JABATAN_TIER[u.jabatan as string] ?? 0;
+                return tier < selfTier;
+              })
+              .map((u: any) => u.username as string);
+
             let supTickets: Ticket[] = [];
-            const { data: divTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", supervisedDivisions).order("created_at", { ascending: false });
-            if (divTickets) supTickets = divTickets;
-            // Tambahkan ticket milik sendiri yang mungkin belum masuk
+            if (allowedUsernames.length > 0) {
+              const { data: divTickets } = await supabase.from("tickets")
+                .select("*, activity_logs(*)")
+                .in("sales_division", supervisedDivisions)
+                .in("created_by", allowedUsernames)
+                .order("created_at", { ascending: false });
+              if (divTickets) supTickets = divTickets;
+            }
+            // Tambahkan ticket milik sendiri
             const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).order("created_at", { ascending: false });
             if (ownTickets) { for (const t of ownTickets) { if (!supTickets.find((gt: Ticket) => gt.id === t.id)) supTickets.push(t); } }
             setTickets(supTickets);
