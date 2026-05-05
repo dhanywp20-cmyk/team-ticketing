@@ -58,6 +58,18 @@ const SALES_DIVISIONS = [
   'IOCBali', 'SGP', 'OSS',
 ];
 
+// Hierarki jabatan — urutan dari bawah ke atas
+const JABATAN_LIST = ['Staff', 'Supervisor', 'Manager', 'General Manager', 'Direktur'] as const;
+type JabatanType = typeof JABATAN_LIST[number];
+
+const JABATAN_CONFIG: Record<JabatanType, { icon: string; color: string; bg: string; border: string; tier: number }> = {
+  'Staff':           { icon: '👤', color: '#374151', bg: '#f9fafb',   border: '#d1d5db', tier: 1 },
+  'Supervisor':      { icon: '👥', color: '#1e40af', bg: '#eff6ff',   border: '#93c5fd', tier: 2 },
+  'Manager':         { icon: '🏅', color: '#7e22ce', bg: '#faf5ff',   border: '#c4b5fd', tier: 3 },
+  'General Manager': { icon: '🎖️', color: '#b45309', bg: '#fffbeb',   border: '#fcd34d', tier: 4 },
+  'Direktur':        { icon: '👑', color: '#991b1b', bg: '#fff1f2',   border: '#fca5a5', tier: 5 },
+};
+
 // ─── Account Settings Modal ──────────────────────────────────────────────────
 
 const ALL_MENU_KEYS = [
@@ -320,7 +332,10 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                         )}
                         <div className="col-span-2">
                           <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Jabatan / Posisi</label>
-                          <input value={editingUser.jabatan || ''} onChange={e => setEditingUser({ ...editingUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="Contoh: Sales Manager, Staff IT, Director" />
+                          <select value={editingUser.jabatan || ''} onChange={e => setEditingUser({ ...editingUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                            <option value="">— Pilih Jabatan —</option>
+                            {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
+                          </select>
                         </div>
                       </div>
                       <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
@@ -401,7 +416,11 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Jabatan / Posisi</label>
-                  <input value={newUser.jabatan} onChange={e => setNewUser({ ...newUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" placeholder="Contoh: Sales Manager, Staff IT, Director" />
+                  <select value={newUser.jabatan} onChange={e => setNewUser({ ...newUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                    <option value="">— Pilih Jabatan —</option>
+                    {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
+                  </select>
+                </div>
                 </div>
               </div>
               {newUser.role === 'team' && (
@@ -487,18 +506,13 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
       const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
       if (data) { setUserData(data); setPhoneInput(data.phone_number || ''); }
 
-      // Fetch ALL supervisors for this user (multiple allowed)
-      const { data: supMaps } = await supabase
-        .from('user_supervisor_mappings')
-        .select('supervisor_id')
-        .eq('user_id', currentUser.id);
+      const { data: supMaps } = await supabase.from('user_supervisor_mappings').select('supervisor_id').eq('user_id', currentUser.id);
       if (supMaps && supMaps.length > 0) {
         const ids = supMaps.map((s: any) => s.supervisor_id);
         const { data: sups } = await supabase.from('users').select('full_name, phone_number, sales_division, jabatan').in('id', ids);
         if (sups) setSupervisors(sups);
       }
 
-      // Fetch subordinates (who mapped this user as supervisor)
       const { data: subMaps } = await supabase.from('user_supervisor_mappings').select('user_id').eq('supervisor_id', currentUser.id);
       if (subMaps && subMaps.length > 0) {
         const ids = subMaps.map((s: any) => s.user_id);
@@ -535,10 +549,27 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
 
   const roleClass = ROLE_BADGE[userData.role?.toLowerCase()] || 'bg-slate-100 text-slate-700 border-slate-200';
   const initials = userData.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+  const jabatanCfg = userData.jabatan ? JABATAN_CONFIG[userData.jabatan as JabatanType] : null;
+
+  // Sort supervisors by jabatan tier descending (Direktur first)
+  const sortedSupervisors = [...supervisors].sort((a, b) => {
+    const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
+    const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
+    return tb - ta;
+  });
+
+  // Sort subordinates by jabatan tier descending
+  const sortedSubordinates = [...subordinates].sort((a, b) => {
+    const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
+    const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
+    return tb - ta;
+  });
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto flex flex-col border border-slate-200">
+
+        {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -563,132 +594,168 @@ function UserProfileModal({ currentUser, onClose }: UserProfileModalProps) {
         )}
 
         <div className="p-5 space-y-4">
-          {/* Avatar & Basic Info */}
-          <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
-              {initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-slate-800 text-base truncate">{userData.full_name}</p>
-              <p className="text-slate-500 text-sm">@{userData.username}</p>
-              {userData.jabatan && (
-                <p className="text-sm font-semibold text-indigo-700 mt-0.5">🏷️ {userData.jabatan}</p>
-              )}
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase border ${roleClass}`}>{userData.role}</span>
-                {userData.team_type && userData.team_type !== 'Pending Approval' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">👥 {userData.team_type}</span>
-                )}
-                {userData.sales_division && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">🏢 {userData.sales_division}</span>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* Phone Number */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-              <div className="flex items-center gap-2"><span>📱</span><span className="font-bold text-slate-700 text-sm">Nomor WhatsApp</span></div>
-              {!editPhone && <button onClick={() => setEditPhone(true)} className="text-xs text-indigo-600 font-semibold hover:underline">Edit</button>}
-            </div>
-            <div className="px-4 py-3">
-              {editPhone ? (
-                <div className="space-y-2">
-                  <input type="text" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="Contoh: 628123456789"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all" />
-                  <p className="text-[10px] text-slate-400">Format internasional tanpa spasi/tanda hubung. Contoh: 628123456789</p>
-                  <div className="flex gap-2">
-                    <button onClick={handleSavePhone} disabled={saving} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-all disabled:opacity-50">
-                      {saving ? 'Menyimpan...' : 'Simpan'}
-                    </button>
-                    <button onClick={() => { setEditPhone(false); setPhoneInput(userData.phone_number || ''); }}
-                      className="px-4 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
+          {/* ── IDENTITY CARD ── */}
+          <div className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: jabatanCfg?.border ?? '#e2e8f0' }}>
+            {/* Avatar row */}
+            <div className="flex items-center gap-4 px-5 py-4" style={{ background: jabatanCfg ? `linear-gradient(135deg, ${jabatanCfg.bg}, white)` : 'linear-gradient(135deg, #f8fafc, white)' }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0 shadow-sm"
+                style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-black text-slate-900 text-lg leading-tight truncate">{userData.full_name}</p>
+                <p className="text-slate-500 text-sm font-medium">@{userData.username}</p>
+                {jabatanCfg ? (
+                  <div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+                    style={{ background: jabatanCfg.bg, color: jabatanCfg.color, borderColor: jabatanCfg.border }}>
+                    <span className="text-sm">{jabatanCfg.icon}</span>
+                    {userData.jabatan}
                   </div>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-800 font-medium">{userData.phone_number || <span className="text-slate-400 italic">Belum diisi — klik Edit untuk mengisi</span>}</p>
-              )}
+                ) : (
+                  <p className="text-xs text-slate-400 mt-1 italic">Jabatan belum diset</p>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Change Password */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-              <div className="flex items-center gap-2"><span>🔒</span><span className="font-bold text-slate-700 text-sm">Ubah Password</span></div>
-              {!editPassword && <button onClick={() => setEditPassword(true)} className="text-xs text-indigo-600 font-semibold hover:underline">Ubah</button>}
-            </div>
-            {editPassword ? (
-              <div className="px-4 py-3 space-y-2">
-                <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password baru (min. 6 karakter)"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all" />
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Konfirmasi password baru"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all" />
-                <div className="flex gap-2">
-                  <button onClick={handleSavePassword} disabled={saving} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
-                    {saving ? 'Menyimpan...' : 'Simpan Password'}
-                  </button>
-                  <button onClick={() => { setEditPassword(false); setPasswordInput(''); setConfirmPassword(''); }}
-                    className="px-4 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
+            {/* Detail grid */}
+            <div className="divide-y divide-slate-100">
+              <div className="grid grid-cols-2 divide-x divide-slate-100">
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Role Sistem</p>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${roleClass}`}>{userData.role}</span>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tim / Type</p>
+                  <p className="text-sm font-semibold text-slate-700">{userData.team_type && userData.team_type !== 'Pending Approval' ? userData.team_type : <span className="text-slate-400 italic">—</span>}</p>
                 </div>
               </div>
-            ) : (
-              <div className="px-4 py-3"><p className="text-sm text-slate-400 italic">••••••••</p></div>
-            )}
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sales Division</p>
+                <p className="text-sm font-semibold text-slate-700">{userData.sales_division || <span className="text-slate-400 italic">—</span>}</p>
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nomor WhatsApp</p>
+                {editPhone ? (
+                  <div className="space-y-2 mt-1">
+                    <input type="text" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="Contoh: 628123456789"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
+                    <p className="text-[10px] text-slate-400">Format internasional, tanpa spasi. Contoh: 628123456789</p>
+                    <div className="flex gap-2">
+                      <button onClick={handleSavePhone} disabled={saving} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
+                        {saving ? 'Menyimpan...' : 'Simpan'}
+                      </button>
+                      <button onClick={() => { setEditPhone(false); setPhoneInput(userData.phone_number || ''); }}
+                        className="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {userData.phone_number
+                        ? <span className="text-emerald-700">📱 {userData.phone_number}</span>
+                        : <span className="text-rose-500 italic text-xs">⚠️ Belum diisi — wajib untuk notifikasi WA</span>}
+                    </p>
+                    <button onClick={() => setEditPhone(true)} className="text-xs text-indigo-600 font-bold hover:underline ml-2 flex-shrink-0">Edit</button>
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Password</p>
+                {editPassword ? (
+                  <div className="space-y-2 mt-1">
+                    <input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password baru (min. 6 karakter)"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
+                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Konfirmasi password baru"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
+                    <div className="flex gap-2">
+                      <button onClick={handleSavePassword} disabled={saving} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all">
+                        {saving ? 'Menyimpan...' : 'Simpan Password'}
+                      </button>
+                      <button onClick={() => { setEditPassword(false); setPasswordInput(''); setConfirmPassword(''); }}
+                        className="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all">Batal</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-400 tracking-widest">••••••••</p>
+                    <button onClick={() => setEditPassword(true)} className="text-xs text-indigo-600 font-bold hover:underline ml-2 flex-shrink-0">Ubah</button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Supervisors (multiple) */}
-          {supervisors.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-amber-200 bg-amber-100/60">
+          {/* ── HIERARKI ATASAN ── */}
+          {sortedSupervisors.length > 0 && (
+            <div className="rounded-xl overflow-hidden border border-amber-200">
+              <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span>👨‍💼</span>
-                  <span className="font-bold text-amber-800 text-sm">Atasan Anda ({supervisors.length})</span>
+                  <span className="text-base">🔺</span>
+                  <span className="font-bold text-amber-800 text-sm">Hierarki Atasan Anda</span>
                 </div>
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">{sortedSupervisors.length} orang</span>
               </div>
-              <div className="px-4 py-3 space-y-2">
-                {supervisors.map((sup, i) => (
-                  <div key={i} className="flex items-start gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-amber-200 flex items-center justify-center text-xs font-black text-amber-800 flex-shrink-0 mt-0.5">{i + 1}</div>
-                    <div>
-                      <p className="font-semibold text-amber-900 text-sm">{sup.full_name}</p>
-                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                        {sup.jabatan && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🏷️ {sup.jabatan}</span>}
-                        {sup.sales_division && <span className="text-[10px] text-amber-600">Divisi: {sup.sales_division}</span>}
-                        {sup.phone_number && <span className="text-[10px] text-amber-600">📱 {sup.phone_number}</span>}
+              <div className="divide-y divide-amber-100">
+                {sortedSupervisors.map((sup, i) => {
+                  const cfg = sup.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
+                  return (
+                    <div key={i} className="px-4 py-3 flex items-center gap-3 bg-white hover:bg-amber-50/40 transition-colors">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
+                        style={{ background: cfg?.bg ?? '#f1f5f9', border: `1.5px solid ${cfg?.border ?? '#e2e8f0'}` }}>
+                        {cfg?.icon ?? '👤'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 text-sm truncate">{sup.full_name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {sup.jabatan && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: cfg?.bg, color: cfg?.color, border: `1px solid ${cfg?.border}` }}>
+                              {cfg?.icon} {sup.jabatan}
+                            </span>
+                          )}
+                          {sup.sales_division && <span className="text-[10px] text-slate-500 font-medium">🏢 {sup.sales_division}</span>}
+                          {sup.phone_number && <span className="text-[10px] text-slate-500">📱 {sup.phone_number}</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <p className="text-[10px] text-amber-600 mt-1 pt-1 border-t border-amber-200">Atasan Anda akan di-CC otomatis di setiap ticket yang Anda buat atau yang di-assign ke Anda.</p>
+                  );
+                })}
+              </div>
+              <div className="px-4 py-2 bg-amber-50 border-t border-amber-100">
+                <p className="text-[10px] text-amber-600 font-medium">✉️ Semua atasan di atas otomatis di-CC via WA setiap ada ticket / jadwal yang terkait dengan Anda.</p>
               </div>
             </div>
           )}
 
-          {/* Subordinates */}
-          {subordinates.length > 0 && (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-indigo-200 bg-indigo-100/60">
-                <div className="flex items-center gap-2"><span>👥</span><span className="font-bold text-indigo-800 text-sm">Bawahan Anda ({subordinates.length})</span></div>
+          {/* ── BAWAHAN ── */}
+          {sortedSubordinates.length > 0 && (
+            <div className="rounded-xl overflow-hidden border border-indigo-200">
+              <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔻</span>
+                  <span className="font-bold text-indigo-800 text-sm">Bawahan Anda</span>
+                </div>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">{sortedSubordinates.length} orang</span>
               </div>
-              <div className="px-4 py-3 flex flex-wrap gap-2">
-                {subordinates.map((sub, i) => (
-                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-indigo-200 text-xs">
-                    <div>
-                      <p className="font-semibold text-indigo-800">{sub.full_name}</p>
-                      <div className="flex gap-1.5 mt-0.5">
-                        {sub.jabatan && <span className="text-indigo-500 font-medium">{sub.jabatan}</span>}
-                        {sub.sales_division && <span className="text-indigo-400">· {sub.sales_division}</span>}
+              <div className="p-3 flex flex-wrap gap-2 bg-white">
+                {sortedSubordinates.map((sub, i) => {
+                  const cfg = sub.jabatan ? JABATAN_CONFIG[sub.jabatan as JabatanType] : null;
+                  return (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs"
+                      style={{ background: cfg?.bg ?? '#f8fafc', borderColor: cfg?.border ?? '#e2e8f0' }}>
+                      <span className="text-base flex-shrink-0">{cfg?.icon ?? '👤'}</span>
+                      <div>
+                        <p className="font-bold" style={{ color: cfg?.color ?? '#374151' }}>{sub.full_name}</p>
+                        <p className="text-[10px] text-slate-500">{sub.jabatan || '—'}{sub.sales_division ? ` · ${sub.sales_division}` : ''}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Accessible Menus */}
+          {/* ── MENU AKSES ── */}
           {userData.role?.toLowerCase() !== 'superadmin' && userData.role?.toLowerCase() !== 'admin' && userData.allowed_menus && userData.allowed_menus.length > 0 && (
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
@@ -839,9 +906,26 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
             <>
               <div className="relative mb-4">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
-                <input type="text" value={searchUser} onChange={e => setSearchUser(e.target.value)} placeholder="Cari berdasarkan nama atau username..."
+                <input type="text" value={searchUser} onChange={e => setSearchUser(e.target.value)} placeholder="Cari nama atau username..."
                   className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
               </div>
+
+              {/* Hierarchy legend */}
+              <div className="flex items-center gap-1.5 flex-wrap mb-4 px-1">
+                {JABATAN_LIST.map((j, idx) => {
+                  const cfg = JABATAN_CONFIG[j];
+                  return (
+                    <div key={j} className="flex items-center gap-1">
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                        style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}>
+                        {cfg.icon} {j}
+                      </span>
+                      {idx < JABATAN_LIST.length - 1 && <span className="text-slate-300 text-xs">→</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
               {loadingData ? (
                 <div className="flex items-center justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-teal-600 border-teal-200 animate-spin" /></div>
               ) : filteredMappings.length === 0 ? (
@@ -851,66 +935,136 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <p className="text-xs mt-1">Klik &ldquo;Tambah Mapping&rdquo; untuk mulai memetakan atasan ke users</p>
                 </div>
               ) : (
-                // Group mappings by user_id
-                <div className="space-y-3">
-                  {(() => {
-                    const grouped: Record<string, typeof filteredMappings> = {};
-                    filteredMappings.forEach(m => {
-                      if (!grouped[m.user_id]) grouped[m.user_id] = [];
-                      grouped[m.user_id].push(m);
-                    });
-                    return Object.entries(grouped).map(([userId, userMappings]) => {
-                      const user = getUserById(userId);
-                      return (
-                        <div key={userId} className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-                          {/* User header */}
-                          <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200">
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0"
-                              style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
-                              {user?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className="font-bold text-slate-800 text-sm">{user?.full_name || userId}</p>
-                                {getRolePill(user)}
+                (() => {
+                  // Group by user_id first
+                  const grouped: Record<string, typeof filteredMappings> = {};
+                  filteredMappings.forEach(m => {
+                    if (!grouped[m.user_id]) grouped[m.user_id] = [];
+                    grouped[m.user_id].push(m);
+                  });
+
+                  // Sort users by jabatan tier ascending (Staff first)
+                  const sortedEntries = Object.entries(grouped).sort(([aId], [bId]) => {
+                    const ua = getUserById(aId);
+                    const ub = getUserById(bId);
+                    const ta = ua?.jabatan ? (JABATAN_CONFIG[ua.jabatan as JabatanType]?.tier ?? 0) : 0;
+                    const tb = ub?.jabatan ? (JABATAN_CONFIG[ub.jabatan as JabatanType]?.tier ?? 0) : 0;
+                    return ta - tb;
+                  });
+
+                  // Group by jabatan tier for section headers
+                  const byTier: Record<string, typeof sortedEntries> = {};
+                  sortedEntries.forEach(entry => {
+                    const user = getUserById(entry[0]);
+                    const tierLabel = user?.jabatan ?? 'Lainnya';
+                    if (!byTier[tierLabel]) byTier[tierLabel] = [];
+                    byTier[tierLabel].push(entry);
+                  });
+
+                  return (
+                    <div className="space-y-5">
+                      {Object.entries(byTier).map(([tierLabel, entries]) => {
+                        const cfg = JABATAN_CONFIG[tierLabel as JabatanType];
+                        return (
+                          <div key={tierLabel}>
+                            {/* Tier section header */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
+                                style={cfg ? { background: cfg.bg, color: cfg.color, borderColor: cfg.border } : { background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }}>
+                                <span>{cfg?.icon ?? '👤'}</span>
+                                <span>{tierLabel}</span>
+                                <span className="ml-1 opacity-60">({entries.length})</span>
                               </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <p className="text-xs text-slate-500">@{user?.username}</p>
-                                {user?.jabatan && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">🏷️ {user.jabatan}</span>}
-                                {user?.sales_division && <span className="text-[10px] text-slate-400">· {user.sales_division}</span>}
-                              </div>
+                              <div className="flex-1 h-px bg-slate-200" />
                             </div>
-                          </div>
-                          {/* Supervisors list */}
-                          <div className="px-4 py-2 space-y-1.5">
-                            {userMappings.map(m => {
-                              const sup = getUserById(m.supervisor_id);
-                              return (
-                                <div key={m.id} className="flex items-center gap-3 py-1.5">
-                                  <div className="text-slate-400 text-xs font-bold flex-shrink-0">→</div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <p className="font-semibold text-teal-800 text-sm">{sup?.full_name || m.supervisor_id}</p>
-                                      {getRolePill(sup)}
+
+                            {/* Cards for this tier */}
+                            <div className="space-y-2 pl-1">
+                              {entries.map(([userId, userMappings]) => {
+                                const user = getUserById(userId);
+                                const userCfg = user?.jabatan ? JABATAN_CONFIG[user.jabatan as JabatanType] : null;
+
+                                // Sort supervisors by tier desc (highest first)
+                                const sortedSups = [...userMappings].sort((a, b) => {
+                                  const sa = getUserById(a.supervisor_id);
+                                  const sb = getUserById(b.supervisor_id);
+                                  const ta2 = sa?.jabatan ? (JABATAN_CONFIG[sa.jabatan as JabatanType]?.tier ?? 0) : 0;
+                                  const tb2 = sb?.jabatan ? (JABATAN_CONFIG[sb.jabatan as JabatanType]?.tier ?? 0) : 0;
+                                  return tb2 - ta2;
+                                });
+
+                                return (
+                                  <div key={userId} className="rounded-xl border overflow-hidden"
+                                    style={{ borderColor: userCfg?.border ?? '#e2e8f0' }}>
+                                    {/* User row */}
+                                    <div className="flex items-center gap-3 px-4 py-3"
+                                      style={{ background: userCfg ? `${userCfg.bg}99` : '#f8fafc' }}>
+                                      <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0"
+                                        style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
+                                        {user?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <p className="font-bold text-slate-900 text-sm">{user?.full_name || userId}</p>
+                                          {getRolePill(user)}
+                                          {user?.sales_division && (
+                                            <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">🏢 {user.sales_division}</span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">@{user?.username}</p>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <p className="text-xs text-slate-500">@{sup?.username}</p>
-                                      {sup?.jabatan && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">🏷️ {sup.jabatan}</span>}
-                                      {sup?.phone_number && <span className="text-[10px] text-slate-400">📱 {sup.phone_number}</span>}
+
+                                    {/* Chain of supervisors */}
+                                    <div className="bg-white divide-y divide-slate-100">
+                                      {sortedSups.map((m, idx) => {
+                                        const sup = getUserById(m.supervisor_id);
+                                        const supCfg = sup?.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
+                                        return (
+                                          <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                              <div className="w-px h-4 bg-slate-300 ml-3" />
+                                              <span className="text-slate-400 text-xs">↳</span>
+                                            </div>
+                                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                                              style={{ background: supCfg?.bg ?? '#f1f5f9', border: `1px solid ${supCfg?.border ?? '#e2e8f0'}` }}>
+                                              {supCfg?.icon ?? '👤'}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <p className="font-semibold text-sm" style={{ color: supCfg?.color ?? '#374151' }}>{sup?.full_name || m.supervisor_id}</p>
+                                                {sup?.jabatan && (
+                                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                                                    style={{ background: supCfg?.bg, color: supCfg?.color, borderColor: supCfg?.border }}>
+                                                    {supCfg?.icon} {sup.jabatan}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center gap-2 mt-0.5">
+                                                <p className="text-[10px] text-slate-400">@{sup?.username}</p>
+                                                {sup?.phone_number && <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span>}
+                                                {!sup?.phone_number && <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
+                                              </div>
+                                            </div>
+                                            <button onClick={() => handleDeleteMapping(m.id)}
+                                              className="flex-shrink-0 p-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
+                                              title="Hapus mapping">
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
-                                  <button onClick={() => handleDeleteMapping(m.id)} className="flex-shrink-0 p-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                  </button>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </>
           )}
@@ -937,21 +1091,30 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                 <select value={selectedSupervisorId} onChange={e => setSelectedSupervisorId(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all appearance-none bg-white">
                   <option value="">— Pilih Atasan —</option>
-                  <optgroup label="Superadmin / Admin">
-                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'superadmin' || u.role?.toLowerCase() === 'admin').map(u => (
-                      <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>{u.full_name}{u.jabatan ? ` · ${u.jabatan}` : ''}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Team">
-                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'team' || u.role?.toLowerCase() === 'team_pts').map(u => (
-                      <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>{u.full_name}{u.jabatan ? ` · ${u.jabatan}` : ''}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Guest / Sales">
-                    {supervisorCandidates.filter(u => u.role?.toLowerCase() === 'guest' || u.role?.toLowerCase() === 'sales').map(u => (
-                      <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>{u.full_name}{u.jabatan ? ` · ${u.jabatan}` : ''}{u.sales_division ? ` [${u.sales_division}]` : ''}</option>
-                    ))}
-                  </optgroup>
+                  {JABATAN_LIST.slice().reverse().map(tier => {
+                    const tieredUsers = supervisorCandidates.filter(u => u.jabatan === tier);
+                    if (tieredUsers.length === 0) return null;
+                    const cfg = JABATAN_CONFIG[tier];
+                    return (
+                      <optgroup key={tier} label={`${cfg.icon} ${tier}`}>
+                        {tieredUsers.map(u => (
+                          <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>
+                            {u.full_name} (@{u.username}){u.sales_division ? ` [${u.sales_division}]` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                  {/* Users without jabatan */}
+                  {supervisorCandidates.filter(u => !u.jabatan).length > 0 && (
+                    <optgroup label="— Jabatan Belum Diset">
+                      {supervisorCandidates.filter(u => !u.jabatan).map(u => (
+                        <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>
+                          {u.full_name} (@{u.username}){u.sales_division ? ` [${u.sales_division}]` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 {selectedSupervisorId && (() => {
                   const sup = getUserById(selectedSupervisorId);
@@ -962,16 +1125,50 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
               </div>
               {selectedUserId && selectedSupervisorId && (
                 <div className="p-4 rounded-xl bg-teal-50 border border-teal-200 text-sm">
-                  <p className="font-bold text-teal-800 mb-2">Preview Mapping:</p>
+                  <p className="font-bold text-teal-800 mb-3 text-xs uppercase tracking-widest">Preview Mapping:</p>
                   <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-800">{getUserById(selectedUserId)?.full_name}</p>
-                      <p className="text-xs text-slate-500">@{getUserById(selectedUserId)?.username}</p>
+                    {/* Bawahan */}
+                    <div className="flex-1 bg-white rounded-xl p-3 border border-slate-200">
+                      {(() => {
+                        const u = getUserById(selectedUserId);
+                        const cfg = u?.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
+                        return (
+                          <>
+                            <p className="font-bold text-slate-800 text-sm">{u?.full_name}</p>
+                            <p className="text-[10px] text-slate-400">@{u?.username}</p>
+                            {u?.jabatan && (
+                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                                style={{ background: cfg?.bg, color: cfg?.color, borderColor: cfg?.border }}>
+                                {cfg?.icon} {u.jabatan}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
-                    <div className="text-teal-600 font-black">→</div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-teal-800">{getUserById(selectedSupervisorId)?.full_name}</p>
-                      <p className="text-xs text-slate-500">@{getUserById(selectedSupervisorId)?.username}</p>
+                    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                      <div className="w-px h-3 bg-teal-400" />
+                      <span className="text-teal-600 font-black text-lg">↑</span>
+                      <p className="text-[9px] text-teal-600 font-bold">atasan</p>
+                    </div>
+                    {/* Atasan */}
+                    <div className="flex-1 bg-white rounded-xl p-3 border border-teal-300">
+                      {(() => {
+                        const u = getUserById(selectedSupervisorId);
+                        const cfg = u?.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
+                        return (
+                          <>
+                            <p className="font-bold text-teal-900 text-sm">{u?.full_name}</p>
+                            <p className="text-[10px] text-slate-400">@{u?.username}</p>
+                            {u?.jabatan && (
+                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                                style={{ background: cfg?.bg, color: cfg?.color, borderColor: cfg?.border }}>
+                                {cfg?.icon} {u.jabatan}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1602,8 +1799,11 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">Jabatan / Posisi</label>
-                      <input type="text" value={registerForm.jabatan} onChange={e => setRegisterForm({ ...registerForm, jabatan: e.target.value })}
-                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" placeholder="Contoh: Sales Executive, Manager, Staff" />
+                      <select value={registerForm.jabatan} onChange={e => setRegisterForm({ ...registerForm, jabatan: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-white">
+                        <option value="">— Pilih Jabatan —</option>
+                        {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
+                      </select>
                     </div>
                     <button onClick={handleRegister} disabled={registerLoading}
                       className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
