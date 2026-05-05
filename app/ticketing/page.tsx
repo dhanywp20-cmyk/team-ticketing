@@ -902,7 +902,7 @@ export default function TicketingSystem() {
       const [membersData, usersData] = await Promise.all([
         // team_members tidak ada — ambil dari users dengan role team
         supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus").in("role", ["team", "team_pts"]).order("full_name"),
-        supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus"),
+        supabase.from("users").select("id, username, full_name, role, team_type, phone_number, sales_division, allowed_menus, jabatan"),
       ]);
       // Map users ke format TeamMember agar kompatibel dengan kode existing
       if (membersData.data) {
@@ -917,97 +917,69 @@ export default function TicketingSystem() {
         }));
       }
       const activeUser = userOverride !== undefined ? userOverride : currentUser;
+
       if (activeUser?.role === "guest") {
-        const isIVP = activeUser.sales_division === "IVP";
+        // Selalu fetch fresh data user dari DB (termasuk jabatan terbaru)
+        const { data: freshUser } = await supabase.from("users").select("id, username, jabatan, sales_division, role").eq("id", activeUser.id).maybeSingle();
+        const resolvedUser = freshUser ?? activeUser;
+        const selfJabatan = (resolvedUser as any).jabatan as string | undefined;
+        const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
+        const selfUsername = resolvedUser.username;
+        const selfDiv = resolvedUser.sales_division;
+
+        const isIVP = resolvedUser.sales_division === "IVP";
         if (isIVP) {
           // IVP guest: lihat ticket dari semua divisi yang dia handle
-          const { data: ivpDivMaps } = await supabase.from("division_ivp_mappings").select("sales_division").eq("ivp_id", activeUser.id);
+          const { data: ivpDivMaps } = await supabase.from("division_ivp_mappings").select("sales_division").eq("ivp_id", resolvedUser.id);
           const handledDivisions = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
           let ivpTickets: Ticket[] = [];
           if (handledDivisions.length > 0) {
             const { data: divTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", handledDivisions).order("created_at", { ascending: false });
             if (divTickets) ivpTickets = divTickets;
           }
-          const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser.username).order("created_at", { ascending: false });
+          const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", selfUsername).order("created_at", { ascending: false });
           if (ownTickets) { for (const t of ownTickets) { if (!ivpTickets.find((gt: Ticket) => gt.id === t.id)) ivpTickets.push(t); } }
           setTickets(ivpTickets);
           if (selectedTicket && !ivpTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
         } else {
-          // Cek apakah user ini adalah supervisor (terdaftar di division_supervisor_mappings)
-          const { data: supMaps } = await supabase.from("division_supervisor_mappings").select("sales_division").eq("supervisor_id", activeUser!.id);
+          // Non-IVP guest: kumpulkan tickets dari berbagai sumber
+          let finalTickets: Ticket[] = [];
+          const addUnique = (t: Ticket) => { if (!finalTickets.find(x => x.id === t.id)) finalTickets.push(t); };
+
+          // 1. SELALU ambil semua ticket milik sendiri (created_by username)
+          const { data: ownAllTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", selfUsername).order("created_at", { ascending: false });
+          (ownAllTickets ?? []).forEach(addUnique);
+
+          // 2. Cek apakah user ini terdaftar sebagai supervisor di division_supervisor_mappings
+          const { data: supMaps } = await supabase.from("division_supervisor_mappings").select("sales_division").eq("supervisor_id", resolvedUser.id);
           const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
 
-          if (supervisedDivisions.length > 0) {
-            // Ambil jabatan user saat ini untuk filter hierarki
-            const { data: selfUser } = await supabase.from("users").select("jabatan").eq("id", activeUser!.id).maybeSingle();
-            const selfJabatan = selfUser?.jabatan as string | undefined;
-            const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
-
-            // Ambil semua user di divisi → filter hanya yang tier LEBIH RENDAH (bawahan) + diri sendiri
-            const { data: divUsers } = await supabase.from("users")
-              .select("id, username, jabatan")
-              .in("sales_division", supervisedDivisions)
-              .eq("role", "guest");
-
-            const allowedUsernames = (divUsers ?? [])
-              .filter((u: any) => {
-                if (u.id === activeUser!.id) return true; // selalu include diri sendiri
-                if (!u.jabatan) return true;
-                const tier = JABATAN_TIER[u.jabatan as string] ?? 0;
-                return tier < selfTier;
-              })
-              .map((u: any) => u.username as string);
-
-            let supTickets: Ticket[] = [];
-            if (allowedUsernames.length > 0) {
-              const { data: divTickets } = await supabase.from("tickets")
-                .select("*, activity_logs(*)")
-                .in("sales_division", supervisedDivisions)
-                .in("created_by", allowedUsernames)
-                .order("created_at", { ascending: false });
-              if (divTickets) supTickets = divTickets;
-            }
-            // Tambahkan semua ticket milik sendiri (termasuk yg created lewat admin / beda format)
-            const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).order("created_at", { ascending: false });
-            if (ownTickets) { for (const t of ownTickets) { if (!supTickets.find((gt: Ticket) => gt.id === t.id)) supTickets.push(t); } }
-            // Fallback: ticket dari divisi sendiri yang mungkin created_by berbeda (e.g. dibuat admin)
-            const selfDiv = activeUser!.sales_division;
-            if (selfDiv) {
-              const { data: selfDivTickets } = await supabase.from("tickets")
-                .select("*, activity_logs(*)")
-                .eq("sales_division", selfDiv)
-                .order("created_at", { ascending: false });
-              if (selfDivTickets) {
-                for (const t of selfDivTickets) {
-                  if (!supTickets.find((gt: Ticket) => gt.id === t.id)) {
-                    // Filter: hanya masukkan kalau creator tier-nya <= selfTier
-                    const creator = (divUsers ?? []).find((u: any) => u.username === t.created_by);
-                    if (!creator) { supTickets.push(t); continue; } // creator tidak dikenal → include
-                    const creatorTier = creator.jabatan ? (JABATAN_TIER[creator.jabatan as string] ?? 0) : 0;
-                    if (creatorTier <= selfTier) supTickets.push(t);
-                  }
-                }
+          if (supervisedDivisions.length > 0 && selfTier > 0) {
+            // Ambil semua user di divisi yang di-supervisi
+            const { data: divUsers } = await supabase.from("users").select("id, username, jabatan").in("sales_division", supervisedDivisions).eq("role", "guest");
+            // Ambil semua ticket dari divisi, filter: hanya creator dengan tier < selfTier (bawahan)
+            const { data: allDivTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", supervisedDivisions).order("created_at", { ascending: false });
+            (allDivTickets ?? []).forEach((t: Ticket) => {
+              const creator = (divUsers ?? []).find((u: any) => u.username === t.created_by);
+              if (!creator) {
+                addUnique(t); // creator tidak dikenal (misal admin) → include
+              } else {
+                const creatorTier = creator.jabatan ? (JABATAN_TIER[creator.jabatan as string] ?? 0) : 0;
+                if (creatorTier < selfTier) addUnique(t); // hanya bawahan
               }
-            }
-            setTickets(supTickets);
-            if (selectedTicket && !supTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
+            });
           } else {
-          // Non-IVP guest biasa: logic existing
-          const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
-          const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
-          let guestTickets: Ticket[] = [];
-          if (allowedProjectNames.length > 0) {
-            const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjectNames).order("created_at", { ascending: false });
-            if (projectTickets) guestTickets = [...projectTickets];
+            // Tidak jadi supervisor: pakai guest_mappings
+            const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", selfUsername);
+            const allowedProjects = (mappings ?? []).map((m: GuestMapping) => m.project_name);
+            if (allowedProjects.length > 0) {
+              const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjects).order("created_at", { ascending: false });
+              (projectTickets ?? []).forEach(addUnique);
+            }
           }
-          // Selalu tambahkan SEMUA ticket milik sendiri (created_by), tidak hanya Waiting Approval
-          const { data: ownAllTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).order("created_at", { ascending: false });
-          if (ownAllTickets) {
-            for (const t of ownAllTickets) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
-          }
-          setTickets(guestTickets);
-          if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
-          } // end non-supervisor guest
+
+          setTickets(finalTickets);
+          if (selectedTicket && !finalTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
         }
       } else {
         const { data: ticketsData } = await supabase.from("tickets").select("*, activity_logs(*)").order("created_at", { ascending: false });
