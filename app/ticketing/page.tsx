@@ -946,30 +946,77 @@ export default function TicketingSystem() {
           let finalTickets: Ticket[] = [];
           const addUnique = (t: Ticket) => { if (!finalTickets.find(x => x.id === t.id)) finalTickets.push(t); };
 
-          // 1. SELALU ambil semua ticket milik sendiri (created_by username)
-          const { data: ownAllTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", selfUsername).order("created_at", { ascending: false });
-          (ownAllTickets ?? []).forEach(addUnique);
+          // Ambil semua user di divisi user ini (untuk lookup jabatan)
+          const { data: allDivUsers } = selfDiv
+            ? await supabase.from("users").select("id, username, full_name, jabatan, sales_division").eq("sales_division", selfDiv).eq("role", "guest")
+            : { data: [] };
+
+          // Helper: cek apakah ticket ini "milik" user berdasarkan sales_name atau created_by
+          const isOwnTicket = (t: Ticket) =>
+            t.created_by === selfUsername ||
+            t.sales_name === resolvedUser.full_name ||
+            (t as any).sales_name === (resolvedUser as any).full_name;
+
+          // Helper: cari tier dari sales_name pada ticket
+          const getTicketOwnerTier = (t: Ticket): number => {
+            // Cari user berdasarkan sales_name
+            const ownerBySalesName = (allDivUsers ?? []).find((u: any) =>
+              u.full_name === t.sales_name || u.username === t.created_by
+            );
+            if (!ownerBySalesName) return 0; // tidak dikenal → anggap staff (tier 0)
+            return ownerBySalesName.jabatan ? (JABATAN_TIER[ownerBySalesName.jabatan as string] ?? 0) : 0;
+          };
 
           // 2. Cek apakah user ini terdaftar sebagai supervisor di division_supervisor_mappings
           const { data: supMaps } = await supabase.from("division_supervisor_mappings").select("sales_division").eq("supervisor_id", resolvedUser.id);
           const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
 
           if (supervisedDivisions.length > 0 && selfTier > 0) {
-            // Ambil semua user di divisi yang di-supervisi
-            const { data: divUsers } = await supabase.from("users").select("id, username, jabatan").in("sales_division", supervisedDivisions).eq("role", "guest");
-            // Ambil semua ticket dari divisi, filter: hanya creator dengan tier < selfTier (bawahan)
-            const { data: allDivTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", supervisedDivisions).order("created_at", { ascending: false });
+            // Supervisor: ambil semua ticket dari divisi, filter berdasarkan tier sales_name
+            const { data: allDivTickets } = await supabase.from("tickets")
+              .select("*, activity_logs(*)")
+              .in("sales_division", supervisedDivisions)
+              .order("created_at", { ascending: false });
+
+            // Ambil user di semua supervised divisions untuk lookup
+            const { data: supDivUsers } = await supabase.from("users")
+              .select("id, username, full_name, jabatan, sales_division")
+              .in("sales_division", supervisedDivisions)
+              .eq("role", "guest");
+
             (allDivTickets ?? []).forEach((t: Ticket) => {
-              const creator = (divUsers ?? []).find((u: any) => u.username === t.created_by);
-              if (!creator) {
-                addUnique(t); // creator tidak dikenal (misal admin) → include
+              // Ticket milik sendiri selalu masuk
+              if (t.created_by === selfUsername || t.sales_name === (resolvedUser as any).full_name) {
+                addUnique(t); return;
+              }
+              // Cari owner berdasarkan sales_name atau created_by
+              const owner = (supDivUsers ?? []).find((u: any) =>
+                u.full_name === t.sales_name || u.username === t.created_by
+              );
+              if (!owner) {
+                // Owner tidak dikenal → cek apakah sales_division sesuai & include (ticket tanpa sales info)
+                if (!t.sales_name) addUnique(t);
+                // Jika ada sales_name tapi tidak dikenal → skip (kemungkinan user lain)
               } else {
-                const creatorTier = creator.jabatan ? (JABATAN_TIER[creator.jabatan as string] ?? 0) : 0;
-                if (creatorTier < selfTier) addUnique(t); // hanya bawahan
+                const ownerTier = owner.jabatan ? (JABATAN_TIER[owner.jabatan as string] ?? 0) : 0;
+                if (ownerTier <= selfTier) addUnique(t); // bawahan atau setara → include
               }
             });
           } else {
-            // Tidak jadi supervisor: pakai guest_mappings
+            // Tidak jadi supervisor: ambil ticket berdasarkan sales_division + sales_name sendiri + guest_mappings
+            if (selfDiv) {
+              const { data: selfDivTickets } = await supabase.from("tickets")
+                .select("*, activity_logs(*)")
+                .eq("sales_division", selfDiv)
+                .order("created_at", { ascending: false });
+              (selfDivTickets ?? []).forEach((t: Ticket) => {
+                if (
+                  t.created_by === selfUsername ||
+                  t.sales_name === (resolvedUser as any).full_name
+                ) addUnique(t);
+              });
+            }
+            // Fallback guest_mappings
             const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", selfUsername);
             const allowedProjects = (mappings ?? []).map((m: GuestMapping) => m.project_name);
             if (allowedProjects.length > 0) {
