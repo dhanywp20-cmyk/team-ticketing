@@ -1005,14 +1005,6 @@ export default function TicketingSystem() {
               .eq("created_by", selfUsername)
               .order("created_at", { ascending: false });
             (ownTickets ?? []).forEach(addUnique);
-
-            // guest_mappings
-            const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", selfUsername);
-            const allowedProjects = (mappings ?? []).map((m: GuestMapping) => m.project_name);
-            if (allowedProjects.length > 0) {
-              const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjects).order("created_at", { ascending: false });
-              (projectTickets ?? []).forEach(addUnique);
-            }
           }
 
           setTickets(finalTickets);
