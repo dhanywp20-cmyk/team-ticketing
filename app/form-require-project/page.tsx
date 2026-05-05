@@ -117,26 +117,75 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
   }
 }
 
-// ── CC ke atasan + IVP berdasarkan division_supervisor_mappings & division_ivp_mappings ──
-async function fetchWACCTargets(salesDivision: string): Promise<{ phone: string; name: string; relation: string }[]> {
+// ── Hierarki jabatan (bawah → atas) ──────────────────────────────────────────
+const JABATAN_TIER: Record<string, number> = {
+  'Staff': 1, 'Supervisor': 2, 'Manager': 3,
+  'Deputy General Manager': 4, 'General Manager': 5, 'Direktur': 6,
+};
+const JABATAN_CC_RULES: Record<string, string[]> = {
+  'Staff':                   ['Supervisor', 'Manager', 'Deputy General Manager', 'General Manager'],
+  'Supervisor':              ['Manager', 'Deputy General Manager', 'General Manager'],
+  'Manager':                 ['General Manager', 'Deputy General Manager', 'Direktur'],
+  'Deputy General Manager':  ['General Manager', 'Direktur'],
+  'General Manager':         ['Direktur'],
+  'Direktur':                [],
+};
+
+// ── CC ke atasan berdasarkan jabatan tier + IVP handler ──────────────────────
+async function fetchWACCTargets(
+  userId: string,
+  salesDiv: string
+): Promise<{ phone: string; name: string; relation: string }[]> {
   const targets: { phone: string; name: string; relation: string }[] = [];
-  if (!salesDivision || salesDivision === 'IVP') return targets;
   try {
-    const [supRes, ivpRes] = await Promise.all([
-      supabase.from('division_supervisor_mappings').select('supervisor_id').eq('sales_division', salesDivision),
-      supabase.from('division_ivp_mappings').select('ivp_id').eq('sales_division', salesDivision),
-    ]);
-    if (supRes.data?.length) {
-      const { data: sups } = await supabase.from('users').select('full_name, phone_number')
-        .in('id', supRes.data.map((s: any) => s.supervisor_id))
-        .not('phone_number', 'is', null).neq('phone_number', '');
-      sups?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: 'supervisor' }));
+    const { data: userData } = await supabase.from('users').select('jabatan').eq('id', userId).maybeSingle();
+    const jabatan = userData?.jabatan as string | undefined;
+
+    if (jabatan && JABATAN_CC_RULES[jabatan]) {
+      const ccJabatanList = JABATAN_CC_RULES[jabatan];
+      if (ccJabatanList.length > 0) {
+        const { data: supMaps } = await supabase
+          .from('division_supervisor_mappings').select('supervisor_id').eq('sales_division', salesDiv);
+        if (supMaps?.length) {
+          const { data: sups } = await supabase.from('users')
+            .select('full_name, phone_number, jabatan')
+            .in('id', supMaps.map((m: any) => m.supervisor_id))
+            .not('phone_number', 'is', null).neq('phone_number', '');
+          sups?.forEach((s: any) => {
+            if (s.jabatan && ccJabatanList.includes(s.jabatan)) {
+              targets.push({ phone: s.phone_number, name: s.full_name, relation: 'supervisor' });
+            }
+          });
+        }
+        const { data: userSupMaps } = await supabase
+          .from('user_supervisor_mappings').select('supervisor_id').eq('user_id', userId);
+        if (userSupMaps?.length) {
+          const { data: manualSups } = await supabase.from('users')
+            .select('full_name, phone_number, jabatan')
+            .in('id', userSupMaps.map((m: any) => m.supervisor_id))
+            .not('phone_number', 'is', null).neq('phone_number', '');
+          manualSups?.forEach((s: any) => {
+            if (!targets.find(t => t.phone === s.phone_number)) {
+              targets.push({ phone: s.phone_number, name: s.full_name, relation: 'supervisor' });
+            }
+          });
+        }
+      }
     }
-    if (ivpRes.data?.length) {
-      const { data: ivps } = await supabase.from('users').select('full_name, phone_number')
-        .in('id', ivpRes.data.map((s: any) => s.ivp_id))
-        .not('phone_number', 'is', null).neq('phone_number', '');
-      ivps?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: 'ivp_handler' }));
+
+    if (salesDiv && salesDiv !== 'IVP') {
+      const { data: ivpRes } = await supabase
+        .from('division_ivp_mappings').select('ivp_id').eq('sales_division', salesDiv);
+      if (ivpRes?.length) {
+        const { data: ivps } = await supabase.from('users').select('full_name, phone_number')
+          .in('id', ivpRes.map((s: any) => s.ivp_id))
+          .not('phone_number', 'is', null).neq('phone_number', '');
+        ivps?.forEach((s: any) => {
+          if (!targets.find(t => t.phone === s.phone_number)) {
+            targets.push({ phone: s.phone_number, name: s.full_name, relation: 'ivp_handler' });
+          }
+        });
+      }
     }
   } catch (e) { console.warn('[fetchWACCTargets]', e); }
   return targets;
@@ -1398,8 +1447,8 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
           // ── CC ke atasan + IVP berdasarkan divisi requester ──
           try {
             const ccDiv = currentUser?.sales_division ?? '';
-            if (ccDiv && ccDiv !== 'IVP') {
-              const ccTargets = await fetchWACCTargets(ccDiv);
+            if (ccDiv && ccDiv !== 'IVP' && currentUser?.id) {
+              const ccTargets = await fetchWACCTargets(currentUser.id, ccDiv);
               if (ccTargets.length > 0) {
                 const ccMsg = [
                   `🏗️ *[CC] Form Require Baru — Divisi ${ccDiv}*`,
