@@ -217,7 +217,7 @@ const SALES_DIVISIONS = [
   "IVP", "MLDS", "HAVS", "Enterprise", "DEC", "ICS", "POJ", "VOJ", "LOCOS",
   "VISIONMEDIA", "UMP", "BISOL", "KIMS", "IDC", "IOCMEDAN", "IOCPekanbaru",
   "IOCBandung", "IOCJATENG", "MVISEMARANG", "POSSurabaya", "IOCSurabaya",
-  "IOCBali", "SGP", "OSS",
+  "IOCBali", "SGP", "SGP1", "SGP2", "OSS",
 ] as const;
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
