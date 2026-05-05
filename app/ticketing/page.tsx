@@ -913,7 +913,16 @@ export default function TicketingSystem() {
         const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
         const selfUsername = resolvedUser.username;
         const selfDiv = resolvedUser.sales_division;
-        const selfFullName = (resolvedUser as any).full_name as string | undefined;
+        // selfFullName bisa berupa full name ("Handono Sugianto") atau nama singkat ("Handono")
+        // DB ticket sales_name sering menyimpan nama pertama atau username — cek keduanya
+        const selfFullName = (freshUser?.full_name || (resolvedUser as any).full_name) as string | undefined;
+        const selfFirstName = selfFullName?.split(' ')[0]; // nama pertama saja
+        // Helper: apakah ticket ini "milik" user ini
+        const isMyTicket = (t: Ticket) =>
+          t.created_by === selfUsername ||
+          (selfFullName && t.sales_name === selfFullName) ||
+          (selfFirstName && t.sales_name === selfFirstName) ||
+          t.sales_name === selfUsername;
 
         const isIVP = selfDiv === "IVP";
         if (isIVP) {
@@ -947,12 +956,14 @@ export default function TicketingSystem() {
               .in("sales_division", supervisedDivisions)
               .eq("role", "guest");
 
-            // Build map: full_name → tier, username → tier
+            // Build map: full_name → tier, username → tier, first_name → tier
             const nameTierMap: Record<string, number> = {};
             (divUsers ?? []).forEach((u: any) => {
               const tier = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
               if (u.full_name) nameTierMap[u.full_name] = tier;
               if (u.username) nameTierMap[u.username] = tier;
+              // juga index nama pertama
+              if (u.full_name) nameTierMap[u.full_name.split(' ')[0]] = tier;
             });
 
             // Ambil semua ticket dari divisi yang di-supervisi
@@ -963,9 +974,7 @@ export default function TicketingSystem() {
 
             (allDivTickets ?? []).forEach((t: Ticket) => {
               // Ticket milik sendiri selalu masuk
-              if (t.created_by === selfUsername || (selfFullName && t.sales_name === selfFullName)) {
-                addUnique(t); return;
-              }
+              if (isMyTicket(t)) { addUnique(t); return; }
               // Cek tier dari sales_name
               const salesNameTier = t.sales_name ? (nameTierMap[t.sales_name] ?? null) : null;
               if (salesNameTier === null) return; // sales_name tidak dikenal → SKIP
@@ -980,7 +989,7 @@ export default function TicketingSystem() {
                 .eq("sales_division", selfDiv)
                 .order("created_at", { ascending: false });
               (divTickets ?? []).forEach((t: Ticket) => {
-                if ((selfFullName && t.sales_name === selfFullName) || t.created_by === selfUsername) addUnique(t);
+                if (isMyTicket(t)) addUnique(t);
               });
             }
             const { data: ownTickets } = await supabase.from("tickets")
