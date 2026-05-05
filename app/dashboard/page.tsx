@@ -1012,7 +1012,26 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const supervisorIds = new Set(divSupMaps.map(m => m.supervisor_id));
   const usersByDiv: Record<string, User[]> = {};
   allUsers
-    .filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP' && !supervisorIds.has(u.id))
+    .filter(u => {
+      if (u.role?.toLowerCase() !== 'guest') return false;
+      if (!u.sales_division || u.sales_division === 'IVP') return false;
+      if (supervisorIds.has(u.id)) return false; // sudah jadi atasan terdaftar
+      // Hanya tampilkan user yang jabatannya LEBIH RENDAH dari semua atasan di divisinya
+      // Jika user tidak punya jabatan, tampilkan (biar admin tahu perlu di-set)
+      if (!u.jabatan) return true;
+      const userTier = JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0;
+      // Cek apakah ada atasan di divisi ini dengan tier >= userTier
+      const atasanDivisi = (atasanByDiv[u.sales_division!] ?? []);
+      const hasHigherAtasan = atasanDivisi.some(m => {
+        const atasan = allUsers.find(a => a.id === m.supervisor_id);
+        const atasanTier = atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
+        return atasanTier > userTier;
+      });
+      // Jika tidak ada atasan → tampilkan semua (agar admin tahu siapa yang perlu di-mapping)
+      if (atasanDivisi.length === 0) return true;
+      // Tampilkan hanya jika jabatannya lebih rendah dari atasan yang ada
+      return hasHigherAtasan;
+    })
     .forEach(u => {
       const div = u.sales_division!;
       if (!usersByDiv[div]) usersByDiv[div] = [];
