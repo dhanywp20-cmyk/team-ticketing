@@ -2896,9 +2896,9 @@ export default function TicketingSystem() {
                   <button onClick={() => { setShowTicketDetailPopup(false); setSelectedTicket(null); setShowUpdateForm(false); }}
                     className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/20 hover:bg-black/35 text-white flex items-center justify-center font-bold text-sm">✕</button>
                   <div className="flex flex-wrap gap-1.5 mb-2">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(255,255,255,0.4)' }}>🎫 {selectedTicket.current_team}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : selectedTicket.status === "Onsite" ? "#7c3aed" : selectedTicket.status === "Call" ? "#0891b2" : "#d97706" }}>{selectedTicket.status}</span>
-                    {selectedTicket.services_status && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>Svc: {selectedTicket.services_status}</span>}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(255,255,255,0.22)', border: '1px solid rgba(255,255,255,0.4)', color: 'white' }}>🎫 Tim: {selectedTicket.current_team}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: selectedTicket.status === "Solved" ? "#059669" : selectedTicket.status === "In Progress" ? "#2563eb" : selectedTicket.status === "Onsite" ? "#7c3aed" : selectedTicket.status === "Call" ? "#0891b2" : "#d97706" }}>Status: {selectedTicket.status}</span>
+                    {selectedTicket.services_status && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#7c3aed' }}>Svc Status: {selectedTicket.services_status}</span>}
                   </div>
                   <h2 className="text-lg font-bold text-white leading-tight">{selectedTicket.project_name}</h2>
                   {selectedTicket.address && <p className="text-white/75 text-xs mt-0.5">📍 {selectedTicket.address}</p>}
