@@ -784,13 +784,16 @@ interface UserManagementModalProps {
 function UserManagementModal({ onClose }: UserManagementModalProps) {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [mappings, setMappings] = useState<{ id: string; user_id: string; supervisor_id: string }[]>([]);
+  const [ivpMappings, setIvpMappings] = useState<{ id: string; user_id: string; ivp_id: string }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [searchUser, setSearchUser] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedSupervisorId, setSelectedSupervisorId] = useState('');
-  const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
+  const [selectedIvpId, setSelectedIvpId] = useState('');
+  const [selectedIvpTargetId, setSelectedIvpTargetId] = useState('');
+  const [activeTab, setActiveTab] = useState<'list' | 'add' | 'ivp'>('list');
 
   const notify = (type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -801,47 +804,30 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
 
   const fetchAll = async () => {
     setLoadingData(true);
-    const [usersRes, mappingsRes] = await Promise.all([
-      supabase.from('users').select('id, username, full_name, role, team_type, sales_division, phone_number').order('full_name'),
+    const [usersRes, mappingsRes, ivpMappingsRes] = await Promise.all([
+      supabase.from('users').select('id, username, full_name, role, team_type, sales_division, phone_number, jabatan').order('full_name'),
       supabase.from('user_supervisor_mappings').select('*'),
+      supabase.from('user_ivp_mappings').select('*'),
     ]);
     if (usersRes.data) setAllUsers(usersRes.data);
     if (mappingsRes.data) setMappings(mappingsRes.data);
+    if (ivpMappingsRes.data) setIvpMappings(ivpMappingsRes.data);
     setLoadingData(false);
   };
 
   const getUserById = (id: string) => allUsers.find(u => u.id === id);
 
-  const handleAddMapping = async () => {
-    if (!selectedUserId || !selectedSupervisorId) { notify('error', 'Pilih user dan supervisor terlebih dahulu.'); return; }
-    if (selectedUserId === selectedSupervisorId) { notify('error', 'User dan supervisor tidak boleh sama.'); return; }
-    const existing = mappings.find(m => m.user_id === selectedUserId && m.supervisor_id === selectedSupervisorId);
-    if (existing) { notify('info', 'Mapping ini sudah ada.'); return; }
-    // Multiple supervisors allowed — no deletion of old mapping
-    setSaving(true);
-    const { error } = await supabase.from('user_supervisor_mappings').insert([{ user_id: selectedUserId, supervisor_id: selectedSupervisorId }]);
-    if (error) { notify('error', 'Gagal menyimpan mapping: ' + error.message); }
-    else {
-      notify('success', 'Mapping berhasil ditambahkan!');
-      setSelectedUserId(''); setSelectedSupervisorId('');
-      setActiveTab('list');
-      await fetchAll();
-    }
-    setSaving(false);
-  };
+  // Atasan = Guest dengan jabatan Supervisor/Manager/GM/Direktur
+  const ATASAN_JABATAN: JabatanType[] = ['Supervisor', 'Manager', 'General Manager', 'Direktur'];
+  const supervisorCandidates = allUsers.filter(u =>
+    u.role?.toLowerCase() === 'guest' && u.jabatan && ATASAN_JABATAN.includes(u.jabatan as JabatanType)
+  );
 
-  const handleDeleteMapping = async (mappingId: string) => {
-    if (!confirm('Hapus mapping ini?')) return;
-    const { error } = await supabase.from('user_supervisor_mappings').delete().eq('id', mappingId);
-    if (error) { notify('error', 'Gagal menghapus.'); return; }
-    notify('success', 'Mapping dihapus.');
-    await fetchAll();
-  };
+  // IVP users = Guest dengan sales_division = IVP
+  const ivpUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division === 'IVP');
 
-  const supervisorCandidates = allUsers.filter(u => u.role?.toLowerCase() !== 'guest' || u.sales_division === 'IVP' || !!u.jabatan);
-
-  // All non-superadmin users can be mapped
-  const mappableUsers = allUsers;
+  // Users yang bisa di-mapping (Guest non-IVP = external sales)
+  const mappableUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division !== 'IVP');
 
   const filteredMappings = mappings.filter(m => {
     const user = getUserById(m.user_id);
@@ -850,17 +836,66 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
     return !q || user?.full_name?.toLowerCase().includes(q) || user?.username?.toLowerCase().includes(q) || sup?.full_name?.toLowerCase().includes(q);
   });
 
-  const getRolePill = (user: User | undefined) => {
-    if (!user) return null;
-    const r = user.role?.toLowerCase();
-    const cls = r === 'admin' || r === 'superadmin' ? 'bg-indigo-100 text-indigo-700' : r === 'guest' && user.sales_division === 'IVP' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600';
-    const label = r === 'guest' && user.sales_division === 'IVP' ? '🔗 IVP Sales' : r === 'admin' ? '⚙️ Admin' : r === 'superadmin' ? '👑 Superadmin' : `👥 ${user.team_type || user.role}`;
-    return <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${cls}`}>{label}</span>;
+  const filteredIvpMappings = ivpMappings.filter(m => {
+    const user = getUserById(m.user_id);
+    const ivp = getUserById(m.ivp_id);
+    const q = searchUser.toLowerCase();
+    return !q || user?.full_name?.toLowerCase().includes(q) || ivp?.full_name?.toLowerCase().includes(q);
+  });
+
+  const handleAddMapping = async () => {
+    if (!selectedUserId || !selectedSupervisorId) { notify('error', 'Pilih user dan atasan terlebih dahulu.'); return; }
+    if (selectedUserId === selectedSupervisorId) { notify('error', 'User dan atasan tidak boleh sama.'); return; }
+    const existing = mappings.find(m => m.user_id === selectedUserId && m.supervisor_id === selectedSupervisorId);
+    if (existing) { notify('info', 'Mapping ini sudah ada.'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('user_supervisor_mappings').insert([{ user_id: selectedUserId, supervisor_id: selectedSupervisorId }]);
+    if (error) { notify('error', 'Gagal menyimpan: ' + error.message); }
+    else { notify('success', 'Mapping atasan berhasil ditambahkan!'); setSelectedUserId(''); setSelectedSupervisorId(''); setActiveTab('list'); await fetchAll(); }
+    setSaving(false);
+  };
+
+  const handleDeleteMapping = async (mappingId: string) => {
+    if (!confirm('Hapus mapping ini?')) return;
+    const { error } = await supabase.from('user_supervisor_mappings').delete().eq('id', mappingId);
+    if (error) { notify('error', 'Gagal menghapus.'); return; }
+    notify('success', 'Mapping dihapus.'); await fetchAll();
+  };
+
+  const handleAddIvpMapping = async () => {
+    if (!selectedIvpTargetId || !selectedIvpId) { notify('error', 'Pilih user dan IVP Account terlebih dahulu.'); return; }
+    const existing = ivpMappings.find(m => m.user_id === selectedIvpTargetId && m.ivp_id === selectedIvpId);
+    if (existing) { notify('info', 'Mapping IVP ini sudah ada.'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('user_ivp_mappings').insert([{ user_id: selectedIvpTargetId, ivp_id: selectedIvpId }]);
+    if (error) { notify('error', 'Gagal menyimpan: ' + error.message); }
+    else { notify('success', 'IVP mapping berhasil ditambahkan!'); setSelectedIvpTargetId(''); setSelectedIvpId(''); setActiveTab('ivp'); await fetchAll(); }
+    setSaving(false);
+  };
+
+  const handleDeleteIvpMapping = async (mappingId: string) => {
+    if (!confirm('Hapus mapping IVP ini?')) return;
+    const { error } = await supabase.from('user_ivp_mappings').delete().eq('id', mappingId);
+    if (error) { notify('error', 'Gagal menghapus.'); return; }
+    notify('success', 'IVP mapping dihapus.'); await fetchAll();
+  };
+
+  const jabatanPill = (user: User | undefined) => {
+    if (!user?.jabatan) return null;
+    const cfg = JABATAN_CONFIG[user.jabatan as JabatanType];
+    if (!cfg) return null;
+    return (
+      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border"
+        style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}>
+        {cfg.icon} {user.jabatan}
+      </span>
+    );
   };
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-slate-200">
+        {/* Header */}
         <div className="bg-gradient-to-r from-teal-700 to-teal-600 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -870,19 +905,12 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">User Management</h2>
-              <p className="text-white/60 text-xs">Mapping atasan / supervisor ke users</p>
+              <p className="text-white/60 text-xs">Mapping atasan hierarki & IVP Account per user</p>
             </div>
           </div>
           <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-        </div>
-
-        <div className="px-6 py-3 bg-teal-50 border-b border-teal-100 flex items-start gap-2.5">
-          <span className="text-base flex-shrink-0">ℹ️</span>
-          <p className="text-xs text-teal-800 leading-relaxed">
-            Mapping ini menentukan siapa <strong>atasan/supervisor</strong> dari setiap user — bisa <strong>lebih dari satu</strong> untuk mendukung multi-layer hierarchy (misal: staff → manager → director). Semua atasan yang ter-mapping akan otomatis <strong>di-CC melalui WhatsApp</strong> saat ada ticket.
-          </p>
         </div>
 
         {notification && (
@@ -891,16 +919,23 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
           </div>
         )}
 
-        <div className="flex border-b border-slate-200 px-5 pt-3 flex-shrink-0">
-          {(['list', 'add'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-sm font-bold border-b-2 transition-all mr-1 ${activeTab === tab ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              {tab === 'list' ? `📋 Daftar Mapping (${mappings.length})` : '➕ Tambah Mapping'}
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200 px-5 pt-3 flex-shrink-0 gap-1">
+          {([
+            { key: 'list', label: `📋 Hierarki Atasan (${mappings.length})` },
+            { key: 'add', label: '➕ Tambah Atasan' },
+            { key: 'ivp', label: `🔗 IVP Account (${ivpMappings.length})` },
+          ] as const).map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-xs font-bold border-b-2 transition-all ${activeTab === tab.key ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              {tab.label}
             </button>
           ))}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+
+          {/* ══ TAB: LIST ATASAN ══ */}
           {activeTab === 'list' && (
             <>
               <div className="relative mb-4">
@@ -930,28 +965,22 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
               ) : filteredMappings.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
                   <p className="text-3xl mb-2">🗂️</p>
-                  <p className="font-semibold">Belum ada mapping</p>
-                  <p className="text-xs mt-1">Klik &ldquo;Tambah Mapping&rdquo; untuk mulai memetakan atasan ke users</p>
+                  <p className="font-semibold">Belum ada mapping atasan</p>
+                  <p className="text-xs mt-1">Klik &ldquo;Tambah Atasan&rdquo; untuk mulai</p>
                 </div>
               ) : (
                 (() => {
-                  // Group by user_id first
                   const grouped: Record<string, typeof filteredMappings> = {};
                   filteredMappings.forEach(m => {
                     if (!grouped[m.user_id]) grouped[m.user_id] = [];
                     grouped[m.user_id].push(m);
                   });
-
-                  // Sort users by jabatan tier ascending (Staff first)
                   const sortedEntries = Object.entries(grouped).sort(([aId], [bId]) => {
-                    const ua = getUserById(aId);
-                    const ub = getUserById(bId);
+                    const ua = getUserById(aId); const ub = getUserById(bId);
                     const ta = ua?.jabatan ? (JABATAN_CONFIG[ua.jabatan as JabatanType]?.tier ?? 0) : 0;
                     const tb = ub?.jabatan ? (JABATAN_CONFIG[ub.jabatan as JabatanType]?.tier ?? 0) : 0;
                     return ta - tb;
                   });
-
-                  // Group by jabatan tier for section headers
                   const byTier: Record<string, typeof sortedEntries> = {};
                   sortedEntries.forEach(entry => {
                     const user = getUserById(entry[0]);
@@ -959,64 +988,50 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                     if (!byTier[tierLabel]) byTier[tierLabel] = [];
                     byTier[tierLabel].push(entry);
                   });
-
                   return (
                     <div className="space-y-5">
                       {Object.entries(byTier).map(([tierLabel, entries]) => {
                         const cfg = JABATAN_CONFIG[tierLabel as JabatanType];
                         return (
                           <div key={tierLabel}>
-                            {/* Tier section header */}
                             <div className="flex items-center gap-2 mb-2">
                               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
                                 style={cfg ? { background: cfg.bg, color: cfg.color, borderColor: cfg.border } : { background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }}>
-                                <span>{cfg?.icon ?? '👤'}</span>
-                                <span>{tierLabel}</span>
+                                <span>{cfg?.icon ?? '👤'}</span><span>{tierLabel}</span>
                                 <span className="ml-1 opacity-60">({entries.length})</span>
                               </div>
                               <div className="flex-1 h-px bg-slate-200" />
                             </div>
-
-                            {/* Cards for this tier */}
                             <div className="space-y-2 pl-1">
                               {entries.map(([userId, userMappings]) => {
                                 const user = getUserById(userId);
                                 const userCfg = user?.jabatan ? JABATAN_CONFIG[user.jabatan as JabatanType] : null;
-
-                                // Sort supervisors by tier desc (highest first)
                                 const sortedSups = [...userMappings].sort((a, b) => {
-                                  const sa = getUserById(a.supervisor_id);
-                                  const sb = getUserById(b.supervisor_id);
+                                  const sa = getUserById(a.supervisor_id); const sb = getUserById(b.supervisor_id);
                                   const ta2 = sa?.jabatan ? (JABATAN_CONFIG[sa.jabatan as JabatanType]?.tier ?? 0) : 0;
                                   const tb2 = sb?.jabatan ? (JABATAN_CONFIG[sb.jabatan as JabatanType]?.tier ?? 0) : 0;
                                   return tb2 - ta2;
                                 });
-
                                 return (
                                   <div key={userId} className="rounded-xl border overflow-hidden"
                                     style={{ borderColor: userCfg?.border ?? '#e2e8f0' }}>
-                                    {/* User row */}
                                     <div className="flex items-center gap-3 px-4 py-3"
                                       style={{ background: userCfg ? `${userCfg.bg}99` : '#f8fafc' }}>
                                       <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0"
-                                        style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
+                                        style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#78350f' }}>
                                         {user?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <p className="font-bold text-slate-900 text-sm">{user?.full_name || userId}</p>
-                                          {getRolePill(user)}
-                                          {user?.sales_division && (
-                                            <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">🏢 {user.sales_division}</span>
-                                          )}
+                                          {jabatanPill(user)}
+                                          {user?.sales_division && <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">🏢 {user.sales_division}</span>}
                                         </div>
                                         <p className="text-[11px] text-slate-400 mt-0.5">@{user?.username}</p>
                                       </div>
                                     </div>
-
-                                    {/* Chain of supervisors */}
                                     <div className="bg-white divide-y divide-slate-100">
-                                      {sortedSups.map((m, idx) => {
+                                      {sortedSups.map((m) => {
                                         const sup = getUserById(m.supervisor_id);
                                         const supCfg = sup?.jabatan ? JABATAN_CONFIG[sup.jabatan as JabatanType] : null;
                                         return (
@@ -1032,22 +1047,15 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                                             <div className="flex-1 min-w-0">
                                               <div className="flex items-center gap-1.5 flex-wrap">
                                                 <p className="font-semibold text-sm" style={{ color: supCfg?.color ?? '#374151' }}>{sup?.full_name || m.supervisor_id}</p>
-                                                {sup?.jabatan && (
-                                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
-                                                    style={{ background: supCfg?.bg, color: supCfg?.color, borderColor: supCfg?.border }}>
-                                                    {supCfg?.icon} {sup.jabatan}
-                                                  </span>
-                                                )}
+                                                {jabatanPill(sup)}
                                               </div>
                                               <div className="flex items-center gap-2 mt-0.5">
                                                 <p className="text-[10px] text-slate-400">@{sup?.username}</p>
-                                                {sup?.phone_number && <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span>}
-                                                {!sup?.phone_number && <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
+                                                {sup?.phone_number ? <span className="text-[10px] text-emerald-600">📱 {sup.phone_number}</span> : <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
                                               </div>
                                             </div>
                                             <button onClick={() => handleDeleteMapping(m.id)}
-                                              className="flex-shrink-0 p-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
-                                              title="Hapus mapping">
+                                              className="flex-shrink-0 p-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
                                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                             </button>
                                           </div>
@@ -1068,122 +1076,217 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
             </>
           )}
 
+          {/* ══ TAB: TAMBAH ATASAN ══ */}
           {activeTab === 'add' && (
             <div className="max-w-xl space-y-5">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                <strong>Catatan:</strong> Satu user bisa punya <strong>lebih dari satu atasan</strong> (multi-layer hierarchy). Tambahkan mapping sebanyak yang dibutuhkan. Semua atasan yang ter-mapping akan di-CC via WA saat ada ticket.
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 leading-relaxed">
+                <strong>Aturan:</strong> Atasan dipilih dari user Guest yang memiliki jabatan <strong>Supervisor, Manager, General Manager, atau Direktur</strong>. Satu user bisa punya lebih dari satu atasan (multi-layer). Semua atasan akan di-CC otomatis via WA.
               </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">👤 User (Bawahan)</label>
                 <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all appearance-none bg-white">
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all bg-white">
                   <option value="">— Pilih User —</option>
-                  {mappableUsers.filter(u => u.id !== selectedSupervisorId).map(u => (
+                  {allUsers.filter(u => u.id !== selectedSupervisorId).map(u => (
                     <option key={u.id} value={u.id}>
                       {u.full_name} (@{u.username}){u.jabatan ? ` · ${u.jabatan}` : ''}{u.sales_division ? ` [${u.sales_division}]` : ''}
                     </option>
                   ))}
                 </select>
               </div>
+
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">👨‍💼 Atasan / Supervisor</label>
-                <select value={selectedSupervisorId} onChange={e => setSelectedSupervisorId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all appearance-none bg-white">
-                  <option value="">— Pilih Atasan —</option>
-                  {JABATAN_LIST.slice().reverse().map(tier => {
-                    const tieredUsers = supervisorCandidates.filter(u => u.jabatan === tier);
-                    if (tieredUsers.length === 0) return null;
-                    const cfg = JABATAN_CONFIG[tier];
-                    return (
-                      <optgroup key={tier} label={`${cfg.icon} ${tier}`}>
-                        {tieredUsers.map(u => (
-                          <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>
-                            {u.full_name} (@{u.username}){u.sales_division ? ` [${u.sales_division}]` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                  {/* Users without jabatan */}
-                  {supervisorCandidates.filter(u => !u.jabatan).length > 0 && (
-                    <optgroup label="— Jabatan Belum Diset">
-                      {supervisorCandidates.filter(u => !u.jabatan).map(u => (
-                        <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>
-                          {u.full_name} (@{u.username}){u.sales_division ? ` [${u.sales_division}]` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">👨‍💼 Atasan (Guest dengan Jabatan Supervisor+)</label>
+                {supervisorCandidates.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                    ⚠️ Belum ada user Guest yang memiliki jabatan Supervisor/Manager/GM/Direktur. Atur jabatan terlebih dahulu di <strong>Account Settings</strong>.
+                  </div>
+                ) : (
+                  <select value={selectedSupervisorId} onChange={e => setSelectedSupervisorId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all bg-white">
+                    <option value="">— Pilih Atasan —</option>
+                    {ATASAN_JABATAN.slice().reverse().map(tier => {
+                      const tieredUsers = supervisorCandidates.filter(u => u.jabatan === tier);
+                      if (tieredUsers.length === 0) return null;
+                      const cfg = JABATAN_CONFIG[tier];
+                      return (
+                        <optgroup key={tier} label={`${cfg.icon} ${tier}`}>
+                          {tieredUsers.map(u => (
+                            <option key={u.id} value={u.id} disabled={u.id === selectedUserId}>
+                              {u.full_name} (@{u.username}){u.sales_division ? ` [${u.sales_division}]` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
+                )}
                 {selectedSupervisorId && (() => {
                   const sup = getUserById(selectedSupervisorId);
                   return sup && !sup.phone_number ? (
-                    <p className="text-[10px] text-amber-600 mt-1.5">⚠️ Atasan ini belum punya nomor WhatsApp — notifikasi CC tidak akan terkirim. Minta dia isi nomor di User Profile.</p>
+                    <p className="text-[10px] text-amber-600 mt-1.5">⚠️ Atasan ini belum punya nomor WhatsApp — notifikasi CC tidak terkirim.</p>
                   ) : null;
                 })()}
               </div>
+
               {selectedUserId && selectedSupervisorId && (
-                <div className="p-4 rounded-xl bg-teal-50 border border-teal-200 text-sm">
-                  <p className="font-bold text-teal-800 mb-3 text-xs uppercase tracking-widest">Preview Mapping:</p>
+                <div className="p-4 rounded-xl bg-teal-50 border border-teal-200">
+                  <p className="font-bold text-teal-800 mb-3 text-xs uppercase tracking-widest">Preview:</p>
                   <div className="flex items-center gap-3">
-                    {/* Bawahan */}
                     <div className="flex-1 bg-white rounded-xl p-3 border border-slate-200">
-                      {(() => {
-                        const u = getUserById(selectedUserId);
-                        const cfg = u?.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
-                        return (
-                          <>
-                            <p className="font-bold text-slate-800 text-sm">{u?.full_name}</p>
-                            <p className="text-[10px] text-slate-400">@{u?.username}</p>
-                            {u?.jabatan && (
-                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border"
-                                style={{ background: cfg?.bg, color: cfg?.color, borderColor: cfg?.border }}>
-                                {cfg?.icon} {u.jabatan}
-                              </span>
-                            )}
-                          </>
-                        );
-                      })()}
+                      {(() => { const u = getUserById(selectedUserId); const cfg = u?.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null; return (<><p className="font-bold text-slate-800 text-sm">{u?.full_name}</p><p className="text-[10px] text-slate-400">@{u?.username}</p>{u?.jabatan && <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border" style={{ background: cfg?.bg, color: cfg?.color, borderColor: cfg?.border }}>{cfg?.icon} {u.jabatan}</span>}</>); })()}
                     </div>
-                    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-                      <div className="w-px h-3 bg-teal-400" />
-                      <span className="text-teal-600 font-black text-lg">↑</span>
-                      <p className="text-[9px] text-teal-600 font-bold">atasan</p>
-                    </div>
-                    {/* Atasan */}
+                    <div className="flex flex-col items-center flex-shrink-0"><div className="w-px h-3 bg-teal-400" /><span className="text-teal-600 font-black text-lg">↑</span><p className="text-[9px] text-teal-600 font-bold">atasan</p></div>
                     <div className="flex-1 bg-white rounded-xl p-3 border border-teal-300">
-                      {(() => {
-                        const u = getUserById(selectedSupervisorId);
-                        const cfg = u?.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
-                        return (
-                          <>
-                            <p className="font-bold text-teal-900 text-sm">{u?.full_name}</p>
-                            <p className="text-[10px] text-slate-400">@{u?.username}</p>
-                            {u?.jabatan && (
-                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border"
-                                style={{ background: cfg?.bg, color: cfg?.color, borderColor: cfg?.border }}>
-                                {cfg?.icon} {u.jabatan}
-                              </span>
-                            )}
-                          </>
-                        );
-                      })()}
+                      {(() => { const u = getUserById(selectedSupervisorId); const cfg = u?.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null; return (<><p className="font-bold text-teal-900 text-sm">{u?.full_name}</p><p className="text-[10px] text-slate-400">@{u?.username}</p>{u?.jabatan && <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border" style={{ background: cfg?.bg, color: cfg?.color, borderColor: cfg?.border }}>{cfg?.icon} {u.jabatan}</span>}</>); })()}
                     </div>
                   </div>
                 </div>
               )}
               <button onClick={handleAddMapping} disabled={saving || !selectedUserId || !selectedSupervisorId}
                 className="w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 text-white"
-                style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)' }}>
-                {saving ? '⏳ Menyimpan...' : '💾 Simpan Mapping'}
+                style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)' }}>
+                {saving ? '⏳ Menyimpan...' : '💾 Simpan Mapping Atasan'}
               </button>
+            </div>
+          )}
+
+          {/* ══ TAB: IVP ACCOUNT ══ */}
+          {activeTab === 'ivp' && (
+            <div className="space-y-5">
+              {/* Info */}
+              <div className="p-4 rounded-xl bg-violet-50 border border-violet-200 text-xs text-violet-800 leading-relaxed">
+                <strong>🔗 IVP Account CC:</strong> Setiap user external (non-IVP) bisa dipetakan ke satu atau lebih <strong>IVP Account</strong> (Guest dengan sales_division=IVP). Saat user tersebut membuat ticket, mengajukan form require, atau mendapat reminder — IVP yang ter-mapping otomatis <strong>di-CC via WA</strong>.
+              </div>
+
+              {/* Add IVP mapping */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-4">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">➕ Tambah Mapping IVP</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">User External (Non-IVP)</label>
+                    <select value={selectedIvpTargetId} onChange={e => setSelectedIvpTargetId(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 bg-white">
+                      <option value="">— Pilih User —</option>
+                      {mappableUsers.filter(u => u.id !== selectedIvpId).map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name}{u.sales_division ? ` [${u.sales_division}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">IVP Account (sales_division=IVP)</label>
+                    {ivpUsers.length === 0 ? (
+                      <p className="text-xs text-rose-500 p-2 bg-rose-50 rounded-lg border border-rose-200">⚠️ Tidak ada user IVP terdaftar.</p>
+                    ) : (
+                      <select value={selectedIvpId} onChange={e => setSelectedIvpId(e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 bg-white">
+                        <option value="">— Pilih IVP —</option>
+                        {ivpUsers.map(u => (
+                          <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>
+                        ))}
+                      </select>
+                    )}
+                    {selectedIvpId && (() => {
+                      const ivp = getUserById(selectedIvpId);
+                      return ivp && !ivp.phone_number ? (
+                        <p className="text-[10px] text-amber-600 mt-1">⚠️ IVP ini belum punya nomor WA.</p>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+                <button onClick={handleAddIvpMapping} disabled={saving || !selectedIvpTargetId || !selectedIvpId}
+                  className="w-full py-2.5 rounded-lg font-bold text-sm transition-all disabled:opacity-50 text-white"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}>
+                  {saving ? '⏳ Menyimpan...' : '🔗 Simpan IVP Mapping'}
+                </button>
+              </div>
+
+              {/* IVP mapping list */}
+              <div>
+                <div className="relative mb-3">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                  <input type="text" value={searchUser} onChange={e => setSearchUser(e.target.value)} placeholder="Cari nama..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all" />
+                </div>
+
+                {loadingData ? (
+                  <div className="flex justify-center py-6"><div className="w-5 h-5 rounded-full border-2 border-t-violet-600 border-violet-200 animate-spin" /></div>
+                ) : filteredIvpMappings.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <p className="text-2xl mb-1">🔗</p>
+                    <p className="font-semibold text-sm">Belum ada mapping IVP</p>
+                  </div>
+                ) : (
+                  (() => {
+                    // Group by user_id
+                    const grouped: Record<string, typeof filteredIvpMappings> = {};
+                    filteredIvpMappings.forEach(m => {
+                      if (!grouped[m.user_id]) grouped[m.user_id] = [];
+                      grouped[m.user_id].push(m);
+                    });
+                    return (
+                      <div className="space-y-2">
+                        {Object.entries(grouped).map(([userId, userIvpMaps]) => {
+                          const user = getUserById(userId);
+                          return (
+                            <div key={userId} className="rounded-xl border border-violet-200 overflow-hidden">
+                              <div className="flex items-center gap-3 px-4 py-3 bg-violet-50">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0"
+                                  style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#78350f' }}>
+                                  {user?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-slate-900 text-sm">{user?.full_name || userId}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <p className="text-[11px] text-slate-400">@{user?.username}</p>
+                                    {user?.sales_division && <span className="text-[10px] font-medium text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded">🏢 {user.sales_division}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="bg-white divide-y divide-slate-100">
+                                {userIvpMaps.map(m => {
+                                  const ivp = getUserById(m.ivp_id);
+                                  return (
+                                    <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                                      <span className="text-[10px] text-violet-500 font-bold ml-3">🔗</span>
+                                      <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center text-sm font-bold text-violet-700 flex-shrink-0">
+                                        {ivp?.full_name?.charAt(0)?.toUpperCase() ?? 'I'}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-violet-900 text-sm">{ivp?.full_name || m.ivp_id}</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <p className="text-[10px] text-slate-400">@{ivp?.username}</p>
+                                          <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded border border-violet-200">IVP</span>
+                                          {ivp?.phone_number ? <span className="text-[10px] text-emerald-600">📱 {ivp.phone_number}</span> : <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
+                                        </div>
+                                      </div>
+                                      <button onClick={() => handleDeleteIvpMapping(m.id)}
+                                        className="flex-shrink-0 p-1 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
             </div>
           )}
         </div>
 
+        {/* Footer */}
         <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex-shrink-0">
           <p className="text-[10px] text-slate-400">
-            Requires table: <code className="bg-slate-200 px-1 rounded">user_supervisor_mappings</code> (id, user_id, supervisor_id) — <strong>tanpa</strong> unique constraint pada user_id agar support multiple atasan. Tambahkan kolom <code className="bg-slate-200 px-1 rounded">jabatan</code> di tabel <code className="bg-slate-200 px-1 rounded">users</code>.
+            Requires: <code className="bg-slate-200 px-1 rounded">user_supervisor_mappings</code> &amp; <code className="bg-slate-200 px-1 rounded">user_ivp_mappings</code> (id, user_id, ivp_id) — lihat SQL_MIGRATION.md
           </p>
         </div>
       </div>
