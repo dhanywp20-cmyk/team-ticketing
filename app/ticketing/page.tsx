@@ -924,23 +924,44 @@ export default function TicketingSystem() {
           (selfFirstName && t.sales_name === selfFirstName) ||
           t.sales_name === selfUsername;
 
+        // ── SAFETY NET: selalu ambil semua ticket milik sendiri dulu via semua cara ──
+        const ownBase: Ticket[] = [];
+        const addOwn = (t: Ticket) => { if (!ownBase.find(x => x.id === t.id)) ownBase.push(t); };
+
+        // by created_by
+        const { data: byCreator } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", selfUsername).order("created_at", { ascending: false });
+        (byCreator ?? []).forEach(addOwn);
+
+        // by sales_name = full_name
+        if (selfFullName) {
+          const { data: byFullName } = await supabase.from("tickets").select("*, activity_logs(*)").eq("sales_name", selfFullName).order("created_at", { ascending: false });
+          (byFullName ?? []).forEach(addOwn);
+        }
+        // by sales_name = first name
+        if (selfFirstName && selfFirstName !== selfFullName) {
+          const { data: byFirstName } = await supabase.from("tickets").select("*, activity_logs(*)").eq("sales_name", selfFirstName).order("created_at", { ascending: false });
+          (byFirstName ?? []).forEach(addOwn);
+        }
+        // by sales_name = username
+        const { data: byUsername } = await supabase.from("tickets").select("*, activity_logs(*)").eq("sales_name", selfUsername).order("created_at", { ascending: false });
+        (byUsername ?? []).forEach(addOwn);
+
         const isIVP = selfDiv === "IVP";
         if (isIVP) {
           // IVP guest: lihat ticket dari semua divisi yang dia handle
           const { data: ivpDivMaps } = await supabase.from("division_ivp_mappings").select("sales_division").eq("ivp_id", resolvedUser.id);
           const handledDivisions = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
-          let ivpTickets: Ticket[] = [];
+          let ivpTickets: Ticket[] = [...ownBase];
+          const addIVP = (t: Ticket) => { if (!ivpTickets.find(x => x.id === t.id)) ivpTickets.push(t); };
           if (handledDivisions.length > 0) {
             const { data: divTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", handledDivisions).order("created_at", { ascending: false });
-            if (divTickets) ivpTickets = divTickets;
+            (divTickets ?? []).forEach(addIVP);
           }
-          const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", selfUsername).order("created_at", { ascending: false });
-          if (ownTickets) { for (const t of ownTickets) { if (!ivpTickets.find((gt: Ticket) => gt.id === t.id)) ivpTickets.push(t); } }
           setTickets(ivpTickets);
           if (selectedTicket && !ivpTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
         } else {
-          // Non-IVP guest
-          let finalTickets: Ticket[] = [];
+          // Non-IVP guest: mulai dari semua ticket milik sendiri (sudah di ownBase)
+          let finalTickets: Ticket[] = [...ownBase];
           const addUnique = (t: Ticket) => { if (!finalTickets.find(x => x.id === t.id)) finalTickets.push(t); };
 
           // Cek apakah user terdaftar sebagai supervisor di division_supervisor_mappings
@@ -992,11 +1013,6 @@ export default function TicketingSystem() {
                 if (isMyTicket(t)) addUnique(t);
               });
             }
-            const { data: ownTickets } = await supabase.from("tickets")
-              .select("*, activity_logs(*)")
-              .eq("created_by", selfUsername)
-              .order("created_at", { ascending: false });
-            (ownTickets ?? []).forEach(addUnique);
           }
 
           setTickets(finalTickets);
