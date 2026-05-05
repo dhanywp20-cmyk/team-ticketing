@@ -38,6 +38,32 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
     console.error("[sendWANotif] error:", err.message);
   }
 }
+
+// ── CC ke atasan + IVP berdasarkan division_supervisor_mappings & division_ivp_mappings ──
+async function fetchWACCTargets(salesDivision: string): Promise<{ phone: string; name: string; relation: string }[]> {
+  const targets: { phone: string; name: string; relation: string }[] = [];
+  if (!salesDivision || salesDivision === "IVP") return targets;
+  try {
+    const [supRes, ivpRes] = await Promise.all([
+      supabase.from("division_supervisor_mappings").select("supervisor_id").eq("sales_division", salesDivision),
+      supabase.from("division_ivp_mappings").select("ivp_id").eq("sales_division", salesDivision),
+    ]);
+    if (supRes.data?.length) {
+      const { data: sups } = await supabase.from("users").select("full_name, phone_number")
+        .in("id", supRes.data.map((s: any) => s.supervisor_id))
+        .not("phone_number", "is", null).neq("phone_number", "");
+      sups?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: "supervisor" }));
+    }
+    if (ivpRes.data?.length) {
+      const { data: ivps } = await supabase.from("users").select("full_name, phone_number")
+        .in("id", ivpRes.data.map((s: any) => s.ivp_id))
+        .not("phone_number", "is", null).neq("phone_number", "");
+      ivps?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: "ivp_handler" }));
+    }
+  } catch (e) { console.warn("[fetchWACCTargets]", e); }
+  return targets;
+}
+
 // ── Status list khusus Team Services ─────────────────────────────────────────
 const SERVICES_STATUSES = [
   "Waiting Approval",
@@ -828,19 +854,36 @@ export default function TicketingSystem() {
       }
       const activeUser = userOverride !== undefined ? userOverride : currentUser;
       if (activeUser?.role === "guest") {
-        const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
-        const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
-        let guestTickets: Ticket[] = [];
-        if (allowedProjectNames.length > 0) {
-          const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjectNames).order("created_at", { ascending: false });
-          if (projectTickets) guestTickets = [...projectTickets];
+        const isIVP = activeUser.sales_division === "IVP";
+        if (isIVP) {
+          // IVP guest: lihat ticket dari semua divisi yang dia handle
+          const { data: ivpDivMaps } = await supabase.from("division_ivp_mappings").select("sales_division").eq("ivp_id", activeUser.id);
+          const handledDivisions = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
+          let ivpTickets: Ticket[] = [];
+          if (handledDivisions.length > 0) {
+            const { data: divTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", handledDivisions).order("created_at", { ascending: false });
+            if (divTickets) ivpTickets = divTickets;
+          }
+          const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser.username).order("created_at", { ascending: false });
+          if (ownTickets) { for (const t of ownTickets) { if (!ivpTickets.find((gt: Ticket) => gt.id === t.id)) ivpTickets.push(t); } }
+          setTickets(ivpTickets);
+          if (selectedTicket && !ivpTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
+        } else {
+          // Non-IVP guest: logic existing
+          const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
+          const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
+          let guestTickets: Ticket[] = [];
+          if (allowedProjectNames.length > 0) {
+            const { data: projectTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("project_name", allowedProjectNames).order("created_at", { ascending: false });
+            if (projectTickets) guestTickets = [...projectTickets];
+          }
+          const { data: ownWaiting } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).eq("status", "Waiting Approval").order("created_at", { ascending: false });
+          if (ownWaiting) {
+            for (const t of ownWaiting) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
+          }
+          setTickets(guestTickets);
+          if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
         }
-        const { data: ownWaiting } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).eq("status", "Waiting Approval").order("created_at", { ascending: false });
-        if (ownWaiting) {
-          for (const t of ownWaiting) { if (!guestTickets.find((gt: Ticket) => gt.id === t.id)) guestTickets.push(t); }
-        }
-        setTickets(guestTickets);
-        if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
       } else {
         const { data: ticketsData } = await supabase.from("tickets").select("*, activity_logs(*)").order("created_at", { ascending: false });
         let mergedTickets: Ticket[] = ticketsData || [];
@@ -953,7 +996,27 @@ export default function TicketingSystem() {
         } catch (waEx: any) {
           console.error("[WA approval] exception:", waEx?.message);
         }
-      } else if (isElevated && ticketAssignedTo) {
+        // ── CC ke atasan + IVP berdasarkan divisi user yang submit ──
+        try {
+          const ccDiv = currentUser?.sales_division ?? "";
+          if (ccDiv && ccDiv !== "IVP") {
+            const ccTargets = await fetchWACCTargets(ccDiv);
+            if (ccTargets.length > 0) {
+              const ccMsg = [
+                `🔔 *[CC] Ticket Baru — Divisi ${ccDiv}*`,
+                "━━━━━━━━━━━━━━━━━━",
+                `📌 *Project  :* ${newTicket.project_name}`,
+                `⚠️ *Issue    :* ${newTicket.issue_case}`,
+                `👤 *Sales    :* ${currentUser?.full_name || "-"} (${ccDiv})`,
+                `📅 *Tanggal  :* ${newTicket.date || "-"}`,
+                "━━━━━━━━━━━━━━━━━━",
+                `📋 *CC ke   :* ${ccTargets.map(t => t.name + (t.relation === "ivp_handler" ? " (IVP)" : "")).join(", ")}`,
+                "🔗 https://team-ticketing.vercel.app/dashboard",
+              ].join("\n");
+              await Promise.allSettled(ccTargets.map(t => sendWANotif({ type: "reminder_wa", target: t.phone, message: ccMsg })));
+            }
+          }
+        } catch (ccEx: any) { console.warn("[WA CC submit]", ccEx?.message); }
         // Admin/Superadmin: langsung assign ke handler → kirim WA ke handler
         setLoadingMessage("Mengirim notifikasi WA ke handler...");
         try {
@@ -1037,6 +1100,27 @@ export default function TicketingSystem() {
           await sendWANotif({ type: "reminder_wa", target: handlerUser.phone_number, message: waMsg });
         }
       } catch (waEx: any) { console.warn("[approveTicket] WA failed:", waEx?.message); }
+      // ── CC ke atasan + IVP berdasarkan divisi creator ticket ──
+      try {
+        const creatorUser = approvalTicket.created_by ? users.find((u) => u.username === approvalTicket.created_by) : null;
+        const ccDiv = creatorUser?.sales_division ?? (approvalTicket as any).sales_division ?? "";
+        if (ccDiv && ccDiv !== "IVP") {
+          const ccTargets = await fetchWACCTargets(ccDiv);
+          if (ccTargets.length > 0) {
+            const ccMsg = [
+              `✅ *[CC] Ticket Diapprove — Divisi ${ccDiv}*`,
+              "━━━━━━━━━━━━━━━━━━",
+              `📌 *Project  :* ${approvalTicket.project_name}`,
+              `⚠️ *Issue    :* ${approvalTicket.issue_case}`,
+              `👷 *Handler  :* ${approvalAssignee}`,
+              "━━━━━━━━━━━━━━━━━━",
+              `📋 *CC ke   :* ${ccTargets.map(t => t.name + (t.relation === "ivp_handler" ? " (IVP)" : "")).join(", ")}`,
+              "🔗 https://team-ticketing.vercel.app/dashboard",
+            ].join("\n");
+            await Promise.allSettled(ccTargets.map(t => sendWANotif({ type: "reminder_wa", target: t.phone, message: ccMsg })));
+          }
+        }
+      } catch (ccEx: any) { console.warn("[WA CC approve]", ccEx?.message); }
       // ─────────────────────────────────────────────────────────────────────
       setShowApprovalModal(false);
       setApprovalTicket(null);
