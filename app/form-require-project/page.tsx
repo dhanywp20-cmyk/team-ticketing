@@ -117,6 +117,31 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
   }
 }
 
+// ── CC ke atasan + IVP berdasarkan division_supervisor_mappings & division_ivp_mappings ──
+async function fetchWACCTargets(salesDivision: string): Promise<{ phone: string; name: string; relation: string }[]> {
+  const targets: { phone: string; name: string; relation: string }[] = [];
+  if (!salesDivision || salesDivision === 'IVP') return targets;
+  try {
+    const [supRes, ivpRes] = await Promise.all([
+      supabase.from('division_supervisor_mappings').select('supervisor_id').eq('sales_division', salesDivision),
+      supabase.from('division_ivp_mappings').select('ivp_id').eq('sales_division', salesDivision),
+    ]);
+    if (supRes.data?.length) {
+      const { data: sups } = await supabase.from('users').select('full_name, phone_number')
+        .in('id', supRes.data.map((s: any) => s.supervisor_id))
+        .not('phone_number', 'is', null).neq('phone_number', '');
+      sups?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: 'supervisor' }));
+    }
+    if (ivpRes.data?.length) {
+      const { data: ivps } = await supabase.from('users').select('full_name, phone_number')
+        .in('id', ivpRes.data.map((s: any) => s.ivp_id))
+        .not('phone_number', 'is', null).neq('phone_number', '');
+      ivps?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: 'ivp_handler' }));
+    }
+  } catch (e) { console.warn('[fetchWACCTargets]', e); }
+  return targets;
+}
+
 const SALES_DIVISIONS = [
   'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
   'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
@@ -1028,10 +1053,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       // admin/superadmin: semua request
       // team PTS: semua request (filter assign ditampilkan di UI)
     } else if (isIVPGuest) {
-      // IVP guest (sales internal): see BOTH:
-      // 1. Their own requests (requester_id = their id)
-      // 2. External requests admin linked them to (ivp_assignee = their full_name)
-      query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
+      // IVP guest: lihat request dari divisi yang dia handle via division_ivp_mappings
+      // + request milik sendiri + ivp_assignee lama
+      const { data: ivpDivMaps } = await supabase
+        .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
+      const handledDivisions = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
+      if (handledDivisions.length > 0) {
+        const divFilter = handledDivisions.map(d => `sales_division.eq.${d}`).join(',');
+        query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name},${divFilter}`);
+      } else {
+        query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
+      }
     } else {
       // non-IVP guest: hanya request miliknya sendiri
       query = query.eq('requester_id', currentUser.id);
@@ -1363,6 +1395,25 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               sendWANotif({ type: 'reminder_wa', target: a.phone_number, message: approvalWaMsg })
             )
           );
+          // ── CC ke atasan + IVP berdasarkan divisi requester ──
+          try {
+            const ccDiv = currentUser?.sales_division ?? '';
+            if (ccDiv && ccDiv !== 'IVP') {
+              const ccTargets = await fetchWACCTargets(ccDiv);
+              if (ccTargets.length > 0) {
+                const ccMsg = [
+                  `🏗️ *[CC] Form Require Baru — Divisi ${ccDiv}*`,
+                  '━━━━━━━━━━━━━━━━━━',
+                  `📋 *Project  :* ${form.project_name.trim()}`,
+                  `👤 *Sales    :* ${currentUser.full_name} (${ccDiv})`,
+                  '━━━━━━━━━━━━━━━━━━',
+                  `📋 *CC ke   :* ${ccTargets.map(t => t.name + (t.relation === 'ivp_handler' ? ' (IVP)' : '')).join(', ')}`,
+                  '🔗 https://team-ticketing.vercel.app/dashboard',
+                ].join('\n');
+                await Promise.allSettled(ccTargets.map(t => sendWANotif({ type: 'reminder_wa', target: t.phone, message: ccMsg })));
+              }
+            }
+          } catch (ccEx: any) { console.warn('[WA CC form-require]', ccEx?.message); }
         }
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
