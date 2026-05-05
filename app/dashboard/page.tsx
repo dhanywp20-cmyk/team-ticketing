@@ -1202,7 +1202,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 20000);
+    const interval = setInterval(fetchAll, 120_000); // setiap 2 menit
     return () => clearInterval(interval);
   }, [fetchAll]);
 
