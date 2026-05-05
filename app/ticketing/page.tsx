@@ -1,4 +1,3 @@
-// v2 - fixed setSelectedHandlerTeam type
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -40,29 +39,29 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
 }
 
 // ── CC ke atasan + IVP berdasarkan division_supervisor_mappings & division_ivp_mappings ──
-// async function fetchWACCTargets(salesDivision: string): Promise<{ phone: string; name: string; relation: string }[]> {
-//   const targets: { phone: string; name: string; relation: string }[] = [];
-//   if (!salesDivision || salesDivision === "IVP") return targets;
-//   try {
-//     const [supRes, ivpRes] = await Promise.all([
-//       supabase.from("division_supervisor_mappings").select("supervisor_id").eq("sales_division", salesDivision),
-//       supabase.from("division_ivp_mappings").select("ivp_id").eq("sales_division", salesDivision),
-//     ]);
-//     if (supRes.data?.length) {
-//       const { data: sups } = await supabase.from("users").select("full_name, phone_number")
-//         .in("id", supRes.data.map((s: any) => s.supervisor_id))
-//         .not("phone_number", "is", null).neq("phone_number", "");
-//       sups?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: "supervisor" }));
-//     }
-//     if (ivpRes.data?.length) {
-//       const { data: ivps } = await supabase.from("users").select("full_name, phone_number")
-//         .in("id", ivpRes.data.map((s: any) => s.ivp_id))
-//         .not("phone_number", "is", null).neq("phone_number", "");
-//       ivps?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: "ivp_handler" }));
-//     }
-//   } catch (e) { console.warn("[fetchWACCTargets]", e); }
-//   return targets;
-// }
+async function fetchWACCTargets(salesDivision: string): Promise<{ phone: string; name: string; relation: string }[]> {
+  const targets: { phone: string; name: string; relation: string }[] = [];
+  if (!salesDivision || salesDivision === "IVP") return targets;
+  try {
+    const [supRes, ivpRes] = await Promise.all([
+      supabase.from("division_supervisor_mappings").select("supervisor_id").eq("sales_division", salesDivision),
+      supabase.from("division_ivp_mappings").select("ivp_id").eq("sales_division", salesDivision),
+    ]);
+    if (supRes.data?.length) {
+      const { data: sups } = await supabase.from("users").select("full_name, phone_number")
+        .in("id", supRes.data.map((s: any) => s.supervisor_id))
+        .not("phone_number", "is", null).neq("phone_number", "");
+      sups?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: "supervisor" }));
+    }
+    if (ivpRes.data?.length) {
+      const { data: ivps } = await supabase.from("users").select("full_name, phone_number")
+        .in("id", ivpRes.data.map((s: any) => s.ivp_id))
+        .not("phone_number", "is", null).neq("phone_number", "");
+      ivps?.forEach((s: any) => targets.push({ phone: s.phone_number, name: s.full_name, relation: "ivp_handler" }));
+    }
+  } catch (e) { console.warn("[fetchWACCTargets]", e); }
+  return targets;
+}
 
 // ── Status list khusus Team Services ─────────────────────────────────────────
 const SERVICES_STATUSES = [
@@ -998,7 +997,7 @@ export default function TicketingSystem() {
         }
         // ── CC ke atasan + IVP berdasarkan divisi user yang submit ──
         try {
-          const ccDiv = currentUser?.sales_division ?? "";
+          const ccDiv = ticketData.sales_division ?? currentUser?.sales_division ?? "";
           if (ccDiv && ccDiv !== "IVP") {
             const ccTargets = await fetchWACCTargets(ccDiv);
             if (ccTargets.length > 0) {
@@ -1103,7 +1102,7 @@ export default function TicketingSystem() {
       // ── CC ke atasan + IVP berdasarkan divisi creator ticket ──
       try {
         const creatorUser = approvalTicket.created_by ? users.find((u) => u.username === approvalTicket.created_by) : null;
-        const ccDiv = creatorUser?.sales_division ?? (approvalTicket as any).sales_division ?? "";
+        const ccDiv = (approvalTicket as any).sales_division ?? creatorUser?.sales_division ?? "";
         if (ccDiv && ccDiv !== "IVP") {
           const ccTargets = await fetchWACCTargets(ccDiv);
           if (ccTargets.length > 0) {
