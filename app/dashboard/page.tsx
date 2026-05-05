@@ -1446,16 +1446,37 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').neq('status', 'Solved').order('created_at', { ascending: false }).limit(50);
         setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
       } else if (roleLC === 'guest') {
-        const { data: mappings } = await supabase.from('guest_mappings').select('project_name').eq('guest_username', currentUser.username);
-        const mapped = (mappings ?? []).map((m: any) => m.project_name as string);
-        let q = supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').neq('status', 'Solved');
-        if (mapped.length > 0) {
-          q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mapped.map((p: string) => `"${p}"`).join(',')})`);
+        const isIVPUser = currentUser.sales_division === 'IVP';
+        if (isIVPUser) {
+          // IVP: notif ticket dari semua divisi yang dia handle
+          const { data: ivpDivMaps } = await supabase
+            .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
+          const handledDivs = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
+          if (handledDivs.length > 0) {
+            const { data } = await supabase.from('tickets')
+              .select('id, project_name, issue_case, assign_name, status, created_at, sales_division')
+              .in('sales_division', handledDivs).neq('status', 'Solved')
+              .order('created_at', { ascending: false }).limit(50);
+            setTicketNotifs((data ?? []).map((t: any) => ({
+              id: t.id, type: 'ticket' as const,
+              title: t.project_name,
+              subtitle: `${t.status} · ${t.issue_case} · ${t.sales_division}`,
+              time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting',
+            })));
+          } else { setTicketNotifs([]); }
         } else {
-          q = q.eq('created_by', currentUser.username);
+          // Non-IVP guest: existing logic
+          const { data: mappings } = await supabase.from('guest_mappings').select('project_name').eq('guest_username', currentUser.username);
+          const mapped = (mappings ?? []).map((m: any) => m.project_name as string);
+          let q = supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').neq('status', 'Solved');
+          if (mapped.length > 0) {
+            q = q.or(`created_by.eq.${currentUser.username},project_name.in.(${mapped.map((p: string) => `"${p}"`).join(',')})`);
+          } else {
+            q = q.eq('created_by', currentUser.username);
+          }
+          const { data } = await q.order('created_at', { ascending: false }).limit(30);
+          setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
         }
-        const { data } = await q.order('created_at', { ascending: false }).limit(30);
-        setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
       } else if (roleLC === 'team' || roleLC === 'team_pts') {
         if (memberTeamType === 'Team Services') {
           const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, services_status, created_at').eq('assign_name', assignedName).neq('services_status', 'Solved').not('services_status', 'is', null).order('created_at', { ascending: false }).limit(30);
@@ -1476,8 +1497,24 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
         const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, assign_name, created_at').eq('assign_name', assignedName).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
         setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
       } else if (roleLC === 'guest') {
-        const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
-        setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+        const isIVPUser2 = currentUser.sales_division === 'IVP';
+        if (isIVPUser2) {
+          // IVP: lihat request dari divisi yang dia handle
+          const { data: ivpDivMaps2 } = await supabase
+            .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
+          const handledDivs2 = (ivpDivMaps2 ?? []).map((m: any) => m.sales_division as string);
+          if (handledDivs2.length > 0) {
+            const { data } = await supabase.from('project_requests')
+              .select('id, project_name, status, sales_name, created_at, sales_division')
+              .in('sales_division', handledDivs2)
+              .neq('status', 'completed').neq('status', 'rejected')
+              .order('created_at', { ascending: false }).limit(30);
+            setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name} (${r.sales_division})`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+          } else { setRequireNotifs([]); }
+        } else {
+          const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
+          setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+        }
       } else { setRequireNotifs([]); }
     } catch (e) { console.error('[notif] require fetch error:', e); }
 
