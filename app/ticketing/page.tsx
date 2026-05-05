@@ -868,7 +868,22 @@ export default function TicketingSystem() {
           setTickets(ivpTickets);
           if (selectedTicket && !ivpTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
         } else {
-          // Non-IVP guest: logic existing
+          // Cek apakah user ini adalah supervisor (terdaftar di division_supervisor_mappings)
+          const { data: supMaps } = await supabase.from("division_supervisor_mappings").select("sales_division").eq("supervisor_id", activeUser!.id);
+          const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
+
+          if (supervisedDivisions.length > 0) {
+            // Supervisor guest: lihat semua ticket dari divisi yang dia supervisi
+            let supTickets: Ticket[] = [];
+            const { data: divTickets } = await supabase.from("tickets").select("*, activity_logs(*)").in("sales_division", supervisedDivisions).order("created_at", { ascending: false });
+            if (divTickets) supTickets = divTickets;
+            // Tambahkan ticket milik sendiri yang mungkin belum masuk
+            const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).order("created_at", { ascending: false });
+            if (ownTickets) { for (const t of ownTickets) { if (!supTickets.find((gt: Ticket) => gt.id === t.id)) supTickets.push(t); } }
+            setTickets(supTickets);
+            if (selectedTicket && !supTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
+          } else {
+          // Non-IVP guest biasa: logic existing
           const { data: mappings } = await supabase.from("guest_mappings").select("project_name").eq("guest_username", activeUser!.username);
           const allowedProjectNames = mappings ? mappings.map((m: GuestMapping) => m.project_name) : [];
           let guestTickets: Ticket[] = [];
@@ -882,6 +897,7 @@ export default function TicketingSystem() {
           }
           setTickets(guestTickets);
           if (selectedTicket && !guestTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
+          } // end non-supervisor guest
         }
       } else {
         const { data: ticketsData } = await supabase.from("tickets").select("*, activity_logs(*)").order("created_at", { ascending: false });
