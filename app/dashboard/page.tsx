@@ -421,7 +421,6 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
                   </select>
                 </div>
-                </div>
               </div>
               {newUser.role === 'team' && (
                 <div>
