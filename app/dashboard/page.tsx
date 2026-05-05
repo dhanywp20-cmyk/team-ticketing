@@ -63,13 +63,24 @@ const JABATAN_LIST = ['Staff', 'Supervisor', 'Manager', 'Deputy General Manager'
 type JabatanType = typeof JABATAN_LIST[number];
 
 const JABATAN_CONFIG: Record<JabatanType, { icon: string; color: string; bg: string; border: string; tier: number }> = {
-  'Staff':           { icon: '👤', color: '#374151', bg: '#f9fafb',   border: '#d1d5db', tier: 1 },
-  'Supervisor':      { icon: '👥', color: '#1e40af', bg: '#eff6ff',   border: '#93c5fd', tier: 2 },
-  'Manager':         { icon: '🏅', color: '#7e22ce', bg: '#faf5ff',   border: '#c4b5fd', tier: 3 },
+  'Staff':                  { icon: '👤', color: '#374151', bg: '#f9fafb',   border: '#d1d5db', tier: 1 },
+  'Supervisor':             { icon: '👥', color: '#1e40af', bg: '#eff6ff',   border: '#93c5fd', tier: 2 },
+  'Manager':                { icon: '🏅', color: '#7e22ce', bg: '#faf5ff',   border: '#c4b5fd', tier: 3 },
   'Deputy General Manager': { icon: '🎖️', color: '#b45309', bg: '#fffbeb',   border: '#fcd34d', tier: 4 },
-  'General Manager': { icon: '🎖️', color: '#b45309', bg: '#fffbeb',   border: '#fcd34d', tier: 4 },
-  'Direktur':        { icon: '👑', color: '#991b1b', bg: '#fff1f2',   border: '#fca5a5', tier: 5 },
+  'General Manager':        { icon: '🌟', color: '#065f46', bg: '#ecfdf5',   border: '#6ee7b7', tier: 5 },
+  'Direktur':               { icon: '👑', color: '#991b1b', bg: '#fff1f2',   border: '#fca5a5', tier: 6 },
 };
+
+// Rules CC otomatis berdasarkan jabatan (bawahan → CC ke jabatan mana di atas)
+const JABATAN_CC_RULES: Record<JabatanType, JabatanType[]> = {
+  'Staff':                  ['Supervisor', 'Manager', 'Deputy General Manager', 'General Manager'],
+  'Supervisor':             ['Manager', 'Deputy General Manager', 'General Manager'],
+  'Manager':                ['General Manager', 'Deputy General Manager', 'Direktur'],
+  'Deputy General Manager': ['General Manager', 'Direktur'],
+  'General Manager':        ['Direktur'],
+  'Direktur':               [],
+};
+
 
 // ─── Account Settings Modal ──────────────────────────────────────────────────
 
@@ -858,14 +869,19 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [divSupMaps, setDivSupMaps] = useState<{ id: string; sales_division: string; supervisor_id: string }[]>([]);
   const [divIvpMaps, setDivIvpMaps] = useState<{ id: string; sales_division: string; ivp_id: string }[]>([]);
+  const [userSupMaps, setUserSupMaps] = useState<{ id: string; user_id: string; supervisor_id: string }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'atasan' | 'ivp'>('atasan');
+  const [activeTab, setActiveTab] = useState<'atasan' | 'ivp' | 'user_cc'>('atasan');
   const [atasanDiv, setAtasanDiv] = useState('');
   const [atasanSupId, setAtasanSupId] = useState('');
   const [ivpDiv, setIvpDiv] = useState('');
   const [ivpUserId, setIvpUserId] = useState('');
+  // User CC: selected user, then checklist of supervisor IDs to CC
+  const [selectedCCUserId, setSelectedCCUserId] = useState('');
+  const [ccChecked, setCcChecked] = useState<Set<string>>(new Set());
+  const [ccSaving, setCcSaving] = useState(false);
 
   const notify = (type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -876,14 +892,16 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
 
   const fetchAll = async () => {
     setLoadingData(true);
-    const [usersRes, divSupRes, divIvpRes] = await Promise.all([
+    const [usersRes, divSupRes, divIvpRes, userSupRes] = await Promise.all([
       supabase.from('users').select('id, username, full_name, role, team_type, sales_division, phone_number, jabatan').order('full_name'),
       supabase.from('division_supervisor_mappings').select('*').order('sales_division'),
       supabase.from('division_ivp_mappings').select('*').order('sales_division'),
+      supabase.from('user_supervisor_mappings').select('*'),
     ]);
     if (usersRes.data) setAllUsers(usersRes.data);
     if (divSupRes.data) setDivSupMaps(divSupRes.data);
     if (divIvpRes.data) setDivIvpMaps(divIvpRes.data);
+    if (userSupRes.data) setUserSupMaps(userSupRes.data);
     setLoadingData(false);
   };
 
@@ -895,6 +913,54 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   );
   const ivpUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division === 'IVP');
   const nonIvpDivisions = SALES_DIVISIONS.filter(d => d !== 'IVP');
+
+  // Users eligible for CC mapping (non-IVP guest with jabatan set)
+  const ccEligibleUsers = allUsers.filter(u =>
+    u.role?.toLowerCase() === 'guest' && u.jabatan && u.sales_division && u.sales_division !== 'IVP'
+  ).sort((a, b) => {
+    const ta = JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0;
+    const tb = JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0;
+    return ta - tb;
+  });
+
+  // When user is selected for CC tab, load their current mappings
+  useEffect(() => {
+    if (!selectedCCUserId) { setCcChecked(new Set()); return; }
+    const existing = userSupMaps.filter(m => m.user_id === selectedCCUserId).map(m => m.supervisor_id);
+    setCcChecked(new Set(existing));
+  }, [selectedCCUserId, userSupMaps]);
+
+  // Auto-suggest CC targets based on jabatan rules
+  const getAutoSuggestedCC = (userId: string): string[] => {
+    const user = getUserById(userId);
+    if (!user?.jabatan || !user.sales_division) return [];
+    const ccJabatan = JABATAN_CC_RULES[user.jabatan as JabatanType] ?? [];
+    // Find users in same division who have the CC jabatan
+    const supIds = divSupMaps
+      .filter(m => m.sales_division === user.sales_division)
+      .map(m => m.supervisor_id);
+    return allUsers
+      .filter(u => supIds.includes(u.id) && u.jabatan && ccJabatan.includes(u.jabatan as JabatanType))
+      .map(u => u.id);
+  };
+
+  const handleSaveUserCC = async () => {
+    if (!selectedCCUserId) return;
+    setCcSaving(true);
+    try {
+      // Delete existing user_supervisor_mappings for this user
+      await supabase.from('user_supervisor_mappings').delete().eq('user_id', selectedCCUserId);
+      // Insert new
+      const toInsert = Array.from(ccChecked).map(supId => ({ user_id: selectedCCUserId, supervisor_id: supId }));
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('user_supervisor_mappings').insert(toInsert);
+        if (error) { notify('error', 'Gagal: ' + error.message); setCcSaving(false); return; }
+      }
+      notify('success', 'CC mapping disimpan!');
+      await fetchAll();
+    } catch (e: any) { notify('error', e.message); }
+    setCcSaving(false);
+  };
 
   const handleAddAtasan = async () => {
     if (!atasanDiv || !atasanSupId) { notify('error', 'Pilih divisi dan atasan.'); return; }
@@ -943,8 +1009,6 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const ivpByDiv: Record<string, typeof divIvpMaps> = {};
   divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
 
-  // Users grouped by sales_division (non-IVP guests = the "staff" yang akan ter-CC)
-  // Exclude users yang sudah jadi atasan (supervisor) agar tidak tampil di "Staff di Divisi Ini"
   const supervisorIds = new Set(divSupMaps.map(m => m.supervisor_id));
   const usersByDiv: Record<string, User[]> = {};
   allUsers
@@ -954,6 +1018,23 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
       if (!usersByDiv[div]) usersByDiv[div] = [];
       usersByDiv[div].push(u);
     });
+
+  const selectedUserObj = selectedCCUserId ? getUserById(selectedCCUserId) : null;
+  const selectedJabatan = selectedUserObj?.jabatan as JabatanType | undefined;
+  const autoSuggested = selectedCCUserId ? getAutoSuggestedCC(selectedCCUserId) : [];
+
+  // Potential CC targets for selected user: all users with jabatan tier >= their tier
+  const potentialCCTargets = selectedUserObj ? allUsers.filter(u => {
+    if (u.id === selectedCCUserId) return false;
+    if (!u.jabatan) return false;
+    const targetTier = JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0;
+    const selfTier = JABATAN_CONFIG[selectedJabatan as JabatanType]?.tier ?? 0;
+    return targetTier > selfTier; // only higher-tier users
+  }).sort((a, b) => {
+    const ta = JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0;
+    const tb = JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0;
+    return tb - ta; // highest first
+  }) : [];
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -969,7 +1050,7 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">User Management</h2>
-              <p className="text-white/60 text-xs">Mapping Atasan &amp; IVP Account berdasarkan Sales Division</p>
+              <p className="text-white/60 text-xs">Mapping Atasan, IVP Account &amp; CC per User</p>
             </div>
           </div>
           <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">
@@ -984,14 +1065,18 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
         )}
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 px-5 pt-3 gap-1 flex-shrink-0">
+        <div className="flex border-b border-slate-200 px-5 pt-3 gap-1 flex-shrink-0 flex-wrap">
           <button onClick={() => setActiveTab('atasan')}
-            className={`px-5 py-2.5 text-xs font-bold border-b-2 transition-all ${activeTab === 'atasan' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            👨‍💼 Mapping Atasan ({Object.keys(atasanByDiv).length} divisi, {divSupMaps.length} mapping)
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${activeTab === 'atasan' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            👨‍💼 Mapping Atasan ({Object.keys(atasanByDiv).length} divisi)
           </button>
           <button onClick={() => setActiveTab('ivp')}
-            className={`px-5 py-2.5 text-xs font-bold border-b-2 transition-all ${activeTab === 'ivp' ? 'border-violet-500 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            🔗 IVP Account ({Object.keys(ivpByDiv).length} divisi, {divIvpMaps.length} mapping)
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${activeTab === 'ivp' ? 'border-violet-500 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            🔗 IVP Account ({Object.keys(ivpByDiv).length} divisi)
+          </button>
+          <button onClick={() => setActiveTab('user_cc')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all ${activeTab === 'user_cc' ? 'border-teal-500 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            🏷️ CC per User ({userSupMaps.length})
           </button>
         </div>
 
@@ -1000,11 +1085,10 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
           {/* ══ TAB ATASAN ══ */}
           {activeTab === 'atasan' && (
             <>
-              {/* Add form */}
               <div className="p-5 border-b border-slate-100 bg-amber-50/60 space-y-3 flex-shrink-0">
-                <p className="text-xs font-bold text-amber-800 uppercase tracking-widest">➕ Tambah Mapping Atasan</p>
+                <p className="text-xs font-bold text-amber-800 uppercase tracking-widest">➕ Tambah Mapping Atasan Divisi</p>
                 <p className="text-[11px] text-amber-700 leading-relaxed">
-                  Satu divisi bisa punya beberapa atasan (multi-layer). Semua user yang sales_division-nya sama otomatis memiliki atasan tersebut dan akan di-CC via WA setiap ada aktivitas.
+                  Mapping divisi → atasan (berdasarkan jabatan). Semua user dengan divisi yang sama otomatis di-CC ke atasan terdaftar sesuai <strong>rules jabatan tier</strong>.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1048,7 +1132,6 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                 </button>
               </div>
 
-              {/* List */}
               <div className="flex-1 overflow-y-auto p-5">
                 {loadingData ? (
                   <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-t-amber-500 border-amber-200 animate-spin" /></div>
@@ -1056,7 +1139,6 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <div className="text-center py-10 text-slate-400">
                     <p className="text-3xl mb-2">👨‍💼</p>
                     <p className="font-semibold">Belum ada mapping atasan</p>
-                    <p className="text-xs mt-1">Tambahkan di atas berdasarkan divisi sales</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1064,21 +1146,14 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                       const divUsers = usersByDiv[division] ?? [];
                       return (
                         <div key={division} className="rounded-xl border border-amber-200 overflow-hidden">
-                          {/* Division header */}
                           <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
                             <span className="text-base">🏢</span>
                             <span className="font-bold text-amber-800 text-sm">{division}</span>
                             <div className="ml-auto flex items-center gap-2">
-                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">
-                                👤 {divUsers.length} user
-                              </span>
-                              <span className="text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
-                                {maps.length} atasan
-                              </span>
+                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">👤 {divUsers.length} user</span>
+                              <span className="text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">{maps.length} atasan</span>
                             </div>
                           </div>
-
-                          {/* Users in this division */}
                           {divUsers.length > 0 && (
                             <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff di Divisi Ini</p>
@@ -1101,13 +1176,6 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                               </div>
                             </div>
                           )}
-                          {divUsers.length === 0 && (
-                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                              <p className="text-[10px] text-slate-400 italic">Belum ada user Guest dengan divisi {division}</p>
-                            </div>
-                          )}
-
-                          {/* Atasan rows */}
                           <div className="divide-y divide-amber-50 bg-white">
                             {maps.map(m => {
                               const sup = getUserById(m.supervisor_id);
@@ -1150,11 +1218,10 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
           {/* ══ TAB IVP ══ */}
           {activeTab === 'ivp' && (
             <>
-              {/* Add form */}
               <div className="p-5 border-b border-slate-100 bg-violet-50/60 space-y-3 flex-shrink-0">
                 <p className="text-xs font-bold text-violet-800 uppercase tracking-widest">🔗 Tambah Mapping IVP Account</p>
                 <p className="text-[11px] text-violet-700 leading-relaxed">
-                  Mapping divisi external ke IVP Account yang handle-nya. Ketika user dari divisi tersebut membuat ticket/form/reminder, IVP ter-mapping otomatis <strong>di-CC via WA</strong> dan ticket masuk ke list mereka juga.
+                  Mapping divisi external ke IVP Account yang handle-nya. IVP Account hanya bisa melihat ticket dari divisi yang di-map.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1168,15 +1235,13 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">IVP Account (sales_division=IVP)</label>
                     {ivpUsers.length === 0 ? (
-                      <div className="text-[11px] text-rose-600 p-2 bg-rose-50 rounded-lg border border-rose-200">⚠️ Tidak ada user IVP. Tambahkan Guest dengan sales_division=IVP di Account Settings.</div>
+                      <div className="text-[11px] text-rose-600 p-2 bg-rose-50 rounded-lg border border-rose-200">⚠️ Tidak ada user IVP.</div>
                     ) : (
                       <select value={ivpUserId} onChange={e => setIvpUserId(e.target.value)}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 bg-white">
                         <option value="">— Pilih IVP —</option>
                         {ivpUsers.map(u => (
-                          <option key={u.id} value={u.id}>
-                            {u.full_name} (@{u.username}){!u.phone_number ? ' ⚠️' : ''}
-                          </option>
+                          <option key={u.id} value={u.id}>{u.full_name} (@{u.username}){!u.phone_number ? ' ⚠️' : ''}</option>
                         ))}
                       </select>
                     )}
@@ -1188,223 +1253,182 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   {saving ? '⏳ Menyimpan...' : '🔗 Tambah IVP Mapping'}
                 </button>
               </div>
-
-              {/* List */}
               <div className="flex-1 overflow-y-auto p-5">
                 {loadingData ? (
                   <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-t-violet-500 border-violet-200 animate-spin" /></div>
                 ) : Object.keys(ivpByDiv).length === 0 ? (
-                  <div className="text-center py-10 text-slate-400">
-                    <p className="text-3xl mb-2">🔗</p>
-                    <p className="font-semibold">Belum ada mapping IVP</p>
-                    <p className="text-xs mt-1">Tambahkan di atas berdasarkan divisi sales</p>
-                  </div>
+                  <div className="text-center py-10 text-slate-400"><p className="text-3xl mb-2">🔗</p><p className="font-semibold">Belum ada mapping IVP</p></div>
                 ) : (
                   <div className="space-y-3">
-                    {Object.entries(ivpByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
-                      const divUsers = usersByDiv[division] ?? [];
-                      return (
-                        <div key={division} className="rounded-xl border border-violet-200 overflow-hidden">
-                          {/* Division header */}
-                          <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 border-b border-violet-100">
-                            <span className="text-base">🏢</span>
-                            <span className="font-bold text-violet-800 text-sm">{division}</span>
-                            <div className="ml-auto flex items-center gap-2">
-                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">
-                                👤 {divUsers.length} user
-                              </span>
-                              <span className="text-[10px] text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full border border-violet-200">
-                                {maps.length} IVP handler
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Users in this division */}
-                          {divUsers.length > 0 && (
-                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff di Divisi Ini</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {divUsers.map(u => (
-                                  <div key={u.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs">
-                                    <div className="w-4 h-4 rounded-full flex items-center justify-center font-black text-[9px] flex-shrink-0"
-                                      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#78350f' }}>
-                                      {u.full_name?.charAt(0)?.toUpperCase()}
-                                    </div>
-                                    <span className="font-semibold text-slate-700">{u.full_name}</span>
-                                    {u.jabatan && (
-                                      <span className="text-[9px] font-bold px-1 py-0.5 rounded"
-                                        style={{ background: JABATAN_CONFIG[u.jabatan as JabatanType]?.bg ?? '#f1f5f9', color: JABATAN_CONFIG[u.jabatan as JabatanType]?.color ?? '#475569' }}>
-                                        {u.jabatan}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {divUsers.length === 0 && (
-                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                              <p className="text-[10px] text-slate-400 italic">Belum ada user Guest dengan divisi {division}</p>
-                            </div>
-                          )}
-
-                          {/* IVP rows */}
-                          <div className="divide-y divide-violet-50 bg-white">
-                            {maps.map(m => {
-                              const ivp = getUserById(m.ivp_id);
-                              return (
-                                <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-sm text-violet-700 flex-shrink-0">
-                                    {ivp?.full_name?.charAt(0)?.toUpperCase() ?? 'I'}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="font-bold text-violet-900 text-sm">{ivp?.full_name ?? m.ivp_id}</p>
-                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-300">🔗 IVP</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <p className="text-[10px] text-slate-400">@{ivp?.username}</p>
-                                      {ivp?.phone_number
-                                        ? <span className="text-[10px] text-emerald-600">📱 {ivp.phone_number}</span>
-                                        : <span className="text-[10px] text-rose-400">⚠️ No WA — CC tidak terkirim</span>}
-                                    </div>
-                                  </div>
-                                  <button onClick={() => handleDeleteIvp(m.id)}
-                                    className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
+                    {Object.entries(ivpByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => (
+                      <div key={division} className="rounded-xl border border-violet-200 overflow-hidden">
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 border-b border-violet-100">
+                          <span className="text-base">🔗</span>
+                          <span className="font-bold text-violet-800 text-sm">{division}</span>
+                          <span className="ml-auto text-[10px] text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full border border-violet-200">{maps.length} IVP</span>
                         </div>
-                      );
-                    })}
+                        <div className="divide-y divide-violet-50 bg-white">
+                          {maps.map(m => {
+                            const ivp = getUserById(m.ivp_id);
+                            return (
+                              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                                <div className="w-8 h-8 rounded-lg bg-violet-100 border border-violet-200 flex items-center justify-center text-lg flex-shrink-0">🔗</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm text-violet-800">{ivp?.full_name ?? m.ivp_id}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <p className="text-[10px] text-slate-400">@{ivp?.username}</p>
+                                    {ivp?.phone_number
+                                      ? <span className="text-[10px] text-emerald-600">📱 {ivp.phone_number}</span>
+                                      : <span className="text-[10px] text-rose-400">⚠️ No WA</span>}
+                                  </div>
+                                </div>
+                                <button onClick={() => handleDeleteIvp(m.id)}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             </>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex-shrink-0">
-          <p className="text-[10px] text-slate-400">
-            SQL: <code className="bg-slate-200 px-1 rounded">division_supervisor_mappings</code> &amp; <code className="bg-slate-200 px-1 rounded">division_ivp_mappings</code> — lihat SQL_MIGRATION.md
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// ─── Notification Bell Component ─────────────────────────────────────────────
-
-interface NotifBellProps {
-  icon: string;
-  label: string;
-  count: number;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  dotColor: string;
-  items: NotificationItem[];
-  onItemClick: (item: NotificationItem) => void;
-}
-
-function NotifBell({ icon, label, count, color, bgColor, borderColor, dotColor, items, onItemClick }: NotifBellProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const formatTime = (ts: string) => {
-    if (!ts) return '';
-    const d = new Date(ts);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'Baru saja';
-    if (diffMins < 60) return `${diffMins}m lalu`;
-    const diffHrs = Math.floor(diffMins / 60);
-    if (diffHrs < 24) return `${diffHrs}j lalu`;
-    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-  };
-
-  return (
-    <div ref={ref} className="relative flex-shrink-0">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="relative flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
-        style={{
-          background: count > 0 ? bgColor : 'rgba(255,255,255,0.55)',
-          border: `1.5px solid ${count > 0 ? borderColor : 'rgba(0,0,0,0.1)'}`,
-          boxShadow: count > 0 ? `0 2px 12px ${borderColor}55` : 'none',
-        }}
-      >
-        <span className="text-base leading-none">{icon}</span>
-        <span className="text-xs font-bold hidden sm:block" style={{ color: count > 0 ? color : '#64748b' }}>{label}</span>
-        {count > 0 && (
-          <span className="flex items-center justify-center rounded-full text-white font-black text-[10px] min-w-[18px] h-[18px] px-1 animate-pulse"
-            style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}88` }}>
-            {count > 99 ? '99+' : count}
-          </span>
-        )}
-        {count === 0 && <span className="text-[10px] font-semibold text-slate-400">0</span>}
-      </button>
-
-      {open && (
-        <div className="absolute top-full mt-2 right-0 z-[9999] rounded-2xl shadow-2xl overflow-hidden"
-          style={{
-            width: 320,
-            background: 'rgba(255,255,255,0.97)',
-            border: `1.5px solid ${borderColor}`,
-            backdropFilter: 'blur(16px)',
-            boxShadow: `0 8px 40px rgba(0,0,0,0.18), 0 0 0 1px ${borderColor}33`,
-            animation: 'dropIn 0.18s cubic-bezier(0.34,1.56,0.64,1)',
-          }}>
-          <div className="px-4 py-3 flex items-center justify-between" style={{ background: bgColor, borderBottom: `1px solid ${borderColor}44` }}>
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{icon}</span>
-              <span className="text-sm font-bold" style={{ color }}>{label}</span>
-            </div>
-            {count > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black text-white" style={{ background: dotColor }}>{count} baru</span>
-            )}
-          </div>
-          <div className="max-h-72 overflow-y-auto">
-            {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <span className="text-3xl opacity-40">✅</span>
-                <p className="text-xs text-slate-400 font-medium">Tidak ada notifikasi</p>
+          {/* ══ TAB USER CC ══ */}
+          {activeTab === 'user_cc' && (
+            <div className="flex flex-1 overflow-hidden min-h-0">
+              {/* Left: user list */}
+              <div className="w-56 border-r border-slate-200 flex flex-col flex-shrink-0">
+                <div className="px-4 py-2.5 bg-teal-50 border-b border-teal-100">
+                  <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">Pilih User</p>
+                  <p className="text-[9px] text-teal-600 mt-0.5">Centang siapa yang di-CC saat user ini buat aktivitas</p>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {ccEligibleUsers.length === 0 ? (
+                    <div className="p-4 text-center text-slate-400 text-xs py-10">
+                      <p className="text-3xl mb-2">🙅</p>
+                      <p>Belum ada user dengan jabatan ter-set</p>
+                      <p className="mt-1 text-[9px]">Set jabatan di Account Settings</p>
+                    </div>
+                  ) : ccEligibleUsers.map(u => {
+                    const cfg = u.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
+                    const myMaps = userSupMaps.filter(m => m.user_id === u.id).length;
+                    const isSelected = selectedCCUserId === u.id;
+                    return (
+                      <button key={u.id} onClick={() => setSelectedCCUserId(u.id)}
+                        className={`w-full text-left px-3 py-3 border-b transition-all ${isSelected ? 'bg-teal-50 border-l-4 border-l-teal-500' : 'hover:bg-slate-50 border-l-4 border-l-transparent'}`}
+                        style={{ borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          {cfg && <span className="text-xs">{cfg.icon}</span>}
+                          <p className={`text-sm font-bold truncate ${isSelected ? 'text-teal-700' : 'text-slate-700'}`}>{u.full_name}</p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 truncate">{u.jabatan}{u.sales_division ? ` · ${u.sales_division}` : ''}</p>
+                        {myMaps > 0 && <span className="mt-1 inline-block bg-teal-100 text-teal-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">{myMaps} CC ter-set</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              items.map((item) => (
-                <button key={item.id} onClick={() => { onItemClick(item); setOpen(false); }}
-                  className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors border-b border-slate-100/80 last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate leading-tight">{item.title}</p>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.subtitle}</p>
+
+              {/* Right: checklist */}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                {!selectedCCUserId ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+                    <p className="text-5xl mb-3">👈</p>
+                    <p className="text-sm font-medium">Pilih user di sebelah kiri</p>
+                    <p className="text-xs mt-1">Lalu centang siapa yang di-CC saat user ini membuat ticket/form</p>
                   </div>
-                  <span className="text-[10px] text-slate-400 flex-shrink-0 mt-0.5">{formatTime(item.time)}</span>
-                </button>
-              ))
-            )}
-          </div>
-          {items.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-slate-100">
-              <p className="text-[10px] text-center text-slate-400 font-medium">Klik item untuk membuka</p>
+                ) : (
+                  <>
+                    <div className="px-4 py-3 bg-teal-50 border-b border-teal-100 flex-shrink-0">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-teal-800">CC untuk: {selectedUserObj?.full_name}</p>
+                          <p className="text-[10px] text-teal-600">{selectedJabatan} · {selectedUserObj?.sales_division}</p>
+                        </div>
+                        <button
+                          onClick={() => { const s = new Set(autoSuggested); setCcChecked(s); }}
+                          className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-all hover:bg-teal-100"
+                          style={{ background: 'rgba(13,148,136,0.08)', color: '#0d9488', borderColor: 'rgba(13,148,136,0.2)' }}>
+                          ✨ Auto-pilih berdasarkan jabatan
+                        </button>
+                      </div>
+                      {selectedJabatan && JABATAN_CC_RULES[selectedJabatan as JabatanType] && (
+                        <div className="mt-2 p-2 rounded-lg text-[10px]" style={{ background: 'rgba(13,148,136,0.06)', border: '1px solid rgba(13,148,136,0.15)' }}>
+                          <span className="font-bold text-teal-700">Rules jabatan {selectedJabatan}:</span>
+                          <span className="text-teal-600 ml-1">
+                            otomatis CC ke {JABATAN_CC_RULES[selectedJabatan as JabatanType].length > 0
+                              ? JABATAN_CC_RULES[selectedJabatan as JabatanType].join(', ')
+                              : '(tidak ada — level tertinggi)'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {potentialCCTargets.length === 0 ? (
+                        <div className="text-center py-8 text-slate-400">
+                          <p className="text-3xl mb-2">🏆</p>
+                          <p className="font-semibold text-sm">Tidak ada user dengan jabatan lebih tinggi</p>
+                          <p className="text-xs mt-1">Ini adalah jabatan tertinggi yang tersedia</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {potentialCCTargets.map(u => {
+                            const cfg = u.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
+                            const checked = ccChecked.has(u.id);
+                            const isAutoSuggested = autoSuggested.includes(u.id);
+                            return (
+                              <button key={u.id} onClick={() => setCcChecked(prev => {
+                                const n = new Set(prev); n.has(u.id) ? n.delete(u.id) : n.add(u.id); return n;
+                              })}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${checked ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:border-teal-200 hover:bg-teal-50/30'}`}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-teal-500 bg-teal-500' : 'border-slate-300 bg-white'}`}>
+                                  {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                  style={{ background: cfg?.bg ?? '#f1f5f9', border: `1.5px solid ${cfg?.border ?? '#e2e8f0'}` }}>
+                                  <span className="text-base">{cfg?.icon ?? '👤'}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-bold text-sm" style={{ color: cfg?.color ?? '#374151' }}>{u.full_name}</p>
+                                    {isAutoSuggested && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">⭐ Disarankan</span>}
+                                  </div>
+                                  <p className="text-[10px] text-slate-400">{u.jabatan}{u.sales_division ? ` · ${u.sales_division}` : ''}</p>
+                                  {u.phone_number
+                                    ? <p className="text-[10px] text-emerald-600">📱 {u.phone_number}</p>
+                                    : <p className="text-[10px] text-rose-400">⚠️ No WA — tidak akan di-CC</p>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 border-t border-slate-100 flex-shrink-0 bg-slate-50/50 flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="text-[10px] text-slate-500">{ccChecked.size} orang dipilih untuk di-CC</p>
+                      </div>
+                      <button onClick={handleSaveUserCC} disabled={ccSaving}
+                        className="px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50 hover:scale-[1.02]"
+                        style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)' }}>
+                        {ccSaving ? '⏳ Menyimpan...' : '💾 Simpan CC'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
+
         </div>
-      )}
+      </div>
     </div>
   );
 }
