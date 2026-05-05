@@ -943,7 +943,7 @@ export default function TicketingSystem() {
             const selfJabatan = selfUser?.jabatan as string | undefined;
             const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
 
-            // Ambil semua user di divisi → filter hanya yang tier LEBIH RENDAH (bawahan)
+            // Ambil semua user di divisi → filter hanya yang tier LEBIH RENDAH (bawahan) + diri sendiri
             const { data: divUsers } = await supabase.from("users")
               .select("id, username, jabatan")
               .in("sales_division", supervisedDivisions)
@@ -951,6 +951,7 @@ export default function TicketingSystem() {
 
             const allowedUsernames = (divUsers ?? [])
               .filter((u: any) => {
+                if (u.id === activeUser!.id) return true; // selalu include diri sendiri
                 if (!u.jabatan) return true;
                 const tier = JABATAN_TIER[u.jabatan as string] ?? 0;
                 return tier < selfTier;
@@ -966,9 +967,28 @@ export default function TicketingSystem() {
                 .order("created_at", { ascending: false });
               if (divTickets) supTickets = divTickets;
             }
-            // Tambahkan ticket milik sendiri
+            // Tambahkan semua ticket milik sendiri (termasuk yg created lewat admin / beda format)
             const { data: ownTickets } = await supabase.from("tickets").select("*, activity_logs(*)").eq("created_by", activeUser!.username).order("created_at", { ascending: false });
             if (ownTickets) { for (const t of ownTickets) { if (!supTickets.find((gt: Ticket) => gt.id === t.id)) supTickets.push(t); } }
+            // Fallback: ticket dari divisi sendiri yang mungkin created_by berbeda (e.g. dibuat admin)
+            const selfDiv = activeUser!.sales_division;
+            if (selfDiv) {
+              const { data: selfDivTickets } = await supabase.from("tickets")
+                .select("*, activity_logs(*)")
+                .eq("sales_division", selfDiv)
+                .order("created_at", { ascending: false });
+              if (selfDivTickets) {
+                for (const t of selfDivTickets) {
+                  if (!supTickets.find((gt: Ticket) => gt.id === t.id)) {
+                    // Filter: hanya masukkan kalau creator tier-nya <= selfTier
+                    const creator = (divUsers ?? []).find((u: any) => u.username === t.created_by);
+                    if (!creator) { supTickets.push(t); continue; } // creator tidak dikenal → include
+                    const creatorTier = creator.jabatan ? (JABATAN_TIER[creator.jabatan as string] ?? 0) : 0;
+                    if (creatorTier <= selfTier) supTickets.push(t);
+                  }
+                }
+              }
+            }
             setTickets(supTickets);
             if (selectedTicket && !supTickets.find((t: Ticket) => t.id === selectedTicket.id)) setSelectedTicket(null);
           } else {
