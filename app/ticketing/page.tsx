@@ -977,15 +977,14 @@ export default function TicketingSystem() {
           const isSupervisor = (supervisedDivisions.length > 0 && selfTier > 0) || manualSubordinateIds.size > 0;
 
           if (isSupervisor) {
-            // Ambil semua user di divisi yang di-supervisi beserta jabatan
-            const { data: divUsers } = supervisedDivisions.length > 0
-              ? await supabase.from("users").select("id, username, full_name, jabatan").in("sales_division", supervisedDivisions).eq("role", "guest")
-              : { data: [] };
+            // Ambil SEMUA guest users untuk build nameTierMap (tidak terbatas divisi)
+            const { data: allGuestUsers } = await supabase.from("users")
+              .select("id, username, full_name, jabatan, sales_division")
+              .eq("role", "guest");
 
-            // Build map: full_name → tier, username → tier, first_name → tier
             const nameTierMap: Record<string, number> = {};
             const nameToId: Record<string, string> = {};
-            (divUsers ?? []).forEach((u: any) => {
+            (allGuestUsers ?? []).forEach((u: any) => {
               const tier = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
               if (u.full_name) { nameTierMap[u.full_name] = tier; nameToId[u.full_name] = u.id; }
               if (u.username) { nameTierMap[u.username] = tier; nameToId[u.username] = u.id; }
