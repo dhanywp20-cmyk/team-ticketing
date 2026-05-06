@@ -969,6 +969,11 @@ export default function TicketingSystem() {
             .select("sales_division").eq("supervisor_id", resolvedUser.id);
           const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
 
+          // Auto: jika punya jabatan tier > 1, otomatis supervisi divisi sendiri
+          if (selfDiv && selfTier > 1 && !supervisedDivisions.includes(selfDiv)) {
+            supervisedDivisions.push(selfDiv);
+          }
+
           // Cek user_supervisor_mappings — user yang secara manual di-CC ke user ini
           const { data: userSupMapsData } = await supabase.from("user_supervisor_mappings")
             .select("user_id").eq("supervisor_id", resolvedUser.id);
