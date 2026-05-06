@@ -1581,7 +1581,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       return;
       // non-IVP guest: pakai pola sama dengan Ticketing
       const selfJabatan = (currentUser as any).jabatan as string | undefined;
-      const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
+      const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan as string] ?? 0) : 0;
       const selfDiv = currentUser.sales_division;
 
       // Cek division_supervisor_mappings
