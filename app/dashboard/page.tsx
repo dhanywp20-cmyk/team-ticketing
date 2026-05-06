@@ -1033,22 +1033,28 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const ivpByDiv: Record<string, typeof divIvpMaps> = {};
   divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
 
-  const supervisorIds = new Set(divSupMaps.map(m => m.supervisor_id));
+  // supervisorIds per divisi — user bisa jadi atasan di divisi A tapi bawahan di divisi B
+  const supervisorIdsByDiv: Record<string, Set<string>> = {};
+  divSupMaps.forEach(m => {
+    if (!supervisorIdsByDiv[m.sales_division]) supervisorIdsByDiv[m.sales_division] = new Set();
+    supervisorIdsByDiv[m.sales_division].add(m.supervisor_id);
+  });
+
   const usersByDiv: Record<string, User[]> = {};
   allUsers
     .filter(u => {
       if (u.role?.toLowerCase() !== 'guest') return false;
       if (!u.sales_division || u.sales_division === 'IVP') return false;
-      if (supervisorIds.has(u.id)) return false; // sudah jadi atasan terdaftar → tampil di list atasan, bukan staff
+      const div = u.sales_division!;
+      // Exclude hanya jika user adalah atasan DI DIVISI YANG SAMA
+      if (supervisorIdsByDiv[div]?.has(u.id)) return false;
       const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 0;
-      const atasanDivisi = (atasanByDiv[u.sales_division!] ?? []);
-      if (atasanDivisi.length === 0) return true; // belum ada atasan → tampilkan semua
-      // Cari tier TERTINGGI dari semua atasan di divisi ini
+      const atasanDivisi = (atasanByDiv[div] ?? []);
+      if (atasanDivisi.length === 0) return true;
       const maxAtasanTier = Math.max(...atasanDivisi.map(m => {
         const atasan = allUsers.find(a => a.id === m.supervisor_id);
         return atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
       }));
-      // Tampilkan user yang tier-nya LEBIH RENDAH dari atasan tertinggi (= bawahan)
       return userTier < maxAtasanTier;
     })
     .forEach(u => {
