@@ -88,8 +88,30 @@ interface RoomDetail {
   brand_middleware?: string;
   brand_middleware_pic_id?: string;
   brand_middleware_pic_name?: string;
-  ukuran_ruangan?: string;
-  keterangan_lain?: string;
+  layout_signage: string[];
+  jaringan_cms: string[];
+  jumlah_input: string;
+  jumlah_output: string;
+  source: string[];
+  source_other: string;
+  camera_conference: string;
+  camera_jumlah: string;
+  camera_tracking: string[];
+  audio_system: string;
+  audio_mixer: string;
+  audio_detail: string[];
+  wallplate_input: string;
+  wallplate_jumlah: string;
+  tabletop_input: string;
+  tabletop_jumlah: string;
+  wireless_presentation: string;
+  wireless_mode: string[];
+  wireless_dongle: string;
+  controller_automation: string;
+  controller_type: string[];
+  ukuran_ruangan: string;
+  suggest_tampilan: string;
+  keterangan_lain: string;
 }
 
 interface ProjectMessage {
@@ -750,7 +772,7 @@ function NewFormModal({
                   </button>
                 </div>
 
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-4">
                   {/* Kebutuhan */}
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Kebutuhan *</label>
@@ -784,77 +806,216 @@ function NewFormModal({
                   </div>
 
                   {/* Brand Display & Middleware */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-gray-100">
-                    {/* Brand Display */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
                     <div>
                       <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">🖥️ Brand Display <span className="text-gray-400 font-normal normal-case">(opsional)</span></label>
-                      <select value={room.brand_display || ''}
-                        onChange={e => updateRoom(room.id, { brand_display: e.target.value })}
+                      <select value={room.brand_display || ''} onChange={e => updateRoom(room.id, { brand_display: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-amber-400 appearance-none">
                         <option value="">— Pilih Brand Display —</option>
-                        {['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'].map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
+                        {['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'].map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                       {room.brand_display && (
-                        <div className="mt-1.5">
-                          <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">PIC Brand Display</label>
-                          <select value={room.brand_display_pic_id || ''}
-                            onChange={e => {
-                              const pic = brandUsers.find(u => u.id === e.target.value);
-                              updateRoom(room.id, { brand_display_pic_id: e.target.value, brand_display_pic_name: pic?.full_name || '' });
-                            }}
-                            className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400 appearance-none">
-                            <option value="">— Pilih PIC —</option>
-                            {brandUsers.map(u => (
-                              <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>
-                            ))}
-                          </select>
-                        </div>
+                        <select value={room.brand_display_pic_id || ''}
+                          onChange={e => { const pic = brandUsers.find(u => u.id === e.target.value); updateRoom(room.id, { brand_display_pic_id: e.target.value, brand_display_pic_name: pic?.full_name || '' }); }}
+                          className="mt-1.5 w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400 appearance-none">
+                          <option value="">— Pilih PIC Brand Display —</option>
+                          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
+                        </select>
                       )}
                     </div>
-
-                    {/* Brand Middleware */}
                     <div>
                       <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1.5">🔌 Brand Middleware <span className="text-gray-400 font-normal normal-case">(opsional)</span></label>
-                      <select value={room.brand_middleware || ''}
-                        onChange={e => updateRoom(room.id, { brand_middleware: e.target.value })}
+                      <select value={room.brand_middleware || ''} onChange={e => updateRoom(room.id, { brand_middleware: e.target.value })}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 appearance-none">
                         <option value="">— Pilih Brand Middleware —</option>
-                        {['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'].map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
+                        {['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'].map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                       {room.brand_middleware && (
-                        <div className="mt-1.5">
-                          <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1">PIC Brand Middleware</label>
-                          <select value={room.brand_middleware_pic_id || ''}
-                            onChange={e => {
-                              const pic = brandUsers.find(u => u.id === e.target.value);
-                              updateRoom(room.id, { brand_middleware_pic_id: e.target.value, brand_middleware_pic_name: pic?.full_name || '' });
-                            }}
-                            className="w-full border border-violet-200 rounded-lg px-3 py-2 text-sm bg-violet-50 outline-none focus:border-violet-400 appearance-none">
-                            <option value="">— Pilih PIC —</option>
-                            {brandUsers.map(u => (
-                              <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>
-                            ))}
-                          </select>
-                        </div>
+                        <select value={room.brand_middleware_pic_id || ''}
+                          onChange={e => { const pic = brandUsers.find(u => u.id === e.target.value); updateRoom(room.id, { brand_middleware_pic_id: e.target.value, brand_middleware_pic_name: pic?.full_name || '' }); }}
+                          className="mt-1.5 w-full border border-violet-200 rounded-lg px-3 py-2 text-sm bg-violet-50 outline-none focus:border-violet-400 appearance-none">
+                          <option value="">— Pilih PIC Brand Middleware —</option>
+                          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
+                        </select>
                       )}
                     </div>
                   </div>
 
-                  {/* Ukuran & Keterangan */}
-                  <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100">
+                  {/* Layout Signage & Jaringan — hanya jika Signage dipilih */}
+                  {room.kebutuhan.includes('Signage') && (
+                    <div className="pt-2 border-t border-gray-100 space-y-3">
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Layout & Jaringan</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout'].map(opt => (
+                          <button key={opt} type="button"
+                            onClick={() => updateRoom(room.id, { layout_signage: room.layout_signage.includes(opt) ? room.layout_signage.filter(x => x !== opt) : [...room.layout_signage, opt] })}
+                            className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.layout_signage.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>{opt}</button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Cloud', 'Onpremise', 'USB'].map(opt => (
+                          <button key={opt} type="button"
+                            onClick={() => updateRoom(room.id, { jaringan_cms: room.jaringan_cms.includes(opt) ? room.jaringan_cms.filter(x => x !== opt) : [...room.jaringan_cms, opt] })}
+                            className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.jaringan_cms.includes(opt) ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-gray-200 bg-white text-gray-500 hover:border-cyan-300'}`}>{opt}</button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
+                          <input value={room.jumlah_input} onChange={e => updateRoom(room.id, { jumlah_input: e.target.value })} placeholder="e.g. 4 input" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label>
+                          <input value={room.jumlah_output} onChange={e => updateRoom(room.id, { jumlah_output: e.target.value })} placeholder="e.g. 2 output" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Source & Peripheral */}
+                  <div className="pt-2 border-t border-gray-100 space-y-3">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Source</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['PC / Mini PC', 'Laptop', 'URL Dashboard', 'NVR CCTV', 'Media Player', 'IPTV', 'Set Top Box'].map(opt => (
+                        <button key={opt} type="button"
+                          onClick={() => updateRoom(room.id, { source: room.source.includes(opt) ? room.source.filter(x => x !== opt) : [...room.source, opt] })}
+                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.source.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    <input value={room.source_other} onChange={e => updateRoom(room.id, { source_other: e.target.value })} placeholder="Other source..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                  </div>
+
+                  {/* Camera */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Camera Conference</label>
+                    <div className="flex gap-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => updateRoom(room.id, { camera_conference: opt })}
+                          className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.camera_conference === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {room.camera_conference === 'Yes' && (
+                      <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+                        <input value={room.camera_jumlah} onChange={e => updateRoom(room.id, { camera_jumlah: e.target.value })} placeholder="Jumlah camera..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                        <div className="flex flex-wrap gap-1.5">
+                          {['Auto Tracking', 'Manual PTZ', 'Fixed'].map(opt => (
+                            <button key={opt} type="button" onClick={() => updateRoom(room.id, { camera_tracking: room.camera_tracking.includes(opt) ? room.camera_tracking.filter(x => x !== opt) : [...room.camera_tracking, opt] })}
+                              className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.camera_tracking.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Audio */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Audio System</label>
+                    <div className="flex gap-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => updateRoom(room.id, { audio_system: opt })}
+                          className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.audio_system === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {room.audio_system === 'Yes' && (
+                      <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+                        <input value={room.audio_mixer} onChange={e => updateRoom(room.id, { audio_mixer: e.target.value })} placeholder="Mixer / DSP..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                        <div className="flex flex-wrap gap-1.5">
+                          {['Speaker Ceiling', 'Speaker Line Array', 'Subwoofer', 'Microphone', 'Amplifier'].map(opt => (
+                            <button key={opt} type="button" onClick={() => updateRoom(room.id, { audio_detail: room.audio_detail.includes(opt) ? room.audio_detail.filter(x => x !== opt) : [...room.audio_detail, opt] })}
+                              className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.audio_detail.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Wallplate */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Wallplate Input</label>
+                    <div className="flex gap-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => updateRoom(room.id, { wallplate_input: opt })}
+                          className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.wallplate_input === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {room.wallplate_input === 'Yes' && (
+                      <input value={room.wallplate_jumlah} onChange={e => updateRoom(room.id, { wallplate_jumlah: e.target.value })} placeholder="Jumlah wallplate..." className="ml-4 w-[calc(100%-1rem)] border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                    )}
+                  </div>
+
+                  {/* Tabletop */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Tabletop Input</label>
+                    <div className="flex gap-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => updateRoom(room.id, { tabletop_input: opt })}
+                          className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.tabletop_input === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {room.tabletop_input === 'Yes' && (
+                      <input value={room.tabletop_jumlah} onChange={e => updateRoom(room.id, { tabletop_jumlah: e.target.value })} placeholder="Jumlah tabletop..." className="ml-4 w-[calc(100%-1rem)] border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                    )}
+                  </div>
+
+                  {/* Wireless */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Wireless Presentation</label>
+                    <div className="flex gap-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => updateRoom(room.id, { wireless_presentation: opt })}
+                          className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.wireless_presentation === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {room.wireless_presentation === 'Yes' && (
+                      <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {['Aplikasi', 'AirPlay', 'Miracast', 'Chromecast', 'BYOM'].map(opt => (
+                            <button key={opt} type="button" onClick={() => updateRoom(room.id, { wireless_mode: room.wireless_mode.includes(opt) ? room.wireless_mode.filter(x => x !== opt) : [...room.wireless_mode, opt] })}
+                              className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.wireless_mode.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          {['Yes', 'No'].map(opt => (
+                            <button key={opt} type="button" onClick={() => updateRoom(room.id, { wireless_dongle: opt })}
+                              className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.wireless_dongle === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>Dongle: {opt}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Controller */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Controller / Automation</label>
+                    <div className="flex gap-2">
+                      {['Yes', 'No'].map(opt => (
+                        <button key={opt} type="button" onClick={() => updateRoom(room.id, { controller_automation: opt })}
+                          className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.controller_automation === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                      ))}
+                    </div>
+                    {room.controller_automation === 'Yes' && (
+                      <div className="flex flex-wrap gap-1.5 ml-4">
+                        {['Cue', 'Wyrestorm', 'Extron', 'Custom'].map(opt => (
+                          <button key={opt} type="button" onClick={() => updateRoom(room.id, { controller_type: room.controller_type.includes(opt) ? room.controller_type.filter(x => x !== opt) : [...room.controller_type, opt] })}
+                            className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.controller_type.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ukuran, Suggest, Keterangan */}
+                  <div className="pt-2 border-t border-gray-100 grid grid-cols-1 gap-2">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan</label>
-                      <input value={room.ukuran_ruangan || ''} onChange={e => updateRoom(room.id, { ukuran_ruangan: e.target.value })}
-                        placeholder="e.g. 6m x 8m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
+                      <input value={room.ukuran_ruangan} onChange={e => updateRoom(room.id, { ukuran_ruangan: e.target.value })} placeholder="e.g. 8m × 6m × 3m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan</label>
-                      <input value={room.keterangan_lain || ''} onChange={e => updateRoom(room.id, { keterangan_lain: e.target.value })}
-                        placeholder="Info tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan (W × H)</label>
+                      <input value={room.suggest_tampilan} onChange={e => updateRoom(room.id, { suggest_tampilan: e.target.value })} placeholder="e.g. 1920 × 1080 px atau 4K" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
+                      <textarea value={room.keterangan_lain} onChange={e => updateRoom(room.id, { keterangan_lain: e.target.value })} rows={2} placeholder="Info tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 resize-none" />
                     </div>
                   </div>
                 </div>
@@ -893,8 +1054,8 @@ function NewFormModal({
           </div>
           )}
 
-          {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
-          {form.kebutuhan.includes('Signage') && (
+          {/* Signage & Network - hanya tampil jika Kebutuhan = Signage dan tidak ada rooms */}
+          {rooms.length === 0 && form.kebutuhan.includes('Signage') && (
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
@@ -920,7 +1081,8 @@ function NewFormModal({
 
           )} {/* end Signage conditional */}
 
-          {/* Source & Peripheral */}
+          {/* Source & Peripheral — hanya tampil jika tidak ada rooms */}
+          {rooms.length === 0 && (
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
@@ -1002,8 +1164,10 @@ function NewFormModal({
               </div>
             )}
           </div>
+          )} {/* end Source & Peripheral rooms guard */}
 
-          {/* Room & Other Info */}
+          {/* Room & Other Info — hanya tampil jika tidak ada rooms */}
+          {rooms.length === 0 && (
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
@@ -1028,6 +1192,7 @@ function NewFormModal({
               </div>
             </div>
           </div>
+          )} {/* end Room & Other Info rooms guard */}
 
           {/* Foto Survey + BOQ Upload — hanya untuk guest/sales (bukan team PTS) */}
           {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
@@ -1283,11 +1448,19 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [rooms, setRooms] = useState<RoomDetail[]>([]);
   const generateRoomId = () => Math.random().toString(36).slice(2, 10);
   const addRoom = () => setRooms(prev => [...prev, {
-    id: generateRoomId(), room_name: '', kebutuhan: [], kebutuhan_other: '',
-    solution_product: [], solution_other: '',
+    id: generateRoomId(),
+    room_name: '', kebutuhan: [], kebutuhan_other: '', solution_product: [], solution_other: '',
     brand_display: '', brand_display_pic_id: '', brand_display_pic_name: '',
     brand_middleware: '', brand_middleware_pic_id: '', brand_middleware_pic_name: '',
-    ukuran_ruangan: '', keterangan_lain: '',
+    layout_signage: [], jaringan_cms: [], jumlah_input: '', jumlah_output: '',
+    source: [], source_other: '',
+    camera_conference: '', camera_jumlah: '', camera_tracking: [],
+    audio_system: '', audio_mixer: '', audio_detail: [],
+    wallplate_input: '', wallplate_jumlah: '',
+    tabletop_input: '', tabletop_jumlah: '',
+    wireless_presentation: '', wireless_mode: [], wireless_dongle: '',
+    controller_automation: '', controller_type: [],
+    ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
   }]);
   const removeRoom = (id: string) => setRooms(prev => prev.filter(r => r.id !== id));
   const updateRoom = (id: string, patch: Partial<RoomDetail>) => setRooms(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
