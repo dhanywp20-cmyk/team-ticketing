@@ -2465,6 +2465,12 @@ export default function TicketingSystem() {
                   title="Team Handlers"
                   icon="👥"
                 />
+                <SalesDivisionDonutCard
+                  data={salesDivisionStats.data}
+                  total={salesDivisionStats.total}
+                  onSliceClick={() => {}}
+                  activeDivision={null}
+                />
                 <ProductDonutCard
                   data={productStats.data}
                   total={productStats.total}
