@@ -1033,37 +1033,41 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const ivpByDiv: Record<string, typeof divIvpMaps> = {};
   divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
 
-  // supervisorIds per divisi — user bisa jadi atasan di divisi A tapi bawahan di divisi B
   const supervisorIdsByDiv: Record<string, Set<string>> = {};
   divSupMaps.forEach(m => {
     if (!supervisorIdsByDiv[m.sales_division]) supervisorIdsByDiv[m.sales_division] = new Set();
     supervisorIdsByDiv[m.sales_division].add(m.supervisor_id);
   });
 
-  // usersByDiv: untuk setiap divisi yang punya atasan, tampilkan SEMUA user
-  // (dari divisi manapun) yang tier jabatannya lebih rendah dari tier atasan tertinggi di divisi tsb
+  // Helper: ambil prefix grup divisi (misal "SGP" dari "SGP 1", "SGP 2")
+  const getDivPrefix = (div: string) => div.split(' ')[0];
+
   const usersByDiv: Record<string, User[]> = {};
-  const allGuestUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP');
+  const allGuestNonIVP = allUsers.filter(u =>
+    u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP'
+  );
 
   Object.keys(atasanByDiv).forEach(div => {
     const atasanDivisi = atasanByDiv[div];
-    // Tier tertinggi dari atasan di divisi ini
     const maxAtasanTier = Math.max(...atasanDivisi.map(m => {
       const atasan = allUsers.find(a => a.id === m.supervisor_id);
       return atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
     }));
     if (maxAtasanTier === 0) return;
 
-    // Kumpulkan semua user (dari divisi manapun) yang:
-    // 1. Bukan atasan terdaftar di divisi INI
-    // 2. Tier jabatan < maxAtasanTier
-    const subordinates = allGuestUsers.filter(u => {
-      if (supervisorIdsByDiv[div]?.has(u.id)) return false; // sudah jadi atasan di divisi ini
+    const divPrefix = getDivPrefix(div);
+
+    // Tampilkan user yang:
+    // 1. Divisinya punya prefix sama (SGP, SGP 1, SGP 2 = satu group)
+    // 2. Bukan atasan terdaftar di divisi ini
+    // 3. Tier lebih rendah dari atasan tertinggi
+    usersByDiv[div] = allGuestNonIVP.filter(u => {
+      const uDiv = u.sales_division!;
+      if (getDivPrefix(uDiv) !== divPrefix) return false; // beda group → skip
+      if (supervisorIdsByDiv[div]?.has(u.id)) return false; // atasan di divisi ini → skip
       const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 1;
       return userTier < maxAtasanTier;
     });
-
-    usersByDiv[div] = subordinates;
   });
 
   const selectedUserObj = selectedCCUserId ? getUserById(selectedCCUserId) : null;
