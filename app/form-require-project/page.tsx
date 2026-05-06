@@ -654,10 +654,15 @@ interface NewFormModalProps {
   onSubmit: () => void;
   salesGuestUsers: {id:string;full_name:string;username:string;sales_division?:string}[];
   brandUsers: {id:string;full_name:string;username:string;phone_number?:string;sales_division?:string}[];
+  brandPicMappings: {id:string;brand_type:string;brand_name:string;pic_user_id:string;pic_user_name:string}[];
   rooms: RoomDetail[];
   addRoom: () => void;
   removeRoom: (id: string) => void;
   updateRoom: (id: string, patch: Partial<RoomDetail>) => void;
+  roomPhotos: Record<string, File[]>;
+  roomPhotosPreviews: Record<string, string[]>;
+  addRoomPhoto: (roomId: string, files: File[]) => void;
+  removeRoomPhoto: (roomId: string, idx: number) => void;
 }
 
 function NewFormModal({
@@ -665,7 +670,8 @@ function NewFormModal({
   surveyPhotos, setSurveyPhotos, surveyPhotosPreviews, setSurveyPhotosPreviews,
   boqFormFile, setBoqFormFile,
   submitting, onClose, onSubmit,
-  salesGuestUsers, brandUsers, rooms, addRoom, removeRoom, updateRoom,
+  salesGuestUsers, brandUsers, brandPicMappings, rooms, addRoom, removeRoom, updateRoom,
+  roomPhotos, roomPhotosPreviews, addRoomPhoto, removeRoomPhoto,
 }: NewFormModalProps) {
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
   const boqFormRef = useRef<HTMLInputElement>(null);
@@ -737,7 +743,17 @@ function NewFormModal({
                   placeholder="Contoh: Meeting Room Lantai 5 - PT ABC"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div className="md:col-span-2">
+              {/* Nama Ruangan hanya tampil jika tidak ada multi-room */}
+              {rooms.length === 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
+                  <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
+                    placeholder="Nama ruangan / area"
+                    className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+                </div>
+              )}
+              </div>
+              <div className={rooms.length === 0 ? "md:col-span-1" : "md:col-span-2"}>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
                 <textarea value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
                   placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat"
@@ -807,14 +823,14 @@ function NewFormModal({
                 </div>
 
                 <div className="p-4 space-y-4">
-                  {/* Kebutuhan */}
+                  {/* Kebutuhan — single select */}
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Kebutuhan *</label>
                     <div className="flex flex-wrap gap-1.5">
                       {['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom'].map(opt => (
                         <button key={opt} type="button"
-                          onClick={() => updateRoom(room.id, { kebutuhan: room.kebutuhan.includes(opt) ? room.kebutuhan.filter(k => k !== opt) : [...room.kebutuhan, opt] })}
-                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.kebutuhan.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>
+                          onClick={() => updateRoom(room.id, { kebutuhan: room.kebutuhan[0] === opt ? [] : [opt] })}
+                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.kebutuhan[0] === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>
                           {opt}
                         </button>
                       ))}
@@ -843,34 +859,50 @@ function NewFormModal({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
                     <div>
                       <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">🖥️ Brand Display <span className="text-gray-400 font-normal normal-case">(opsional)</span></label>
-                      <select value={room.brand_display || ''} onChange={e => updateRoom(room.id, { brand_display: e.target.value })}
+                      <select value={room.brand_display || ''} onChange={e => {
+                        const brand = e.target.value;
+                        const mapping = brandPicMappings.find(m => m.brand_type === 'display' && m.brand_name === brand);
+                        updateRoom(room.id, {
+                          brand_display: brand,
+                          brand_display_pic_id: mapping?.pic_user_id || '',
+                          brand_display_pic_name: mapping?.pic_user_name || '',
+                        });
+                      }}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-amber-400 appearance-none">
                         <option value="">— Pilih Brand Display —</option>
                         {['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'].map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
-                      {room.brand_display && (
-                        <select value={room.brand_display_pic_id || ''}
-                          onChange={e => { const pic = brandUsers.find(u => u.id === e.target.value); updateRoom(room.id, { brand_display_pic_id: e.target.value, brand_display_pic_name: pic?.full_name || '' }); }}
-                          className="mt-1.5 w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400 appearance-none">
-                          <option value="">— Pilih PIC Brand Display —</option>
-                          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
-                        </select>
+                      {room.brand_display && room.brand_display_pic_name && (
+                        <p className="mt-1 text-[11px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                          👤 PIC: {room.brand_display_pic_name}
+                        </p>
+                      )}
+                      {room.brand_display && !room.brand_display_pic_name && (
+                        <p className="mt-1 text-[11px] text-gray-400 italic px-1">PIC belum di-set admin</p>
                       )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1.5">🔌 Brand Middleware <span className="text-gray-400 font-normal normal-case">(opsional)</span></label>
-                      <select value={room.brand_middleware || ''} onChange={e => updateRoom(room.id, { brand_middleware: e.target.value })}
+                      <select value={room.brand_middleware || ''} onChange={e => {
+                        const brand = e.target.value;
+                        const mapping = brandPicMappings.find(m => m.brand_type === 'middleware' && m.brand_name === brand);
+                        updateRoom(room.id, {
+                          brand_middleware: brand,
+                          brand_middleware_pic_id: mapping?.pic_user_id || '',
+                          brand_middleware_pic_name: mapping?.pic_user_name || '',
+                        });
+                      }}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 appearance-none">
                         <option value="">— Pilih Brand Middleware —</option>
                         {['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'].map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
-                      {room.brand_middleware && (
-                        <select value={room.brand_middleware_pic_id || ''}
-                          onChange={e => { const pic = brandUsers.find(u => u.id === e.target.value); updateRoom(room.id, { brand_middleware_pic_id: e.target.value, brand_middleware_pic_name: pic?.full_name || '' }); }}
-                          className="mt-1.5 w-full border border-violet-200 rounded-lg px-3 py-2 text-sm bg-violet-50 outline-none focus:border-violet-400 appearance-none">
-                          <option value="">— Pilih PIC Brand Middleware —</option>
-                          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
-                        </select>
+                      {room.brand_middleware && room.brand_middleware_pic_name && (
+                        <p className="mt-1 text-[11px] text-violet-700 font-semibold bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5">
+                          👤 PIC: {room.brand_middleware_pic_name}
+                        </p>
+                      )}
+                      {room.brand_middleware && !room.brand_middleware_pic_name && (
+                        <p className="mt-1 text-[11px] text-gray-400 italic px-1">PIC belum di-set admin</p>
                       )}
                     </div>
                   </div>
@@ -915,6 +947,23 @@ function NewFormModal({
                           onClick={() => updateRoom(room.id, { source: room.source.includes(opt) ? room.source.filter(x => x !== opt) : [...room.source, opt] })}
                           className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.source.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>{opt}</button>
                       ))}
+                    </div>
+                    {/* Qty Laptop & PC */}
+                    <div className="flex gap-3">
+                      {room.source.includes('Laptop') && (
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Qty Laptop</label>
+                          <input type="number" min="1" value={room.source_laptop_qty} onChange={e => updateRoom(room.id, { source_laptop_qty: e.target.value })}
+                            placeholder="e.g. 2" className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400" />
+                        </div>
+                      )}
+                      {room.source.includes('PC / Mini PC') && (
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Qty PC / Mini PC</label>
+                          <input type="number" min="1" value={room.source_pc_qty} onChange={e => updateRoom(room.id, { source_pc_qty: e.target.value })}
+                            placeholder="e.g. 1" className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-blue-50 outline-none focus:border-blue-400" />
+                        </div>
+                      )}
                     </div>
                     <input value={room.source_other} onChange={e => updateRoom(room.id, { source_other: e.target.value })} placeholder="Other source..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
                   </div>
@@ -1230,92 +1279,148 @@ function NewFormModal({
 
           {/* Foto Survey + BOQ Upload — hanya untuk guest/sales (bukan team PTS) */}
           {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
-              Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
-                <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
-                  onChange={e => {
-                    const files = Array.from(e.target.files || []);
-                    if (!files.length) return;
-                    const combined = [...surveyPhotos, ...files].slice(0, 10);
-                    setSurveyPhotos(combined);
-                    setSurveyPhotosPreviews(combined.map(f => URL.createObjectURL(f)));
-                    e.target.value = '';
-                  }} />
-                {surveyPhotosPreviews.length === 0 ? (
-                  <button type="button" onClick={() => surveyPhotoRef.current?.click()}
-                    className="w-full border-2 border-dashed border-gray-300 rounded-xl py-6 text-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
-                    <div className="text-2xl mb-1">📷</div>
-                    <p className="text-xs font-medium">Klik upload foto</p>
-                    <p className="text-[11px] mt-0.5 opacity-70">Max 10 foto</p>
-                  </button>
-                ) : (
+            rooms.length > 0 ? (
+              /* Multi-room: foto per ruangan */
+              <div className="space-y-3">
+                {rooms.map((room, idx) => {
+                  const photos = roomPhotos[room.id] || [];
+                  const previews = roomPhotosPreviews[room.id] || [];
+                  const roomInputRef = { current: null } as React.MutableRefObject<HTMLInputElement | null>;
+                  return (
+                    <div key={room.id} className="bg-white/95 rounded-2xl p-4 border-2 border-gray-200 shadow-sm">
+                      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
+                        📎 Dokumen & Foto — Ruangan {idx + 1}{room.room_name ? `: ${room.room_name}` : ''}
+                      </p>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
+                        <input type="file" accept="image/*" multiple className="hidden"
+                          id={`room-photo-${room.id}`}
+                          onChange={e => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length) addRoomPhoto(room.id, files);
+                            e.target.value = '';
+                          }} />
+                        {previews.length === 0 ? (
+                          <label htmlFor={`room-photo-${room.id}`}
+                            className="w-full border-2 border-dashed border-gray-300 rounded-xl py-5 flex flex-col items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all cursor-pointer">
+                            <span className="text-2xl mb-1">📷</span>
+                            <span className="text-xs font-medium">Klik upload foto</span>
+                            <span className="text-[11px] opacity-70">Max 10 foto</span>
+                          </label>
+                        ) : (
+                          <div>
+                            <div className="grid grid-cols-4 gap-1.5 mb-2">
+                              {previews.map((src, i) => (
+                                <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
+                                  <img src={src} alt="" className="w-full h-full object-cover" />
+                                  <button type="button" onClick={() => removeRoomPhoto(room.id, i)}
+                                    className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                                </div>
+                              ))}
+                              {photos.length < 10 && (
+                                <label htmlFor={`room-photo-${room.id}`}
+                                  className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all cursor-pointer">
+                                  <span className="text-xl">+</span>
+                                </label>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-400">{photos.length}/10 foto</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Single room: foto + BOQ seperti biasa */
+              <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                  <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
+                  Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <div className="grid grid-cols-3 gap-1.5 mb-2">
-                      {surveyPhotosPreviews.map((src, i) => (
-                        <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
-                          <img src={src} alt="" className="w-full h-full object-cover" />
-                          <button type="button" onClick={() => {
-                            const newPhotos = surveyPhotos.filter((_, j) => j !== i);
-                            setSurveyPhotos(newPhotos);
-                            setSurveyPhotosPreviews(newPhotos.map(f => URL.createObjectURL(f)));
-                          }} className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
+                    <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
+                      onChange={e => {
+                        const files = Array.from(e.target.files || []);
+                        if (!files.length) return;
+                        const combined = [...surveyPhotos, ...files].slice(0, 10);
+                        setSurveyPhotos(combined);
+                        setSurveyPhotosPreviews(combined.map(f => URL.createObjectURL(f)));
+                        e.target.value = '';
+                      }} />
+                    {surveyPhotosPreviews.length === 0 ? (
+                      <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+                        className="w-full border-2 border-dashed border-gray-300 rounded-xl py-6 text-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
+                        <div className="text-2xl mb-1">📷</div>
+                        <p className="text-xs font-medium">Klik upload foto</p>
+                        <p className="text-[11px] mt-0.5 opacity-70">Max 10 foto</p>
+                      </button>
+                    ) : (
+                      <div>
+                        <div className="grid grid-cols-3 gap-1.5 mb-2">
+                          {surveyPhotosPreviews.map((src, i) => (
+                            <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
+                              <img src={src} alt="" className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => {
+                                const newPhotos = surveyPhotos.filter((_, j) => j !== i);
+                                setSurveyPhotos(newPhotos);
+                                setSurveyPhotosPreviews(newPhotos.map(f => URL.createObjectURL(f)));
+                              }} className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                            </div>
+                          ))}
+                          {surveyPhotos.length < 10 && (
+                            <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+                              className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
+                              <span className="text-xl">+</span>
+                            </button>
+                          )}
                         </div>
-                      ))}
-                      {surveyPhotos.length < 10 && (
-                        <button type="button" onClick={() => surveyPhotoRef.current?.click()}
-                          className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
-                          <span className="text-xl">+</span>
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-gray-400">{surveyPhotos.length}/10 foto</p>
+                        <p className="text-[11px] text-gray-400">{surveyPhotos.length}/10 foto</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel</p>
-                <input ref={boqFormRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
-                  onChange={e => {
-                    const f = e.target.files?.[0];
-                    if (f) setBoqFormFile(f);
-                    e.target.value = '';
-                  }} />
-                {!boqFormFile ? (
-                  <button type="button" onClick={() => boqFormRef.current?.click()}
-                    className="w-full border-2 border-dashed border-emerald-300 rounded-xl py-6 text-center text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50 transition-all">
-                    <div className="text-2xl mb-1">📊</div>
-                    <p className="text-xs font-medium">Klik upload BOQ</p>
-                    <p className="text-[11px] mt-0.5 opacity-70">.xlsx / .xls / .csv</p>
-                  </button>
-                ) : (
-                  <div className="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-xl">📊</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-emerald-800 truncate">{boqFormFile.name}</p>
-                      <p className="text-[11px] text-emerald-600">{(boqFormFile.size / 1024).toFixed(1)} KB</p>
-                    </div>
-                    <button type="button" onClick={() => setBoqFormFile(null)}
-                      className="text-red-400 hover:text-red-600 font-bold text-sm flex-shrink-0">✕</button>
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel</p>
+                    <input ref={boqFormRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) setBoqFormFile(f);
+                        e.target.value = '';
+                      }} />
+                    {!boqFormFile ? (
+                      <button type="button" onClick={() => boqFormRef.current?.click()}
+                        className="w-full border-2 border-dashed border-emerald-300 rounded-xl py-6 text-center text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50 transition-all">
+                        <div className="text-2xl mb-1">📊</div>
+                        <p className="text-xs font-medium">Klik upload BOQ</p>
+                        <p className="text-[11px] mt-0.5 opacity-70">.xlsx / .xls / .csv</p>
+                      </button>
+                    ) : (
+                      <div className="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-4 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <span className="text-xl">📊</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-emerald-800 truncate">{boqFormFile.name}</p>
+                          <p className="text-[11px] text-emerald-600">{(boqFormFile.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <button type="button" onClick={() => setBoqFormFile(null)}
+                          className="text-red-400 hover:text-red-600 font-bold text-sm flex-shrink-0">✕</button>
+                      </div>
+                    )}
+                    {boqFormFile && (
+                      <button type="button" onClick={() => boqFormRef.current?.click()}
+                        className="mt-2 w-full text-xs text-emerald-600 hover:text-emerald-800 font-bold py-1 transition-all">
+                        🔄 Ganti File
+                      </button>
+                    )}
                   </div>
-                )}
-                {boqFormFile && (
-                  <button type="button" onClick={() => boqFormRef.current?.click()}
-                    className="mt-2 w-full text-xs text-emerald-600 hover:text-emerald-800 font-bold py-1 transition-all">
-                    🔄 Ganti File
-                  </button>
-                )}
+                </div>
               </div>
-            </div>
-          </div>
+            )
           )} {/* end kondisional upload foto/boq untuk non-team */}
         </div>
 
@@ -1338,10 +1443,143 @@ function NewFormModal({
 
 // ─── Form Require Project Module ──────────────────────────────────────────────
 
+// ─── BrandPicSettingModal ──────────────────────────────────────────────────────
+const DISPLAY_BRANDS = ['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'];
+const MIDDLEWARE_BRANDS = ['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'];
+
+function BrandPicSettingModal({ onClose, brandUsers, onSaved }: {
+  onClose: () => void;
+  brandUsers: {id:string;full_name:string;username:string;sales_division?:string}[];
+  onSaved: () => void;
+}) {
+  const [mappings, setMappings] = useState<Record<string, string>>({}); // key: `${type}:${brand}`, value: pic_user_id
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState<{type:'success'|'error';msg:string}|null>(null);
+
+  useEffect(() => {
+    supabase.from('brand_pic_mappings').select('*').then(({ data }: { data: any[] | null }) => {
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach((m: any) => { map[`${m.brand_type}:${m.brand_name}`] = m.pic_user_id || ''; });
+        setMappings(map);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const notify = (type: 'success'|'error', msg: string) => {
+    setNotification({ type, msg });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const allBrands = [
+        ...DISPLAY_BRANDS.map(b => ({ brand_type: 'display', brand_name: b })),
+        ...MIDDLEWARE_BRANDS.map(b => ({ brand_type: 'middleware', brand_name: b })),
+      ];
+      for (const { brand_type, brand_name } of allBrands) {
+        const key = `${brand_type}:${brand_name}`;
+        const picId = mappings[key] || null;
+        const picUser = picId ? brandUsers.find(u => u.id === picId) : null;
+        const picName = picUser?.full_name || null;
+        await supabase.from('brand_pic_mappings').upsert({
+          brand_type, brand_name, pic_user_id: picId, pic_user_name: picName,
+        }, { onConflict: 'brand_type,brand_name' });
+      }
+      notify('success', 'Mapping PIC Brand disimpan!');
+      onSaved();
+    } catch (e: any) { notify('error', e.message); }
+    setSaving(false);
+  };
+
+  const BrandRow = ({ type, brand }: { type: string; brand: string }) => {
+    const key = `${type}:${brand}`;
+    const val = mappings[key] || '';
+    return (
+      <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
+        <span className="w-36 text-sm font-semibold text-slate-700 flex-shrink-0">{brand}</span>
+        <select value={val} onChange={e => setMappings(prev => ({ ...prev, [key]: e.target.value }))}
+          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 appearance-none">
+          <option value="">— Belum ada PIC —</option>
+          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
+        </select>
+        {val && <span className="text-[10px] text-teal-600 font-semibold flex-shrink-0">✅ Set</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[88vh] flex flex-col border border-slate-200">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">Setting PIC Brand</h2>
+              <p className="text-white/70 text-xs">Mapping brand ke PIC penanggung jawab</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {notification && (
+          <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {notification.type === 'success' ? '✅' : '❌'} {notification.msg}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {loading ? (
+            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-amber-500 border-amber-200 animate-spin"/></div>
+          ) : (
+            <>
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-base">🖥️</span>
+                  <h3 className="text-sm font-bold text-amber-700 uppercase tracking-widest">Brand Display</h3>
+                </div>
+                <div className="bg-amber-50/50 rounded-xl border border-amber-200 px-4 py-1">
+                  {DISPLAY_BRANDS.map(b => <BrandRow key={b} type="display" brand={b} />)}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-base">🔌</span>
+                  <h3 className="text-sm font-bold text-violet-700 uppercase tracking-widest">Brand Middleware</h3>
+                </div>
+                <div className="bg-violet-50/50 rounded-xl border border-violet-200 px-4 py-1">
+                  {MIDDLEWARE_BRANDS.map(b => <BrandRow key={b} type="middleware" brand={b} />)}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-300 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={saving || loading}
+            className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#d97706,#b45309)' }}>
+            {saving ? '⏳ Menyimpan...' : '💾 Simpan Semua Mapping'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [appReady, setAppReady] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showNewFormModal, setShowNewFormModal] = useState(false);
+  const [showBrandPicSetting, setShowBrandPicSetting] = useState(false);
   const [requests, setRequests] = useState<ProjectRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ProjectRequest | null>(null);
   const [messages, setMessages] = useState<ProjectMessage[]>([]);
@@ -1467,18 +1705,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   // Guest/Sales users list for dropdown
   const [salesGuestUsers, setSalesGuestUsers] = useState<{id:string;full_name:string;username:string;sales_division?:string}[]>([]);
   const [brandUsers, setBrandUsers] = useState<{id:string;full_name:string;username:string;phone_number?:string;sales_division?:string}[]>([]);
+  // Brand PIC mappings dari admin setting
+  const [brandPicMappings, setBrandPicMappings] = useState<{id:string;brand_type:string;brand_name:string;pic_user_id:string;pic_user_name:string}[]>([]);
   useEffect(() => {
     supabase.from('users').select('id, full_name, username, sales_division').eq('role', 'guest').then(({ data }: { data: {id:string;full_name:string;username:string;sales_division?:string}[] | null }) => {
       if (data) setSalesGuestUsers(data);
     });
-    // Brand PIC: users dari divisi IVP, MLDS, OSS, UMP
     supabase.from('users').select('id, full_name, username, phone_number, sales_division')
-      .eq('role', 'guest')
-      .in('sales_division', ['IVP', 'MLDS', 'OSS', 'UMP'])
-      .order('full_name')
-      .then(({ data }: { data: any[] | null }) => {
-        if (data) setBrandUsers(data);
-      });
+      .eq('role', 'guest').in('sales_division', ['IVP', 'MLDS', 'OSS', 'UMP']).order('full_name')
+      .then(({ data }: { data: any[] | null }) => { if (data) setBrandUsers(data); });
+    supabase.from('brand_pic_mappings').select('*').order('brand_name')
+      .then(({ data }: { data: any[] | null }) => { if (data) setBrandPicMappings(data); });
   }, []);
 
   // Rooms management for multi-room form
@@ -1490,7 +1727,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     brand_display: '', brand_display_pic_id: '', brand_display_pic_name: '',
     brand_middleware: '', brand_middleware_pic_id: '', brand_middleware_pic_name: '',
     layout_signage: [], jaringan_cms: [], jumlah_input: '', jumlah_output: '',
-    source: [], source_other: '',
+    source: [], source_other: '', source_laptop_qty: '', source_pc_qty: '',
     camera_conference: '', camera_jumlah: '', camera_tracking: [],
     audio_system: '', audio_mixer: '', audio_detail: [],
     wallplate_input: '', wallplate_jumlah: '',
@@ -1507,6 +1744,17 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [surveyPhotos, setSurveyPhotos] = useState<File[]>([]);
   const [surveyPhotosPreviews, setSurveyPhotosPreviews] = useState<string[]>([]);
   const [boqFormFile, setBoqFormFile] = useState<File | null>(null);
+  // Per-room photos when multi-room mode is active
+  const [roomPhotos, setRoomPhotos] = useState<Record<string, File[]>>({});
+  const [roomPhotosPreviews, setRoomPhotosPreviews] = useState<Record<string, string[]>>({});
+  const addRoomPhoto = (roomId: string, files: File[]) => {
+    setRoomPhotos(prev => { const cur = prev[roomId] || []; const combined = [...cur, ...files].slice(0, 10); return { ...prev, [roomId]: combined }; });
+    setRoomPhotosPreviews(prev => { const cur = prev[roomId] || []; const combined = [...cur, ...files.map(f => URL.createObjectURL(f))].slice(0, 10); return { ...prev, [roomId]: combined }; });
+  };
+  const removeRoomPhoto = (roomId: string, idx: number) => {
+    setRoomPhotos(prev => { const arr = [...(prev[roomId] || [])]; arr.splice(idx, 1); return { ...prev, [roomId]: arr }; });
+    setRoomPhotosPreviews(prev => { const arr = [...(prev[roomId] || [])]; arr.splice(idx, 1); return { ...prev, [roomId]: arr }; });
+  };
 
   const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -1570,6 +1818,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       setLoading(false);
       setAppReady(true);
       return;
+    } else {
       // non-IVP guest: pakai pola sama dengan Ticketing
       const selfJabatan = (currentUser as any).jabatan as string | undefined;
       const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan as string] ?? 0) : 0;
@@ -1876,8 +2125,14 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   const handleSubmitForm = async () => {
     if (!form.project_name.trim()) { notify('error', 'Nama Project wajib diisi!'); return; }
-    if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
-    if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    if (rooms.length === 0) {
+      if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
+      if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    } else {
+      // Validasi setiap room harus punya kebutuhan
+      const emptyRoom = rooms.findIndex(r => r.kebutuhan.length === 0 && !r.kebutuhan_other.trim());
+      if (emptyRoom >= 0) { notify('error', `Pilih Kebutuhan untuk Ruangan ${emptyRoom + 1}!`); return; }
+    }
     if (!dueDateForm) { notify('error', 'Target Selesai wajib diisi!'); return; }
     setSubmitting(true);
     try {
@@ -1918,6 +2173,23 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
               await supabase.from('project_attachments').insert([{
                 request_id: data.id, message_id: null, file_name: photo.name,
+                file_url: urlData.publicUrl, file_type: photo.type, file_size: photo.size,
+                uploaded_by: currentUser.full_name,
+              }]);
+            }
+          }
+        }
+        // Upload per-room photos (multi-room mode)
+        for (const [roomId, photos] of Object.entries(roomPhotos)) {
+          const roomIdx = rooms.findIndex(r => r.id === roomId);
+          const roomLabel = roomIdx >= 0 ? `room${roomIdx + 1}` : roomId.slice(0, 6);
+          for (const photo of photos) {
+            const filePath = `project-files/${data.id}/survey-${roomLabel}-${Date.now()}-${photo.name}`;
+            const { error: storageErr } = await supabase.storage.from('project-files').upload(filePath, photo, { cacheControl: '3600', upsert: false });
+            if (!storageErr) {
+              const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+              await supabase.from('project_attachments').insert([{
+                request_id: data.id, message_id: null, file_name: `[${roomLabel}] ${photo.name}`,
                 file_url: urlData.publicUrl, file_type: photo.type, file_size: photo.size,
                 uploaded_by: currentUser.full_name,
               }]);
@@ -2019,7 +2291,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         }
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
-      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]);
+      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); setRoomPhotos({}); setRoomPhotosPreviews({});
       setShowNewFormModal(false);
       fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
@@ -2675,6 +2947,17 @@ Hubungi Admin untuk info lebih lanjut.
     <div className="flex flex-col min-h-screen bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
+      {showBrandPicSetting && (
+        <BrandPicSettingModal
+          onClose={() => setShowBrandPicSetting(false)}
+          brandUsers={brandUsers}
+          onSaved={() => {
+            // Refresh brandPicMappings
+            supabase.from('brand_pic_mappings').select('*').order('brand_name')
+              .then(({ data }: { data: any[] | null }) => { if (data) setBrandPicMappings(data); });
+          }}
+        />
+      )}
       {showNewFormModal && (
         <NewFormModal
           currentUser={currentUser}
@@ -2683,10 +2966,15 @@ Hubungi Admin untuk info lebih lanjut.
           initialForm={initialForm}
           salesGuestUsers={salesGuestUsers}
           brandUsers={brandUsers}
+          brandPicMappings={brandPicMappings}
           rooms={rooms}
           addRoom={addRoom}
           removeRoom={removeRoom}
           updateRoom={updateRoom}
+          roomPhotos={roomPhotos}
+          roomPhotosPreviews={roomPhotosPreviews}
+          addRoomPhoto={addRoomPhoto}
+          removeRoomPhoto={removeRoomPhoto}
           dueDateForm={dueDateForm}
           setDueDateForm={setDueDateForm}
           surveyPhotos={surveyPhotos}
@@ -2696,7 +2984,7 @@ Hubungi Admin untuk info lebih lanjut.
           boqFormFile={boqFormFile}
           setBoqFormFile={setBoqFormFile}
           submitting={submitting}
-          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); }}
+          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); setRoomPhotos({}); setRoomPhotosPreviews({}); }}
           onSubmit={handleSubmitForm}
         />
       )}
@@ -2775,6 +3063,13 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               );
             })()}
+            {isAdmin && (
+              <button onClick={() => setShowBrandPicSetting(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 border-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
+                PIC Brand
+              </button>
+            )}
             <button onClick={() => setShowNewFormModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
               style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
