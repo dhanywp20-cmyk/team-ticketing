@@ -214,11 +214,11 @@ interface OverdueSetting {
 }
 
 const SALES_DIVISIONS = [
-  "IVP", "MLDS", "HAVS", "Enterprise", "DEC", "ICS", "POJ", "VOJ", "LOCOS",
-  "VISIONMEDIA", "UMP", "BISOL", "KIMS", "IDC", "IOCMEDAN", "IOCPekanbaru",
-  "IOCBandung", "IOCJATENG", "MVISEMARANG", "POSSurabaya", "IOCSurabaya",
-  "IOCBali", "SGP", "SGP 1", "SGP 2", "OSS",
-] as const;
+  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
+  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
+  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
+  'IOCBali', 'SGP', 'SGP 1', 'SGP 2', 'OSS',
+];
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
 function formatDateTime(dateString: string) {
@@ -968,38 +968,72 @@ export default function TicketingSystem() {
           const { data: supMaps } = await supabase.from("division_supervisor_mappings")
             .select("sales_division").eq("supervisor_id", resolvedUser.id);
           const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
-          const isSupervisor = supervisedDivisions.length > 0 && selfTier > 0;
+
+          // Cek user_supervisor_mappings — user yang secara manual di-CC ke user ini
+          const { data: userSupMapsData } = await supabase.from("user_supervisor_mappings")
+            .select("user_id").eq("supervisor_id", resolvedUser.id);
+          const manualSubordinateIds = new Set((userSupMapsData ?? []).map((m: any) => m.user_id as string));
+
+          const isSupervisor = (supervisedDivisions.length > 0 && selfTier > 0) || manualSubordinateIds.size > 0;
 
           if (isSupervisor) {
             // Ambil semua user di divisi yang di-supervisi beserta jabatan
-            const { data: divUsers } = await supabase.from("users")
-              .select("id, username, full_name, jabatan")
-              .in("sales_division", supervisedDivisions)
-              .eq("role", "guest");
+            const { data: divUsers } = supervisedDivisions.length > 0
+              ? await supabase.from("users").select("id, username, full_name, jabatan").in("sales_division", supervisedDivisions).eq("role", "guest")
+              : { data: [] };
 
             // Build map: full_name → tier, username → tier, first_name → tier
             const nameTierMap: Record<string, number> = {};
+            const nameToId: Record<string, string> = {};
             (divUsers ?? []).forEach((u: any) => {
               const tier = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
-              if (u.full_name) nameTierMap[u.full_name] = tier;
-              if (u.username) nameTierMap[u.username] = tier;
-              // juga index nama pertama
-              if (u.full_name) nameTierMap[u.full_name.split(' ')[0]] = tier;
+              if (u.full_name) { nameTierMap[u.full_name] = tier; nameToId[u.full_name] = u.id; }
+              if (u.username) { nameTierMap[u.username] = tier; nameToId[u.username] = u.id; }
+              if (u.full_name) { nameTierMap[u.full_name.split(' ')[0]] = tier; nameToId[u.full_name.split(' ')[0]] = u.id; }
             });
 
-            // Ambil semua ticket dari divisi yang di-supervisi
-            const { data: allDivTickets } = await supabase.from("tickets")
-              .select("*, activity_logs(*)")
-              .in("sales_division", supervisedDivisions)
-              .order("created_at", { ascending: false });
+            // Ambil ticket dari divisi yang di-supervisi
+            let allDivTickets: Ticket[] = [];
+            if (supervisedDivisions.length > 0) {
+              const { data: dt } = await supabase.from("tickets")
+                .select("*, activity_logs(*)")
+                .in("sales_division", supervisedDivisions)
+                .order("created_at", { ascending: false });
+              if (dt) allDivTickets = dt;
+            }
 
-            (allDivTickets ?? []).forEach((t: Ticket) => {
-              // Ticket milik sendiri selalu masuk
+            // Tambah ticket dari manual subordinates (bisa beda divisi)
+            if (manualSubordinateIds.size > 0) {
+              const { data: manualUsers } = await supabase.from("users")
+                .select("username, full_name, jabatan").in("id", Array.from(manualSubordinateIds));
+              if (manualUsers) {
+                // Tambahkan ke nameTierMap juga
+                manualUsers.forEach((u: any) => {
+                  const tier = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
+                  if (u.full_name) { nameTierMap[u.full_name] = tier; nameToId[u.full_name] = u.id; }
+                  if (u.username) { nameTierMap[u.username] = tier; nameToId[u.username] = u.id; }
+                  if (u.full_name) { nameTierMap[u.full_name.split(' ')[0]] = tier; }
+                });
+                const manualUsernames = manualUsers.map((u: any) => u.username).filter(Boolean);
+                if (manualUsernames.length > 0) {
+                  const { data: manualTickets } = await supabase.from("tickets")
+                    .select("*, activity_logs(*)")
+                    .in("created_by", manualUsernames)
+                    .order("created_at", { ascending: false });
+                  (manualTickets ?? []).forEach((t: Ticket) => {
+                    if (!allDivTickets.find(x => x.id === t.id)) allDivTickets.push(t);
+                  });
+                }
+              }
+            }
+
+            allDivTickets.forEach((t: Ticket) => {
               if (isMyTicket(t)) { addUnique(t); return; }
-              // Cek tier dari sales_name
+              const ownerId = t.sales_name ? nameToId[t.sales_name] : null;
+              if (ownerId && manualSubordinateIds.has(ownerId)) { addUnique(t); return; }
               const salesNameTier = t.sales_name ? (nameTierMap[t.sales_name] ?? null) : null;
-              if (salesNameTier === null) return; // sales_name tidak dikenal → SKIP
-              if (salesNameTier < selfTier) addUnique(t); // hanya bawahan
+              if (salesNameTier === null) return;
+              if (salesNameTier < selfTier) addUnique(t);
             });
 
           } else {
