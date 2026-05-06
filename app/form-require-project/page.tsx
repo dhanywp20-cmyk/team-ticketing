@@ -737,12 +737,6 @@ function NewFormModal({
                   placeholder="Contoh: Meeting Room Lantai 5 - PT ABC"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
-                <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
-                  placeholder="Nama ruangan / area"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
                 <textarea value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
@@ -781,23 +775,20 @@ function NewFormModal({
 
           {/* ── Multi-Room Section ──────────────────────────────────────────── */}
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-teal-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🚪</span>
                 Ruangan & Solution
+                {rooms.length > 0 && <span className="text-xs font-normal text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">{rooms.length} ruangan</span>}
               </h3>
               <button type="button" onClick={addRoom}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all shadow">
-                + Tambah Ruangan
+                + Ruangan
               </button>
             </div>
 
             {rooms.length === 0 && (
-              <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
-                <p className="text-2xl mb-1">🚪</p>
-                <p>Belum ada ruangan. Klik <strong>+ Tambah Ruangan</strong> untuk mulai.</p>
-                <p className="text-xs mt-1">Setiap ruangan bisa punya kebutuhan & brand berbeda.</p>
-              </div>
+              <p className="text-xs text-gray-400 italic">Belum ada ruangan — klik <strong>+ Ruangan</strong> untuk menambahkan.</p>
             )}
 
             {rooms.map((room, idx) => (
@@ -1067,7 +1058,7 @@ function NewFormModal({
 
             {rooms.length > 0 && (
               <button type="button" onClick={addRoom}
-                className="w-full py-2.5 border-2 border-dashed border-teal-300 rounded-xl text-teal-600 text-sm font-semibold hover:bg-teal-50 transition-all">
+                className="w-full mt-3 py-2 border-2 border-dashed border-teal-300 rounded-xl text-teal-600 text-xs font-semibold hover:bg-teal-50 transition-all">
                 + Tambah Ruangan Lagi
               </button>
             )}
