@@ -1033,43 +1033,6 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   const ivpByDiv: Record<string, typeof divIvpMaps> = {};
   divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
 
-  const supervisorIdsByDiv: Record<string, Set<string>> = {};
-  divSupMaps.forEach(m => {
-    if (!supervisorIdsByDiv[m.sales_division]) supervisorIdsByDiv[m.sales_division] = new Set();
-    supervisorIdsByDiv[m.sales_division].add(m.supervisor_id);
-  });
-
-  // Helper: ambil prefix grup divisi (misal "SGP" dari "SGP 1", "SGP 2")
-  const getDivPrefix = (div: string) => div.split(' ')[0];
-
-  const usersByDiv: Record<string, User[]> = {};
-  const allGuestNonIVP = allUsers.filter(u =>
-    u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP'
-  );
-
-  Object.keys(atasanByDiv).forEach(div => {
-    const atasanDivisi = atasanByDiv[div];
-    const maxAtasanTier = Math.max(...atasanDivisi.map(m => {
-      const atasan = allUsers.find(a => a.id === m.supervisor_id);
-      return atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
-    }));
-    if (maxAtasanTier === 0) return;
-
-    const divPrefix = getDivPrefix(div);
-
-    // Tampilkan user yang:
-    // 1. Divisinya punya prefix sama (SGP, SGP 1, SGP 2 = satu group)
-    // 2. Bukan atasan terdaftar di divisi ini
-    // 3. Tier lebih rendah dari atasan tertinggi
-    usersByDiv[div] = allGuestNonIVP.filter(u => {
-      const uDiv = u.sales_division!;
-      if (getDivPrefix(uDiv) !== divPrefix) return false; // beda group → skip
-      if (supervisorIdsByDiv[div]?.has(u.id)) return false; // atasan di divisi ini → skip
-      const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 1;
-      return userTier < maxAtasanTier;
-    });
-  });
-
   const selectedUserObj = selectedCCUserId ? getUserById(selectedCCUserId) : null;
   const selectedJabatan = selectedUserObj?.jabatan as JabatanType | undefined;
   const autoSuggested = selectedCCUserId ? getAutoSuggestedCC(selectedCCUserId) : [];
@@ -1194,37 +1157,70 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                 ) : (
                   <div className="space-y-3">
                     {Object.entries(atasanByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
-                      const divUsers = usersByDiv[division] ?? [];
+                      // Semua guest non-IVP yang belum jadi atasan di divisi ini → kandidat bawahan
+                      const supIdsInDiv = new Set(maps.map(m => m.supervisor_id));
+                      const candidateUsers = allUsers.filter(u =>
+                        u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP' && !supIdsInDiv.has(u.id)
+                      ).sort((a, b) => {
+                        const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
+                        const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
+                        return tb - ta;
+                      });
+                      // User yang sudah di-mapping ke salah satu atasan di divisi ini
+                      const mappedUserIds = new Set(
+                        userSupMaps.filter(m => supIdsInDiv.has(m.supervisor_id)).map(m => m.user_id)
+                      );
+                      const handleToggleUserDiv = async (userId: string, supId: string) => {
+                        const existing = userSupMaps.find(m => m.user_id === userId && m.supervisor_id === supId);
+                        if (existing) {
+                          await supabase.from('user_supervisor_mappings').delete().eq('id', existing.id);
+                        } else {
+                          await supabase.from('user_supervisor_mappings').insert([{ user_id: userId, supervisor_id: supId }]);
+                        }
+                        await fetchAll();
+                      };
+                      // Default supId = atasan pertama di divisi (jika hanya 1 atasan)
+                      const defaultSupId = maps.length === 1 ? maps[0].supervisor_id : null;
                       return (
                         <div key={division} className="rounded-xl border border-amber-200 overflow-hidden">
                           <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
                             <span className="text-base">🏢</span>
                             <span className="font-bold text-amber-800 text-sm">{division}</span>
                             <div className="ml-auto flex items-center gap-2">
-                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200">👤 {divUsers.length} user</span>
+                              <span className="text-[10px] text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-200">✅ {mappedUserIds.size} mapped</span>
                               <span className="text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">{maps.length} atasan</span>
                             </div>
                           </div>
-                          {divUsers.length > 0 && (
-                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff di Divisi Ini</p>
+                          {candidateUsers.length > 0 && (
+                            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pilih Bawahan yang di-CC ke Atasan Divisi Ini</p>
                               <div className="flex flex-wrap gap-1.5">
-                                {divUsers.map(u => (
-                                  <div key={u.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs">
-                                    <div className="w-4 h-4 rounded-full flex items-center justify-center font-black text-[9px] flex-shrink-0"
-                                      style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)', color: '#78350f' }}>
-                                      {u.full_name?.charAt(0)?.toUpperCase()}
-                                    </div>
-                                    <span className="font-semibold text-slate-700">{u.full_name}</span>
-                                    {u.jabatan && (
-                                      <span className="text-[9px] font-bold px-1 py-0.5 rounded"
-                                        style={{ background: JABATAN_CONFIG[u.jabatan as JabatanType]?.bg ?? '#f1f5f9', color: JABATAN_CONFIG[u.jabatan as JabatanType]?.color ?? '#475569' }}>
-                                        {u.jabatan}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
+                                {candidateUsers.map(u => {
+                                  const cfg = u.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
+                                  const isMapped = mappedUserIds.has(u.id);
+                                  const supId = defaultSupId ?? maps[0]?.supervisor_id;
+                                  return (
+                                    <button key={u.id} onClick={() => handleToggleUserDiv(u.id, supId)}
+                                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border-2 text-xs transition-all ${isMapped ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:border-teal-200'}`}>
+                                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${isMapped ? 'border-teal-500 bg-teal-500' : 'border-slate-300 bg-white'}`}>
+                                        {isMapped && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                      </div>
+                                      {cfg && <span className="text-xs">{cfg.icon}</span>}
+                                      <span className="font-semibold text-slate-700">{u.full_name}</span>
+                                      {u.jabatan && (
+                                        <span className="text-[9px] font-bold px-1 py-0.5 rounded"
+                                          style={{ background: cfg?.bg ?? '#f1f5f9', color: cfg?.color ?? '#475569' }}>
+                                          {u.jabatan}
+                                        </span>
+                                      )}
+                                      <span className="text-[9px] text-slate-400">{u.sales_division}</span>
+                                    </button>
+                                  );
+                                })}
                               </div>
+                              {maps.length > 1 && (
+                                <p className="text-[9px] text-amber-600 mt-1.5">⚠️ Divisi ini punya {maps.length} atasan — centang user akan di-CC ke atasan pertama. Gunakan tab CC per User untuk mapping lebih spesifik.</p>
+                              )}
                             </div>
                           )}
                           <div className="divide-y divide-amber-50 bg-white">
