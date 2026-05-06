@@ -218,7 +218,36 @@ const SALES_DIVISIONS = [
   'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
   'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
   'IOCBali', 'SGP', 'SGP 1', 'SGP 2', 'OSS',
-];
+] as const;
+
+// ── Helper Functions ─────────────────────────────────────────────────────────
+function formatDateTime(dateString: string) {
+  if (!dateString) return "-";
+  let normalized = dateString;
+  if (!dateString.endsWith("Z") && !dateString.includes("+") && !(dateString.indexOf("-", 10) > -1)) {
+    normalized = dateString + "Z";
+  }
+  const utcDate = new Date(normalized);
+  if (isNaN(utcDate.getTime())) return dateString;
+  const jakartaTime = new Date(utcDate.getTime() + 7 * 60 * 60 * 1000);
+  const day = String(jakartaTime.getUTCDate()).padStart(2, "0");
+  const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, "0");
+  const year = jakartaTime.getUTCFullYear();
+  const hours = String(jakartaTime.getUTCHours()).padStart(2, "0");
+  const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, "0");
+  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+}
+
+// ── Status Donut Card ──────────────────────────────────────────────────────────
+function StatusDonutCard({
+  data,
+  total,
+  onSliceClick,
+  title,
+  icon,
+}: {
+  data: { name: string; value: number; color: string }[];
   total: number;
   onSliceClick: (name: string) => void;
   title: string;
