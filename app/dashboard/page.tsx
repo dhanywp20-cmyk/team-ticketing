@@ -52,12 +52,11 @@ interface NotificationItem {
 }
 
 const SALES_DIVISIONS = [
-  "IVP", "MLDS", "HAVS", "Enterprise", "DEC", "ICS", "POJ", "VOJ", "LOCOS",
-  "VISIONMEDIA", "UMP", "BISOL", "KIMS", "IDC", "IOCMEDAN", "IOCPekanbaru",
-  "IOCBandung", "IOCJATENG", "MVISEMARANG", "POSSurabaya", "IOCSurabaya",
-  "IOCBali", "SGP", "SGP 1", "SGP 2", "OSS",
-] as const;
-
+  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
+  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
+  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
+  'IOCBali', 'SGP', 'SGP 1', 'SGP 2', 'OSS',
+];
 
 // Hierarki jabatan — urutan dari bawah ke atas
 const JABATAN_LIST = ['Staff', 'Supervisor', 'Manager', 'Deputy General Manager', 'General Manager', 'Direktur'] as const;
@@ -1040,22 +1039,17 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
     .filter(u => {
       if (u.role?.toLowerCase() !== 'guest') return false;
       if (!u.sales_division || u.sales_division === 'IVP') return false;
-      if (supervisorIds.has(u.id)) return false; // sudah jadi atasan terdaftar
-      // Hanya tampilkan user yang jabatannya LEBIH RENDAH dari semua atasan di divisinya
-      // Jika user tidak punya jabatan, tampilkan (biar admin tahu perlu di-set)
-      if (!u.jabatan) return true;
-      const userTier = JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0;
-      // Cek apakah ada atasan di divisi ini dengan tier >= userTier
+      if (supervisorIds.has(u.id)) return false; // sudah jadi atasan terdaftar → tampil di list atasan, bukan staff
+      const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 0;
       const atasanDivisi = (atasanByDiv[u.sales_division!] ?? []);
-      const hasHigherAtasan = atasanDivisi.some(m => {
+      if (atasanDivisi.length === 0) return true; // belum ada atasan → tampilkan semua
+      // Cari tier TERTINGGI dari semua atasan di divisi ini
+      const maxAtasanTier = Math.max(...atasanDivisi.map(m => {
         const atasan = allUsers.find(a => a.id === m.supervisor_id);
-        const atasanTier = atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
-        return atasanTier > userTier;
-      });
-      // Jika tidak ada atasan → tampilkan semua (agar admin tahu siapa yang perlu di-mapping)
-      if (atasanDivisi.length === 0) return true;
-      // Tampilkan hanya jika jabatannya lebih rendah dari atasan yang ada
-      return hasHigherAtasan;
+        return atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
+      }));
+      // Tampilkan user yang tier-nya LEBIH RENDAH dari atasan tertinggi (= bawahan)
+      return userTier < maxAtasanTier;
     })
     .forEach(u => {
       const div = u.sales_division!;
