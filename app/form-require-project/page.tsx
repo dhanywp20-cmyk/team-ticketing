@@ -195,10 +195,8 @@ const SALES_DIVISIONS = [
   'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
   'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
   'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
-  'IOCBali', 'SGP', 'OSS'
-] as const;
-
-const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+  'IOCBali', 'SGP', 'SGP 1', 'SGP 2', 'OSS',
+];
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
   pending:     { label: '⏳ Pending',     color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-400' },
@@ -1114,8 +1112,33 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
       }
     } else {
-      // non-IVP guest: hanya request miliknya sendiri
-      query = query.eq('requester_id', currentUser.id);
+      // non-IVP guest: cek jabatan tier untuk supervisor visibility
+      const selfJabatan = (currentUser as any).jabatan as string | undefined;
+      const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
+      const selfDiv = currentUser.sales_division;
+
+      if (selfTier > 1 && selfDiv) {
+        // Supervisor+: lihat request dari divisi sendiri yang dibuat oleh user tier lebih rendah
+        // Ambil semua user di divisi yang sama
+        const { data: divUsers } = await supabase.from('users')
+          .select('id, jabatan').eq('sales_division', selfDiv).eq('role', 'guest');
+        const subordinateIds = (divUsers ?? [])
+          .filter((u: any) => {
+            const t = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
+            return t < selfTier;
+          })
+          .map((u: any) => u.id as string);
+
+        if (subordinateIds.length > 0) {
+          const subFilter = subordinateIds.map((id: string) => `requester_id.eq.${id}`).join(',');
+          query = query.or(`requester_id.eq.${currentUser.id},${subFilter}`);
+        } else {
+          query = query.eq('requester_id', currentUser.id);
+        }
+      } else {
+        // Staff biasa: hanya request miliknya sendiri
+        query = query.eq('requester_id', currentUser.id);
+      }
     }
     const { data, error } = await query;
     if (!error && data) {
@@ -1142,7 +1165,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     }
     setLoading(false);
     setAppReady(true);
-  }, [currentUser.id, isPTS, isIVPGuest]);
+  }, [currentUser.id, currentUser.sales_division, (currentUser as any).jabatan, isPTS, isIVPGuest]);
 
   const fetchMessages = useCallback(async (requestId: string) => {
     const { data, error } = await supabase.from('project_messages').select('*').eq('request_id', requestId).order('created_at', { ascending: true });
@@ -2875,8 +2898,8 @@ Hubungi Admin untuk info lebih lanjut.
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-lg font-bold text-white truncate">{selectedRequest.project_name}</h2>
-                  {selectedRequest.assign_name && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">{selectedRequest.assign_name}</span>}
-				  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} text-white`}>Status : {detailSc.label}</span>
+                  {selectedRequest.assign_name && <span className="bg-white/20 text-white px-2.5 py-1 rounded-full text-xs font-bold border border-white/30">🔧 Handler: {selectedRequest.assign_name}</span>}
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${detailSc.color} text-white`}>📋 Status: {detailSc.label}</span>
                 </div>
                 <p className="text-teal-100 text-xs mt-0.5 truncate">
                   {selectedRequest.room_name && `${selectedRequest.room_name} · `}
