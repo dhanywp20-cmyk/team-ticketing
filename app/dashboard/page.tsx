@@ -1040,28 +1040,31 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
     supervisorIdsByDiv[m.sales_division].add(m.supervisor_id);
   });
 
+  // usersByDiv: untuk setiap divisi yang punya atasan, tampilkan SEMUA user
+  // (dari divisi manapun) yang tier jabatannya lebih rendah dari tier atasan tertinggi di divisi tsb
   const usersByDiv: Record<string, User[]> = {};
-  allUsers
-    .filter(u => {
-      if (u.role?.toLowerCase() !== 'guest') return false;
-      if (!u.sales_division || u.sales_division === 'IVP') return false;
-      const div = u.sales_division!;
-      // Exclude hanya jika user adalah atasan DI DIVISI YANG SAMA
-      if (supervisorIdsByDiv[div]?.has(u.id)) return false;
-      const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 0;
-      const atasanDivisi = (atasanByDiv[div] ?? []);
-      if (atasanDivisi.length === 0) return true;
-      const maxAtasanTier = Math.max(...atasanDivisi.map(m => {
-        const atasan = allUsers.find(a => a.id === m.supervisor_id);
-        return atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
-      }));
+  const allGuestUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division && u.sales_division !== 'IVP');
+
+  Object.keys(atasanByDiv).forEach(div => {
+    const atasanDivisi = atasanByDiv[div];
+    // Tier tertinggi dari atasan di divisi ini
+    const maxAtasanTier = Math.max(...atasanDivisi.map(m => {
+      const atasan = allUsers.find(a => a.id === m.supervisor_id);
+      return atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
+    }));
+    if (maxAtasanTier === 0) return;
+
+    // Kumpulkan semua user (dari divisi manapun) yang:
+    // 1. Bukan atasan terdaftar di divisi INI
+    // 2. Tier jabatan < maxAtasanTier
+    const subordinates = allGuestUsers.filter(u => {
+      if (supervisorIdsByDiv[div]?.has(u.id)) return false; // sudah jadi atasan di divisi ini
+      const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 1;
       return userTier < maxAtasanTier;
-    })
-    .forEach(u => {
-      const div = u.sales_division!;
-      if (!usersByDiv[div]) usersByDiv[div] = [];
-      usersByDiv[div].push(u);
     });
+
+    usersByDiv[div] = subordinates;
+  });
 
   const selectedUserObj = selectedCCUserId ? getUserById(selectedCCUserId) : null;
   const selectedJabatan = selectedUserObj?.jabatan as JabatanType | undefined;
