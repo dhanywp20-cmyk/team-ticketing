@@ -1158,20 +1158,17 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <div className="space-y-3">
                     {Object.entries(atasanByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
                       const supIdsInDiv = new Set(maps.map(m => m.supervisor_id));
-                      // Tier tertinggi dari atasan di divisi ini
                       const maxAtasanTier = maps.reduce((max, m) => {
                         const atasan = allUsers.find(a => a.id === m.supervisor_id);
                         const t = atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
                         return Math.max(max, t);
                       }, 0);
-                      // Semua guest user (dari divisi manapun) dengan tier < maxAtasanTier
-                      // kecuali yang sudah jadi atasan di divisi ini
                       const divUsers = allUsers.filter(u => {
                         if (u.role?.toLowerCase() !== 'guest') return false;
-                        if (!u.sales_division || u.sales_division === 'IVP') return false;
+                        if (u.sales_division !== division) return false; // HANYA divisi yang sama persis
                         if (supIdsInDiv.has(u.id)) return false;
                         const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 0;
-                        return maxAtasanTier > 0 && userTier < maxAtasanTier;
+                        return maxAtasanTier === 0 || userTier < maxAtasanTier;
                       }).sort((a, b) => {
                         const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
                         const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
