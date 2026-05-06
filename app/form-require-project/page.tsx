@@ -118,6 +118,8 @@ async function sendWANotif(body: Record<string, unknown>): Promise<void> {
 }
 
 // ── Hierarki jabatan (bawah → atas) ──────────────────────────────────────────
+const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+
 const JABATAN_TIER: Record<string, number> = {
   'Staff': 1, 'Supervisor': 2, 'Manager': 3,
   'Deputy General Manager': 4, 'General Manager': 5, 'Direktur': 6,
