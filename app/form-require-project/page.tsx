@@ -698,7 +698,7 @@ function NewFormModal({
       </div>
     </div>
   );
-  }
+  };
 
   const RadioGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) => (
     <div className="mb-4">
