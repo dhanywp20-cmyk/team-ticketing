@@ -66,6 +66,30 @@ interface ProjectRequest {
   approved_by?: string;
   approved_at?: string;
   due_date?: string;
+  rooms?: RoomDetail[];
+  brand_display?: string;
+  brand_display_pic_id?: string;
+  brand_display_pic_name?: string;
+  brand_middleware?: string;
+  brand_middleware_pic_id?: string;
+  brand_middleware_pic_name?: string;
+}
+
+interface RoomDetail {
+  id: string;
+  room_name: string;
+  kebutuhan: string[];
+  kebutuhan_other: string;
+  solution_product: string[];
+  solution_other: string;
+  brand_display?: string;
+  brand_display_pic_id?: string;
+  brand_display_pic_name?: string;
+  brand_middleware?: string;
+  brand_middleware_pic_id?: string;
+  brand_middleware_pic_name?: string;
+  ukuran_ruangan?: string;
+  keterangan_lain?: string;
 }
 
 interface ProjectMessage {
@@ -564,6 +588,11 @@ interface NewFormModalProps {
   onClose: () => void;
   onSubmit: () => void;
   salesGuestUsers: {id:string;full_name:string;username:string;sales_division?:string}[];
+  brandUsers: {id:string;full_name:string;username:string;phone_number?:string;sales_division?:string}[];
+  rooms: RoomDetail[];
+  addRoom: () => void;
+  removeRoom: (id: string) => void;
+  updateRoom: (id: string, patch: Partial<RoomDetail>) => void;
 }
 
 function NewFormModal({
@@ -571,7 +600,7 @@ function NewFormModal({
   surveyPhotos, setSurveyPhotos, surveyPhotosPreviews, setSurveyPhotosPreviews,
   boqFormFile, setBoqFormFile,
   submitting, onClose, onSubmit,
-  salesGuestUsers,
+  salesGuestUsers, brandUsers, rooms, addRoom, removeRoom, updateRoom,
 }: NewFormModalProps) {
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
   const boqFormRef = useRef<HTMLInputElement>(null);
@@ -685,11 +714,167 @@ function NewFormModal({
             </div>
           </div>
 
-          {/* Kebutuhan & Solution */}
+          {/* ── Multi-Room Section ──────────────────────────────────────────── */}
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-teal-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🚪</span>
+                Ruangan & Solution
+              </h3>
+              <button type="button" onClick={addRoom}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all shadow">
+                + Tambah Ruangan
+              </button>
+            </div>
+
+            {rooms.length === 0 && (
+              <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
+                <p className="text-2xl mb-1">🚪</p>
+                <p>Belum ada ruangan. Klik <strong>+ Tambah Ruangan</strong> untuk mulai.</p>
+                <p className="text-xs mt-1">Setiap ruangan bisa punya kebutuhan & brand berbeda.</p>
+              </div>
+            )}
+
+            {rooms.map((room, idx) => (
+              <div key={room.id} className="mb-4 border-2 border-gray-200 rounded-2xl overflow-hidden">
+                {/* Room header */}
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                  <span className="text-sm font-black text-teal-700">Ruangan {idx + 1}</span>
+                  <input value={room.room_name}
+                    onChange={e => updateRoom(room.id, { room_name: e.target.value })}
+                    placeholder="Nama ruangan / area..."
+                    className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-medium bg-white outline-none focus:border-teal-400" />
+                  <button type="button" onClick={() => removeRoom(room.id)}
+                    className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  {/* Kebutuhan */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Kebutuhan *</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom'].map(opt => (
+                        <button key={opt} type="button"
+                          onClick={() => updateRoom(room.id, { kebutuhan: room.kebutuhan.includes(opt) ? room.kebutuhan.filter(k => k !== opt) : [...room.kebutuhan, opt] })}
+                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.kebutuhan.includes(opt) ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <input value={room.kebutuhan_other} onChange={e => updateRoom(room.id, { kebutuhan_other: e.target.value })}
+                      placeholder="Other kebutuhan..." className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 bg-white outline-none" />
+                  </div>
+
+                  {/* Solution Product */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Solution Product *</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP'].map(opt => (
+                        <button key={opt} type="button"
+                          onClick={() => updateRoom(room.id, { solution_product: room.solution_product.includes(opt) ? room.solution_product.filter(s => s !== opt) : [...room.solution_product, opt] })}
+                          className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${room.solution_product.includes(opt) ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-500 hover:border-violet-300'}`}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <input value={room.solution_other} onChange={e => updateRoom(room.id, { solution_other: e.target.value })}
+                      placeholder="Other solution..." className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 bg-white outline-none" />
+                  </div>
+
+                  {/* Brand Display & Middleware */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-gray-100">
+                    {/* Brand Display */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">🖥️ Brand Display <span className="text-gray-400 font-normal normal-case">(opsional)</span></label>
+                      <select value={room.brand_display || ''}
+                        onChange={e => updateRoom(room.id, { brand_display: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-amber-400 appearance-none">
+                        <option value="">— Pilih Brand Display —</option>
+                        {['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'].map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                      {room.brand_display && (
+                        <div className="mt-1.5">
+                          <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">PIC Brand Display</label>
+                          <select value={room.brand_display_pic_id || ''}
+                            onChange={e => {
+                              const pic = brandUsers.find(u => u.id === e.target.value);
+                              updateRoom(room.id, { brand_display_pic_id: e.target.value, brand_display_pic_name: pic?.full_name || '' });
+                            }}
+                            className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400 appearance-none">
+                            <option value="">— Pilih PIC —</option>
+                            {brandUsers.map(u => (
+                              <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Brand Middleware */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1.5">🔌 Brand Middleware <span className="text-gray-400 font-normal normal-case">(opsional)</span></label>
+                      <select value={room.brand_middleware || ''}
+                        onChange={e => updateRoom(room.id, { brand_middleware: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 appearance-none">
+                        <option value="">— Pilih Brand Middleware —</option>
+                        {['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'].map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                      {room.brand_middleware && (
+                        <div className="mt-1.5">
+                          <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1">PIC Brand Middleware</label>
+                          <select value={room.brand_middleware_pic_id || ''}
+                            onChange={e => {
+                              const pic = brandUsers.find(u => u.id === e.target.value);
+                              updateRoom(room.id, { brand_middleware_pic_id: e.target.value, brand_middleware_pic_name: pic?.full_name || '' });
+                            }}
+                            className="w-full border border-violet-200 rounded-lg px-3 py-2 text-sm bg-violet-50 outline-none focus:border-violet-400 appearance-none">
+                            <option value="">— Pilih PIC —</option>
+                            {brandUsers.map(u => (
+                              <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Ukuran & Keterangan */}
+                  <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan</label>
+                      <input value={room.ukuran_ruangan || ''} onChange={e => updateRoom(room.id, { ukuran_ruangan: e.target.value })}
+                        placeholder="e.g. 6m x 8m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan</label>
+                      <input value={room.keterangan_lain || ''} onChange={e => updateRoom(room.id, { keterangan_lain: e.target.value })}
+                        placeholder="Info tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {rooms.length > 0 && (
+              <button type="button" onClick={addRoom}
+                className="w-full py-2.5 border-2 border-dashed border-teal-300 rounded-xl text-teal-600 text-sm font-semibold hover:bg-teal-50 transition-all">
+                + Tambah Ruangan Lagi
+              </button>
+            )}
+          </div>
+
+          {/* Kebutuhan & Solution (untuk kompatibilitas backward — hidden jika ada rooms) */}
+          {rooms.length === 0 && (
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
-              Kategori Kebutuhan & Solution
+              Kategori Kebutuhan & Solution (Umum)
             </h3>
             <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
               value={form.kebutuhan[0] || ''} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v ? [v] : [] }))} />
@@ -706,6 +891,7 @@ function NewFormModal({
                 placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
             </div>
           </div>
+          )}
 
           {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
           {form.kebutuhan.includes('Signage') && (
@@ -1078,11 +1264,33 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   // Guest/Sales users list for dropdown
   const [salesGuestUsers, setSalesGuestUsers] = useState<{id:string;full_name:string;username:string;sales_division?:string}[]>([]);
+  const [brandUsers, setBrandUsers] = useState<{id:string;full_name:string;username:string;phone_number?:string;sales_division?:string}[]>([]);
   useEffect(() => {
     supabase.from('users').select('id, full_name, username, sales_division').eq('role', 'guest').then(({ data }: { data: {id:string;full_name:string;username:string;sales_division?:string}[] | null }) => {
       if (data) setSalesGuestUsers(data);
     });
+    // Brand PIC: users dari divisi IVP, MLDS, OSS, UMP
+    supabase.from('users').select('id, full_name, username, phone_number, sales_division')
+      .eq('role', 'guest')
+      .in('sales_division', ['IVP', 'MLDS', 'OSS', 'UMP'])
+      .order('full_name')
+      .then(({ data }: { data: any[] | null }) => {
+        if (data) setBrandUsers(data);
+      });
   }, []);
+
+  // Rooms management for multi-room form
+  const [rooms, setRooms] = useState<RoomDetail[]>([]);
+  const generateRoomId = () => Math.random().toString(36).slice(2, 10);
+  const addRoom = () => setRooms(prev => [...prev, {
+    id: generateRoomId(), room_name: '', kebutuhan: [], kebutuhan_other: '',
+    solution_product: [], solution_other: '',
+    brand_display: '', brand_display_pic_id: '', brand_display_pic_name: '',
+    brand_middleware: '', brand_middleware_pic_id: '', brand_middleware_pic_name: '',
+    ukuran_ruangan: '', keterangan_lain: '',
+  }]);
+  const removeRoom = (id: string) => setRooms(prev => prev.filter(r => r.id !== id));
+  const updateRoom = (id: string, patch: Partial<RoomDetail>) => setRooms(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
 
   const [form, setForm] = useState<InitialFormType>(initialForm);
   const [dueDateForm, setDueDateForm] = useState('');
@@ -1114,26 +1322,60 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
       }
     } else {
-      // non-IVP guest: cek jabatan tier untuk supervisor visibility
+      // non-IVP guest: pakai pola sama dengan Ticketing
       const selfJabatan = (currentUser as any).jabatan as string | undefined;
       const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
       const selfDiv = currentUser.sales_division;
 
-      if (selfTier > 1 && selfDiv) {
-        // Supervisor+: lihat request dari divisi sendiri yang dibuat oleh user tier lebih rendah
-        // Ambil semua user di divisi yang sama
-        const { data: divUsers } = await supabase.from('users')
-          .select('id, jabatan').eq('sales_division', selfDiv).eq('role', 'guest');
-        const subordinateIds = (divUsers ?? [])
-          .filter((u: any) => {
-            const t = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
-            return t < selfTier;
-          })
+      // Cek division_supervisor_mappings
+      const { data: supMaps } = await supabase.from('division_supervisor_mappings')
+        .select('sales_division').eq('supervisor_id', currentUser.id);
+      const supervisedDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
+
+      // Auto-include divisi sendiri jika jabatan tier > 1
+      if (selfDiv && selfTier > 1 && !supervisedDivisions.includes(selfDiv)) {
+        supervisedDivisions.push(selfDiv);
+      }
+
+      // Cek user_supervisor_mappings (manual cross-divisi)
+      const { data: userSupMaps } = await supabase.from('user_supervisor_mappings')
+        .select('user_id').eq('supervisor_id', currentUser.id);
+      const manualSubIds = new Set((userSupMaps ?? []).map((m: any) => m.user_id as string));
+
+      const isSupervisor = (supervisedDivisions.length > 0 && selfTier > 0) || manualSubIds.size > 0;
+
+      if (isSupervisor) {
+        // Ambil semua user untuk tier lookup
+        const { data: allGuests } = await supabase.from('users')
+          .select('id, jabatan').eq('role', 'guest');
+
+        const subordinateIds = (allGuests ?? [])
+          .filter((u: any) => (u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0) < selfTier)
           .map((u: any) => u.id as string);
 
-        if (subordinateIds.length > 0) {
-          const subFilter = subordinateIds.map((id: string) => `requester_id.eq.${id}`).join(',');
-          query = query.or(`requester_id.eq.${currentUser.id},${subFilter}`);
+        // Tambah manual subordinates
+        manualSubIds.forEach(id => { if (!subordinateIds.includes(id)) subordinateIds.push(id); });
+
+        // Build filter: request milik sendiri + bawahan di divisi yang di-supervisi + manual sub
+        const ownFilter = `requester_id.eq.${currentUser.id}`;
+        if (supervisedDivisions.length > 0 && subordinateIds.length > 0) {
+          // Ambil requests dari supervised divisions yang requester-nya bawahan
+          const { data: subUsers } = await supabase.from('users')
+            .select('id').in('id', subordinateIds).in('sales_division', supervisedDivisions);
+          const subIdsInDiv = (subUsers ?? []).map((u: any) => u.id as string);
+
+          // Juga manual subs tanpa filter divisi
+          const allSubIds = [...new Set([...subIdsInDiv, ...Array.from(manualSubIds)])];
+
+          if (allSubIds.length > 0) {
+            const subFilter = allSubIds.map(id => `requester_id.eq.${id}`).join(',');
+            query = query.or(`${ownFilter},${subFilter}`);
+          } else {
+            query = query.eq('requester_id', currentUser.id);
+          }
+        } else if (manualSubIds.size > 0) {
+          const subFilter = Array.from(manualSubIds).map(id => `requester_id.eq.${id}`).join(',');
+          query = query.or(`${ownFilter},${subFilter}`);
         } else {
           query = query.eq('requester_id', currentUser.id);
         }
@@ -1397,8 +1639,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         // Guest: always use account's sales_name & sales_division (not form which may be empty)
         sales_name: (!isPTS ? (currentUser.full_name || form.sales_name).trim() : form.sales_name.trim()),
         sales_division: (!isPTS ? (currentUser.sales_division || form.sales_division || '').trim() : (form.sales_division?.trim() || '')),
-        kebutuhan: form.kebutuhan, kebutuhan_other: form.kebutuhan_other.trim(),
-        solution_product: form.solution_product, solution_other: form.solution_other.trim(),
+        kebutuhan: rooms.length > 0 ? [] : form.kebutuhan, kebutuhan_other: form.kebutuhan_other.trim(),
+        solution_product: rooms.length > 0 ? [] : form.solution_product, solution_other: form.solution_other.trim(),
+        rooms: rooms.length > 0 ? rooms : [],
         layout_signage: form.layout_signage, jaringan_cms: form.jaringan_cms,
         jumlah_input: form.jumlah_input.trim(), jumlah_output: form.jumlah_output.trim(),
         source: form.source, source_other: form.source_other.trim(),
@@ -1491,7 +1734,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         }
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
-      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null);
+      setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]);
       setShowNewFormModal(false);
       fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
@@ -2154,6 +2397,11 @@ Hubungi Admin untuk info lebih lanjut.
           setForm={setForm}
           initialForm={initialForm}
           salesGuestUsers={salesGuestUsers}
+          brandUsers={brandUsers}
+          rooms={rooms}
+          addRoom={addRoom}
+          removeRoom={removeRoom}
+          updateRoom={updateRoom}
           dueDateForm={dueDateForm}
           setDueDateForm={setDueDateForm}
           surveyPhotos={surveyPhotos}
@@ -2163,7 +2411,7 @@ Hubungi Admin untuk info lebih lanjut.
           boqFormFile={boqFormFile}
           setBoqFormFile={setBoqFormFile}
           submitting={submitting}
-          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); }}
+          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); }}
           onSubmit={handleSubmitForm}
         />
       )}
@@ -3114,6 +3362,68 @@ Hubungi Admin untuk info lebih lanjut.
                       </div>
                     </div>
                   </div>
+
+                  {/* Rooms detail — shown if rooms exist */}
+                  {selectedRequest.rooms && selectedRequest.rooms.length > 0 && (
+                    <div className="bg-white/95 rounded-2xl p-5 border-2 border-teal-200 shadow-sm">
+                      <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🚪</span>
+                        Detail Ruangan ({selectedRequest.rooms.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {selectedRequest.rooms.map((room, idx) => (
+                          <div key={room.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                            <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                              <span className="font-bold text-teal-700 text-sm">Ruangan {idx + 1}</span>
+                              {room.room_name && <span className="ml-2 text-sm text-gray-600">— {room.room_name}</span>}
+                            </div>
+                            <div className="p-4 space-y-2.5">
+                              {room.kebutuhan.length > 0 && (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Kebutuhan</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {room.kebutuhan.map(k => <span key={k} className="px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-xs font-semibold">{k}</span>)}
+                                    {room.kebutuhan_other && <span className="px-2.5 py-1 rounded-lg bg-gray-100 border border-gray-200 text-gray-600 text-xs">{room.kebutuhan_other}</span>}
+                                  </div>
+                                </div>
+                              )}
+                              {room.solution_product.length > 0 && (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Solution Product</label>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {room.solution_product.map(s => <span key={s} className="px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-700 text-xs font-semibold">{s}</span>)}
+                                    {room.solution_other && <span className="px-2.5 py-1 rounded-lg bg-gray-100 border border-gray-200 text-gray-600 text-xs">{room.solution_other}</span>}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-2 gap-3">
+                                {room.brand_display && (
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">🖥️ Brand Display</label>
+                                    <p className="text-sm font-semibold text-gray-800">{room.brand_display}</p>
+                                    {room.brand_display_pic_name && <p className="text-xs text-amber-600 mt-0.5">PIC: {room.brand_display_pic_name}</p>}
+                                  </div>
+                                )}
+                                {room.brand_middleware && (
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1">🔌 Brand Middleware</label>
+                                    <p className="text-sm font-semibold text-gray-800">{room.brand_middleware}</p>
+                                    {room.brand_middleware_pic_name && <p className="text-xs text-violet-600 mt-0.5">PIC: {room.brand_middleware_pic_name}</p>}
+                                  </div>
+                                )}
+                              </div>
+                              {(room.ukuran_ruangan || room.keterangan_lain) && (
+                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                                  {room.ukuran_ruangan && <div><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Ukuran</label><p className="text-sm text-gray-700">{room.ukuran_ruangan}</p></div>}
+                                  {room.keterangan_lain && <div><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Keterangan</label><p className="text-sm text-gray-700">{room.keterangan_lain}</p></div>}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Layout Konten & Jaringan — form style */}
                   <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
