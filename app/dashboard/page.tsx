@@ -1158,9 +1158,21 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <div className="space-y-3">
                     {Object.entries(atasanByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
                       const supIdsInDiv = new Set(maps.map(m => m.supervisor_id));
-                      const divUsers = allUsers.filter(u =>
-                        u.role?.toLowerCase() === 'guest' && u.sales_division === division && !supIdsInDiv.has(u.id)
-                      ).sort((a, b) => {
+                      // Tier tertinggi dari atasan di divisi ini
+                      const maxAtasanTier = maps.reduce((max, m) => {
+                        const atasan = allUsers.find(a => a.id === m.supervisor_id);
+                        const t = atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
+                        return Math.max(max, t);
+                      }, 0);
+                      // Semua guest user (dari divisi manapun) dengan tier < maxAtasanTier
+                      // kecuali yang sudah jadi atasan di divisi ini
+                      const divUsers = allUsers.filter(u => {
+                        if (u.role?.toLowerCase() !== 'guest') return false;
+                        if (!u.sales_division || u.sales_division === 'IVP') return false;
+                        if (supIdsInDiv.has(u.id)) return false;
+                        const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 0;
+                        return maxAtasanTier > 0 && userTier < maxAtasanTier;
+                      }).sort((a, b) => {
                         const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
                         const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
                         return tb - ta;
@@ -1177,7 +1189,7 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                           </div>
                           {divUsers.length > 0 && (
                             <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Staff di Divisi Ini</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bawahan di Divisi Ini</p>
                               <div className="flex flex-wrap gap-1.5">
                                 {divUsers.map(u => {
                                   const cfg = u.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
@@ -1193,6 +1205,9 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                                           style={{ background: cfg?.bg ?? '#f1f5f9', color: cfg?.color ?? '#475569' }}>
                                           {cfg?.icon} {u.jabatan}
                                         </span>
+                                      )}
+                                      {u.sales_division && u.sales_division !== division && (
+                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{u.sales_division}</span>
                                       )}
                                     </div>
                                   );
