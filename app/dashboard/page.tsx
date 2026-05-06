@@ -1163,10 +1163,18 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                         const t = atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0;
                         return Math.max(max, t);
                       }, 0);
+                      // Atasan dengan tier tertinggi (yang jadi "puncak" divisi ini)
+                      const topAtasanIds = new Set(maps
+                        .filter(m => {
+                          const atasan = allUsers.find(a => a.id === m.supervisor_id);
+                          return (atasan?.jabatan ? (JABATAN_CONFIG[atasan.jabatan as JabatanType]?.tier ?? 0) : 0) === maxAtasanTier;
+                        })
+                        .map(m => m.supervisor_id)
+                      );
                       const divUsers = allUsers.filter(u => {
                         if (u.role?.toLowerCase() !== 'guest') return false;
-                        if (u.sales_division !== division) return false; // HANYA divisi yang sama persis
-                        if (supIdsInDiv.has(u.id)) return false;
+                        if (u.sales_division !== division) return false;
+                        if (topAtasanIds.has(u.id)) return false; // exclude hanya top atasan
                         const userTier = u.jabatan ? (JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0) : 0;
                         return maxAtasanTier === 0 || userTier < maxAtasanTier;
                       }).sort((a, b) => {
