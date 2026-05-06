@@ -66,6 +66,63 @@ interface ProjectRequest {
   approved_by?: string;
   approved_at?: string;
   due_date?: string;
+  rooms?: RoomDetail[];
+  brand_display?: string;
+  brand_display_pic_id?: string;
+  brand_display_pic_name?: string;
+  brand_middleware?: string;
+  brand_middleware_pic_id?: string;
+  brand_middleware_pic_name?: string;
+}
+
+interface RoomDetail {
+  id: string;
+  room_name: string;
+  kebutuhan: string[];
+  kebutuhan_other: string;
+  solution_product: string[];
+  solution_other: string;
+  brand_display: string;
+  brand_display_pic_id: string;
+  brand_display_pic_name: string;
+  brand_middleware: string;
+  brand_middleware_pic_id: string;
+  brand_middleware_pic_name: string;
+  layout_signage: string[];
+  jaringan_cms: string[];
+  jumlah_input: string;
+  jumlah_output: string;
+  source: string[];
+  source_other: string;
+  source_laptop_qty: string;
+  source_pc_qty: string;
+  camera_conference: string;
+  camera_jumlah: string;
+  camera_tracking: string[];
+  audio_system: string;
+  audio_mixer: string;
+  audio_detail: string[];
+  wallplate_input: string;
+  wallplate_jumlah: string;
+  tabletop_input: string;
+  tabletop_jumlah: string;
+  wireless_presentation: string;
+  wireless_mode: string[];
+  wireless_dongle: string;
+  controller_automation: string;
+  controller_type: string[];
+  ukuran_ruangan: string;
+  suggest_tampilan: string;
+  keterangan_lain: string;
+  survey_photos_count?: number;
+}
+
+interface BrandPicMapping {
+  id: string;
+  brand_type: 'display' | 'middleware';
+  brand_name: string;
+  pic_user_id: string;
+  pic_user_name: string;
 }
 
 interface ProjectMessage {
@@ -195,8 +252,28 @@ const SALES_DIVISIONS = [
   'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
   'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
   'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
-  'IOCBali', 'SGP', 'OSS'
+  'IOCBali', 'SGP', 'SGP 1', 'SGP 2', 'OSS'
 ] as const;
+
+const DISPLAY_BRANDS = ['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'] as const;
+const MIDDLEWARE_BRANDS = ['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'] as const;
+const BRAND_PIC_DIVISIONS = ['IVP', 'MLDS', 'UMP', 'OSS'];
+
+const emptyRoom = (): RoomDetail => ({
+  id: Math.random().toString(36).slice(2, 10),
+  room_name: '', kebutuhan: [], kebutuhan_other: '', solution_product: [], solution_other: '',
+  brand_display: '', brand_display_pic_id: '', brand_display_pic_name: '',
+  brand_middleware: '', brand_middleware_pic_id: '', brand_middleware_pic_name: '',
+  layout_signage: [], jaringan_cms: [], jumlah_input: '', jumlah_output: '',
+  source: [], source_other: '', source_laptop_qty: '', source_pc_qty: '',
+  camera_conference: 'No', camera_jumlah: '', camera_tracking: [],
+  audio_system: 'No', audio_mixer: '', audio_detail: [],
+  wallplate_input: 'No', wallplate_jumlah: '', tabletop_input: 'No', tabletop_jumlah: '',
+  wireless_presentation: 'No', wireless_mode: [], wireless_dongle: 'No',
+  controller_automation: 'No', controller_type: [],
+  ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
+});
+
 
 const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
@@ -529,6 +606,208 @@ function AssignPTSModal({
   );
 }
 
+// ─── RoomSection ─────────────────────────────────────────────────────────────
+
+function RoomSection({ room, rIdx, onUpdate, onRemove, brandPicMappings, photos, onAddPhotos, onRemovePhoto, toggleArr }: {
+  room: RoomDetail; rIdx: number;
+  onUpdate: (patch: Partial<RoomDetail>) => void;
+  onRemove: () => void;
+  brandPicMappings: BrandPicMapping[];
+  photos: File[];
+  onAddPhotos: (files: File[]) => void;
+  onRemovePhoto: (i: number) => void;
+  toggleArr: (arr: string[], val: string) => string[];
+}) {
+  const [previews, setPreviews] = useState<string[]>([]);
+  useEffect(() => { setPreviews(photos.map(f => URL.createObjectURL(f))); }, [photos]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const getBrandPic = (type: 'display'|'middleware', brand: string) =>
+    brandPicMappings.find(m => m.brand_type === type && m.brand_name === brand);
+
+  const YN = ({ label, field, value }: { label: string; field: keyof RoomDetail; value: string }) => (
+    <div className="space-y-1.5">
+      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</label>
+      <div className="flex gap-2">
+        {['Yes','No'].map(opt => (
+          <button key={opt} type="button" onClick={() => onUpdate({ [field]: opt } as any)}
+            className={`px-4 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${value === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500'}`}>{opt}</button>
+        ))}
+      </div>
+    </div>
+  );
+  const Chips = ({ label, opts, value, field, multi=true }: { label:string; opts:string[]; value:string[]; field:keyof RoomDetail; multi?:boolean }) => (
+    <div className="space-y-1.5">
+      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</label>
+      <div className="flex flex-wrap gap-1.5">
+        {opts.map(opt => {
+          const active = value.includes(opt);
+          return <button key={opt} type="button"
+            onClick={() => onUpdate({ [field]: multi ? toggleArr(value, opt) : (active ? [] : [opt]) } as any)}
+            className={`px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all ${active ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`}>{opt}</button>;
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="mb-4 border-2 border-gray-200 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+        <span className="text-xs font-black text-teal-700">Ruangan {rIdx + 2}</span>
+        <input value={room.room_name} onChange={e => onUpdate({ room_name: e.target.value })}
+          placeholder="Nama ruangan / area..."
+          className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-medium bg-white outline-none focus:border-teal-400" />
+        <button type="button" onClick={onRemove}
+          className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all flex-shrink-0">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div className="p-4 space-y-4">
+        {/* Kebutuhan — single select */}
+        <Chips label="Kebutuhan *" opts={['Signage','Immersive','Meeting Room','Mapping','Command Center','Hybrid Classroom']} value={room.kebutuhan} field="kebutuhan" multi={false} />
+        <input value={room.kebutuhan_other} onChange={e => onUpdate({ kebutuhan_other: e.target.value })} placeholder="Other kebutuhan..."
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+
+        {/* Solution Product */}
+        <Chips label="Solution Product *" opts={['Videowall','Signage Display','Videotron','Projector','Kiosk','IFP']} value={room.solution_product} field="solution_product" />
+        <input value={room.solution_other} onChange={e => onUpdate({ solution_other: e.target.value })} placeholder="Other solution..."
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+
+        {/* Brand Display & Middleware */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+          <div>
+            <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">🖥️ Brand Display <span className="text-gray-400 font-normal">(opsional)</span></label>
+            <select value={room.brand_display} onChange={e => {
+              const brand = e.target.value;
+              const pic = getBrandPic('display', brand);
+              onUpdate({ brand_display: brand, brand_display_pic_id: pic?.pic_user_id||'', brand_display_pic_name: pic?.pic_user_name||'' });
+            }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-amber-400 appearance-none">
+              <option value="">— Pilih Brand Display —</option>
+              {DISPLAY_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            {room.brand_display && room.brand_display_pic_name && <p className="mt-1 text-[11px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">👤 PIC: {room.brand_display_pic_name}</p>}
+            {room.brand_display && !room.brand_display_pic_name && <p className="mt-1 text-[11px] text-gray-400 italic">PIC belum di-set admin</p>}
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1.5">🔌 Brand Middleware <span className="text-gray-400 font-normal">(opsional)</span></label>
+            <select value={room.brand_middleware} onChange={e => {
+              const brand = e.target.value;
+              const pic = getBrandPic('middleware', brand);
+              onUpdate({ brand_middleware: brand, brand_middleware_pic_id: pic?.pic_user_id||'', brand_middleware_pic_name: pic?.pic_user_name||'' });
+            }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 appearance-none">
+              <option value="">— Pilih Brand Middleware —</option>
+              {MIDDLEWARE_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            {room.brand_middleware && room.brand_middleware_pic_name && <p className="mt-1 text-[11px] text-violet-700 font-semibold bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5">👤 PIC: {room.brand_middleware_pic_name}</p>}
+            {room.brand_middleware && !room.brand_middleware_pic_name && <p className="mt-1 text-[11px] text-gray-400 italic">PIC belum di-set admin</p>}
+          </div>
+        </div>
+
+        {/* Layout Signage */}
+        {room.kebutuhan.includes('Signage') && (
+          <div className="pt-2 border-t border-gray-100 space-y-3">
+            <Chips label="Layout Signage" opts={['Single Zone','Multi Zone','Full Screen','Custom Layout']} value={room.layout_signage} field="layout_signage" />
+            <Chips label="Jaringan CMS" opts={['Cloud','Onpremise','USB']} value={room.jaringan_cms} field="jaringan_cms" />
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label><input value={room.jumlah_input} onChange={e => onUpdate({jumlah_input:e.target.value})} placeholder="e.g. 4" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+              <div><label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label><input value={room.jumlah_output} onChange={e => onUpdate({jumlah_output:e.target.value})} placeholder="e.g. 2" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+            </div>
+          </div>
+        )}
+
+        {/* Source */}
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <Chips label="Source" opts={['PC / Mini PC','Laptop','URL Dashboard','NVR CCTV','Media Player','IPTV','Set Top Box']} value={room.source} field="source" />
+          <div className="flex gap-3">
+            {room.source.includes('Laptop') && <div className="flex-1"><label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Qty Laptop</label><input type="number" min="1" value={room.source_laptop_qty} onChange={e=>onUpdate({source_laptop_qty:e.target.value})} placeholder="1" className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400"/></div>}
+            {room.source.includes('PC / Mini PC') && <div className="flex-1"><label className="block text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Qty PC</label><input type="number" min="1" value={room.source_pc_qty} onChange={e=>onUpdate({source_pc_qty:e.target.value})} placeholder="1" className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-blue-50 outline-none focus:border-blue-400"/></div>}
+          </div>
+          <input value={room.source_other} onChange={e=>onUpdate({source_other:e.target.value})} placeholder="Other source..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>
+        </div>
+
+        {/* Camera */}
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <YN label="Camera Conference" field="camera_conference" value={room.camera_conference}/>
+          {room.camera_conference==='Yes' && <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+            <input value={room.camera_jumlah} onChange={e=>onUpdate({camera_jumlah:e.target.value})} placeholder="Jumlah camera..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>
+            <Chips label="Tipe Tracking" opts={['Auto Tracking','Manual PTZ','Fixed']} value={room.camera_tracking} field="camera_tracking"/>
+          </div>}
+        </div>
+
+        {/* Audio */}
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <YN label="Audio System" field="audio_system" value={room.audio_system}/>
+          {room.audio_system==='Yes' && <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+            <input value={room.audio_mixer} onChange={e=>onUpdate({audio_mixer:e.target.value})} placeholder="Mixer / DSP..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>
+            <Chips label="Detail Audio" opts={['Speaker Ceiling','Speaker Line Array','Subwoofer','Microphone','Amplifier']} value={room.audio_detail} field="audio_detail"/>
+          </div>}
+        </div>
+
+        {/* Wallplate / Tabletop / Wireless / Controller */}
+        <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <YN label="Wallplate Input" field="wallplate_input" value={room.wallplate_input}/>
+            {room.wallplate_input==='Yes' && <input value={room.wallplate_jumlah} onChange={e=>onUpdate({wallplate_jumlah:e.target.value})} placeholder="Jumlah..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>}
+          </div>
+          <div className="space-y-1.5">
+            <YN label="Tabletop Input" field="tabletop_input" value={room.tabletop_input}/>
+            {room.tabletop_input==='Yes' && <input value={room.tabletop_jumlah} onChange={e=>onUpdate({tabletop_jumlah:e.target.value})} placeholder="Jumlah..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>}
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <YN label="Wireless Presentation" field="wireless_presentation" value={room.wireless_presentation}/>
+          {room.wireless_presentation==='Yes' && <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
+            <Chips label="Mode" opts={['Aplikasi','AirPlay','Miracast','Chromecast','BYOM']} value={room.wireless_mode} field="wireless_mode"/>
+            <YN label="Dongle" field="wireless_dongle" value={room.wireless_dongle}/>
+          </div>}
+        </div>
+
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <YN label="Controller / Automation" field="controller_automation" value={room.controller_automation}/>
+          {room.controller_automation==='Yes' && <div className="ml-4 pl-4 border-l-2 border-teal-200">
+            <Chips label="Tipe Controller" opts={['Cue','Wyrestorm','Extron','Custom']} value={room.controller_type} field="controller_type"/>
+          </div>}
+        </div>
+
+        {/* Ukuran, Suggest, Keterangan */}
+        <div className="pt-2 border-t border-gray-100 grid grid-cols-1 gap-2">
+          <div><label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P×L×T)</label><input value={room.ukuran_ruangan} onChange={e=>onUpdate({ukuran_ruangan:e.target.value})} placeholder="e.g. 8m×6m×3m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+          <div><label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan</label><input value={room.suggest_tampilan} onChange={e=>onUpdate({suggest_tampilan:e.target.value})} placeholder="e.g. 1920×1080 atau 4K" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+          <div><label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label><textarea value={room.keterangan_lain} onChange={e=>onUpdate({keterangan_lain:e.target.value})} rows={2} placeholder="Info tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 resize-none"/></div>
+        </div>
+
+        {/* Foto per Ruangan */}
+        <div className="pt-2 border-t border-gray-100">
+          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey Ruangan Ini</label>
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+            id={`room-photo-${room.id}`}
+            onChange={e => { const files = Array.from(e.target.files||[]); if(files.length) onAddPhotos(files); e.target.value=''; }}/>
+          {previews.length === 0 ? (
+            <label htmlFor={`room-photo-${room.id}`} className="w-full border-2 border-dashed border-gray-300 rounded-xl py-4 flex flex-col items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all cursor-pointer">
+              <span className="text-2xl mb-1">📷</span><span className="text-xs font-medium">Klik upload foto</span>
+            </label>
+          ) : (
+            <div>
+              <div className="grid grid-cols-4 gap-1.5 mb-2">
+                {previews.map((src, i) => (
+                  <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
+                    <img src={src} alt="" className="w-full h-full object-cover"/>
+                    <button type="button" onClick={() => onRemovePhoto(i)} className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                  </div>
+                ))}
+                {photos.length < 10 && (
+                  <label htmlFor={`room-photo-${room.id}`} className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 cursor-pointer"><span className="text-xl">+</span></label>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400">{photos.length}/10 foto</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── NewFormModal ─────────────────────────────────────────────────────────────
 
 type InitialFormType = {
@@ -564,6 +843,11 @@ interface NewFormModalProps {
   onClose: () => void;
   onSubmit: () => void;
   salesGuestUsers: {id:string;full_name:string;username:string;sales_division?:string}[];
+  rooms: RoomDetail[];
+  setRooms: React.Dispatch<React.SetStateAction<RoomDetail[]>>;
+  brandPicMappings: BrandPicMapping[];
+  roomPhotoMap: Record<string, File[]>;
+  setRoomPhotoMap: React.Dispatch<React.SetStateAction<Record<string, File[]>>>;
 }
 
 function NewFormModal({
@@ -571,7 +855,7 @@ function NewFormModal({
   surveyPhotos, setSurveyPhotos, surveyPhotosPreviews, setSurveyPhotosPreviews,
   boqFormFile, setBoqFormFile,
   submitting, onClose, onSubmit,
-  salesGuestUsers,
+  salesGuestUsers, rooms, setRooms, brandPicMappings, roomPhotoMap, setRoomPhotoMap,
 }: NewFormModalProps) {
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
   const boqFormRef = useRef<HTMLInputElement>(null);
@@ -843,6 +1127,41 @@ function NewFormModal({
             </div>
           </div>
 
+          {/* ─── Multi-Room Section ───────────────────────────────────────── */}
+          <div className="bg-white/95 rounded-2xl p-5 border-2 border-teal-200 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs">🚪</span>
+                Tambahan Ruangan Lain
+                {rooms.length > 0 && <span className="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">{rooms.length} ruangan tambahan</span>}
+              </h3>
+              <button type="button" onClick={() => setRooms(p => [...p, emptyRoom()])}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all">
+                + Tambah Ruangan
+              </button>
+            </div>
+            {rooms.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Klik <strong>+ Tambah Ruangan</strong> jika project memiliki lebih dari 1 ruangan dengan detail berbeda.</p>
+            )}
+            {rooms.map((room, rIdx) => (
+              <RoomSection key={room.id} room={room} rIdx={rIdx}
+                onUpdate={patch => setRooms(p => p.map(r => r.id === room.id ? { ...r, ...patch } : r))}
+                onRemove={() => setRooms(p => p.filter(r => r.id !== room.id))}
+                brandPicMappings={brandPicMappings}
+                photos={roomPhotoMap[room.id] || []}
+                onAddPhotos={files => setRoomPhotoMap(p => ({ ...p, [room.id]: [...(p[room.id] || []), ...files].slice(0, 10) }))}
+                onRemovePhoto={i => setRoomPhotoMap(p => { const arr = [...(p[room.id] || [])]; arr.splice(i, 1); return { ...p, [room.id]: arr }; })}
+                toggleArr={toggleArr}
+              />
+            ))}
+            {rooms.length > 0 && (
+              <button type="button" onClick={() => setRooms(p => [...p, emptyRoom()])}
+                className="w-full mt-3 py-2 border-2 border-dashed border-teal-300 rounded-xl text-teal-600 text-xs font-semibold hover:bg-teal-50 transition-all">
+                + Tambah Ruangan Lagi
+              </button>
+            )}
+          </div>
+
           {/* Foto Survey + BOQ Upload — hanya untuk guest/sales (bukan team PTS) */}
           {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
@@ -952,6 +1271,108 @@ function NewFormModal({
 }
 
 // ─── Form Require Project Module ──────────────────────────────────────────────
+
+// ─── BrandPicSettingModal (Admin only) ────────────────────────────────────────
+
+function BrandPicSettingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [brandUsers, setBrandUsers] = useState<{id:string;full_name:string;sales_division?:string}[]>([]);
+  const [mappings, setMappings] = useState<Record<string, string>>({}); // key: `type:brand` → pic_user_id
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{type:'success'|'error';msg:string}|null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('users').select('id, full_name, sales_division').eq('role','guest').in('sales_division', BRAND_PIC_DIVISIONS).order('full_name'),
+      supabase.from('brand_pic_mappings').select('*'),
+    ]).then(([usersRes, mapsRes]) => {
+      if (usersRes.data) setBrandUsers(usersRes.data as any[]);
+      if (mapsRes.data) {
+        const map: Record<string, string> = {};
+        (mapsRes.data as BrandPicMapping[]).forEach(m => { map[`${m.brand_type}:${m.brand_name}`] = m.pic_user_id; });
+        setMappings(map);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const notify = (type:'success'|'error', msg:string) => { setNotif({type,msg}); setTimeout(()=>setNotif(null),3000); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const allBrands = [
+      ...DISPLAY_BRANDS.map(b => ({brand_type:'display' as const, brand_name:b})),
+      ...MIDDLEWARE_BRANDS.map(b => ({brand_type:'middleware' as const, brand_name:b})),
+    ];
+    try {
+      for (const {brand_type, brand_name} of allBrands) {
+        const key = `${brand_type}:${brand_name}`;
+        const picId = mappings[key] || null;
+        const picUser = picId ? brandUsers.find(u => u.id === picId) : null;
+        await supabase.from('brand_pic_mappings').upsert({
+          brand_type, brand_name, pic_user_id: picId, pic_user_name: picUser?.full_name || null,
+        }, { onConflict: 'brand_type,brand_name' });
+      }
+      notify('success', 'Mapping PIC Brand disimpan!');
+      onSaved();
+    } catch (e: any) { notify('error', e.message); }
+    setSaving(false);
+  };
+
+  const Row = ({ type, brand }: { type: 'display'|'middleware'; brand: string }) => {
+    const key = `${type}:${brand}`;
+    return (
+      <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
+        <span className="w-36 text-sm font-semibold text-slate-700 flex-shrink-0">{brand}</span>
+        <select value={mappings[key]||''} onChange={e => setMappings(p=>({...p,[key]:e.target.value}))}
+          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 appearance-none">
+          <option value="">— Belum ada PIC —</option>
+          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
+        </select>
+        {mappings[key] && <span className="text-[10px] text-teal-600 font-bold flex-shrink-0">✅</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[88vh] flex flex-col border border-slate-200">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">⚙️</div>
+            <div><h2 className="text-base font-bold text-white">Setting PIC Brand</h2><p className="text-white/70 text-xs">Mapping brand ke PIC penanggung jawab</p></div>
+          </div>
+          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">✕</button>
+        </div>
+        {notif && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 ${notif.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{notif.type==='success'?'✅':'❌'} {notif.msg}</div>}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-amber-500 border-amber-200 animate-spin"/></div> : (
+            <>
+              <div>
+                <p className="text-sm font-bold text-amber-700 uppercase tracking-widest mb-3 flex items-center gap-2">🖥️ Brand Display</p>
+                <div className="bg-amber-50/50 rounded-xl border border-amber-200 px-4 py-1">
+                  {DISPLAY_BRANDS.map(b => <Row key={b} type="display" brand={b}/>)}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-violet-700 uppercase tracking-widest mb-3 flex items-center gap-2">🔌 Brand Middleware</p>
+                <div className="bg-violet-50/50 rounded-xl border border-violet-200 px-4 py-1">
+                  {MIDDLEWARE_BRANDS.map(b => <Row key={b} type="middleware" brand={b}/>)}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-300 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={saving||loading} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50" style={{background:'linear-gradient(135deg,#d97706,#b45309)'}}>
+            {saving ? '⏳ Menyimpan...' : '💾 Simpan Semua'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [appReady, setAppReady] = useState(false);
@@ -1082,6 +1503,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     supabase.from('users').select('id, full_name, username, sales_division').eq('role', 'guest').then(({ data }: { data: {id:string;full_name:string;username:string;sales_division?:string}[] | null }) => {
       if (data) setSalesGuestUsers(data);
     });
+    supabase.from('brand_pic_mappings').select('*').order('brand_name').then(({ data }: { data: BrandPicMapping[] | null }) => {
+      if (data) setBrandPicMappings(data);
+    });
   }, []);
 
   const [form, setForm] = useState<InitialFormType>(initialForm);
@@ -1089,6 +1513,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [surveyPhotos, setSurveyPhotos] = useState<File[]>([]);
   const [surveyPhotosPreviews, setSurveyPhotosPreviews] = useState<string[]>([]);
   const [boqFormFile, setBoqFormFile] = useState<File | null>(null);
+  const [rooms, setRooms] = useState<RoomDetail[]>([]);
+  const [roomPhotoMap, setRoomPhotoMap] = useState<Record<string, File[]>>({});
+  const [brandPicMappings, setBrandPicMappings] = useState<BrandPicMapping[]>([]);
+  const [showBrandPicSetting, setShowBrandPicSetting] = useState(false);
 
   const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -1099,13 +1527,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     setLoading(true);
     let query = supabase.from('project_requests').select('*').order('created_at', { ascending: false });
     if (isPTS) {
-      // admin/superadmin: semua request
-      // team PTS: semua request (filter assign ditampilkan di UI)
+      // admin/superadmin: semua request; team PTS: semua request (filter assign di UI)
     } else if (isIVPGuest) {
-      // IVP guest: lihat request dari divisi yang dia handle via division_ivp_mappings
-      // + request milik sendiri + ivp_assignee lama
-      const { data: ivpDivMaps } = await supabase
-        .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
+      const { data: ivpDivMaps } = await supabase.from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
       const handledDivisions = (ivpDivMaps ?? []).map((m: any) => m.sales_division as string);
       if (handledDivisions.length > 0) {
         const divFilter = handledDivisions.map((d: string) => `sales_division.eq.${d}`).join(',');
@@ -1114,18 +1538,64 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
       }
     } else {
-      // non-IVP guest: hanya request miliknya sendiri
-      query = query.eq('requester_id', currentUser.id);
+      // non-IVP guest: cek jabatan tier untuk supervisor visibility + brand PIC
+      const selfJabatan = (currentUser as any).jabatan as string | undefined;
+      const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
+      const selfDiv = currentUser.sales_division;
+      const isBrandPICUser = BRAND_PIC_DIVISIONS.includes(selfDiv || '');
+
+      // Supervisor tier > 1: lihat request bawahan di divisi sendiri + divisi yang di-supervisi
+      if (selfTier > 1 && selfDiv) {
+        const { data: supMaps } = await supabase.from('division_supervisor_mappings').select('sales_division').eq('supervisor_id', currentUser.id);
+        const supDivisions = (supMaps ?? []).map((m: any) => m.sales_division as string);
+        if (!supDivisions.includes(selfDiv)) supDivisions.push(selfDiv);
+
+        // Ambil subordinate ids (tier lebih rendah)
+        const { data: allGuests } = await supabase.from('users').select('id, jabatan, sales_division').eq('role', 'guest');
+        const subIds = (allGuests ?? [])
+          .filter((u: any) => (JABATAN_TIER[(u.jabatan as string) || ''] ?? 0) < selfTier && supDivisions.includes(u.sales_division))
+          .map((u: any) => u.id as string);
+
+        // Also include manual user_supervisor_mappings
+        const { data: manualSubs } = await supabase.from('user_supervisor_mappings').select('user_id').eq('supervisor_id', currentUser.id);
+        (manualSubs ?? []).forEach((m: any) => { if (!subIds.includes(m.user_id)) subIds.push(m.user_id); });
+
+        if (subIds.length > 0) {
+          const orFilter = [
+            `requester_id.eq.${currentUser.id}`,
+            ...subIds.map((id: string) => `requester_id.eq.${id}`),
+          ].join(',');
+          query = query.or(orFilter);
+        } else {
+          query = query.eq('requester_id', currentUser.id);
+        }
+      } else {
+        // Staff biasa: hanya request miliknya
+        query = query.eq('requester_id', currentUser.id);
+      }
     }
     const { data, error } = await query;
     if (!error && data) {
-      setRequests(data as ProjectRequest[]);
-      const assigned = [...new Set((data as ProjectRequest[]).map(r => r.assign_name).filter(Boolean) as string[])].sort();
+      let filtered = data as ProjectRequest[];
+      // Brand PIC: tambahkan request yang brand pic-nya = user ini (dari rooms JSONB)
+      const selfDiv = currentUser.sales_division;
+      if (!isPTS && !isIVPGuest && BRAND_PIC_DIVISIONS.includes(selfDiv || '')) {
+        const { data: allReqs } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at, rooms, requester_id').order('created_at', { ascending: false });
+        (allReqs ?? []).forEach((r: any) => {
+          if (filtered.find(x => x.id === r.id)) return;
+          if (!r.rooms || !Array.isArray(r.rooms)) return;
+          const isBrandPic = r.rooms.some((room: any) =>
+            room.brand_display_pic_id === currentUser.id || room.brand_middleware_pic_id === currentUser.id
+          );
+          if (isBrandPic) filtered.push(r as ProjectRequest);
+        });
+      }
+      setRequests(filtered);
+      const assigned = [...new Set(filtered.map(r => r.assign_name).filter(Boolean) as string[])].sort();
       setPtsMembersList(assigned);
-      const ids = (data as ProjectRequest[]).map(r => r.id);
+      const ids = filtered.map(r => r.id);
       if (ids.length > 0) {
-        const { data: msgData } = await supabase
-          .from('project_messages').select('request_id, created_at')
+        const { data: msgData } = await supabase.from('project_messages').select('request_id, created_at')
           .in('request_id', ids).neq('sender_role', 'system').order('created_at', { ascending: false });
         if (msgData) {
           const counts: Record<string, number> = {};
@@ -1142,7 +1612,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     }
     setLoading(false);
     setAppReady(true);
-  }, [currentUser.id, isPTS, isIVPGuest]);
+  }, [currentUser.id, currentUser.sales_division, (currentUser as any).jabatan, isPTS, isIVPGuest]);
 
   const fetchMessages = useCallback(async (requestId: string) => {
     const { data, error } = await supabase.from('project_messages').select('*').eq('request_id', requestId).order('created_at', { ascending: true });
@@ -1361,8 +1831,13 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
 
   const handleSubmitForm = async () => {
     if (!form.project_name.trim()) { notify('error', 'Nama Project wajib diisi!'); return; }
-    if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
-    if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    if (rooms.length === 0) {
+      if (form.kebutuhan.length === 0 && !form.kebutuhan_other.trim()) { notify('error', 'Pilih minimal satu Kategori Kebutuhan!'); return; }
+      if (form.solution_product.length === 0 && !form.solution_other.trim()) { notify('error', 'Pilih minimal satu Solution Product!'); return; }
+    } else {
+      const emptyRoomIdx = rooms.findIndex(r => r.kebutuhan.length === 0 && !r.kebutuhan_other.trim());
+      if (emptyRoomIdx >= 0) { notify('error', `Pilih Kebutuhan untuk Ruangan ${emptyRoomIdx + 2}!`); return; }
+    }
     if (!dueDateForm) { notify('error', 'Target Selesai wajib diisi!'); return; }
     setSubmitting(true);
     try {
@@ -1386,6 +1861,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         ukuran_ruangan: form.ukuran_ruangan.trim(), suggest_tampilan: form.suggest_tampilan.trim(), keterangan_lain: form.keterangan_lain.trim(),
         requester_id: currentUser.id, requester_name: currentUser.full_name, status: 'pending' as const,
         due_date: dueDateForm || null,
+        rooms: rooms.length > 0 ? rooms : [],
       };
       const { data, error } = await supabase.from('project_requests').insert([payload]).select().single();
       if (error) { notify('error', 'Gagal submit form: ' + error.message); setSubmitting(false); return; }
@@ -1463,10 +1939,63 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               }
             }
           } catch (ccEx: any) { console.warn('[WA CC form-require]', ccEx?.message); }
+
+          // ── Upload foto per ruangan tambahan ──
+          try {
+            for (const [roomId, photos] of Object.entries(roomPhotoMap)) {
+              const rIdx = rooms.findIndex(r => r.id === roomId);
+              const label = rIdx >= 0 ? `room${rIdx+2}` : roomId.slice(0,6);
+              for (const photo of photos) {
+                const filePath = `project-files/${data.id}/survey-${label}-${Date.now()}-${photo.name}`;
+                const { error: sErr } = await supabase.storage.from('project-files').upload(filePath, photo, { cacheControl:'3600', upsert:false });
+                if (!sErr) {
+                  const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+                  await supabase.from('project_attachments').insert([{
+                    request_id: data.id, message_id: null, file_name: `[${label}] ${photo.name}`,
+                    file_url: urlData.publicUrl, file_type: photo.type, file_size: photo.size, uploaded_by: currentUser.full_name,
+                  }]);
+                }
+              }
+            }
+          } catch (rPhotoEx: any) { console.warn('[room photo upload]', rPhotoEx?.message); }
+
+          // ── WA notif ke Brand PIC dari rooms ──
+          try {
+            const allRooms = rooms.length > 0 ? rooms : [];
+            const brandPicIds = new Set<string>();
+            allRooms.forEach(r => {
+              if (r.brand_display_pic_id) brandPicIds.add(r.brand_display_pic_id);
+              if (r.brand_middleware_pic_id) brandPicIds.add(r.brand_middleware_pic_id);
+            });
+            if (brandPicIds.size > 0) {
+              const { data: picUsers } = await supabase.from('users').select('id, full_name, phone_number').in('id', Array.from(brandPicIds));
+              for (const pic of (picUsers || []) as any[]) {
+                if (!pic.phone_number) continue;
+                const picRooms = allRooms.filter(r => r.brand_display_pic_id===pic.id || r.brand_middleware_pic_id===pic.id);
+                const brandMsg = [
+                  '🏷️ *[Brand PIC] Form Require Project Baru*',
+                  '━━━━━━━━━━━━━━━━━━',
+                  `📋 *Project :* ${form.project_name.trim()}`,
+                  `👤 *Sales   :* ${currentUser.full_name} (${currentUser.sales_division||'—'})`,
+                  '─────────────────',
+                  ...picRooms.map((r,i) => {
+                    const lines = [`🚪 *Ruangan:* ${r.room_name||'—'}`];
+                    if (r.brand_display_pic_id===pic.id) lines.push(`  🖥️ Brand Display: ${r.brand_display} *(Anda PIC-nya)*`);
+                    if (r.brand_middleware_pic_id===pic.id) lines.push(`  🔌 Brand Middleware: ${r.brand_middleware} *(Anda PIC-nya)*`);
+                    return lines.join('\n');
+                  }),
+                  '━━━━━━━━━━━━━━━━━━',
+                  '🔗 https://team-ticketing.vercel.app/form-require-project',
+                ].join('\n');
+                await sendWANotif({ type: 'reminder_wa', target: pic.phone_number, message: brandMsg });
+              }
+            }
+          } catch (brandEx: any) { console.warn('[WA Brand PIC]', brandEx?.message); }
         }
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
       setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null);
+      setRooms([]); setRoomPhotoMap({});
       setShowNewFormModal(false);
       fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
@@ -2122,6 +2651,17 @@ Hubungi Admin untuk info lebih lanjut.
     <div className="flex flex-col min-h-screen bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
+      {showBrandPicSetting && (
+        <BrandPicSettingModal
+          onClose={() => setShowBrandPicSetting(false)}
+          onSaved={() => {
+            supabase.from('brand_pic_mappings').select('*').order('brand_name').then(({ data }: { data: BrandPicMapping[] | null }) => {
+              if (data) setBrandPicMappings(data);
+            });
+            setShowBrandPicSetting(false);
+          }}
+        />
+      )}
       {showNewFormModal && (
         <NewFormModal
           currentUser={currentUser}
@@ -2129,6 +2669,9 @@ Hubungi Admin untuk info lebih lanjut.
           setForm={setForm}
           initialForm={initialForm}
           salesGuestUsers={salesGuestUsers}
+          rooms={rooms} setRooms={setRooms}
+          brandPicMappings={brandPicMappings}
+          roomPhotoMap={roomPhotoMap} setRoomPhotoMap={setRoomPhotoMap}
           dueDateForm={dueDateForm}
           setDueDateForm={setDueDateForm}
           surveyPhotos={surveyPhotos}
@@ -2138,7 +2681,7 @@ Hubungi Admin untuk info lebih lanjut.
           boqFormFile={boqFormFile}
           setBoqFormFile={setBoqFormFile}
           submitting={submitting}
-          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); }}
+          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); setRoomPhotoMap({}); }}
           onSubmit={handleSubmitForm}
         />
       )}
@@ -2217,6 +2760,12 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               );
             })()}
+            {isAdmin && (
+              <button onClick={() => setShowBrandPicSetting(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all">
+                ⚙️ PIC Brand
+              </button>
+            )}
             <button onClick={() => setShowNewFormModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
               style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
