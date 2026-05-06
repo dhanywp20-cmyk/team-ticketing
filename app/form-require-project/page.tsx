@@ -449,6 +449,49 @@ function AssignPTSModal({
           await sendWANotif({ type: 'reminder_wa', target: ivpUser.phone_number, message: lines });
         }
       }
+
+      // ── WA notif ke Brand PIC saat approve ──
+      try {
+        const reqRooms: RoomDetail[] = (req as any).rooms || [];
+        if (reqRooms.length > 0) {
+          const brandPicIds = new Set<string>();
+          reqRooms.forEach(room => {
+            if (room.brand_display_pic_id) brandPicIds.add(room.brand_display_pic_id);
+            if (room.brand_middleware_pic_id) brandPicIds.add(room.brand_middleware_pic_id);
+          });
+          if (brandPicIds.size > 0) {
+            const { data: brandPicUsers } = await supabase.from('users')
+              .select('id, full_name, phone_number').in('id', Array.from(brandPicIds));
+            if (brandPicUsers) {
+              for (const pic of brandPicUsers as any[]) {
+                if (!pic.phone_number) continue;
+                const picRooms = reqRooms.filter(r =>
+                  r.brand_display_pic_id === pic.id || r.brand_middleware_pic_id === pic.id
+                );
+                const brandApproveMsg = [
+                  `✅ *[Brand PIC] Form Require — Diapprove*`,
+                  '━━━━━━━━━━━━━━━━━━',
+                  `📋 *Project  :* ${req.project_name}`,
+                  `📍 *Lokasi   :* ${(req as any).project_location || '—'}`,
+                  `👤 *Sales    :* ${req.sales_name} (${req.sales_division || '—'})`,
+                  `👷 *Tim PTS  :* ${selectedPTS}`,
+                  '─────────────────',
+                  ...picRooms.map((room, i) => {
+                    const lines = [`🚪 *Ruangan:* ${room.room_name || '—'}`];
+                    if (room.brand_display_pic_id === pic.id) lines.push(`  🖥️ Brand Display: ${room.brand_display} *(Anda PIC-nya)*`);
+                    if (room.brand_middleware_pic_id === pic.id) lines.push(`  🔌 Brand Middleware: ${room.brand_middleware} *(Anda PIC-nya)*`);
+                    return lines.join('\n');
+                  }),
+                  '━━━━━━━━━━━━━━━━━━',
+                  '🔗 https://team-ticketing.vercel.app/form-require-project',
+                ].join('\n');
+                await sendWANotif({ type: 'reminder_wa', target: pic.phone_number, message: brandApproveMsg });
+              }
+            }
+          }
+        }
+      } catch (brandEx: any) { console.warn('[WA Brand PIC approve]', brandEx?.message); }
+
       onAssigned();
     } else {
       alert('Gagal approve: ' + error.message);
@@ -1401,8 +1444,11 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const isTeamPTS = role === 'team_pts' || role === 'team';
   const isSuperAdmin = role === 'superadmin';
   const isAdmin = role === 'admin';
+  const BRAND_DIVISIONS = ['IVP', 'MLDS', 'UMP', 'OSS'];
   // Guest IVP = role guest dengan sales_division IVP (bisa lihat semua request)
   const isIVPGuest = role === 'guest' && currentUser.sales_division === 'IVP';
+  // Brand PIC = user dari divisi MLDS, UMP, OSS (IVP sudah ditangani terpisah)
+  const isBrandPIC = role === 'guest' && ['MLDS', 'UMP', 'OSS'].includes(currentUser.sales_division || '');
   // Guest non-IVP = role guest bukan IVP (hanya lihat request miliknya)
   const isNonIVPGuest = role === 'guest' && currentUser.sales_division !== 'IVP';
   // Bisa ubah status in_progress: hanya PTS yang di-assign ke request tsb
@@ -1494,7 +1540,45 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       } else {
         query = query.or(`requester_id.eq.${currentUser.id},ivp_assignee.eq.${currentUser.full_name}`);
       }
-    } else {
+    } else if (isBrandPIC) {
+      // Brand PIC (MLDS, UMP, OSS) — bukan IVP yang sudah ditangani di atas
+      // Fetch semua request lalu filter client-side berdasarkan brand_pic_id di rooms
+      // (Supabase JS client tidak support filter JSONB array langsung)
+      const { data: allReqs, error: brandErr } = await supabase
+        .from('project_requests').select('*').order('created_at', { ascending: false });
+      if (!brandErr && allReqs) {
+        const brandFiltered = (allReqs as ProjectRequest[]).filter(r => {
+          if (r.requester_id === currentUser.id) return true; // milik sendiri
+          if (!r.rooms || r.rooms.length === 0) return false;
+          return r.rooms.some(room =>
+            room.brand_display_pic_id === currentUser.id ||
+            room.brand_middleware_pic_id === currentUser.id
+          );
+        });
+        const assigned = [...new Set(brandFiltered.map(r => r.assign_name).filter(Boolean) as string[])].sort();
+        setPtsMembersList(assigned);
+        const ids = brandFiltered.map(r => r.id);
+        if (ids.length > 0) {
+          const { data: msgData } = await supabase
+            .from('project_messages').select('request_id, created_at')
+            .in('request_id', ids).neq('sender_role', 'system').order('created_at', { ascending: false });
+          if (msgData) {
+            const counts: Record<string, number> = {};
+            const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
+            setLastSeenMap(stored);
+            for (const row of msgData as { request_id: string; created_at: string }[]) {
+              const lastSeen = stored[row.request_id] || 0;
+              const msgTime = new Date(row.created_at).getTime();
+              if (msgTime > lastSeen) counts[row.request_id] = (counts[row.request_id] || 0) + 1;
+            }
+            setUnreadMsgMap(counts);
+          }
+        }
+        setRequests(brandFiltered);
+      }
+      setLoading(false);
+      setAppReady(true);
+      return;
       // non-IVP guest: pakai pola sama dengan Ticketing
       const selfJabatan = (currentUser as any).jabatan as string | undefined;
       const selfTier = selfJabatan ? (JABATAN_TIER[selfJabatan] ?? 0) : 0;
@@ -1582,7 +1666,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     }
     setLoading(false);
     setAppReady(true);
-  }, [currentUser.id, currentUser.sales_division, (currentUser as any).jabatan, isPTS, isIVPGuest]);
+  }, [currentUser.id, currentUser.sales_division, (currentUser as any).jabatan, isPTS, isIVPGuest, isBrandPIC]);
 
   const fetchMessages = useCallback(async (requestId: string) => {
     const { data, error } = await supabase.from('project_messages').select('*').eq('request_id', requestId).order('created_at', { ascending: true });
@@ -1904,6 +1988,43 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
               }
             }
           } catch (ccEx: any) { console.warn('[WA CC form-require]', ccEx?.message); }
+
+          // ── Notif WA ke Brand PIC dari setiap room ──
+          try {
+            if (rooms.length > 0) {
+              const brandPicIds = new Set<string>();
+              rooms.forEach(room => {
+                if (room.brand_display_pic_id) brandPicIds.add(room.brand_display_pic_id);
+                if (room.brand_middleware_pic_id) brandPicIds.add(room.brand_middleware_pic_id);
+              });
+              if (brandPicIds.size > 0) {
+                const { data: brandPicUsers } = await supabase.from('users')
+                  .select('id, full_name, phone_number').in('id', Array.from(brandPicIds));
+                const brandMsg = [
+                  `🏷️ *[Brand PIC] Form Require Project Baru*`,
+                  '━━━━━━━━━━━━━━━━━━',
+                  `📋 *Project  :* ${form.project_name.trim()}`,
+                  `📍 *Lokasi   :* ${form.project_location?.trim() || '—'}`,
+                  `👤 *Sales    :* ${currentUser.full_name} (${currentUser.sales_division || '—'})`,
+                  '─────────────────',
+                  ...rooms.map((room, i) => {
+                    const lines = [`🚪 *Ruangan ${i + 1}:* ${room.room_name || '—'}`];
+                    if (room.brand_display) lines.push(`  🖥️ Brand Display: ${room.brand_display}${room.brand_display_pic_id === currentUser.id ? ' *(Anda PIC-nya)*' : ''}`);
+                    if (room.brand_middleware) lines.push(`  🔌 Brand Middleware: ${room.brand_middleware}${room.brand_middleware_pic_id === currentUser.id ? ' *(Anda PIC-nya)*' : ''}`);
+                    return lines.join('\n');
+                  }),
+                  '━━━━━━━━━━━━━━━━━━',
+                  '🔗 https://team-ticketing.vercel.app/form-require-project',
+                ].join('\n');
+                if (brandPicUsers) {
+                  await Promise.allSettled(brandPicUsers
+                    .filter((u: any) => u.phone_number)
+                    .map((u: any) => sendWANotif({ type: 'reminder_wa', target: u.phone_number, message: brandMsg }))
+                  );
+                }
+              }
+            }
+          } catch (brandEx: any) { console.warn('[WA Brand PIC form-require]', brandEx?.message); }
         }
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
