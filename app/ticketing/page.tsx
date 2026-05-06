@@ -219,35 +219,6 @@ const SALES_DIVISIONS = [
   'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
   'IOCBali', 'SGP', 'SGP 1', 'SGP 2', 'OSS',
 ];
-
-// ── Helper Functions ─────────────────────────────────────────────────────────
-function formatDateTime(dateString: string) {
-  if (!dateString) return "-";
-  let normalized = dateString;
-  if (!dateString.endsWith("Z") && !dateString.includes("+") && !(dateString.indexOf("-", 10) > -1)) {
-    normalized = dateString + "Z";
-  }
-  const utcDate = new Date(normalized);
-  if (isNaN(utcDate.getTime())) return dateString;
-  const jakartaTime = new Date(utcDate.getTime() + 7 * 60 * 60 * 1000);
-  const day = String(jakartaTime.getUTCDate()).padStart(2, "0");
-  const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, "0");
-  const year = jakartaTime.getUTCFullYear();
-  const hours = String(jakartaTime.getUTCHours()).padStart(2, "0");
-  const minutes = String(jakartaTime.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(jakartaTime.getUTCSeconds()).padStart(2, "0");
-  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
-}
-
-// ── Status Donut Card (same style as ReminderSchedule) ──────────────────────────────────
-function StatusDonutCard({
-  data,
-  total,
-  onSliceClick,
-  title,
-  icon,
-}: {
-  data: { name: string; value: number; color: string }[];
   total: number;
   onSliceClick: (name: string) => void;
   title: string;
@@ -977,19 +948,32 @@ export default function TicketingSystem() {
           const isSupervisor = (supervisedDivisions.length > 0 && selfTier > 0) || manualSubordinateIds.size > 0;
 
           if (isSupervisor) {
-            // Ambil SEMUA guest users untuk build nameTierMap (tidak terbatas divisi)
+            // Ambil SEMUA guest users untuk build tier lookup
             const { data: allGuestUsers } = await supabase.from("users")
               .select("id, username, full_name, jabatan, sales_division")
               .eq("role", "guest");
 
+            const idToTier: Record<string, number> = {};
             const nameTierMap: Record<string, number> = {};
             const nameToId: Record<string, string> = {};
             (allGuestUsers ?? []).forEach((u: any) => {
               const tier = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
+              idToTier[u.id] = tier;
               if (u.full_name) { nameTierMap[u.full_name] = tier; nameToId[u.full_name] = u.id; }
               if (u.username) { nameTierMap[u.username] = tier; nameToId[u.username] = u.id; }
-              if (u.full_name) { nameTierMap[u.full_name.split(' ')[0]] = tier; nameToId[u.full_name.split(' ')[0]] = u.id; }
+              if (u.full_name) {
+                const firstName = u.full_name.split(' ')[0];
+                if (!nameTierMap[firstName]) { nameTierMap[firstName] = tier; nameToId[firstName] = u.id; }
+              }
             });
+
+            // Semua user id dengan tier < selfTier (bawahan yang boleh dilihat)
+            const subordinateIds = new Set(
+              (allGuestUsers ?? []).filter((u: any) => idToTier[u.id] < selfTier).map((u: any) => u.id as string)
+            );
+            const subordinateUsernames = new Set(
+              (allGuestUsers ?? []).filter((u: any) => subordinateIds.has(u.id)).map((u: any) => u.username as string)
+            );
 
             // Ambil ticket dari divisi yang di-supervisi
             let allDivTickets: Ticket[] = [];
@@ -1003,38 +987,36 @@ export default function TicketingSystem() {
 
             // Tambah ticket dari manual subordinates (bisa beda divisi)
             if (manualSubordinateIds.size > 0) {
-              const { data: manualUsers } = await supabase.from("users")
-                .select("username, full_name, jabatan").in("id", Array.from(manualSubordinateIds));
-              if (manualUsers) {
-                // Tambahkan ke nameTierMap juga
-                manualUsers.forEach((u: any) => {
-                  const tier = u.jabatan ? (JABATAN_TIER[u.jabatan as string] ?? 0) : 0;
-                  if (u.full_name) { nameTierMap[u.full_name] = tier; nameToId[u.full_name] = u.id; }
-                  if (u.username) { nameTierMap[u.username] = tier; nameToId[u.username] = u.id; }
-                  if (u.full_name) { nameTierMap[u.full_name.split(' ')[0]] = tier; }
+              const manualUsers = (allGuestUsers ?? []).filter((u: any) => manualSubordinateIds.has(u.id));
+              const manualUsernames = manualUsers.map((u: any) => u.username).filter(Boolean);
+              if (manualUsernames.length > 0) {
+                const { data: manualTickets } = await supabase.from("tickets")
+                  .select("*, activity_logs(*)")
+                  .in("created_by", manualUsernames)
+                  .order("created_at", { ascending: false });
+                (manualTickets ?? []).forEach((t: Ticket) => {
+                  if (!allDivTickets.find(x => x.id === t.id)) allDivTickets.push(t);
                 });
-                const manualUsernames = manualUsers.map((u: any) => u.username).filter(Boolean);
-                if (manualUsernames.length > 0) {
-                  const { data: manualTickets } = await supabase.from("tickets")
-                    .select("*, activity_logs(*)")
-                    .in("created_by", manualUsernames)
-                    .order("created_at", { ascending: false });
-                  (manualTickets ?? []).forEach((t: Ticket) => {
-                    if (!allDivTickets.find(x => x.id === t.id)) allDivTickets.push(t);
-                  });
-                }
               }
             }
 
             allDivTickets.forEach((t: Ticket) => {
+              // Ticket milik sendiri selalu masuk
               if (isMyTicket(t)) { addUnique(t); return; }
+
+              // Cek via created_by username → apakah bawahan
+              if (t.created_by && subordinateUsernames.has(t.created_by)) { addUnique(t); return; }
+
+              // Cek via manual subordinate
               const ownerId = t.sales_name ? nameToId[t.sales_name] : null;
               if (ownerId && manualSubordinateIds.has(ownerId)) { addUnique(t); return; }
+
+              // Cek via sales_name tier
               const salesNameTier = t.sales_name ? (nameTierMap[t.sales_name] ?? null) : null;
-              if (salesNameTier === null) return;
-              if (salesNameTier < selfTier) addUnique(t);
+              if (salesNameTier !== null && salesNameTier < selfTier) { addUnique(t); return; }
             });
 
+            
           } else {
             // Guest biasa: HANYA ticket milik sendiri berdasarkan sales_name atau created_by
             if (selfDiv) {
