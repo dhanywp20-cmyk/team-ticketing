@@ -679,7 +679,7 @@ function NewFormModal({
   const toggleArr = (arr: string[], val: string): string[] =>
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
 
-  const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
+  const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => { return (
     <div className="mb-4">
       <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2">{label}</label>
       <div className="flex flex-wrap gap-2">
@@ -697,7 +697,7 @@ function NewFormModal({
         })}
       </div>
     </div>
-  );
+  ); };
 
   const RadioGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) => (
     <div className="mb-4">
@@ -2071,7 +2071,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const productPieData = Object.entries(productCounts).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
 
   // CheckGroup & RadioGroup for edit modal
-  const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
+  const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => { return (
     <div className="mb-4">
       <label className="block text-xs font-bold text-gray-600 tracking-widest uppercase mb-2">{label}</label>
       <div className="flex flex-wrap gap-2">
@@ -2089,7 +2089,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
         })}
       </div>
     </div>
-  );
+  ); };
 
   const RadioGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) => (
     <div className="mb-4">
