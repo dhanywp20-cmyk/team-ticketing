@@ -1102,7 +1102,7 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
               <div className="p-5 border-b border-slate-100 bg-amber-50/60 space-y-3 flex-shrink-0">
                 <p className="text-xs font-bold text-amber-800 uppercase tracking-widest">➕ Tambah Mapping Atasan Divisi</p>
                 <p className="text-[11px] text-amber-700 leading-relaxed">
-                  Mapping divisi → atasan (berdasarkan jabatan). Semua user dengan divisi yang sama otomatis di-CC ke atasan terdaftar sesuai <strong>rules jabatan tier</strong>.
+                  Mapping divisi → atasan. User dengan <strong>divisi yang sama</strong> otomatis ter-CC ke atasan terdaftar. Untuk user beda divisi (misal Handono SGP 1 → Rainata SGP), gunakan tab <strong>CC per User</strong>.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1158,9 +1158,14 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
                   <div className="space-y-3">
                     {Object.entries(atasanByDiv).sort(([a], [b]) => a.localeCompare(b)).map(([division, maps]) => {
                       const supIdsInDiv = new Set(maps.map(m => m.supervisor_id));
-                      const divUsers = allUsers.filter(u =>
-                        u.role?.toLowerCase() === 'guest' && u.sales_division === division && !supIdsInDiv.has(u.id)
-                      ).sort((a, b) => {
+                      const divPrefix = division.split(' ')[0];
+                      const divUsers = allUsers.filter(u => {
+                        if (u.role?.toLowerCase() !== 'guest') return false;
+                        if (!u.sales_division || u.sales_division === 'IVP') return false;
+                        if (supIdsInDiv.has(u.id)) return false;
+                        // Include jika divisi sama persis ATAU prefix sama (SGP = SGP, SGP 1, SGP 2)
+                        return u.sales_division === division || u.sales_division.split(' ')[0] === divPrefix;
+                      }).sort((a, b) => {
                         const ta = a.jabatan ? (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) : 0;
                         const tb = b.jabatan ? (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) : 0;
                         return tb - ta;
