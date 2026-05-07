@@ -990,6 +990,10 @@ function NewFormModal({
                 className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
               </button>
+              <button type="button" onClick={addAndGoToRoom}
+                className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all whitespace-nowrap ml-1">
+                + Ruangan Lain
+              </button>
               <div className="flex-1"/>
               <span className="text-[10px] text-teal-600 font-bold mr-1">{activeRoomIdx+1}/{totalRooms}</span>
               {activeRoomIdx > 0 && (
@@ -1005,16 +1009,12 @@ function NewFormModal({
               {activeRoomIdx === 0 ? (
                 /* ── Ruangan 1 (main form) ── */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-                  {/* Nama Ruangan 1 + Ruangan Lain — full width */}
+                  {/* Nama Ruangan 1 — full width */}
                   <div className="md:col-span-2 flex items-center gap-2 mb-3 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
                     <span className="text-xs font-black text-teal-700 flex-shrink-0">Ruangan 1</span>
                     <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
                       placeholder="Nama ruangan / area..."
                       className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-medium bg-white outline-none focus:border-teal-400" />
-                    <button type="button" onClick={addAndGoToRoom}
-                      className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all whitespace-nowrap">
-                      + Ruangan Lain
-                    </button>
                   </div>
                   {/* LEFT COL */}
                   <div>
