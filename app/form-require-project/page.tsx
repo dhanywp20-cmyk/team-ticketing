@@ -2925,8 +2925,8 @@ Hubungi Admin untuk info lebih lanjut.
                             ? <input type="checkbox" checked={selectedIds.has(req.id)}
                                 onChange={() => toggleSelectId(req.id)} className="w-4 h-4 rounded accent-teal-600 cursor-pointer" />
                             : (
-                              <span className="text-[9px] font-mono font-semibold text-gray-400 bg-gray-100 px-1 py-0.5 rounded tracking-wide uppercase" title={req.id}>
-                                {req.id.replace(/-/g, '').slice(0, 8)}
+                              <span className="text-xs font-bold text-gray-500">
+                                {index + 1}
                               </span>
                             )}
                         </td>
