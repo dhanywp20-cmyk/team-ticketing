@@ -608,7 +608,7 @@ function AssignPTSModal({
 
 // ─── RoomSection ─────────────────────────────────────────────────────────────
 
-function RoomSection({ room, rIdx, onUpdate, onRemove, brandPicMappings, photos, onAddPhotos, onRemovePhoto, toggleArr }: {
+function RoomSection({ room, rIdx, onUpdate, onRemove, brandPicMappings, photos, onAddPhotos, onRemovePhoto, toggleArr, boqFile, onSetBoq, isGuest }: {
   room: RoomDetail; rIdx: number;
   onUpdate: (patch: Partial<RoomDetail>) => void;
   onRemove: () => void;
@@ -617,10 +617,14 @@ function RoomSection({ room, rIdx, onUpdate, onRemove, brandPicMappings, photos,
   onAddPhotos: (files: File[]) => void;
   onRemovePhoto: (i: number) => void;
   toggleArr: (arr: string[], val: string) => string[];
+  boqFile?: File | null;
+  onSetBoq?: (file: File | null) => void;
+  isGuest?: boolean;
 }) {
   const [previews, setPreviews] = useState<string[]>([]);
   useEffect(() => { setPreviews(photos.map(f => URL.createObjectURL(f))); }, [photos]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const boqRef = useRef<HTMLInputElement>(null);
   const getBrandPic = (type: 'display'|'middleware', brand: string) =>
     brandPicMappings.find(m => m.brand_type === type && m.brand_name === brand);
 
@@ -803,6 +807,37 @@ function RoomSection({ room, rIdx, onUpdate, onRemove, brandPicMappings, photos,
             </div>
           )}
         </div>
+
+        {/* BOQ per ruangan — hanya untuk guest */}
+        {isGuest && (
+          <div className="pt-2 border-t border-gray-100">
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel Ruangan Ini</label>
+            <input ref={boqRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f && onSetBoq) onSetBoq(f); e.target.value=''; }} />
+            {!boqFile ? (
+              <button type="button" onClick={() => boqRef.current?.click()}
+                className="w-full border-2 border-dashed border-emerald-300 rounded-xl py-4 flex flex-col items-center justify-center text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer">
+                <span className="text-2xl mb-1">📊</span><span className="text-xs font-medium">Klik upload BOQ</span>
+                <span className="text-[11px] opacity-70">.xlsx / .xls / .csv</span>
+              </button>
+            ) : (
+              <div>
+                <div className="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-3 flex items-center gap-3">
+                  <span className="text-xl">📊</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-emerald-800 truncate">{boqFile.name}</p>
+                    <p className="text-[11px] text-emerald-600">{(boqFile.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <button type="button" onClick={() => onSetBoq && onSetBoq(null)} className="text-red-400 hover:text-red-600 font-bold text-sm">✕</button>
+                </div>
+                <button type="button" onClick={() => boqRef.current?.click()}
+                  className="mt-1.5 w-full text-xs text-emerald-600 hover:text-emerald-800 font-bold py-1 transition-all">
+                  🔄 Ganti File
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -851,6 +886,8 @@ interface NewFormModalProps {
   brandPicMappings: BrandPicMapping[];
   roomPhotoMap: Record<string, File[]>;
   setRoomPhotoMap: React.Dispatch<React.SetStateAction<Record<string, File[]>>>;
+  boqRoomMap: Record<string, File | null>;
+  setBoqRoomMap: React.Dispatch<React.SetStateAction<Record<string, File | null>>>;
 }
 
 function NewFormModal({
@@ -859,9 +896,11 @@ function NewFormModal({
   boqFormFile, setBoqFormFile,
   submitting, onClose, onSubmit,
   salesGuestUsers, rooms, setRooms, brandPicMappings, roomPhotoMap, setRoomPhotoMap,
+  boqRoomMap, setBoqRoomMap,
 }: NewFormModalProps) {
   const surveyPhotoRef = useRef<HTMLInputElement>(null);
   const boqFormRef = useRef<HTMLInputElement>(null);
+  const boqRoom1Ref = useRef<HTMLInputElement>(null);
 
   const toggleArr = (arr: string[], val: string): string[] =>
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
@@ -1094,10 +1133,17 @@ function NewFormModal({
                         <CheckGroup label="Detail Audio" options={['Speaker Ceiling','Speaker Line Array','Subwoofer','Microphone','Amplifier']} value={form.audio_detail} onChange={v => setForm(prev => ({...prev, audio_detail:v}))} />
                       </div>
                     )}
-                    <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input} onChange={v => setForm(prev => ({ ...prev, wallplate_input: v }))} />
-                    {form.wallplate_input === 'Yes' && <div className="ml-4 mb-3"><input value={form.wallplate_jumlah} onChange={e => setForm(prev => ({ ...prev, wallplate_jumlah: e.target.value }))} placeholder="Jumlah wallplate..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>}
-                    <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input} onChange={v => setForm(prev => ({ ...prev, tabletop_input: v }))} />
-                    {form.tabletop_input === 'Yes' && <div className="ml-4 mb-3"><input value={form.tabletop_jumlah} onChange={e => setForm(prev => ({ ...prev, tabletop_jumlah: e.target.value }))} placeholder="Jumlah tabletop..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>}
+                    {/* Wallplate + Tabletop in 2-col grid */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="space-y-1.5">
+                        <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input} onChange={v => setForm(prev => ({ ...prev, wallplate_input: v }))} />
+                        {form.wallplate_input === 'Yes' && <input value={form.wallplate_jumlah} onChange={e => setForm(prev => ({ ...prev, wallplate_jumlah: e.target.value }))} placeholder="Jumlah..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input} onChange={v => setForm(prev => ({ ...prev, tabletop_input: v }))} />
+                        {form.tabletop_input === 'Yes' && <input value={form.tabletop_jumlah} onChange={e => setForm(prev => ({ ...prev, tabletop_jumlah: e.target.value }))} placeholder="Jumlah..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>}
+                      </div>
+                    </div>
                     <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation} onChange={v => setForm(prev => ({ ...prev, wireless_presentation: v }))} />
                     {form.wireless_presentation === 'Yes' && (
                       <div className="ml-4 mb-3 space-y-2 border-l-2 border-teal-200 pl-3">
@@ -1118,6 +1164,86 @@ function NewFormModal({
                     </div>
                   </div>
                 </div>
+
+                {/* Foto Survey + BOQ untuk Ruangan 1 — hanya untuk non-team */}
+                {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
+                  <div className="mt-4 pt-4 border-t-2 border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey Ruangan Ini</p>
+                      <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
+                        onChange={e => {
+                          const files = Array.from(e.target.files || []);
+                          if (!files.length) return;
+                          const combined = [...surveyPhotos, ...files].slice(0, 10);
+                          setSurveyPhotos(combined);
+                          setSurveyPhotosPreviews(combined.map(f => URL.createObjectURL(f)));
+                          e.target.value = '';
+                        }} />
+                      {surveyPhotosPreviews.length === 0 ? (
+                        <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+                          className="w-full border-2 border-dashed border-gray-300 rounded-xl py-5 text-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
+                          <div className="text-2xl mb-1">📷</div>
+                          <p className="text-xs font-medium">Klik upload foto</p>
+                          <p className="text-[11px] mt-0.5 opacity-70">Max 10 foto</p>
+                        </button>
+                      ) : (
+                        <div>
+                          <div className="grid grid-cols-4 gap-1.5 mb-2">
+                            {surveyPhotosPreviews.map((src, i) => (
+                              <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
+                                <img src={src} alt="" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => {
+                                  const newPhotos = surveyPhotos.filter((_, j) => j !== i);
+                                  setSurveyPhotos(newPhotos);
+                                  setSurveyPhotosPreviews(newPhotos.map(f => URL.createObjectURL(f)));
+                                }} className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                              </div>
+                            ))}
+                            {surveyPhotos.length < 10 && (
+                              <button type="button" onClick={() => surveyPhotoRef.current?.click()}
+                                className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
+                                <span className="text-xl">+</span>
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-400">{surveyPhotos.length}/10 foto</p>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel Ruangan Ini</p>
+                      <input ref={boqRoom1Ref} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) setBoqFormFile(f);
+                          e.target.value = '';
+                        }} />
+                      {!boqFormFile ? (
+                        <button type="button" onClick={() => boqRoom1Ref.current?.click()}
+                          className="w-full border-2 border-dashed border-emerald-300 rounded-xl py-5 text-center text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50 transition-all">
+                          <div className="text-2xl mb-1">📊</div>
+                          <p className="text-xs font-medium">Klik upload BOQ</p>
+                          <p className="text-[11px] mt-0.5 opacity-70">.xlsx / .xls / .csv</p>
+                        </button>
+                      ) : (
+                        <div className="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-3 flex items-center gap-3">
+                          <span className="text-xl">📊</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-emerald-800 truncate">{boqFormFile.name}</p>
+                            <p className="text-[11px] text-emerald-600">{(boqFormFile.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                          <button type="button" onClick={() => setBoqFormFile(null)} className="text-red-400 hover:text-red-600 font-bold text-sm">✕</button>
+                        </div>
+                      )}
+                      {boqFormFile && (
+                        <button type="button" onClick={() => boqRoom1Ref.current?.click()}
+                          className="mt-1.5 w-full text-xs text-emerald-600 hover:text-emerald-800 font-bold py-1 transition-all">
+                          🔄 Ganti File
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               ) : (
                 /* ── Extra Room (RoomSection component) ── */
                 <RoomSection
@@ -1129,102 +1255,16 @@ function NewFormModal({
                   photos={roomPhotoMap[rooms[activeRoomIdx-1]?.id] || []}
                   onAddPhotos={files => setRoomPhotoMap(p => ({ ...p, [rooms[activeRoomIdx-1].id]: [...(p[rooms[activeRoomIdx-1].id]||[]),...files].slice(0,10) }))}
                   onRemovePhoto={i => setRoomPhotoMap(p => { const arr=[...(p[rooms[activeRoomIdx-1].id]||[])]; arr.splice(i,1); return {...p,[rooms[activeRoomIdx-1].id]:arr}; })}
+                  boqFile={boqRoomMap[rooms[activeRoomIdx-1]?.id] || null}
+                  onSetBoq={file => setBoqRoomMap(p => ({ ...p, [rooms[activeRoomIdx-1].id]: file }))}
                   toggleArr={toggleArr}
+                  isGuest={!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim())}
                 />
               )}
             </div>
           </div>
 
 
-          {/* Foto Survey + BOQ Upload — hanya untuk guest/sales (bukan team PTS) */}
-          {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📎</span>
-              Dokumen & Foto Survey <span className="text-xs font-normal text-gray-400">(opsional)</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📸 Foto Survey</p>
-                <input ref={surveyPhotoRef} type="file" accept="image/*" multiple className="hidden"
-                  onChange={e => {
-                    const files = Array.from(e.target.files || []);
-                    if (!files.length) return;
-                    const combined = [...surveyPhotos, ...files].slice(0, 10);
-                    setSurveyPhotos(combined);
-                    setSurveyPhotosPreviews(combined.map(f => URL.createObjectURL(f)));
-                    e.target.value = '';
-                  }} />
-                {surveyPhotosPreviews.length === 0 ? (
-                  <button type="button" onClick={() => surveyPhotoRef.current?.click()}
-                    className="w-full border-2 border-dashed border-gray-300 rounded-xl py-6 text-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
-                    <div className="text-2xl mb-1">📷</div>
-                    <p className="text-xs font-medium">Klik upload foto</p>
-                    <p className="text-[11px] mt-0.5 opacity-70">Max 10 foto</p>
-                  </button>
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-3 gap-1.5 mb-2">
-                      {surveyPhotosPreviews.map((src, i) => (
-                        <div key={i} className="relative group rounded-lg overflow-hidden aspect-square border border-gray-200">
-                          <img src={src} alt="" className="w-full h-full object-cover" />
-                          <button type="button" onClick={() => {
-                            const newPhotos = surveyPhotos.filter((_, j) => j !== i);
-                            setSurveyPhotos(newPhotos);
-                            setSurveyPhotosPreviews(newPhotos.map(f => URL.createObjectURL(f)));
-                          }} className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-                        </div>
-                      ))}
-                      {surveyPhotos.length < 10 && (
-                        <button type="button" onClick={() => surveyPhotoRef.current?.click()}
-                          className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-teal-400 hover:text-teal-500 transition-all">
-                          <span className="text-xl">+</span>
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-gray-400">{surveyPhotos.length}/10 foto</p>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">📊 BOQ Excel</p>
-                <input ref={boqFormRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
-                  onChange={e => {
-                    const f = e.target.files?.[0];
-                    if (f) setBoqFormFile(f);
-                    e.target.value = '';
-                  }} />
-                {!boqFormFile ? (
-                  <button type="button" onClick={() => boqFormRef.current?.click()}
-                    className="w-full border-2 border-dashed border-emerald-300 rounded-xl py-6 text-center text-emerald-500 hover:border-emerald-500 hover:bg-emerald-50 transition-all">
-                    <div className="text-2xl mb-1">📊</div>
-                    <p className="text-xs font-medium">Klik upload BOQ</p>
-                    <p className="text-[11px] mt-0.5 opacity-70">.xlsx / .xls / .csv</p>
-                  </button>
-                ) : (
-                  <div className="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-xl">📊</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-emerald-800 truncate">{boqFormFile.name}</p>
-                      <p className="text-[11px] text-emerald-600">{(boqFormFile.size / 1024).toFixed(1)} KB</p>
-                    </div>
-                    <button type="button" onClick={() => setBoqFormFile(null)}
-                      className="text-red-400 hover:text-red-600 font-bold text-sm flex-shrink-0">✕</button>
-                  </div>
-                )}
-                {boqFormFile && (
-                  <button type="button" onClick={() => boqFormRef.current?.click()}
-                    className="mt-2 w-full text-xs text-emerald-600 hover:text-emerald-800 font-bold py-1 transition-all">
-                    🔄 Ganti File
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-          )} {/* end kondisional upload foto/boq untuk non-team */}
         </div>
 
         <div className="border-t-2 border-gray-200 p-4 flex gap-3 bg-white/90 flex-shrink-0">
@@ -1303,6 +1343,10 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const activeRequestIdRef = useRef<string | null>(null);
   const [uploadingCategory, setUploadingCategory] = useState<'sld' | 'boq' | 'design3d' | null>(null);
   const [activeAttachTab, setActiveAttachTab] = useState<'all' | 'sld' | 'boq' | 'design3d'>('all');
+  // Detail modal: active room tab (0 = Ruangan 1/main, 1+ = rooms[idx-1])
+  const [detailRoomIdx, setDetailRoomIdx] = useState(0);
+  // Chat: active room filter ('all' = umum, or room_name label)
+  const [chatRoomFilter, setChatRoomFilter] = useState<string>('all');
   const [rejectModal, setRejectModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
   const [rejectNote, setRejectNote] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; req: ProjectRequest | null }>({ open: false, req: null });
@@ -1390,6 +1434,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [boqFormFile, setBoqFormFile] = useState<File | null>(null);
   const [rooms, setRooms] = useState<RoomDetail[]>([]);
   const [roomPhotoMap, setRoomPhotoMap] = useState<Record<string, File[]>>({});
+  const [boqRoomMap, setBoqRoomMap] = useState<Record<string, File | null>>({});
   const [brandPicMappings, setBrandPicMappings] = useState<BrandPicMapping[]>([]);
 
   const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
@@ -1833,6 +1878,27 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
             }
           } catch (rPhotoEx: any) { console.warn('[room photo upload]', rPhotoEx?.message); }
 
+          // ── Upload BOQ per ruangan tambahan ──
+          try {
+            for (const [roomId, boqFile] of Object.entries(boqRoomMap)) {
+              if (!boqFile) continue;
+              const rIdx = rooms.findIndex(r => r.id === roomId);
+              const label = rIdx >= 0 ? `room${rIdx+2}` : roomId.slice(0,6);
+              const filePath = `project-files/${data.id}/boq-${label}-${Date.now()}-${boqFile.name}`;
+              const { error: bErr } = await supabase.storage.from('project-files').upload(filePath, boqFile, { cacheControl:'3600', upsert:false });
+              if (!bErr) {
+                const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(filePath);
+                const existingBOQ = await supabase.from('project_attachments').select('revision_version').eq('request_id', data.id).eq('attachment_category','boq').order('revision_version',{ascending:false}).limit(1);
+                const revNum = ((existingBOQ.data?.[0]?.revision_version) || 0) + 1;
+                await supabase.from('project_attachments').insert([{
+                  request_id: data.id, message_id: null, file_name: `[${label}] ${boqFile.name}`,
+                  file_url: urlData.publicUrl, file_type: boqFile.type, file_size: boqFile.size,
+                  uploaded_by: currentUser.full_name, attachment_category: 'boq', revision_version: revNum,
+                }]);
+              }
+            }
+          } catch (rBoqEx: any) { console.warn('[room boq upload]', rBoqEx?.message); }
+
           // ── WA notif ke Brand PIC dari rooms ──
           try {
             const allRooms = rooms.length > 0 ? rooms : [];
@@ -1869,7 +1935,7 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
       }
       notify('success', '✅ Form berhasil dikirim! ⏳ Menunggu approval dari Superadmin.');
       setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null);
-      setRooms([]); setRoomPhotoMap({});
+      setRooms([]); setRoomPhotoMap({}); setBoqRoomMap({});
       setShowNewFormModal(false);
       fetchRequests();
     } catch { notify('error', 'Terjadi kesalahan tidak terduga. Coba lagi.'); }
@@ -2016,7 +2082,14 @@ Hubungi Admin untuk info lebih lanjut.
     const canChat = isPTS || isOwner || isLinkedIVP;
     if (!canChat) { notify('error', 'Anda tidak memiliki akses untuk mengirim pesan.'); return; }
     setSendingMsg(true);
-    const { error } = await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: msgText.trim() }]);
+    // Prefix message with room label if chatting in room context
+    const roomRooms = selectedRequest.rooms || [];
+    const totalDetailRooms = 1 + roomRooms.length;
+    let finalMessage = msgText.trim();
+    if (chatRoomFilter !== 'all') {
+      finalMessage = `[${chatRoomFilter}] ${finalMessage}`;
+    }
+    const { error } = await supabase.from('project_messages').insert([{ request_id: selectedRequest.id, sender_id: currentUser.id, sender_name: currentUser.full_name, sender_role: currentUser.role, message: finalMessage }]);
     setSendingMsg(false);
     if (error) { notify('error', 'Gagal kirim pesan.'); return; }
     setMsgText('');
@@ -2059,6 +2132,8 @@ Hubungi Admin untuk info lebih lanjut.
     setMessages([]);
     setAttachments([]);
     setShowDetailModal(true);
+    setDetailRoomIdx(0);
+    setChatRoomFilter('all');
     await fetchMessages(req.id);
     await fetchAttachments(req.id);
     const stored = JSON.parse(localStorage.getItem('pts_last_seen') || '{}');
@@ -2536,6 +2611,7 @@ Hubungi Admin untuk info lebih lanjut.
           rooms={rooms} setRooms={setRooms}
           brandPicMappings={brandPicMappings}
           roomPhotoMap={roomPhotoMap} setRoomPhotoMap={setRoomPhotoMap}
+          boqRoomMap={boqRoomMap} setBoqRoomMap={setBoqRoomMap}
           dueDateForm={dueDateForm}
           setDueDateForm={setDueDateForm}
           surveyPhotos={surveyPhotos}
@@ -2545,7 +2621,7 @@ Hubungi Admin untuk info lebih lanjut.
           boqFormFile={boqFormFile}
           setBoqFormFile={setBoqFormFile}
           submitting={submitting}
-          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); setRoomPhotoMap({}); }}
+          onClose={() => { setShowNewFormModal(false); setForm(initialForm); setDueDateForm(''); setSurveyPhotos([]); setSurveyPhotosPreviews([]); setBoqFormFile(null); setRooms([]); setRoomPhotoMap({}); setBoqRoomMap({}); }}
           onSubmit={handleSubmitForm}
         />
       )}
@@ -3395,6 +3471,93 @@ Hubungi Admin untuk info lebih lanjut.
                     </div>
                   )}
 
+                  {/* Room Tab Navigator — tampil jika ada lebih dari 1 ruangan */}
+                  {(() => {
+                    const detailRooms = selectedRequest.rooms || [];
+                    const totalDetailRooms = 1 + detailRooms.length;
+                    if (totalDetailRooms <= 1) return null;
+                    return (
+                      <div className="flex items-center bg-teal-50 border border-teal-200 rounded-2xl px-2 py-1.5 gap-1 overflow-x-auto">
+                        <button type="button" onClick={() => setDetailRoomIdx(i => Math.max(0, i-1))} disabled={detailRoomIdx === 0}
+                          className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 transition-all flex-shrink-0">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7"/></svg>
+                        </button>
+                        {Array.from({length: totalDetailRooms}).map((_, i) => {
+                          const label = i === 0 ? (selectedRequest.room_name?.trim() || 'Ruangan 1') : (detailRooms[i-1]?.room_name?.trim() || `Ruangan ${i+1}`);
+                          return (
+                            <button key={i} type="button" onClick={() => setDetailRoomIdx(i)}
+                              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${detailRoomIdx === i ? 'bg-teal-600 text-white shadow' : 'text-teal-700 hover:bg-teal-100'}`}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                        <button type="button" onClick={() => setDetailRoomIdx(i => Math.min(totalDetailRooms-1, i+1))} disabled={detailRoomIdx === totalDetailRooms-1}
+                          className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 transition-all flex-shrink-0">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
+                        </button>
+                        <span className="text-[10px] text-teal-600 font-bold ml-auto mr-1">{detailRoomIdx+1}/{totalDetailRooms}</span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Compute active room data for display */}
+                  {(() => {
+                    const detailRooms = selectedRequest.rooms || [];
+                    // For detailRoomIdx > 0, use rooms[detailRoomIdx-1]; for 0 use selectedRequest fields
+                    const activeRoom = detailRoomIdx > 0 ? detailRooms[detailRoomIdx - 1] : null;
+                    const dr = activeRoom ? {
+                      room_name: activeRoom.room_name,
+                      kebutuhan: activeRoom.kebutuhan, kebutuhan_other: activeRoom.kebutuhan_other,
+                      solution_product: activeRoom.solution_product, solution_other: activeRoom.solution_other,
+                      layout_signage: activeRoom.layout_signage, jaringan_cms: activeRoom.jaringan_cms,
+                      jumlah_input: activeRoom.jumlah_input, jumlah_output: activeRoom.jumlah_output,
+                      source: activeRoom.source, source_other: activeRoom.source_other,
+                      camera_conference: activeRoom.camera_conference, camera_jumlah: activeRoom.camera_jumlah, camera_tracking: activeRoom.camera_tracking,
+                      audio_system: activeRoom.audio_system, audio_mixer: activeRoom.audio_mixer, audio_detail: activeRoom.audio_detail,
+                      wallplate_input: activeRoom.wallplate_input, wallplate_jumlah: activeRoom.wallplate_jumlah,
+                      tabletop_input: activeRoom.tabletop_input, tabletop_jumlah: activeRoom.tabletop_jumlah,
+                      wireless_presentation: activeRoom.wireless_presentation, wireless_mode: activeRoom.wireless_mode, wireless_dongle: activeRoom.wireless_dongle,
+                      controller_automation: activeRoom.controller_automation, controller_type: activeRoom.controller_type,
+                      ukuran_ruangan: activeRoom.ukuran_ruangan, suggest_tampilan: activeRoom.suggest_tampilan, keterangan_lain: activeRoom.keterangan_lain,
+                      brand_display: activeRoom.brand_display, brand_display_pic_name: activeRoom.brand_display_pic_name,
+                      brand_middleware: activeRoom.brand_middleware, brand_middleware_pic_name: activeRoom.brand_middleware_pic_name,
+                    } : {
+                      room_name: selectedRequest.room_name,
+                      kebutuhan: selectedRequest.kebutuhan, kebutuhan_other: selectedRequest.kebutuhan_other,
+                      solution_product: selectedRequest.solution_product, solution_other: selectedRequest.solution_other,
+                      layout_signage: selectedRequest.layout_signage, jaringan_cms: selectedRequest.jaringan_cms,
+                      jumlah_input: selectedRequest.jumlah_input, jumlah_output: selectedRequest.jumlah_output,
+                      source: selectedRequest.source, source_other: selectedRequest.source_other,
+                      camera_conference: selectedRequest.camera_conference, camera_jumlah: selectedRequest.camera_jumlah, camera_tracking: selectedRequest.camera_tracking,
+                      audio_system: selectedRequest.audio_system, audio_mixer: selectedRequest.audio_mixer, audio_detail: selectedRequest.audio_detail,
+                      wallplate_input: selectedRequest.wallplate_input, wallplate_jumlah: selectedRequest.wallplate_jumlah,
+                      tabletop_input: selectedRequest.tabletop_input, tabletop_jumlah: selectedRequest.tabletop_jumlah,
+                      wireless_presentation: selectedRequest.wireless_presentation, wireless_mode: selectedRequest.wireless_mode, wireless_dongle: selectedRequest.wireless_dongle,
+                      controller_automation: selectedRequest.controller_automation, controller_type: selectedRequest.controller_type,
+                      ukuran_ruangan: selectedRequest.ukuran_ruangan, suggest_tampilan: selectedRequest.suggest_tampilan, keterangan_lain: selectedRequest.keterangan_lain,
+                      brand_display: selectedRequest.brand_display, brand_display_pic_name: selectedRequest.brand_display_pic_name,
+                      brand_middleware: selectedRequest.brand_middleware, brand_middleware_pic_name: selectedRequest.brand_middleware_pic_name,
+                    };
+
+                    // Helper renderers for detail display
+                    const ChipDisplay = ({ items }: { items: (string | undefined)[] }) => {
+                      const filtered = items.filter(Boolean) as string[];
+                      if (!filtered.length) return <span className="text-sm text-gray-400 italic">—</span>;
+                      return <div className="flex flex-wrap gap-2">{filtered.map(item => (
+                        <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
+                          <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>
+                          {item}
+                        </span>
+                      ))}</div>;
+                    };
+                    const YNDisplay = ({ value, label }: { value: string; label: string }) => (
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{label}</label>
+                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${value === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${value === opt ? 'border-teal-500' : 'border-gray-400'}`}>{value === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
+                      </div>
+                    );
+
+                    return (<>
                   {/* Project Info — form style */}
                   <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -3416,10 +3579,10 @@ Hubungi Admin untuk info lebih lanjut.
                       )}
                       {/* Row: Nama Ruangan, Sales/Account */}
                       <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                        {selectedRequest.room_name && (
+                        {dr.room_name && (
                           <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
-                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.room_name}</p>
+                            <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.room_name}</p>
                           </div>
                         )}
                         {selectedRequest.sales_name && (
@@ -3469,32 +3632,12 @@ Hubungi Admin untuk info lebih lanjut.
                       Kategori Kebutuhan & Solution
                     </h3>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Kebutuhan</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).length > 0
-                            ? [...(selectedRequest.kebutuhan || []), selectedRequest.kebutuhan_other].filter(Boolean).map(item => (
-                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
-                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
-                                {item}
-                              </span>
-                            ))
-                            : <span className="text-sm text-gray-400 italic">—</span>}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Solution Product</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).length > 0
-                            ? [...(selectedRequest.solution_product || []), selectedRequest.solution_other].filter(Boolean).map(item => (
-                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
-                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
-                                {item}
-                              </span>
-                            ))
-                            : <span className="text-sm text-gray-400 italic">—</span>}
-                        </div>
-                      </div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Kebutuhan</label><ChipDisplay items={[...(dr.kebutuhan||[]), dr.kebutuhan_other]} /></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Solution Product</label><ChipDisplay items={[...(dr.solution_product||[]), dr.solution_other]} /></div>
+                      {dr.brand_display && <div className="grid grid-cols-2 gap-3">
+                        <div><label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">🖥️ Brand Display</label><p className="text-sm font-semibold text-gray-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{dr.brand_display}{dr.brand_display_pic_name && <span className="text-[11px] text-amber-600 ml-2">· PIC: {dr.brand_display_pic_name}</span>}</p></div>
+                        {dr.brand_middleware && <div><label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1">🔌 Brand Middleware</label><p className="text-sm font-semibold text-gray-800 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">{dr.brand_middleware}{dr.brand_middleware_pic_name && <span className="text-[11px] text-violet-600 ml-2">· PIC: {dr.brand_middleware_pic_name}</span>}</p></div>}
+                      </div>}
                     </div>
                   </div>
 
@@ -3505,41 +3648,11 @@ Hubungi Admin untuk info lebih lanjut.
                       Layout Konten & Jaringan
                     </h3>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Layout Signage</label>
-                        <div className="flex flex-wrap gap-2">
-                          {(selectedRequest.layout_signage || []).length > 0
-                            ? (selectedRequest.layout_signage || []).map(item => (
-                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
-                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
-                                {item}
-                              </span>
-                            ))
-                            : <span className="text-sm text-gray-400 italic">—</span>}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Jaringan / CMS</label>
-                        <div className="flex flex-wrap gap-2">
-                          {(selectedRequest.jaringan_cms || []).length > 0
-                            ? (selectedRequest.jaringan_cms || []).map(item => (
-                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
-                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
-                                {item}
-                              </span>
-                            ))
-                            : <span className="text-sm text-gray-400 italic">—</span>}
-                        </div>
-                      </div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Layout Signage</label><ChipDisplay items={dr.layout_signage||[]} /></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Jaringan / CMS</label><ChipDisplay items={dr.jaringan_cms||[]} /></div>
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
-                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.jumlah_input || '—'}</p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label>
-                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.jumlah_output || '—'}</p>
-                        </div>
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.jumlah_input||'—'}</p></div>
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.jumlah_output||'—'}</p></div>
                       </div>
                     </div>
                   </div>
@@ -3551,90 +3664,61 @@ Hubungi Admin untuk info lebih lanjut.
                       Source & Peripheral
                     </h3>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Source</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).length > 0
-                            ? [...(selectedRequest.source || []), selectedRequest.source_other].filter(Boolean).map(item => (
-                              <span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium">
-                                <div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
-                                {item}
-                              </span>
-                            ))
-                            : <span className="text-sm text-gray-400 italic">—</span>}
-                        </div>
-                      </div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Source</label><ChipDisplay items={[...(dr.source||[]), dr.source_other]} /></div>
 
                       {/* Camera */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Camera Conference</label>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          <span className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.camera_conference === 'Yes' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}>
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.camera_conference === 'Yes' ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.camera_conference === 'Yes' && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>
-                            Yes
-                          </span>
-                          <span className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.camera_conference === 'No' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}>
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.camera_conference === 'No' ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.camera_conference === 'No' && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>
-                            No
-                          </span>
-                        </div>
-                        {selectedRequest.camera_conference === 'Yes' && (
-                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Camera</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.camera_jumlah || '—'}</p></div>
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Camera Tracking</label>
-                              <div className="flex flex-wrap gap-2">{(selectedRequest.camera_tracking || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div>
-                            </div>
+                        <YNDisplay value={dr.camera_conference||'No'} label="Camera Conference" />
+                        {dr.camera_conference === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2 mt-2">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Camera</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.camera_jumlah||'—'}</p></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Camera Tracking</label><ChipDisplay items={dr.camera_tracking||[]} /></div>
                           </div>
                         )}
                       </div>
 
                       {/* Audio */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Audio System</label>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.audio_system === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.audio_system === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.audio_system === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}
-                        </div>
-                        {selectedRequest.audio_system === 'Yes' && (
-                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mixer / DSP</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.audio_mixer || '—'}</p></div>
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Audio Detail</label>
-                              <div className="flex flex-wrap gap-2">{(selectedRequest.audio_detail || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div>
-                            </div>
+                        <YNDisplay value={dr.audio_system||'No'} label="Audio System" />
+                        {dr.audio_system === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2 mt-2">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mixer / DSP</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.audio_mixer||'—'}</p></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Audio Detail</label><ChipDisplay items={dr.audio_detail||[]} /></div>
                           </div>
                         )}
                       </div>
 
-                      {/* Wallplate */}
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wallplate Input</label>
-                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.wallplate_input === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.wallplate_input === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.wallplate_input === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
-                        {selectedRequest.wallplate_input === 'Yes' && (<div className="ml-4 pl-4 border-l-2 border-teal-200"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Wallplate</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.wallplate_jumlah || '—'}</p></div>)}
-                      </div>
-
-                      {/* Tabletop */}
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Tabletop Input</label>
-                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.tabletop_input === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.tabletop_input === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.tabletop_input === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
-                        {selectedRequest.tabletop_input === 'Yes' && (<div className="ml-4 pl-4 border-l-2 border-teal-200"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Tabletop</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.tabletop_jumlah || '—'}</p></div>)}
+                      {/* Wallplate + Tabletop — 2 col */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <YNDisplay value={dr.wallplate_input||'No'} label="Wallplate Input" />
+                          {dr.wallplate_input === 'Yes' && <div className="ml-4 pl-4 border-l-2 border-teal-200 mt-1"><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.wallplate_jumlah||'—'}</p></div>}
+                        </div>
+                        <div>
+                          <YNDisplay value={dr.tabletop_input||'No'} label="Tabletop Input" />
+                          {dr.tabletop_input === 'Yes' && <div className="ml-4 pl-4 border-l-2 border-teal-200 mt-1"><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.tabletop_jumlah||'—'}</p></div>}
+                        </div>
                       </div>
 
                       {/* Wireless */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wireless Presentation</label>
-                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.wireless_presentation === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.wireless_presentation === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.wireless_presentation === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
-                        {selectedRequest.wireless_presentation === 'Yes' && (
-                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2">
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wireless Mode</label><div className="flex flex-wrap gap-2">{(selectedRequest.wireless_mode || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Dongle</label><div className="flex flex-wrap gap-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.wireless_dongle === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.wireless_dongle === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.wireless_dongle === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div></div>
+                        <YNDisplay value={dr.wireless_presentation||'No'} label="Wireless Presentation" />
+                        {dr.wireless_presentation === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 space-y-2 mt-2">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wireless Mode</label><ChipDisplay items={dr.wireless_mode||[]} /></div>
+                            <div><YNDisplay value={dr.wireless_dongle||'No'} label="Dongle" /></div>
                           </div>
                         )}
                       </div>
 
                       {/* Controller */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Controller / Automation</label>
-                        <div className="flex flex-wrap gap-2 mb-2">{['Yes','No'].map(opt => (<span key={opt} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium ${selectedRequest.controller_automation === opt ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-500'}`}><div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedRequest.controller_automation === opt ? 'border-teal-500' : 'border-gray-400'}`}>{selectedRequest.controller_automation === opt && <div className="w-2 h-2 rounded-full bg-teal-500" />}</div>{opt}</span>))}</div>
-                        {selectedRequest.controller_automation === 'Yes' && (<div className="ml-4 pl-4 border-l-2 border-teal-200"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Controller Type</label><div className="flex flex-wrap gap-2">{(selectedRequest.controller_type || []).map(item => (<span key={item} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-teal-500 bg-teal-50 text-teal-700 text-sm font-medium"><div className="w-4 h-4 rounded border-2 border-teal-500 bg-teal-500 flex items-center justify-center flex-shrink-0"><svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>{item}</span>))}</div></div>)}
+                        <YNDisplay value={dr.controller_automation||'No'} label="Controller / Automation" />
+                        {dr.controller_automation === 'Yes' && (
+                          <div className="ml-4 pl-4 border-l-2 border-teal-200 mt-2">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Controller Type</label><ChipDisplay items={dr.controller_type||[]} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3647,23 +3731,14 @@ Hubungi Admin untuk info lebih lanjut.
                     </h3>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
-                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.ukuran_ruangan || '—'}</p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan (W × H)</label>
-                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{selectedRequest.suggest_tampilan || '—'}</p>
-                        </div>
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.ukuran_ruangan||'—'}</p></div>
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan (W × H)</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{dr.suggest_tampilan||'—'}</p></div>
                       </div>
-                      {selectedRequest.keterangan_lain && (
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
-                          <p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 whitespace-pre-wrap">{selectedRequest.keterangan_lain}</p>
-                        </div>
-                      )}
+                      {dr.keterangan_lain && <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label><p className="text-sm font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 whitespace-pre-wrap">{dr.keterangan_lain}</p></div>}
                     </div>
                   </div>
+                  </>);
+                  })()}
 
                   {/* Attachments Panel — prominent */}
                   <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
@@ -3833,57 +3908,104 @@ Hubungi Admin untuk info lebih lanjut.
 
               {/* RIGHT: Chat */}
               <div className="flex-[1.2] flex flex-col overflow-hidden bg-white/95 min-w-0" style={{ minWidth: 1000 }}>
-                <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-gray-50">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">💬 Discussion Chat</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>
+                <div className="px-4 py-2.5 border-b border-gray-100 flex-shrink-0 bg-gray-50">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">💬 Discussion Chat</p>
+                  {/* Room filter tabs for chat */}
+                  {(() => {
+                    const chatRooms = selectedRequest.rooms || [];
+                    if (chatRooms.length === 0) return <p className="text-[10px] text-gray-400">{messages.filter(m => m.sender_role !== 'system').length} pesan</p>;
+                    const roomLabels = [
+                      { key: 'all', label: '📋 Semua' },
+                      { key: selectedRequest.room_name?.trim() || 'Ruangan 1', label: selectedRequest.room_name?.trim() || 'Ruangan 1' },
+                      ...chatRooms.map((r, i) => ({ key: r.room_name?.trim() || `Ruangan ${i+2}`, label: r.room_name?.trim() || `Ruangan ${i+2}` })),
+                    ];
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {roomLabels.map(({ key, label }) => (
+                          <button key={key} type="button" onClick={() => setChatRoomFilter(key)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${chatRoomFilter === key ? 'bg-teal-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-                      <div className="text-4xl">💬</div>
-                      <p className="font-medium text-sm">Belum ada pesan</p>
-                    </div>
-                  ) : messages.map(msg => {
-                    const isSystem = msg.sender_role === 'system';
-                    const isMe = msg.sender_id === currentUser.id;
-                    if (isSystem) return (
-                      <div key={msg.id} className="flex justify-center">
-                        <div className="bg-gray-100 text-gray-500 text-xs px-4 py-2 rounded-full font-medium max-w-sm text-center">{msg.message}</div>
+                  {(() => {
+                    // Filter messages by chatRoomFilter
+                    const filteredMsgs = chatRoomFilter === 'all'
+                      ? messages
+                      : messages.filter(m => {
+                          if (m.sender_role === 'system') return true;
+                          // Show messages prefixed with this room label, or unprefixed (general/Ruangan 1)
+                          const hasPrefix = m.message.startsWith('[') && m.message.includes(']');
+                          if (hasPrefix) {
+                            const prefix = m.message.match(/^\[([^\]]+)\]/)?.[1] || '';
+                            return prefix === chatRoomFilter;
+                          }
+                          // Unprefixed messages: show only in 'all' or Ruangan 1 (first room)
+                          const firstRoomLabel = selectedRequest.room_name?.trim() || 'Ruangan 1';
+                          return chatRoomFilter === firstRoomLabel;
+                        });
+                    if (filteredMsgs.length === 0) return (
+                      <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+                        <div className="text-4xl">💬</div>
+                        <p className="font-medium text-sm">{chatRoomFilter === 'all' ? 'Belum ada pesan' : `Belum ada pesan untuk ${chatRoomFilter}`}</p>
                       </div>
                     );
-                    return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
-                          {/* Role badge + name */}
-                          <p className="text-[10px] text-gray-400 font-medium px-1 flex items-center gap-1">
-                            {isMe ? 'Saya' : (
-                              <>
-                                {msg.sender_role === 'guest' ? '👤' : msg.sender_role === 'team_pts' || msg.sender_role === 'team' ? '👷' : msg.sender_role === 'admin' || msg.sender_role === 'superadmin' ? '⚙️' : '💬'}
-                                {' '}{msg.sender_name}
-                              </>
-                            )}
-                            {' · '}{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                          <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${
-                            isMe
-                              ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm'
-                              : msg.sender_role === 'guest'
-                                ? 'bg-blue-50 text-blue-800 border border-blue-200 rounded-tl-sm'
-                                : msg.sender_role === 'admin' || msg.sender_role === 'superadmin'
-                                  ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-sm'
-                                  : 'bg-gray-100 text-gray-800 rounded-tl-sm'
-                          }`}>
-                            {msg.message}
+                    return filteredMsgs.map(msg => {
+                      const isSystem = msg.sender_role === 'system';
+                      const isMe = msg.sender_id === currentUser.id;
+                      if (isSystem) return (
+                        <div key={msg.id} className="flex justify-center">
+                          <div className="bg-gray-100 text-gray-500 text-xs px-4 py-2 rounded-full font-medium max-w-sm text-center">{msg.message}</div>
+                        </div>
+                      );
+                      // Strip room prefix from display
+                      const displayMsg = msg.message.replace(/^\[[^\]]+\]\s*/, '');
+                      const msgRoomLabel = msg.message.match(/^\[([^\]]+)\]/)?.[1];
+                      return (
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[75%] flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                            <p className="text-[10px] text-gray-400 font-medium px-1 flex items-center gap-1 flex-wrap">
+                              {isMe ? 'Saya' : (
+                                <>
+                                  {msg.sender_role === 'guest' ? '👤' : msg.sender_role === 'team_pts' || msg.sender_role === 'team' ? '👷' : msg.sender_role === 'admin' || msg.sender_role === 'superadmin' ? '⚙️' : '💬'}
+                                  {' '}{msg.sender_name}
+                                </>
+                              )}
+                              {' · '}{new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                              {chatRoomFilter === 'all' && msgRoomLabel && <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-bold">{msgRoomLabel}</span>}
+                            </p>
+                            <div className={`px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm ${
+                              isMe
+                                ? 'bg-gradient-to-br from-teal-600 to-teal-800 text-white rounded-tr-sm'
+                                : msg.sender_role === 'guest'
+                                  ? 'bg-blue-50 text-blue-800 border border-blue-200 rounded-tl-sm'
+                                  : msg.sender_role === 'admin' || msg.sender_role === 'superadmin'
+                                    ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-sm'
+                                    : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                            }`}>
+                              {displayMsg}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                   <div ref={messagesEndRef} />
                 </div>
 
                 <div className="flex-shrink-0 p-4 border-t border-gray-100 bg-gray-50">
+                  {/* Show which room this message will go to */}
+                  {chatRoomFilter !== 'all' && selectedRequest.status !== 'rejected' && selectedRequest.status !== 'pending' && (
+                    <div className="mb-2 px-2.5 py-1.5 bg-teal-50 border border-teal-200 rounded-lg text-[10px] text-teal-700 font-semibold flex items-center gap-1.5">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                      Mengirim ke: <strong>{chatRoomFilter}</strong>
+                    </div>
+                  )}
                   {selectedRequest.status === 'rejected' ? (
                     <div className="text-center text-xs font-bold text-red-500 bg-red-50 border border-red-200 rounded-xl py-3">Request ini ditolak. Chat tidak tersedia.</div>
                   ) : selectedRequest.status === 'pending' ? (
