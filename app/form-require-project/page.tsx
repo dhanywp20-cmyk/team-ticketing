@@ -824,6 +824,9 @@ type InitialFormType = {
   wireless_presentation: string; wireless_mode: string[]; wireless_dongle: string;
   controller_automation: string; controller_type: string[];
   ukuran_ruangan: string; suggest_tampilan: string; keterangan_lain: string;
+  brand_display: string; brand_display_pic_id: string; brand_display_pic_name: string;
+  brand_middleware: string; brand_middleware_pic_id: string; brand_middleware_pic_name: string;
+  source_laptop_qty: string; source_pc_qty: string;
 };
 
 interface NewFormModalProps {
@@ -862,6 +865,16 @@ function NewFormModal({
 
   const toggleArr = (arr: string[], val: string): string[] =>
     arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+
+  // Active room tab index for navigation (0 = Ruangan 1 / main form)
+  const [activeRoomIdx, setActiveRoomIdx] = useState(0);
+  const totalRooms = 1 + rooms.length; // main room + extra rooms
+  const goLeft = () => setActiveRoomIdx(i => Math.max(0, i - 1));
+  const goRight = () => setActiveRoomIdx(i => Math.min(totalRooms - 1, i + 1));
+  const addAndGoToRoom = () => {
+    setRooms(p => [...p, emptyRoom()]);
+    setActiveRoomIdx(1 + rooms.length); // go to new room
+  };
 
   const CheckGroup = ({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) => (
     <div className="mb-4">
@@ -902,19 +915,19 @@ function NewFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9998] p-4">
-      <div className="bg-white/90 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
+      <div className="bg-white/90 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col border-2 border-teal-500 animate-scale-in overflow-hidden">
+        {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 to-teal-800 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">📋 Form Equipment Request — IVP</h2>
             <p className="text-teal-100 text-xs mt-0.5">Requester: <span className="font-bold">{currentUser.full_name}</span></p>
           </div>
-          <button onClick={onClose}
-            className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold transition-all text-lg">✕</button>
+          <button onClick={onClose} className="bg-white/20 hover:bg-white/30 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold transition-all text-lg">✕</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50">
 
-          {/* Project Info */}
+          {/* ── Project Info ── */}
           <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📁</span>
@@ -927,240 +940,202 @@ function NewFormModal({
                   placeholder="Contoh: Meeting Room Lantai 5 - PT ABC"
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan</label>
-                <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
-                  placeholder="Nama ruangan / area"
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Lokasi Project *</label>
                 <textarea value={form.project_location} onChange={e => setForm(prev => ({ ...prev, project_location: e.target.value }))}
                   placeholder="Contoh: Gedung Wisma 46 Lt.12, Jl. MH Thamrin No.1, Jakarta Pusat"
-                  rows={4}
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
+                  rows={3} className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none resize-none" />
               </div>
-              {/* Sales: only shown for admin/team — guest auto-inserts from account on submit */}
               {['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Sales / Account</label>
                   <div className="relative">
-                    <select value={form.sales_name} onChange={e => {
-                        const sel = salesGuestUsers.find(u => u.full_name === e.target.value);
-                        // Auto-set division in background — no separate division picker
-                        setForm(prev => ({ ...prev, sales_name: e.target.value, sales_division: sel?.sales_division || '' }));
-                      }}
+                    <select value={form.sales_name} onChange={e => { const sel = salesGuestUsers.find(u => u.full_name === e.target.value); setForm(prev => ({ ...prev, sales_name: e.target.value, sales_division: sel?.sales_division || '' })); }}
                       className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm bg-white outline-none appearance-none cursor-pointer">
                       <option value="">— Pilih Sales —</option>
-                      {salesGuestUsers.map(u => (
-                        <option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` (${u.sales_division})` : ''}</option>
-                      ))}
+                      {salesGuestUsers.map(u => (<option key={u.id} value={u.full_name}>{u.full_name}{u.sales_division ? ` (${u.sales_division})` : ''}</option>))}
                     </select>
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-xs">▾</span>
                   </div>
                 </div>
               )}
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
-                <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)}
-                  required
+                <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)} required
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-            </div>
-          </div>
-
-          {/* Kebutuhan & Solution */}
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🎯</span>
-              Kategori Kebutuhan & Solution
-            </h3>
-            <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
-              value={form.kebutuhan[0] || ''} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v ? [v] : [] }))} />
-            <div className="mb-3">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Kebutuhan</label>
-              <input value={form.kebutuhan_other} onChange={e => setForm(prev => ({ ...prev, kebutuhan_other: e.target.value }))}
-                placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
-            </div>
-            <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP']}
-              value={form.solution_product[0] || ''} onChange={v => setForm(prev => ({ ...prev, solution_product: v ? [v] : [] }))} />
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Solution</label>
-              <input value={form.solution_other} onChange={e => setForm(prev => ({ ...prev, solution_other: e.target.value }))}
-                placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-100 transition-all bg-white outline-none" />
-            </div>
-          </div>
-
-          {/* Signage & Network - hanya tampil jika Kebutuhan = Signage */}
-          {form.kebutuhan.includes('Signage') && (
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📺</span>
-              Layout Konten & Jaringan
-            </h3>
-            <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
-              value={form.layout_signage?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, layout_signage: v ? [v] : [] }))} />
-            <CheckGroup label="Jaringan / CMS" options={['Cloud', 'Onpremise', 'USB']}
-              value={form.jaringan_cms || []} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
-            <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label>
-                <input value={form.jumlah_input} onChange={e => setForm(prev => ({ ...prev, jumlah_input: e.target.value }))}
-                  placeholder="e.g. 4 input" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label>
-                <input value={form.jumlah_output} onChange={e => setForm(prev => ({ ...prev, jumlah_output: e.target.value }))}
-                  placeholder="e.g. 2 output" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-              </div>
-            </div>
-          </div>
-
-          )} {/* end Signage conditional */}
-
-          {/* Source & Peripheral */}
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">🔌</span>
-              Source & Peripheral
-            </h3>
-            <CheckGroup label="Source" options={['PC / Mini PC', 'Laptop', 'URL Dashboard', 'NVR CCTV', 'Media Player', 'IPTV', 'Set Top Box']}
-              value={form.source} onChange={v => setForm(prev => ({ ...prev, source: v }))} />
-            <div className="mb-4">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Other Source</label>
-              <input value={form.source_other} onChange={e => setForm(prev => ({ ...prev, source_other: e.target.value }))}
-                placeholder="Tuliskan jika ada..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-            </div>
-
-            <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={form.camera_conference}
-              onChange={v => setForm(prev => ({ ...prev, camera_conference: v }))} />
-            {form.camera_conference === 'Yes' && (
-              <div className="ml-4 mb-4 space-y-3 border-l-2 border-teal-200 pl-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Camera</label>
-                  <input value={form.camera_jumlah} onChange={e => setForm(prev => ({ ...prev, camera_jumlah: e.target.value }))}
-                    placeholder="e.g. 2 unit" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan 1</label>
+                <div className="flex gap-2">
+                  <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
+                    placeholder="Nama ruangan / area"
+                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
+                  <button type="button" onClick={addAndGoToRoom}
+                    className="flex-shrink-0 px-3 py-2 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all whitespace-nowrap">
+                    + Ruangan Lain
+                  </button>
                 </div>
-                <CheckGroup label="Camera Tracking" options={['Auto Tracking', 'Manual PTZ', 'Fixed']}
-                  value={form.camera_tracking} onChange={v => setForm(prev => ({ ...prev, camera_tracking: v }))} />
+                {rooms.length > 0 && <p className="text-[10px] text-teal-600 mt-1 font-medium">✅ {rooms.length + 1} ruangan</p>}
               </div>
-            )}
+            </div>
+          </div>
 
-            <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system}
-              onChange={v => setForm(prev => ({ ...prev, audio_system: v }))} />
-            {form.audio_system === 'Yes' && (
-              <div className="ml-4 mb-4 space-y-3 border-l-2 border-teal-200 pl-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Mixer / DSP</label>
-                  <input value={form.audio_mixer} onChange={e => setForm(prev => ({ ...prev, audio_mixer: e.target.value }))}
-                    placeholder="e.g. Yamaha QL1, QSC, etc." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
+          {/* ── Room Tab Navigator ── */}
+          <div className="bg-white/95 rounded-2xl border-2 border-teal-200 shadow-sm overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex items-center bg-teal-50 border-b border-teal-200 px-2 py-1.5 gap-1 overflow-x-auto">
+              <button type="button" onClick={goLeft} disabled={activeRoomIdx === 0}
+                className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              {Array.from({length: totalRooms}).map((_, i) => {
+                const label = i === 0 ? (form.room_name.trim() || 'Ruangan 1') : (rooms[i-1]?.room_name?.trim() || `Ruangan ${i+1}`);
+                const isActive = activeRoomIdx === i;
+                return (
+                  <button key={i} type="button" onClick={() => setActiveRoomIdx(i)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive ? 'bg-teal-600 text-white shadow' : 'text-teal-700 hover:bg-teal-100'}`}>
+                    {label}
+                  </button>
+                );
+              })}
+              <button type="button" onClick={goRight} disabled={activeRoomIdx === totalRooms - 1}
+                className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
+              </button>
+              <div className="flex-1"/>
+              <span className="text-[10px] text-teal-600 font-bold mr-1">{activeRoomIdx+1}/{totalRooms}</span>
+              {activeRoomIdx > 0 && (
+                <button type="button" onClick={() => { setRooms(p => p.filter((_,i)=>i!==activeRoomIdx-1)); setActiveRoomIdx(a=>Math.max(0,a-1)); }}
+                  className="flex-shrink-0 p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              )}
+            </div>
+
+            {/* Content — 2 columns */}
+            <div className="p-5">
+              {activeRoomIdx === 0 ? (
+                /* ── Ruangan 1 (main form) ── */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                  {/* LEFT COL */}
+                  <div>
+                    <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
+                      value={form.kebutuhan[0] || ''} onChange={v => setForm(prev => ({ ...prev, kebutuhan: v ? [v] : [] }))} />
+                    <div className="mb-4">
+                      <input value={form.kebutuhan_other} onChange={e => setForm(prev => ({ ...prev, kebutuhan_other: e.target.value }))}
+                        placeholder="Other kebutuhan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 bg-white outline-none" />
+                    </div>
+                    <RadioGroup label="Solution Product *" options={['Videowall', 'Signage Display', 'Videotron', 'Projector', 'Kiosk', 'IFP']}
+                      value={form.solution_product[0] || ''} onChange={v => setForm(prev => ({ ...prev, solution_product: v ? [v] : [] }))} />
+                    <div className="mb-4">
+                      <input value={form.solution_other} onChange={e => setForm(prev => ({ ...prev, solution_other: e.target.value }))}
+                        placeholder="Other solution..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 bg-white outline-none" />
+                    </div>
+                    {/* Brand */}
+                    <div className="mb-4">
+                      <label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">🖥️ Brand Display <span className="text-gray-400 font-normal">(opsional)</span></label>
+                      <select value={form.brand_display||''} onChange={e => {
+                        const brand = e.target.value;
+                        const pic = brandPicMappings.find(m => m.brand_type==='display' && m.brand_name===brand);
+                        setForm(prev => ({...prev, brand_display:brand, brand_display_pic_id:pic?.pic_user_id||'', brand_display_pic_name:pic?.pic_user_name||''}));
+                      }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-amber-400 appearance-none">
+                        <option value="">— Pilih Brand Display —</option>
+                        {DISPLAY_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                      {form.brand_display && form.brand_display_pic_name && <p className="mt-1 text-[11px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1">👤 PIC: {form.brand_display_pic_name}</p>}
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1.5">🔌 Brand Middleware <span className="text-gray-400 font-normal">(opsional)</span></label>
+                      <select value={form.brand_middleware||''} onChange={e => {
+                        const brand = e.target.value;
+                        const pic = brandPicMappings.find(m => m.brand_type==='middleware' && m.brand_name===brand);
+                        setForm(prev => ({...prev, brand_middleware:brand, brand_middleware_pic_id:pic?.pic_user_id||'', brand_middleware_pic_name:pic?.pic_user_name||''}));
+                      }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 appearance-none">
+                        <option value="">— Pilih Brand Middleware —</option>
+                        {MIDDLEWARE_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                      {form.brand_middleware && form.brand_middleware_pic_name && <p className="mt-1 text-[11px] text-violet-700 font-semibold bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1">👤 PIC: {form.brand_middleware_pic_name}</p>}
+                    </div>
+                    {form.kebutuhan.includes('Signage') && (
+                      <div className="mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                        <RadioGroup label="Layout Signage" options={['Single Zone', 'Multi Zone', 'Full Screen', 'Custom Layout']}
+                          value={form.layout_signage?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, layout_signage: v ? [v] : [] }))} />
+                        <CheckGroup label="Jaringan / CMS" options={['Cloud', 'Onpremise', 'USB']}
+                          value={form.jaringan_cms || []} onChange={v => setForm(prev => ({ ...prev, jaringan_cms: v }))} />
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Input</label><input value={form.jumlah_input} onChange={e => setForm(prev => ({...prev, jumlah_input: e.target.value}))} placeholder="e.g. 4" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+                          <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Output</label><input value={form.jumlah_output} onChange={e => setForm(prev => ({...prev, jumlah_output: e.target.value}))} placeholder="e.g. 2" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* RIGHT COL */}
+                  <div>
+                    <CheckGroup label="Source" options={['PC / Mini PC', 'Laptop', 'URL Dashboard', 'NVR CCTV', 'Media Player', 'IPTV', 'Set Top Box']}
+                      value={form.source} onChange={v => setForm(prev => ({ ...prev, source: v }))} />
+                    <div className="flex gap-3 mb-3">
+                      {form.source.includes('Laptop') && <div className="flex-1"><label className="block text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Qty Laptop</label><input type="number" min="1" value={(form as any).source_laptop_qty||''} onChange={e=>setForm(prev=>({...prev, source_laptop_qty:e.target.value} as any))} placeholder="1" className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-amber-50 outline-none focus:border-amber-400"/></div>}
+                      {form.source.includes('PC / Mini PC') && <div className="flex-1"><label className="block text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Qty PC</label><input type="number" min="1" value={(form as any).source_pc_qty||''} onChange={e=>setForm(prev=>({...prev, source_pc_qty:e.target.value} as any))} placeholder="1" className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-blue-50 outline-none focus:border-blue-400"/></div>}
+                    </div>
+                    <div className="mb-3">
+                      <input value={form.source_other} onChange={e => setForm(prev => ({ ...prev, source_other: e.target.value }))}
+                        placeholder="Other source..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400" />
+                    </div>
+                    <RadioGroup label="Camera Conference" options={['Yes', 'No']} value={form.camera_conference} onChange={v => setForm(prev => ({ ...prev, camera_conference: v }))} />
+                    {form.camera_conference === 'Yes' && (
+                      <div className="ml-4 mb-3 space-y-2 border-l-2 border-teal-200 pl-3">
+                        <input value={form.camera_jumlah} onChange={e => setForm(prev => ({ ...prev, camera_jumlah: e.target.value }))} placeholder="Jumlah camera..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>
+                        <CheckGroup label="Tracking" options={['Auto Tracking', 'Manual PTZ', 'Fixed']} value={form.camera_tracking} onChange={v => setForm(prev => ({...prev, camera_tracking: v}))} />
+                      </div>
+                    )}
+                    <RadioGroup label="Audio System" options={['Yes', 'No']} value={form.audio_system} onChange={v => setForm(prev => ({ ...prev, audio_system: v }))} />
+                    {form.audio_system === 'Yes' && (
+                      <div className="ml-4 mb-3 space-y-2 border-l-2 border-teal-200 pl-3">
+                        <input value={form.audio_mixer} onChange={e => setForm(prev => ({ ...prev, audio_mixer: e.target.value }))} placeholder="Mixer / DSP..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/>
+                        <CheckGroup label="Detail Audio" options={['Speaker Ceiling','Speaker Line Array','Subwoofer','Microphone','Amplifier']} value={form.audio_detail} onChange={v => setForm(prev => ({...prev, audio_detail:v}))} />
+                      </div>
+                    )}
+                    <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input} onChange={v => setForm(prev => ({ ...prev, wallplate_input: v }))} />
+                    {form.wallplate_input === 'Yes' && <div className="ml-4 mb-3"><input value={form.wallplate_jumlah} onChange={e => setForm(prev => ({ ...prev, wallplate_jumlah: e.target.value }))} placeholder="Jumlah wallplate..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>}
+                    <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input} onChange={v => setForm(prev => ({ ...prev, tabletop_input: v }))} />
+                    {form.tabletop_input === 'Yes' && <div className="ml-4 mb-3"><input value={form.tabletop_jumlah} onChange={e => setForm(prev => ({ ...prev, tabletop_jumlah: e.target.value }))} placeholder="Jumlah tabletop..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>}
+                    <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation} onChange={v => setForm(prev => ({ ...prev, wireless_presentation: v }))} />
+                    {form.wireless_presentation === 'Yes' && (
+                      <div className="ml-4 mb-3 space-y-2 border-l-2 border-teal-200 pl-3">
+                        <CheckGroup label="Wireless Mode" options={['Aplikasi', 'AirPlay', 'Miracast', 'Chromecast', 'BYOM']} value={form.wireless_mode} onChange={v => setForm(prev => ({...prev, wireless_mode:v}))} />
+                        <RadioGroup label="Dongle" options={['Yes', 'No']} value={form.wireless_dongle} onChange={v => setForm(prev => ({ ...prev, wireless_dongle: v }))} />
+                      </div>
+                    )}
+                    <RadioGroup label="Controller / Automation" options={['Yes', 'No']} value={form.controller_automation} onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
+                    {form.controller_automation === 'Yes' && (
+                      <div className="ml-4 mb-3 border-l-2 border-teal-200 pl-3">
+                        <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']} value={form.controller_type?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, controller_type: v ? [v] : [] }))} />
+                      </div>
+                    )}
+                    <div className="space-y-3 mt-2 pt-3 border-t border-gray-100">
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan</label><input value={form.ukuran_ruangan} onChange={e=>setForm(p=>({...p,ukuran_ruangan:e.target.value}))} placeholder="e.g. 8m×6m×3m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan</label><input value={form.suggest_tampilan} onChange={e=>setForm(p=>({...p,suggest_tampilan:e.target.value}))} placeholder="e.g. 1920×1080 atau 4K" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400"/></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label><textarea value={form.keterangan_lain} onChange={e=>setForm(p=>({...p,keterangan_lain:e.target.value}))} rows={2} placeholder="Info tambahan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 resize-none"/></div>
+                    </div>
+                  </div>
                 </div>
-                <CheckGroup label="Audio Detail" options={['Speaker Ceiling', 'Speaker Line Array', 'Subwoofer', 'Microphone', 'Amplifier']}
-                  value={form.audio_detail} onChange={v => setForm(prev => ({ ...prev, audio_detail: v }))} />
-              </div>
-            )}
-
-            <RadioGroup label="Wallplate Input" options={['Yes', 'No']} value={form.wallplate_input}
-              onChange={v => setForm(prev => ({ ...prev, wallplate_input: v }))} />
-            {form.wallplate_input === 'Yes' && (
-              <div className="ml-4 mb-4 border-l-2 border-teal-200 pl-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Wallplate</label>
-                <input value={form.wallplate_jumlah} onChange={e => setForm(prev => ({ ...prev, wallplate_jumlah: e.target.value }))}
-                  placeholder="e.g. 3 unit" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-              </div>
-            )}
-
-            <RadioGroup label="Tabletop Input" options={['Yes', 'No']} value={form.tabletop_input}
-              onChange={v => setForm(prev => ({ ...prev, tabletop_input: v }))} />
-            {form.tabletop_input === 'Yes' && (
-              <div className="ml-4 mb-4 border-l-2 border-teal-200 pl-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Jumlah Tabletop</label>
-                <input value={form.tabletop_jumlah} onChange={e => setForm(prev => ({ ...prev, tabletop_jumlah: e.target.value }))}
-                  placeholder="e.g. 2 unit" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-              </div>
-            )}
-
-            <RadioGroup label="Wireless Presentation" options={['Yes', 'No']} value={form.wireless_presentation}
-              onChange={v => setForm(prev => ({ ...prev, wireless_presentation: v }))} />
-            {form.wireless_presentation === 'Yes' && (
-              <div className="ml-4 mb-4 space-y-3 border-l-2 border-teal-200 pl-4">
-                <CheckGroup label="Wireless Mode" options={['Aplikasi', 'AirPlay', 'Miracast', 'Chromecast', 'BYOM']}
-                  value={form.wireless_mode} onChange={v => setForm(prev => ({ ...prev, wireless_mode: v }))} />
-                <RadioGroup label="Dongle" options={['Yes', 'No']} value={form.wireless_dongle}
-                  onChange={v => setForm(prev => ({ ...prev, wireless_dongle: v }))} />
-              </div>
-            )}
-
-            <RadioGroup label="Controller / Automation" options={['Yes', 'No']} value={form.controller_automation}
-              onChange={v => setForm(prev => ({ ...prev, controller_automation: v }))} />
-            {form.controller_automation === 'Yes' && (
-              <div className="ml-4 mb-4 border-l-2 border-teal-200 pl-4">
-                <RadioGroup label="Controller Type" options={['Cue', 'Wyrestorm', 'Extron', 'Custom']}
-                  value={form.controller_type?.[0] || ''} onChange={v => setForm(prev => ({ ...prev, controller_type: v ? [v] : [] }))} />
-              </div>
-            )}
-          </div>
-
-          {/* Room & Other Info */}
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs shadow">📐</span>
-              Ruangan & Informasi Lainnya
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Ukuran Ruangan (P × L × T)</label>
-                <input value={form.ukuran_ruangan} onChange={e => setForm(prev => ({ ...prev, ukuran_ruangan: e.target.value }))}
-                  placeholder="e.g. 8m × 6m × 3m" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Suggest Tampilan (W × H)</label>
-                <input value={form.suggest_tampilan} onChange={e => setForm(prev => ({ ...prev, suggest_tampilan: e.target.value }))}
-                  placeholder="e.g. 1920 × 1080 px atau 4K" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan Lain</label>
-                <textarea value={form.keterangan_lain} onChange={e => setForm(prev => ({ ...prev, keterangan_lain: e.target.value }))}
-                  rows={3} placeholder="Tuliskan informasi tambahan..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-teal-400 transition-all bg-white outline-none resize-none" />
-              </div>
+              ) : (
+                /* ── Extra Room (RoomSection component) ── */
+                <RoomSection
+                  room={rooms[activeRoomIdx - 1]}
+                  rIdx={activeRoomIdx - 1}
+                  onUpdate={patch => setRooms(p => p.map((r,i) => i === activeRoomIdx-1 ? {...r,...patch} : r))}
+                  onRemove={() => { setRooms(p => p.filter((_,i) => i !== activeRoomIdx-1)); setActiveRoomIdx(a => Math.max(0,a-1)); }}
+                  brandPicMappings={brandPicMappings}
+                  photos={roomPhotoMap[rooms[activeRoomIdx-1]?.id] || []}
+                  onAddPhotos={files => setRoomPhotoMap(p => ({ ...p, [rooms[activeRoomIdx-1].id]: [...(p[rooms[activeRoomIdx-1].id]||[]),...files].slice(0,10) }))}
+                  onRemovePhoto={i => setRoomPhotoMap(p => { const arr=[...(p[rooms[activeRoomIdx-1].id]||[])]; arr.splice(i,1); return {...p,[rooms[activeRoomIdx-1].id]:arr}; })}
+                  toggleArr={toggleArr}
+                />
+              )}
             </div>
           </div>
 
-          {/* ─── Multi-Room Section ───────────────────────────────────────── */}
-          <div className="bg-white/95 rounded-2xl p-5 border-2 border-teal-200 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center text-xs">🚪</span>
-                Tambahan Ruangan Lain
-                {rooms.length > 0 && <span className="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">{rooms.length} ruangan tambahan</span>}
-              </h3>
-              <button type="button" onClick={() => setRooms(p => [...p, emptyRoom()])}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all">
-                + Tambah Ruangan
-              </button>
-            </div>
-            {rooms.length === 0 && (
-              <p className="text-xs text-gray-400 italic">Klik <strong>+ Tambah Ruangan</strong> jika project memiliki lebih dari 1 ruangan dengan detail berbeda.</p>
-            )}
-            {rooms.map((room, rIdx) => (
-              <RoomSection key={room.id} room={room} rIdx={rIdx}
-                onUpdate={patch => setRooms(p => p.map(r => r.id === room.id ? { ...r, ...patch } : r))}
-                onRemove={() => setRooms(p => p.filter(r => r.id !== room.id))}
-                brandPicMappings={brandPicMappings}
-                photos={roomPhotoMap[room.id] || []}
-                onAddPhotos={files => setRoomPhotoMap(p => ({ ...p, [room.id]: [...(p[room.id] || []), ...files].slice(0, 10) }))}
-                onRemovePhoto={i => setRoomPhotoMap(p => { const arr = [...(p[room.id] || [])]; arr.splice(i, 1); return { ...p, [room.id]: arr }; })}
-                toggleArr={toggleArr}
-              />
-            ))}
-            {rooms.length > 0 && (
-              <button type="button" onClick={() => setRooms(p => [...p, emptyRoom()])}
-                className="w-full mt-3 py-2 border-2 border-dashed border-teal-300 rounded-xl text-teal-600 text-xs font-semibold hover:bg-teal-50 transition-all">
-                + Tambah Ruangan Lagi
-              </button>
-            )}
-          </div>
 
           {/* Foto Survey + BOQ Upload — hanya untuk guest/sales (bukan team PTS) */}
           {!['admin','superadmin','team_pts','team'].includes((currentUser?.role || '').toLowerCase().trim()) && (
@@ -1271,108 +1246,6 @@ function NewFormModal({
 }
 
 // ─── Form Require Project Module ──────────────────────────────────────────────
-
-// ─── BrandPicSettingModal (Admin only) ────────────────────────────────────────
-
-function BrandPicSettingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [brandUsers, setBrandUsers] = useState<{id:string;full_name:string;sales_division?:string}[]>([]);
-  const [mappings, setMappings] = useState<Record<string, string>>({}); // key: `type:brand` → pic_user_id
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [notif, setNotif] = useState<{type:'success'|'error';msg:string}|null>(null);
-
-  useEffect(() => {
-    Promise.all([
-      supabase.from('users').select('id, full_name, sales_division').eq('role','guest').in('sales_division', BRAND_PIC_DIVISIONS).order('full_name'),
-      supabase.from('brand_pic_mappings').select('*'),
-    ]).then(([usersRes, mapsRes]) => {
-      if (usersRes.data) setBrandUsers(usersRes.data as any[]);
-      if (mapsRes.data) {
-        const map: Record<string, string> = {};
-        (mapsRes.data as BrandPicMapping[]).forEach(m => { map[`${m.brand_type}:${m.brand_name}`] = m.pic_user_id; });
-        setMappings(map);
-      }
-      setLoading(false);
-    });
-  }, []);
-
-  const notify = (type:'success'|'error', msg:string) => { setNotif({type,msg}); setTimeout(()=>setNotif(null),3000); };
-
-  const handleSave = async () => {
-    setSaving(true);
-    const allBrands = [
-      ...DISPLAY_BRANDS.map(b => ({brand_type:'display' as const, brand_name:b})),
-      ...MIDDLEWARE_BRANDS.map(b => ({brand_type:'middleware' as const, brand_name:b})),
-    ];
-    try {
-      for (const {brand_type, brand_name} of allBrands) {
-        const key = `${brand_type}:${brand_name}`;
-        const picId = mappings[key] || null;
-        const picUser = picId ? brandUsers.find(u => u.id === picId) : null;
-        await supabase.from('brand_pic_mappings').upsert({
-          brand_type, brand_name, pic_user_id: picId, pic_user_name: picUser?.full_name || null,
-        }, { onConflict: 'brand_type,brand_name' });
-      }
-      notify('success', 'Mapping PIC Brand disimpan!');
-      onSaved();
-    } catch (e: any) { notify('error', e.message); }
-    setSaving(false);
-  };
-
-  const Row = ({ type, brand }: { type: 'display'|'middleware'; brand: string }) => {
-    const key = `${type}:${brand}`;
-    return (
-      <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
-        <span className="w-36 text-sm font-semibold text-slate-700 flex-shrink-0">{brand}</span>
-        <select value={mappings[key]||''} onChange={e => setMappings(p=>({...p,[key]:e.target.value}))}
-          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 appearance-none">
-          <option value="">— Belum ada PIC —</option>
-          {brandUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
-        </select>
-        {mappings[key] && <span className="text-[10px] text-teal-600 font-bold flex-shrink-0">✅</span>}
-      </div>
-    );
-  };
-
-  return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[88vh] flex flex-col border border-slate-200">
-        <div className="bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">⚙️</div>
-            <div><h2 className="text-base font-bold text-white">Setting PIC Brand</h2><p className="text-white/70 text-xs">Mapping brand ke PIC penanggung jawab</p></div>
-          </div>
-          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">✕</button>
-        </div>
-        {notif && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 ${notif.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{notif.type==='success'?'✅':'❌'} {notif.msg}</div>}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-amber-500 border-amber-200 animate-spin"/></div> : (
-            <>
-              <div>
-                <p className="text-sm font-bold text-amber-700 uppercase tracking-widest mb-3 flex items-center gap-2">🖥️ Brand Display</p>
-                <div className="bg-amber-50/50 rounded-xl border border-amber-200 px-4 py-1">
-                  {DISPLAY_BRANDS.map(b => <Row key={b} type="display" brand={b}/>)}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-violet-700 uppercase tracking-widest mb-3 flex items-center gap-2">🔌 Brand Middleware</p>
-                <div className="bg-violet-50/50 rounded-xl border border-violet-200 px-4 py-1">
-                  {MIDDLEWARE_BRANDS.map(b => <Row key={b} type="middleware" brand={b}/>)}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 border-2 border-slate-300 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
-          <button onClick={handleSave} disabled={saving||loading} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50" style={{background:'linear-gradient(135deg,#d97706,#b45309)'}}>
-            {saving ? '⏳ Menyimpan...' : '💾 Simpan Semua'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [appReady, setAppReady] = useState(false);
@@ -1495,6 +1368,9 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
     wireless_presentation: 'No', wireless_mode: [], wireless_dongle: 'No',
     controller_automation: 'No', controller_type: [],
     ukuran_ruangan: '', suggest_tampilan: '', keterangan_lain: '',
+    brand_display: '', brand_display_pic_id: '', brand_display_pic_name: '',
+    brand_middleware: '', brand_middleware_pic_id: '', brand_middleware_pic_name: '',
+    source_laptop_qty: '', source_pc_qty: '',
   };
 
   // Guest/Sales users list for dropdown
@@ -1516,7 +1392,6 @@ function FormRequireProject({ currentUser }: { currentUser: User }) {
   const [rooms, setRooms] = useState<RoomDetail[]>([]);
   const [roomPhotoMap, setRoomPhotoMap] = useState<Record<string, File[]>>({});
   const [brandPicMappings, setBrandPicMappings] = useState<BrandPicMapping[]>([]);
-  const [showBrandPicSetting, setShowBrandPicSetting] = useState(false);
 
   const notify = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setNotification({ type, msg });
@@ -2651,17 +2526,7 @@ Hubungi Admin untuk info lebih lanjut.
     <div className="flex flex-col min-h-screen bg-cover bg-center bg-fixed bg-no-repeat" style={{ backgroundImage: 'url(/IVP_Background.png)' }}>
       <NotifToast />
 
-      {showBrandPicSetting && (
-        <BrandPicSettingModal
-          onClose={() => setShowBrandPicSetting(false)}
-          onSaved={() => {
-            supabase.from('brand_pic_mappings').select('*').order('brand_name').then(({ data }: { data: BrandPicMapping[] | null }) => {
-              if (data) setBrandPicMappings(data);
-            });
-            setShowBrandPicSetting(false);
-          }}
-        />
-      )}
+
       {showNewFormModal && (
         <NewFormModal
           currentUser={currentUser}
@@ -2760,12 +2625,7 @@ Hubungi Admin untuk info lebih lanjut.
                 </div>
               );
             })()}
-            {isAdmin && (
-              <button onClick={() => setShowBrandPicSetting(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all">
-                ⚙️ PIC Brand
-              </button>
-            )}
+
             <button onClick={() => setShowNewFormModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
               style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', boxShadow: '0 4px 14px rgba(13,148,136,0.4)' }}>
