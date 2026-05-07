@@ -1813,133 +1813,88 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
 
       } else if (roleLC === 'guest' || roleLC === 'sales') {
         const isIVPUser2 = currentUser.sales_division === 'IVP';
+        const BRAND_DIVS = ['MLDS', 'UMP', 'OSS'];
+        const isBrandPICNotif = BRAND_DIVS.includes(currentUser.sales_division || '');
+        const selfJabatanN = (currentUser as any).jabatan as string | undefined;
+        const TIER_MAP: Record<string, number> = { 'Staff': 1, 'Supervisor': 2, 'Manager': 3, 'Deputy General Manager': 4, 'General Manager': 5, 'Direktur': 6 };
+        const selfTierN = selfJabatanN ? (TIER_MAP[selfJabatanN] ?? 0) : 0;
+        const selfDivN = currentUser.sales_division;
 
+        // ── Base: selalu ambil milik sendiri + yang di-assign via ivp_assignee ──
+        // Ini cover semua kasus termasuk Hendri yang request-nya di-assign ke dia
+        const [{ data: ownReqs }, { data: ivpAssignedReqs }] = await Promise.all([
+          excludeDone(
+            supabase.from('project_requests')
+              .select('id, project_name, status, sales_name, created_at, sales_division, requester_id, ivp_assignee')
+              .eq('requester_id', currentUser.id)
+          ).order('created_at', { ascending: false }).limit(50),
+          excludeDone(
+            supabase.from('project_requests')
+              .select('id, project_name, status, sales_name, created_at, sales_division, requester_id, ivp_assignee')
+              .eq('ivp_assignee', currentUser.full_name)
+          ).order('created_at', { ascending: false }).limit(50),
+        ]);
+
+        // Mulai dengan set base (milik sendiri + di-assign ke user ini)
+        const baseMap = new Map<string, any>();
+        [...(ownReqs ?? []), ...(ivpAssignedReqs ?? [])].forEach((r: any) => {
+          if (!baseMap.has(r.id)) baseMap.set(r.id, r);
+        });
+
+        // ── Extended scope berdasarkan role ──
         if (isIVPUser2) {
-          // IVP guest: request dari divisi yang dia handle VIA mapping
-          // PLUS request yang di-assign langsung ke dia via ivp_assignee
+          // IVP guest: tambahkan request dari divisi yang dia handle via mapping
           const { data: ivpDivMaps2 } = await supabase
             .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
           const handledDivs2 = (ivpDivMaps2 ?? []).map((m: any) => m.sales_division as string);
-
-          // Fetch dua query: by divisi handled + by ivp_assignee langsung, lalu merge & dedup
-          const queries: Promise<any>[] = [];
-
           if (handledDivs2.length > 0) {
-            queries.push(
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at, sales_division')
-                  .in('sales_division', handledDivs2)
-              ).order('created_at', { ascending: false }).limit(30).then((r: any) => r.data ?? [])
-            );
+            const { data: divReqs } = await excludeDone(
+              supabase.from('project_requests')
+                .select('id, project_name, status, sales_name, created_at, sales_division, requester_id, ivp_assignee')
+                .in('sales_division', handledDivs2)
+            ).order('created_at', { ascending: false }).limit(50);
+            (divReqs ?? []).forEach((r: any) => { if (!baseMap.has(r.id)) baseMap.set(r.id, r); });
           }
 
-          // Request yang di-assign langsung ke IVP user ini (ivp_assignee = full_name)
-          queries.push(
-            excludeDone(
+        } else if (isBrandPICNotif) {
+          // Brand PIC (MLDS/UMP/OSS): tambahkan request yang brand pic-nya = user ini
+          const { data: allReqsBrand } = await excludeDone(
+            supabase.from('project_requests')
+              .select('id, project_name, status, sales_name, created_at, sales_division, requester_id, ivp_assignee, rooms')
+          ).order('created_at', { ascending: false }).limit(100);
+          (allReqsBrand ?? []).forEach((r: any) => {
+            if (baseMap.has(r.id)) return;
+            if (!r.rooms || !Array.isArray(r.rooms)) return;
+            const isBrandPic = r.rooms.some((room: any) =>
+              room.brand_display_pic_id === currentUser.id || room.brand_middleware_pic_id === currentUser.id
+            );
+            if (isBrandPic) baseMap.set(r.id, r);
+          });
+
+        } else if (selfTierN > 1 && selfDivN) {
+          // Supervisor+: tambahkan request dari bawahan di divisi yang di-supervisi
+          const { data: supMapsN } = await supabase.from('division_supervisor_mappings')
+            .select('sales_division').eq('supervisor_id', currentUser.id);
+          const supDivsN = (supMapsN ?? []).map((m: any) => m.sales_division as string);
+          if (!supDivsN.includes(selfDivN)) supDivsN.push(selfDivN);
+
+          const { data: allGuestsN } = await supabase.from('users')
+            .select('id, jabatan, sales_division').in('role', ['guest', 'sales']);
+          const subIdsN = (allGuestsN ?? [])
+            .filter((u: any) => (TIER_MAP[(u.jabatan as string) ?? ''] ?? 0) < selfTierN && supDivsN.includes(u.sales_division))
+            .map((u: any) => u.id as string);
+
+          if (subIdsN.length > 0) {
+            const { data: subReqs } = await excludeDone(
               supabase.from('project_requests')
-                .select('id, project_name, status, sales_name, created_at, sales_division')
-                .eq('ivp_assignee', currentUser.full_name)
-            ).order('created_at', { ascending: false }).limit(30).then((r: any) => r.data ?? [])
-          );
-
-          const results = await Promise.all(queries);
-          const merged = results.flat();
-          // Dedup by id
-          const seen = new Set<string>();
-          const deduped = merged.filter((r: any) => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
-          setRequireNotifs(deduped.map(toRequireNotif));
-
-        } else {
-          const BRAND_DIVS = ['MLDS', 'UMP', 'OSS'];
-          const isBrandPICNotif = BRAND_DIVS.includes(currentUser.sales_division || '');
-          const selfJabatanN = (currentUser as any).jabatan as string | undefined;
-          const TIER_MAP: Record<string, number> = { 'Staff': 1, 'Supervisor': 2, 'Manager': 3, 'Deputy General Manager': 4, 'General Manager': 5, 'Direktur': 6 };
-          const selfTierN = selfJabatanN ? (TIER_MAP[selfJabatanN] ?? 0) : 0;
-          const selfDivN = currentUser.sales_division;
-
-          if (isBrandPICNotif) {
-            // Brand PIC (MLDS/UMP/OSS): request yang mereka buat ATAU brand pic-nya = user ini
-            // PLUS request yang di-assign ke mereka via ivp_assignee
-            const [{ data: allReqsN }, { data: ivpAssignedN }] = await Promise.all([
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at, rooms, requester_id')
-              ).order('created_at', { ascending: false }).limit(100),
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at, rooms, requester_id')
-                  .eq('ivp_assignee', currentUser.full_name)
-              ).order('created_at', { ascending: false }).limit(30),
-            ]);
-
-            const combined = [...(allReqsN ?? []), ...(ivpAssignedN ?? [])];
-            const seen2 = new Set<string>();
-            const filtered = combined.filter((r: any) => {
-              if (seen2.has(r.id)) return false;
-              seen2.add(r.id);
-              if (r.requester_id === currentUser.id) return true;
-              if (r.ivp_assignee === currentUser.full_name) return true;
-              if (!r.rooms || !Array.isArray(r.rooms)) return false;
-              return r.rooms.some((room: any) =>
-                room.brand_display_pic_id === currentUser.id || room.brand_middleware_pic_id === currentUser.id
-              );
-            });
-            setRequireNotifs(filtered.map(toRequireNotif));
-
-          } else if (selfTierN > 1 && selfDivN) {
-            // Supervisor+: request dari divisi sendiri + bawahan + yang di-assign ke dia via ivp_assignee
-            const { data: supMapsN } = await supabase.from('division_supervisor_mappings')
-              .select('sales_division').eq('supervisor_id', currentUser.id);
-            const supDivsN = (supMapsN ?? []).map((m: any) => m.sales_division as string);
-            if (!supDivsN.includes(selfDivN)) supDivsN.push(selfDivN);
-
-            const { data: allGuestsN } = await supabase.from('users').select('id, jabatan, sales_division').in('role', ['guest', 'sales']);
-            const subIdsN = (allGuestsN ?? [])
-              .filter((u: any) => (TIER_MAP[(u.jabatan as string) ?? ''] ?? 0) < selfTierN && supDivsN.includes(u.sales_division))
-              .map((u: any) => u.id as string);
-            const subIdsInDivN = [currentUser.id, ...subIdsN];
-
-            const [{ data: byRequester }, { data: byIvpAssign }] = await Promise.all([
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at')
-                  .in('requester_id', subIdsInDivN)
-              ).order('created_at', { ascending: false }).limit(30),
-              // Juga ambil yang di-assign langsung ke supervisor ini via ivp_assignee
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at')
-                  .eq('ivp_assignee', currentUser.full_name)
-              ).order('created_at', { ascending: false }).limit(20),
-            ]);
-
-            const merged2 = [...(byRequester ?? []), ...(byIvpAssign ?? [])];
-            const seen3 = new Set<string>();
-            const deduped2 = merged2.filter((r: any) => { if (seen3.has(r.id)) return false; seen3.add(r.id); return true; });
-            setRequireNotifs(deduped2.map(toRequireNotif));
-
-          } else {
-            // Staff/Sales biasa: request yang mereka buat sendiri PLUS yang di-assign ke mereka via ivp_assignee
-            const [{ data: ownReqs }, { data: assignedReqs }] = await Promise.all([
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at')
-                  .eq('requester_id', currentUser.id)
-              ).order('created_at', { ascending: false }).limit(20),
-              excludeDone(
-                supabase.from('project_requests')
-                  .select('id, project_name, status, sales_name, created_at')
-                  .eq('ivp_assignee', currentUser.full_name)
-              ).order('created_at', { ascending: false }).limit(20),
-            ]);
-
-            const merged3 = [...(ownReqs ?? []), ...(assignedReqs ?? [])];
-            const seen4 = new Set<string>();
-            const deduped3 = merged3.filter((r: any) => { if (seen4.has(r.id)) return false; seen4.add(r.id); return true; });
-            setRequireNotifs(deduped3.map(toRequireNotif));
+                .select('id, project_name, status, sales_name, created_at, sales_division, requester_id, ivp_assignee')
+                .in('requester_id', subIdsN)
+            ).order('created_at', { ascending: false }).limit(50);
+            (subReqs ?? []).forEach((r: any) => { if (!baseMap.has(r.id)) baseMap.set(r.id, r); });
           }
         }
+
+        setRequireNotifs(Array.from(baseMap.values()).map(toRequireNotif));
       } else { setRequireNotifs([]); }
     } catch (e) { console.error('[notif] require fetch error:', e); }
 
