@@ -1477,6 +1477,119 @@ function UserManagementModal({ onClose }: UserManagementModalProps) {
   );
 }
 
+// ─── BrandPicSettingModal ─────────────────────────────────────────────────────
+
+const DISPLAY_BRANDS_DB = ['Microvision', 'Philips', 'Panasonic', 'Newline', 'Promethean', 'Maxhub', 'Ledman', 'Taniled', 'Vivitek'];
+const MIDDLEWARE_BRANDS_DB = ['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'];
+
+interface BrandPicMappingDB {
+  id?: string;
+  brand_type: 'display' | 'middleware';
+  brand_name: string;
+  pic_user_id: string | null;
+  pic_user_name: string | null;
+}
+
+function BrandPicSettingModal({ onClose }: { onClose: () => void }) {
+  const [brandUsers, setBrandUsers] = useState<{id:string;full_name:string;sales_division?:string}[]>([]);
+  const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{type:'success'|'error';msg:string}|null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('users').select('id, full_name, sales_division').eq('role','guest').in('sales_division',['IVP','MLDS','UMP','OSS']).order('full_name'),
+      supabase.from('brand_pic_mappings').select('*'),
+    ]).then(([usersRes, mapsRes]) => {
+      if (usersRes.data) setBrandUsers(usersRes.data as any[]);
+      if (mapsRes.data) {
+        const map: Record<string,string> = {};
+        (mapsRes.data as BrandPicMappingDB[]).forEach(m => { if(m.pic_user_id) map[`${m.brand_type}:${m.brand_name}`] = m.pic_user_id; });
+        setMappings(map);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const notify = (type:'success'|'error', msg:string) => { setNotif({type,msg}); setTimeout(()=>setNotif(null),3000); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const allBrands = [
+        ...DISPLAY_BRANDS_DB.map(b=>({brand_type:'display' as const,brand_name:b})),
+        ...MIDDLEWARE_BRANDS_DB.map(b=>({brand_type:'middleware' as const,brand_name:b})),
+      ];
+      for (const {brand_type,brand_name} of allBrands) {
+        const key = `${brand_type}:${brand_name}`;
+        const picId = mappings[key] || null;
+        const picUser = picId ? brandUsers.find(u=>u.id===picId) : null;
+        await supabase.from('brand_pic_mappings').upsert(
+          {brand_type,brand_name,pic_user_id:picId,pic_user_name:picUser?.full_name||null},
+          {onConflict:'brand_type,brand_name'}
+        );
+      }
+      notify('success','Mapping PIC Brand disimpan!');
+    } catch(e:any) { notify('error',e.message); }
+    setSaving(false);
+  };
+
+  const Row = ({type,brand}:{type:'display'|'middleware';brand:string}) => {
+    const key = `${type}:${brand}`;
+    return (
+      <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
+        <span className="w-36 text-sm font-semibold text-slate-700 flex-shrink-0">{brand}</span>
+        <select value={mappings[key]||''} onChange={e=>setMappings(p=>({...p,[key]:e.target.value}))}
+          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-teal-400 appearance-none">
+          <option value="">— Belum ada PIC —</option>
+          {brandUsers.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
+        </select>
+        {mappings[key] && <span className="text-[10px] text-teal-600 font-bold flex-shrink-0">✅</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[88vh] flex flex-col border border-slate-200">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center text-lg">⚙️</div>
+            <div><h2 className="text-base font-bold text-white">Setting PIC Brand</h2><p className="text-white/70 text-xs">Mapping brand ke PIC penanggung jawab (Form Require Project)</p></div>
+          </div>
+          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">✕</button>
+        </div>
+        {notif && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 ${notif.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{notif.type==='success'?'✅':'❌'} {notif.msg}</div>}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-amber-500 border-amber-200 animate-spin"/></div> : (
+            <>
+              <div>
+                <p className="text-sm font-bold text-amber-700 uppercase tracking-widest mb-3">🖥️ Brand Display</p>
+                <div className="bg-amber-50/50 rounded-xl border border-amber-200 px-4 py-1">
+                  {DISPLAY_BRANDS_DB.map(b=><Row key={b} type="display" brand={b}/>)}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-violet-700 uppercase tracking-widest mb-3">🔌 Brand Middleware</p>
+                <div className="bg-violet-50/50 rounded-xl border border-violet-200 px-4 py-1">
+                  {MIDDLEWARE_BRANDS_DB.map(b=><Row key={b} type="middleware" brand={b}/>)}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-300 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={saving||loading} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50" style={{background:'linear-gradient(135deg,#d97706,#b45309)'}}>
+            {saving?'⏳ Menyimpan...':'💾 Simpan Semua'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Notification Bell Component ─────────────────────────────────────────────
 
 interface NotifBellProps {
@@ -1693,8 +1806,60 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
             setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name} (${r.sales_division})`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
           } else { setRequireNotifs([]); }
         } else {
-          const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
-          setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+          const BRAND_DIVS = ['MLDS', 'UMP', 'OSS'];
+          const isBrandPICNotif = BRAND_DIVS.includes(currentUser.sales_division || '');
+          const selfJabatanN = (currentUser as any).jabatan as string | undefined;
+          const selfTierN = selfJabatanN ? ({'Staff':1,'Supervisor':2,'Manager':3,'Deputy General Manager':4,'General Manager':5,'Direktur':6}[selfJabatanN] ?? 0) : 0;
+          const selfDivN = currentUser.sales_division;
+
+          if (isBrandPICNotif) {
+            // Brand PIC: semua request yang brand pic-nya = user ini (dari rooms JSONB)
+            const { data: allReqsN } = await supabase.from('project_requests')
+              .select('id, project_name, status, sales_name, created_at, rooms')
+              .neq('status', 'completed').neq('status', 'rejected')
+              .order('created_at', { ascending: false }).limit(100);
+            const filtered = (allReqsN ?? []).filter((r: any) => {
+              if (r.requester_id === currentUser.id) return true;
+              if (!r.rooms || !Array.isArray(r.rooms)) return false;
+              return r.rooms.some((room: any) =>
+                room.brand_display_pic_id === currentUser.id || room.brand_middleware_pic_id === currentUser.id
+              );
+            });
+            setRequireNotifs(filtered.map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+          } else if (selfTierN > 1 && selfDivN) {
+            // Supervisor+: lihat request dari divisi sendiri + divisi yang di-supervisi
+            const { data: supMapsN } = await supabase.from('division_supervisor_mappings')
+              .select('sales_division').eq('supervisor_id', currentUser.id);
+            const supDivsN = (supMapsN ?? []).map((m: any) => m.sales_division as string);
+            if (!supDivsN.includes(selfDivN)) supDivsN.push(selfDivN);
+
+            // Ambil subordinate ids
+            const { data: allGuestsN } = await supabase.from('users').select('id, jabatan').eq('role', 'guest');
+            const subIdsN = (allGuestsN ?? [])
+              .filter((u: any) => (u.jabatan ? ({'Staff':1,'Supervisor':2,'Manager':3,'Deputy General Manager':4,'General Manager':5,'Direktur':6}[u.jabatan as string] ?? 0) : 0) < selfTierN)
+              .map((u: any) => u.id as string);
+
+            // Fetch from supervised divisions filtered by subordinate requester_id
+            const { data: subUsersN } = subIdsN.length > 0
+              ? await supabase.from('users').select('id').in('id', subIdsN).in('sales_division', supDivsN)
+              : { data: [] };
+            const subIdsInDivN = [(currentUser.id), ...(subUsersN ?? []).map((u: any) => u.id as string)];
+
+            if (subIdsInDivN.length > 0) {
+              const { data } = await supabase.from('project_requests')
+                .select('id, project_name, status, sales_name, created_at')
+                .in('requester_id', subIdsInDivN)
+                .neq('status', 'completed').neq('status', 'rejected')
+                .order('created_at', { ascending: false }).limit(30);
+              setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+            } else {
+              setRequireNotifs([]);
+            }
+          } else {
+            // Staff biasa: hanya milik sendiri
+            const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
+            setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+          }
         }
       } else { setRequireNotifs([]); }
     } catch (e) { console.error('[notif] require fetch error:', e); }
@@ -1782,6 +1947,7 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showBrandPicSetting, setShowBrandPicSetting] = useState(false);
 
   const [visibleMenuItems, setVisibleMenuItems] = useState<MenuItem[]>([]);
 
@@ -1899,7 +2065,7 @@ export default function Dashboard() {
     setIsLoggedIn(false); setCurrentUser(null);
     localStorage.removeItem('currentUser');
     setShowSidebar(false); setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing');
-    setShowSettings(false); setShowUserProfile(false); setShowUserManagement(false);
+    setShowSettings(false); setShowUserProfile(false); setShowUserManagement(false); setShowBrandPicSetting(false);
     router.push('/dashboard');
   };
 
@@ -2220,6 +2386,13 @@ export default function Dashboard() {
                   </svg>
                   User Management
                 </button>
+                <button onClick={() => setShowBrandPicSetting(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={{ background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#b45309' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(217,119,6,0.15)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(217,119,6,0.08)'; }}>
+                  ⚙️ PIC Brand
+                </button>
               </>
             )}
 
@@ -2245,6 +2418,7 @@ export default function Dashboard() {
       {showSettings && <AccountSettingsModal onClose={() => setShowSettings(false)} />}
       {showUserProfile && currentUser && <UserProfileModal currentUser={currentUser} onClose={() => setShowUserProfile(false)} />}
       {showUserManagement && <UserManagementModal onClose={() => setShowUserManagement(false)} />}
+      {showBrandPicSetting && <BrandPicSettingModal onClose={() => setShowBrandPicSetting(false)} />}
     </>
   );
 
