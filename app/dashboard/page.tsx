@@ -1783,89 +1783,161 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     } catch (e) { console.error('[notif] ticket fetch error:', e); }
 
     // ── 2. Form Require Project ──
+    // Helper: status yang dianggap "selesai" — exclude dari notif
+    const DONE_STATUSES = ['completed', 'rejected', 'cancelled'];
+    const excludeDone = (q: any) => DONE_STATUSES.reduce((acc, s) => acc.neq('status', s), q);
+    // Helper: build notif item dari row
+    const toRequireNotif = (r: any) => {
+      const _sLbl: Record<string, string> = { pending: '⏳ Pending', approved: '✅ Approved', in_progress: '🔄 In Progress' };
+      return { id: r.id, type: 'require' as const, title: r.project_name, subtitle: `${_sLbl[r.status] ?? ('🏗️ ' + r.status)} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' };
+    };
+
     try {
       if (isAdmin) {
-        // Admin/superadmin: semua request aktif (pending, approved, in_progress) — bukan hanya pending
-        const { data } = await supabase.from('project_requests')
-          .select('id, project_name, status, sales_name, created_at')
-          .neq('status', 'completed').neq('status', 'rejected')
-          .order('created_at', { ascending: false }).limit(50);
-        const _sLbl: Record<string, string> = { pending: '⏳ Pending', approved: '✅ Approved', in_progress: '🔄 In Progress' };
-        setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `${_sLbl[r.status] ?? r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+        // Admin/superadmin: semua request aktif
+        const { data } = await excludeDone(
+          supabase.from('project_requests').select('id, project_name, status, sales_name, created_at')
+        ).order('created_at', { ascending: false }).limit(50);
+        setRequireNotifs((data ?? []).map(toRequireNotif));
+
       } else if (isPTS && !isAdmin) {
-        // Team PTS: hanya request yang di-assign ke mereka, belum completed/rejected
-        const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, assign_name, created_at').eq('assign_name', assignedName).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
-        setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+        // Team PTS: request yang di-assign ke mereka (cek dua nama: dari team_members DAN full_name login)
+        // Ini fix utama: assign_name bisa pakai nama team_members ATAU currentUser.full_name
+        const namesToCheck = [...new Set([assignedName, currentUser.full_name].filter(Boolean))];
+        const { data } = await excludeDone(
+          supabase.from('project_requests')
+            .select('id, project_name, status, sales_name, assign_name, created_at')
+            .in('assign_name', namesToCheck)
+        ).order('created_at', { ascending: false }).limit(30);
+        setRequireNotifs((data ?? []).map(toRequireNotif));
+
       } else if (roleLC === 'guest' || roleLC === 'sales') {
-        // Guest & Sales: notif berdasarkan kepemilikan / mapping / brand PIC
         const isIVPUser2 = currentUser.sales_division === 'IVP';
+
         if (isIVPUser2) {
-          // IVP guest: lihat request dari divisi yang dia handle
+          // IVP guest: request dari divisi yang dia handle VIA mapping
+          // PLUS request yang di-assign langsung ke dia via ivp_assignee
           const { data: ivpDivMaps2 } = await supabase
             .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
           const handledDivs2 = (ivpDivMaps2 ?? []).map((m: any) => m.sales_division as string);
+
+          // Fetch dua query: by divisi handled + by ivp_assignee langsung, lalu merge & dedup
+          const queries: Promise<any>[] = [];
+
           if (handledDivs2.length > 0) {
-            const { data } = await supabase.from('project_requests')
-              .select('id, project_name, status, sales_name, created_at, sales_division')
-              .in('sales_division', handledDivs2)
-              .neq('status', 'completed').neq('status', 'rejected')
-              .order('created_at', { ascending: false }).limit(30);
-            setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name} (${r.sales_division})`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
-          } else { setRequireNotifs([]); }
+            queries.push(
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at, sales_division')
+                  .in('sales_division', handledDivs2)
+              ).order('created_at', { ascending: false }).limit(30).then((r: any) => r.data ?? [])
+            );
+          }
+
+          // Request yang di-assign langsung ke IVP user ini (ivp_assignee = full_name)
+          queries.push(
+            excludeDone(
+              supabase.from('project_requests')
+                .select('id, project_name, status, sales_name, created_at, sales_division')
+                .eq('ivp_assignee', currentUser.full_name)
+            ).order('created_at', { ascending: false }).limit(30).then((r: any) => r.data ?? [])
+          );
+
+          const results = await Promise.all(queries);
+          const merged = results.flat();
+          // Dedup by id
+          const seen = new Set<string>();
+          const deduped = merged.filter((r: any) => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+          setRequireNotifs(deduped.map(toRequireNotif));
+
         } else {
           const BRAND_DIVS = ['MLDS', 'UMP', 'OSS'];
           const isBrandPICNotif = BRAND_DIVS.includes(currentUser.sales_division || '');
           const selfJabatanN = (currentUser as any).jabatan as string | undefined;
-          const selfTierN = selfJabatanN ? ({'Staff':1,'Supervisor':2,'Manager':3,'Deputy General Manager':4,'General Manager':5,'Direktur':6}[selfJabatanN] ?? 0) : 0;
+          const TIER_MAP: Record<string, number> = { 'Staff': 1, 'Supervisor': 2, 'Manager': 3, 'Deputy General Manager': 4, 'General Manager': 5, 'Direktur': 6 };
+          const selfTierN = selfJabatanN ? (TIER_MAP[selfJabatanN] ?? 0) : 0;
           const selfDivN = currentUser.sales_division;
 
           if (isBrandPICNotif) {
             // Brand PIC (MLDS/UMP/OSS): request yang mereka buat ATAU brand pic-nya = user ini
-            // PENTING: include requester_id di SELECT agar filter match
-            const { data: allReqsN } = await supabase.from('project_requests')
-              .select('id, project_name, status, sales_name, created_at, rooms, requester_id')
-              .neq('status', 'completed').neq('status', 'rejected')
-              .order('created_at', { ascending: false }).limit(100);
-            const filtered = (allReqsN ?? []).filter((r: any) => {
+            // PLUS request yang di-assign ke mereka via ivp_assignee
+            const [{ data: allReqsN }, { data: ivpAssignedN }] = await Promise.all([
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at, rooms, requester_id')
+              ).order('created_at', { ascending: false }).limit(100),
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at, rooms, requester_id')
+                  .eq('ivp_assignee', currentUser.full_name)
+              ).order('created_at', { ascending: false }).limit(30),
+            ]);
+
+            const combined = [...(allReqsN ?? []), ...(ivpAssignedN ?? [])];
+            const seen2 = new Set<string>();
+            const filtered = combined.filter((r: any) => {
+              if (seen2.has(r.id)) return false;
+              seen2.add(r.id);
               if (r.requester_id === currentUser.id) return true;
+              if (r.ivp_assignee === currentUser.full_name) return true;
               if (!r.rooms || !Array.isArray(r.rooms)) return false;
               return r.rooms.some((room: any) =>
                 room.brand_display_pic_id === currentUser.id || room.brand_middleware_pic_id === currentUser.id
               );
             });
-            setRequireNotifs(filtered.map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+            setRequireNotifs(filtered.map(toRequireNotif));
+
           } else if (selfTierN > 1 && selfDivN) {
-            // Supervisor+: lihat request dari divisi sendiri + divisi yang di-supervisi
+            // Supervisor+: request dari divisi sendiri + bawahan + yang di-assign ke dia via ivp_assignee
             const { data: supMapsN } = await supabase.from('division_supervisor_mappings')
               .select('sales_division').eq('supervisor_id', currentUser.id);
             const supDivsN = (supMapsN ?? []).map((m: any) => m.sales_division as string);
             if (!supDivsN.includes(selfDivN)) supDivsN.push(selfDivN);
 
-            // Ambil subordinate ids (tier lebih rendah), include role sales juga
-            const { data: allGuestsN } = await supabase.from('users').select('id, jabatan').in('role', ['guest', 'sales']);
+            const { data: allGuestsN } = await supabase.from('users').select('id, jabatan, sales_division').in('role', ['guest', 'sales']);
             const subIdsN = (allGuestsN ?? [])
-              .filter((u: any) => (u.jabatan ? ({'Staff':1,'Supervisor':2,'Manager':3,'Deputy General Manager':4,'General Manager':5,'Direktur':6}[u.jabatan as string] ?? 0) : 0) < selfTierN)
+              .filter((u: any) => (TIER_MAP[(u.jabatan as string) ?? ''] ?? 0) < selfTierN && supDivsN.includes(u.sales_division))
               .map((u: any) => u.id as string);
+            const subIdsInDivN = [currentUser.id, ...subIdsN];
 
-            const { data: subUsersN } = subIdsN.length > 0
-              ? await supabase.from('users').select('id').in('id', subIdsN).in('sales_division', supDivsN)
-              : { data: [] };
-            const subIdsInDivN = [(currentUser.id), ...(subUsersN ?? []).map((u: any) => u.id as string)];
+            const [{ data: byRequester }, { data: byIvpAssign }] = await Promise.all([
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at')
+                  .in('requester_id', subIdsInDivN)
+              ).order('created_at', { ascending: false }).limit(30),
+              // Juga ambil yang di-assign langsung ke supervisor ini via ivp_assignee
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at')
+                  .eq('ivp_assignee', currentUser.full_name)
+              ).order('created_at', { ascending: false }).limit(20),
+            ]);
 
-            if (subIdsInDivN.length > 0) {
-              const { data } = await supabase.from('project_requests')
-                .select('id, project_name, status, sales_name, created_at')
-                .in('requester_id', subIdsInDivN)
-                .neq('status', 'completed').neq('status', 'rejected')
-                .order('created_at', { ascending: false }).limit(30);
-              setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
-            } else {
-              setRequireNotifs([]);
-            }
+            const merged2 = [...(byRequester ?? []), ...(byIvpAssign ?? [])];
+            const seen3 = new Set<string>();
+            const deduped2 = merged2.filter((r: any) => { if (seen3.has(r.id)) return false; seen3.add(r.id); return true; });
+            setRequireNotifs(deduped2.map(toRequireNotif));
+
           } else {
-            // Staff/Sales biasa: hanya request yang mereka buat sendiri
-            const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
-            setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
+            // Staff/Sales biasa: request yang mereka buat sendiri PLUS yang di-assign ke mereka via ivp_assignee
+            const [{ data: ownReqs }, { data: assignedReqs }] = await Promise.all([
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at')
+                  .eq('requester_id', currentUser.id)
+              ).order('created_at', { ascending: false }).limit(20),
+              excludeDone(
+                supabase.from('project_requests')
+                  .select('id, project_name, status, sales_name, created_at')
+                  .eq('ivp_assignee', currentUser.full_name)
+              ).order('created_at', { ascending: false }).limit(20),
+            ]);
+
+            const merged3 = [...(ownReqs ?? []), ...(assignedReqs ?? [])];
+            const seen4 = new Set<string>();
+            const deduped3 = merged3.filter((r: any) => { if (seen4.has(r.id)) return false; seen4.add(r.id); return true; });
+            setRequireNotifs(deduped3.map(toRequireNotif));
           }
         }
       } else { setRequireNotifs([]); }
