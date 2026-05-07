@@ -2086,18 +2086,26 @@ function AdminPanelModal({ initialTab, onClose }: AdminPanelModalProps) {
         {/* ── LEFT SIDEBAR ── */}
         <div className="w-56 flex-shrink-0 flex flex-col border-r border-slate-100" style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)' }}>
           {/* Sidebar header */}
-          <div className="px-5 py-5 border-b border-white/10">
-            <div className="flex items-center gap-2.5">
+          <div className="px-4 py-4 border-b border-white/10 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-white font-bold text-sm leading-tight">Admin Panel</p>
                 <p className="text-white/40 text-[10px]">Superadmin Settings</p>
               </div>
             </div>
+            <button onClick={onClose}
+              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
+              style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.35)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.7)'; }}
+              title="Tutup Panel">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
 
           {/* Nav items */}
@@ -2118,18 +2126,6 @@ function AdminPanelModal({ initialTab, onClose }: AdminPanelModalProps) {
                 </button>
               );
             })}
-          </div>
-
-          {/* Close button bottom */}
-          <div className="p-3 border-t border-white/10">
-            <button onClick={onClose}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all"
-              style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.22)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)'; }}>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              Tutup Panel
-            </button>
           </div>
         </div>
 
