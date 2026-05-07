@@ -259,8 +259,9 @@ const DISPLAY_BRANDS = ['Microvision', 'Philips', 'Panasonic', 'Newline', 'Prome
 const MIDDLEWARE_BRANDS = ['Tricolor', 'Wyrestorm', 'Extron', 'Crestron', 'AVCiT', 'Brightsign', 'Cue'] as const;
 const BRAND_PIC_DIVISIONS = ['IVP', 'MLDS', 'UMP', 'OSS'];
 
+let _roomCounter = 0;
 const emptyRoom = (): RoomDetail => ({
-  id: Math.random().toString(36).slice(2, 10),
+  id: String(++_roomCounter),
   room_name: '', kebutuhan: [], kebutuhan_other: '', solution_product: [], solution_other: '',
   brand_display: '', brand_display_pic_id: '', brand_display_pic_name: '',
   brand_middleware: '', brand_middleware_pic_id: '', brand_middleware_pic_name: '',
@@ -652,7 +653,7 @@ function RoomSection({ room, rIdx, onUpdate, onRemove, brandPicMappings, photos,
   return (
     <div className="mb-4 border-2 border-gray-200 rounded-2xl overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-        <span className="text-xs font-black text-teal-700">Ruangan {rIdx + 2}</span>
+        <span className="text-xs font-black text-teal-700">{rIdx + 2}.</span>
         <input value={room.room_name} onChange={e => onUpdate({ room_name: e.target.value })}
           placeholder="Nama ruangan / area..."
           className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-medium bg-white outline-none focus:border-teal-400" />
@@ -959,23 +960,10 @@ function NewFormModal({
                   </div>
                 </div>
               )}
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Target Selesai *</label>
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)} required
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan 1</label>
-                <div className="flex gap-2">
-                  <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
-                    placeholder="Nama ruangan / area"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-                  <button type="button" onClick={addAndGoToRoom}
-                    className="flex-shrink-0 px-3 py-2 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all whitespace-nowrap">
-                    + Ruangan Lain
-                  </button>
-                </div>
-                {rooms.length > 0 && <p className="text-[10px] text-teal-600 mt-1 font-medium">✅ {rooms.length + 1} ruangan</p>}
               </div>
             </div>
           </div>
@@ -983,27 +971,35 @@ function NewFormModal({
           {/* ── Room Tab Navigator ── */}
           <div className="bg-white/95 rounded-2xl border-2 border-teal-200 shadow-sm overflow-hidden">
             {/* Tab bar */}
-            <div className="flex items-center bg-teal-50 border-b border-teal-200 px-2 py-1.5 gap-1 overflow-x-auto">
+            <div className="flex items-center bg-teal-50 border-b border-teal-200 px-2 py-1.5 gap-1 flex-wrap">
+              {/* Nav left */}
               <button type="button" onClick={goLeft} disabled={activeRoomIdx === 0}
                 className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7"/></svg>
               </button>
+              {/* Room tabs */}
               {Array.from({length: totalRooms}).map((_, i) => {
                 const label = i === 0 ? (form.room_name.trim() || 'Ruangan 1') : (rooms[i-1]?.room_name?.trim() || `Ruangan ${i+1}`);
                 const isActive = activeRoomIdx === i;
                 return (
                   <button key={i} type="button" onClick={() => setActiveRoomIdx(i)}
                     className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive ? 'bg-teal-600 text-white shadow' : 'text-teal-700 hover:bg-teal-100'}`}>
-                    {label}
+                    {i + 1}. {label}
                   </button>
                 );
               })}
+              {/* Nav right */}
               <button type="button" onClick={goRight} disabled={activeRoomIdx === totalRooms - 1}
                 className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
               </button>
               <div className="flex-1"/>
-              <span className="text-[10px] text-teal-600 font-bold mr-1">{activeRoomIdx+1}/{totalRooms}</span>
+              {/* + Ruangan Lain button */}
+              <button type="button" onClick={addAndGoToRoom}
+                className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all">
+                + Ruangan
+              </button>
+              {/* Delete current extra room */}
               {activeRoomIdx > 0 && (
                 <button type="button" onClick={() => { setRooms(p => p.filter((_,i)=>i!==activeRoomIdx-1)); setActiveRoomIdx(a=>Math.max(0,a-1)); }}
                   className="flex-shrink-0 p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all">
@@ -1016,7 +1012,15 @@ function NewFormModal({
             <div className="p-5">
               {activeRoomIdx === 0 ? (
                 /* ── Ruangan 1 (main form) ── */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                <div>
+                  {/* Nama Ruangan 1 — sama posisi dengan ruangan lain */}
+                  <div className="mb-4 pb-3 border-b border-gray-100 flex items-center gap-2">
+                    <span className="text-xs font-black text-teal-700 flex-shrink-0">1.</span>
+                    <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
+                      placeholder="Nama ruangan / area..."
+                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-2 text-sm font-medium bg-white outline-none focus:border-teal-400" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                   {/* LEFT COL */}
                   <div>
                     <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
@@ -1121,7 +1125,6 @@ function NewFormModal({
                 </div>
               ) : (
                 /* ── Extra Room (RoomSection component) ── */
-                <RoomSection
                   room={rooms[activeRoomIdx - 1]}
                   rIdx={activeRoomIdx - 1}
                   onUpdate={patch => setRooms(p => p.map((r,i) => i === activeRoomIdx-1 ? {...r,...patch} : r))}
