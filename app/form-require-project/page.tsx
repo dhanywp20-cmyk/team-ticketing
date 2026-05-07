@@ -964,19 +964,7 @@ function NewFormModal({
                 <input type="date" value={dueDateForm} onChange={e => setDueDateForm(e.target.value)} required
                   className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Nama Ruangan 1</label>
-                <div className="flex gap-2">
-                  <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
-                    placeholder="Nama ruangan / area"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all text-sm font-medium bg-white outline-none" />
-                  <button type="button" onClick={addAndGoToRoom}
-                    className="flex-shrink-0 px-3 py-2 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all whitespace-nowrap">
-                    + Ruangan Lain
-                  </button>
-                </div>
-                {rooms.length > 0 && <p className="text-[10px] text-teal-600 mt-1 font-medium">✅ {rooms.length + 1} ruangan</p>}
-              </div>
+
             </div>
           </div>
 
@@ -1017,6 +1005,17 @@ function NewFormModal({
               {activeRoomIdx === 0 ? (
                 /* ── Ruangan 1 (main form) ── */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                  {/* Nama Ruangan 1 + Ruangan Lain — full width */}
+                  <div className="md:col-span-2 flex items-center gap-2 mb-3 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                    <span className="text-xs font-black text-teal-700 flex-shrink-0">Ruangan 1</span>
+                    <input value={form.room_name} onChange={e => setForm(prev => ({ ...prev, room_name: e.target.value }))}
+                      placeholder="Nama ruangan / area..."
+                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-medium bg-white outline-none focus:border-teal-400" />
+                    <button type="button" onClick={addAndGoToRoom}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-all whitespace-nowrap">
+                      + Ruangan Lain
+                    </button>
+                  </div>
                   {/* LEFT COL */}
                   <div>
                     <RadioGroup label="Kebutuhan *" options={['Signage', 'Immersive', 'Meeting Room', 'Mapping', 'Command Center', 'Hybrid Classroom']}
