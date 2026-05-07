@@ -1737,9 +1737,20 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
     // ── 1. Ticket Troubleshooting ──
     try {
       if (isAdmin) {
+        // Admin/superadmin: semua tiket yang belum Solved
         const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').neq('status', 'Solved').order('created_at', { ascending: false }).limit(50);
         setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
-      } else if (roleLC === 'guest') {
+      } else if (roleLC === 'team' || roleLC === 'team_pts') {
+        // Team: hanya tiket yang di-assign ke mereka
+        if (memberTeamType === 'Team Services') {
+          const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, services_status, created_at').eq('assign_name', assignedName).neq('services_status', 'Solved').not('services_status', 'is', null).order('created_at', { ascending: false }).limit(30);
+          setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `Svc: ${t.services_status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
+        } else {
+          const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').eq('assign_name', assignedName).neq('status', 'Solved').order('created_at', { ascending: false }).limit(30);
+          setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
+        }
+      } else if (roleLC === 'guest' || roleLC === 'sales') {
+        // Guest & Sales: tiket yang mereka buat ATAU yang di-assign ke mereka via guest_mappings
         const isIVPUser = currentUser.sales_division === 'IVP';
         if (isIVPUser) {
           // IVP: notif ticket dari semua divisi yang dia handle
@@ -1759,7 +1770,7 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
             })));
           } else { setTicketNotifs([]); }
         } else {
-          // Non-IVP guest: existing logic
+          // Non-IVP guest/sales: tiket yang dibuat sendiri ATAU yang project-nya di-mapping ke user ini
           const { data: mappings } = await supabase.from('guest_mappings').select('project_name').eq('guest_username', currentUser.username);
           const mapped = (mappings ?? []).map((m: any) => m.project_name as string);
           let q = supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').neq('status', 'Solved');
@@ -1771,29 +1782,26 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           const { data } = await q.order('created_at', { ascending: false }).limit(30);
           setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
         }
-      } else if (roleLC === 'team' || roleLC === 'team_pts') {
-        if (memberTeamType === 'Team Services') {
-          const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, services_status, created_at').eq('assign_name', assignedName).neq('services_status', 'Solved').not('services_status', 'is', null).order('created_at', { ascending: false }).limit(30);
-          setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `Svc: ${t.services_status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
-        } else {
-          const { data } = await supabase.from('tickets').select('id, project_name, issue_case, assign_name, status, created_at').eq('assign_name', assignedName).neq('status', 'Solved').order('created_at', { ascending: false }).limit(30);
-          setTicketNotifs((data ?? []).map((t: any) => ({ id: t.id, type: 'ticket' as const, title: t.project_name, subtitle: `${t.status} · ${t.issue_case}`, time: t.created_at, url: '/ticketing', internalUrl: '/ticketing', menuTitle: 'Ticket Troubleshooting' })));
-        }
+      } else {
+        setTicketNotifs([]);
       }
     } catch (e) { console.error('[notif] ticket fetch error:', e); }
 
     // ── 2. Form Require Project ──
     try {
       if (isAdmin) {
+        // Admin/superadmin: semua request yang masih pending (butuh approval)
         const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('status', 'pending').order('created_at', { ascending: false }).limit(20);
         setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `⏳ Pending Approval · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
       } else if (isPTS && !isAdmin) {
+        // Team PTS: hanya request yang di-assign ke mereka, belum completed/rejected
         const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, assign_name, created_at').eq('assign_name', assignedName).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
         setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
-      } else if (roleLC === 'guest') {
+      } else if (roleLC === 'guest' || roleLC === 'sales') {
+        // Guest & Sales: notif berdasarkan kepemilikan / mapping / brand PIC
         const isIVPUser2 = currentUser.sales_division === 'IVP';
         if (isIVPUser2) {
-          // IVP: lihat request dari divisi yang dia handle
+          // IVP guest: lihat request dari divisi yang dia handle
           const { data: ivpDivMaps2 } = await supabase
             .from('division_ivp_mappings').select('sales_division').eq('ivp_id', currentUser.id);
           const handledDivs2 = (ivpDivMaps2 ?? []).map((m: any) => m.sales_division as string);
@@ -1813,9 +1821,10 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
           const selfDivN = currentUser.sales_division;
 
           if (isBrandPICNotif) {
-            // Brand PIC: semua request yang brand pic-nya = user ini (dari rooms JSONB)
+            // Brand PIC (MLDS/UMP/OSS): request yang mereka buat ATAU yang brand pic-nya = user ini
+            // PENTING: include requester_id di SELECT agar filter bisa bekerja
             const { data: allReqsN } = await supabase.from('project_requests')
-              .select('id, project_name, status, sales_name, created_at, rooms')
+              .select('id, project_name, status, sales_name, created_at, rooms, requester_id')
               .neq('status', 'completed').neq('status', 'rejected')
               .order('created_at', { ascending: false }).limit(100);
             const filtered = (allReqsN ?? []).filter((r: any) => {
@@ -1833,13 +1842,13 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
             const supDivsN = (supMapsN ?? []).map((m: any) => m.sales_division as string);
             if (!supDivsN.includes(selfDivN)) supDivsN.push(selfDivN);
 
-            // Ambil subordinate ids
-            const { data: allGuestsN } = await supabase.from('users').select('id, jabatan').eq('role', 'guest');
+            // Ambil subordinate ids (tier lebih rendah)
+            const { data: allGuestsN } = await supabase.from('users').select('id, jabatan').in('role', ['guest', 'sales']);
             const subIdsN = (allGuestsN ?? [])
               .filter((u: any) => (u.jabatan ? ({'Staff':1,'Supervisor':2,'Manager':3,'Deputy General Manager':4,'General Manager':5,'Direktur':6}[u.jabatan as string] ?? 0) : 0) < selfTierN)
               .map((u: any) => u.id as string);
 
-            // Fetch from supervised divisions filtered by subordinate requester_id
+            // Fetch dari divisi yang di-supervisi, filter berdasarkan subordinate requester_id
             const { data: subUsersN } = subIdsN.length > 0
               ? await supabase.from('users').select('id').in('id', subIdsN).in('sales_division', supDivsN)
               : { data: [] };
@@ -1856,8 +1865,12 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
               setRequireNotifs([]);
             }
           } else {
-            // Staff biasa: hanya milik sendiri
-            const { data } = await supabase.from('project_requests').select('id, project_name, status, sales_name, created_at').eq('requester_id', currentUser.id).neq('status', 'completed').neq('status', 'rejected').order('created_at', { ascending: false }).limit(20);
+            // Staff/Sales biasa: hanya request yang mereka buat sendiri, belum completed/rejected
+            const { data } = await supabase.from('project_requests')
+              .select('id, project_name, status, sales_name, created_at')
+              .eq('requester_id', currentUser.id)
+              .neq('status', 'completed').neq('status', 'rejected')
+              .order('created_at', { ascending: false }).limit(20);
             setRequireNotifs((data ?? []).map((r: any) => ({ id: r.id, type: 'require' as const, title: r.project_name, subtitle: `🏗️ ${r.status} · ${r.sales_name}`, time: r.created_at, url: '/form-require-project', internalUrl: '/form-require-project', menuTitle: 'Form Require Project' })));
           }
         }
@@ -1906,12 +1919,22 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <NotifBell icon="🎫" label="Ticket" count={ticketNotifs.length} color="#be123c" bgColor="rgba(254,205,211,0.6)" borderColor="#fda4af" dotColor="#e11d48" items={ticketNotifs} onItemClick={handleClick} />
-      <NotifBell icon="🏗️" label="Require" count={requireNotifs.length} color="#7e22ce" bgColor="rgba(233,213,255,0.6)" borderColor="#c4b5fd" dotColor="#9333ea" items={requireNotifs} onItemClick={handleClick} />
-      {currentUser.role !== 'guest' && (
+      {/* Ticket: admin lihat semua, team hanya yang di-assign, guest/sales hanya yang buat atau di-mapping */}
+      {(isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales') && (
+        <NotifBell icon="🎫" label="Ticket" count={ticketNotifs.length} color="#be123c" bgColor="rgba(254,205,211,0.6)" borderColor="#fda4af" dotColor="#e11d48" items={ticketNotifs} onItemClick={handleClick} />
+      )}
+      {/* Require: admin lihat pending, team PTS yang di-assign, guest/sales yang buat atau di-assign sebagai brand PIC / sales mapped */}
+      {(isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales') && (
+        <NotifBell icon="🏗️" label="Require" count={requireNotifs.length} color="#7e22ce" bgColor="rgba(233,213,255,0.6)" borderColor="#c4b5fd" dotColor="#9333ea" items={requireNotifs} onItemClick={handleClick} />
+      )}
+      {/* Reminder: hanya admin/superadmin dan team PTS */}
+      {(isAdmin || isPTS) && (
         <NotifBell icon="🗓️" label="Reminder" count={reminderNotifs.length} color="#0e7490" bgColor="rgba(207,250,254,0.6)" borderColor="#67e8f9" dotColor="#0891b2" items={reminderNotifs} onItemClick={handleClick} />
       )}
-      <NotifBell icon="⭐" label="Review" count={reviewNotifs.length} color="#b45309" bgColor="rgba(254,243,199,0.6)" borderColor="#fcd34d" dotColor="#d97706" items={reviewNotifs} onItemClick={handleClick} />
+      {/* Review: hanya admin/superadmin dan team PTS */}
+      {(isAdmin || (isTeamPTS && !isTeamServices)) && (
+        <NotifBell icon="⭐" label="Review" count={reviewNotifs.length} color="#b45309" bgColor="rgba(254,243,199,0.6)" borderColor="#fcd34d" dotColor="#d97706" items={reviewNotifs} onItemClick={handleClick} />
+      )}
     </div>
   );
 }
