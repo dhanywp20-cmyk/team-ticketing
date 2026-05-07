@@ -1944,6 +1944,880 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
   );
 }
 
+// ─── BrandPicSettingContent (reusable inline, no overlay) ────────────────────
+
+function BrandPicSettingContent() {
+  const [brandUsers, setBrandUsers] = useState<{id:string;full_name:string;sales_division?:string}[]>([]);
+  const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{type:'success'|'error';msg:string}|null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('users').select('id, full_name, sales_division').eq('role','guest').in('sales_division',['IVP','MLDS','UMP','OSS']).order('full_name'),
+      supabase.from('brand_pic_mappings').select('*'),
+    ]).then(([usersRes, mapsRes]) => {
+      if (usersRes.data) setBrandUsers(usersRes.data as any[]);
+      if (mapsRes.data) {
+        const map: Record<string,string> = {};
+        (mapsRes.data as BrandPicMappingDB[]).forEach(m => { if(m.pic_user_id) map[`${m.brand_type}:${m.brand_name}`] = m.pic_user_id; });
+        setMappings(map);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const notify = (type:'success'|'error', msg:string) => { setNotif({type,msg}); setTimeout(()=>setNotif(null),3000); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const allBrands = [
+        ...DISPLAY_BRANDS_DB.map(b=>({brand_type:'display' as const,brand_name:b})),
+        ...MIDDLEWARE_BRANDS_DB.map(b=>({brand_type:'middleware' as const,brand_name:b})),
+      ];
+      for (const {brand_type,brand_name} of allBrands) {
+        const key = `${brand_type}:${brand_name}`;
+        const picId = mappings[key] || null;
+        const picUser = picId ? brandUsers.find(u=>u.id===picId) : null;
+        await supabase.from('brand_pic_mappings').upsert(
+          {brand_type,brand_name,pic_user_id:picId,pic_user_name:picUser?.full_name||null},
+          {onConflict:'brand_type,brand_name'}
+        );
+      }
+      notify('success','Mapping PIC Brand disimpan!');
+    } catch(e:any) { notify('error',e.message); }
+    setSaving(false);
+  };
+
+  const Row = ({type,brand}:{type:'display'|'middleware';brand:string}) => {
+    const key = `${type}:${brand}`;
+    return (
+      <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
+        <span className="w-36 text-sm font-semibold text-slate-700 flex-shrink-0">{brand}</span>
+        <select value={mappings[key]||''} onChange={e=>setMappings(p=>({...p,[key]:e.target.value}))}
+          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-amber-400 appearance-none">
+          <option value="">— Belum ada PIC —</option>
+          {brandUsers.map(u=><option key={u.id} value={u.id}>{u.full_name} ({u.sales_division})</option>)}
+        </select>
+        {mappings[key] && <span className="text-[10px] text-amber-600 font-bold flex-shrink-0">✅</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {notif && (
+        <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 ${notif.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>
+          {notif.type==='success'?'✅':'❌'} {notif.msg}
+        </div>
+      )}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {loading ? (
+          <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-t-amber-500 border-amber-200 animate-spin"/></div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <p className="text-sm font-bold text-amber-700 uppercase tracking-widest mb-3">🖥️ Brand Display</p>
+                <div className="bg-amber-50/50 rounded-xl border border-amber-200 px-4 py-1">
+                  {DISPLAY_BRANDS_DB.map(b=><Row key={b} type="display" brand={b}/>)}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-violet-700 uppercase tracking-widest mb-3">🔌 Brand Middleware</p>
+                <div className="bg-violet-50/50 rounded-xl border border-violet-200 px-4 py-1">
+                  {MIDDLEWARE_BRANDS_DB.map(b=><Row key={b} type="middleware" brand={b}/>)}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="px-5 py-4 border-t border-slate-100 flex-shrink-0">
+        <button onClick={handleSave} disabled={saving||loading}
+          className="w-full py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50"
+          style={{background:'linear-gradient(135deg,#d97706,#b45309)'}}>
+          {saving?'⏳ Menyimpan...':'💾 Simpan Semua Mapping PIC Brand'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── AdminPanelModal (unified: Settings + User Management + PIC Brand) ───────
+
+interface AdminPanelModalProps {
+  initialTab: 'settings' | 'userManagement' | 'picBrand';
+  onClose: () => void;
+}
+
+function AdminPanelModal({ initialTab, onClose }: AdminPanelModalProps) {
+  const [activeSection, setActiveSection] = useState<'settings' | 'userManagement' | 'picBrand'>(initialTab);
+
+  const navItems: { key: 'settings' | 'userManagement' | 'picBrand'; label: string; icon: JSX.Element; color: string; activeBg: string; activeBorder: string; activeText: string }[] = [
+    {
+      key: 'settings',
+      label: 'Account Settings',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+      color: '#4338ca', activeBg: 'rgba(99,102,241,0.1)', activeBorder: 'rgba(99,102,241,0.4)', activeText: '#4338ca',
+    },
+    {
+      key: 'userManagement',
+      label: 'User Management',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+      color: '#0f766e', activeBg: 'rgba(13,148,136,0.1)', activeBorder: 'rgba(13,148,136,0.4)', activeText: '#0f766e',
+    },
+    {
+      key: 'picBrand',
+      label: 'PIC Brand',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>,
+      color: '#b45309', activeBg: 'rgba(217,119,6,0.1)', activeBorder: 'rgba(217,119,6,0.4)', activeText: '#b45309',
+    },
+  ];
+
+  const activeNav = navItems.find(n => n.key === activeSection)!;
+
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex overflow-hidden border border-slate-200">
+
+        {/* ── LEFT SIDEBAR ── */}
+        <div className="w-56 flex-shrink-0 flex flex-col border-r border-slate-100" style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)' }}>
+          {/* Sidebar header */}
+          <div className="px-5 py-5 border-b border-white/10">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm leading-tight">Admin Panel</p>
+                <p className="text-white/40 text-[10px]">Superadmin Settings</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Nav items */}
+          <div className="flex-1 p-3 space-y-1">
+            {navItems.map(item => {
+              const isActive = activeSection === item.key;
+              return (
+                <button key={item.key} onClick={() => setActiveSection(item.key)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all text-sm font-semibold"
+                  style={isActive
+                    ? { background: item.activeBg, border: `1px solid ${item.activeBorder}`, color: item.activeText }
+                    : { background: 'transparent', border: '1px solid transparent', color: 'rgba(255,255,255,0.55)' }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)'; }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                  <span className={isActive ? '' : 'opacity-60'}>{item.icon}</span>
+                  <span className="truncate">{item.label}</span>
+                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.color }} />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Close button bottom */}
+          <div className="p-3 border-t border-white/10">
+            <button onClick={onClose}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all"
+              style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.22)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)'; }}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              Tutup Panel
+            </button>
+          </div>
+        </div>
+
+        {/* ── RIGHT CONTENT ── */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Section header strip */}
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: activeNav.activeBg, border: `1px solid ${activeNav.activeBorder}`, color: activeNav.activeText }}>
+              {activeNav.icon}
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 text-base leading-tight">{activeNav.label}</h2>
+              <p className="text-slate-500 text-xs">
+                {activeSection === 'settings' && 'Kelola akun user & hak akses menu'}
+                {activeSection === 'userManagement' && 'Mapping Atasan, IVP Account & CC per User'}
+                {activeSection === 'picBrand' && 'Mapping Brand PIC per divisi & produk'}
+              </p>
+            </div>
+          </div>
+
+          {/* Embedded content — no backdrop/fixed positioning */}
+          <div className="flex-1 overflow-hidden">
+            {activeSection === 'settings' && <AccountSettingsInline />}
+            {activeSection === 'userManagement' && <UserManagementInline />}
+            {activeSection === 'picBrand' && <BrandPicSettingInline />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inline variants (no fixed overlay, used inside AdminPanelModal) ──────────
+
+function AccountSettingsInline() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [newUser, setNewUser] = useState({
+    username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS,
+  });
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  const menuLabels: Record<string, { label: string; icon: string }> = {
+    'form-bast': { label: 'Form Review Demo & BAST', icon: '⭐' },
+    'form-require-project': { label: 'Form Require Project', icon: '🏗️' },
+    'ticket-troubleshooting': { label: 'Ticket Troubleshooting', icon: '🎫' },
+    'daily-report': { label: 'Daily Report', icon: '📈' },
+    'database-pts': { label: 'Database PTS', icon: '💼' },
+    'unit-movement': { label: 'Unit Movement Log', icon: '🚚' },
+    'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️' },
+  };
+
+  const notify = (type: 'success' | 'error', msg: string) => { setNotification({ type, msg }); setTimeout(() => setNotification(null), 3000); };
+  useEffect(() => { fetchUsers(); }, []);
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    const { data, error } = await supabase.from('users').select('*').order('full_name');
+    if (!error && data) setUsers(data);
+    setLoadingUsers(false);
+  };
+
+  const handleAddUser = async () => {
+    if (!newUser.username || !newUser.password || !newUser.full_name) { notify('error', 'Semua field wajib diisi!'); return; }
+    if (newUser.role === 'guest' && !newUser.sales_division) { notify('error', 'Sales Division wajib diisi untuk role Guest!'); return; }
+    setSaving(true);
+    const insertPayload: Record<string, unknown> = { username: newUser.username, password: newUser.password, full_name: newUser.full_name, role: newUser.role, allowed_menus: newUser.allowed_menus, jabatan: newUser.jabatan || null };
+    if (newUser.role === 'team') insertPayload.team_type = newUser.team_type || null;
+    if (newUser.role === 'guest' || newUser.role === 'sales') insertPayload.sales_division = newUser.sales_division || null;
+    const { error } = await supabase.from('users').insert([insertPayload]);
+    setSaving(false);
+    if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
+    notify('success', 'Akun berhasil ditambahkan!');
+    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS });
+    setActiveTab('list'); fetchUsers();
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    const updatePayload: Record<string, unknown> = { username: editingUser.username, password: editingUser.password, full_name: editingUser.full_name, role: editingUser.role, allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS, jabatan: editingUser.jabatan ?? null };
+    if (editingUser.role === 'team') updatePayload.team_type = editingUser.team_type ?? null;
+    else if (editingUser.team_type === 'Pending Approval') { updatePayload.team_type = null; updatePayload.sales_division = editingUser.sales_division ?? null; }
+    if (editingUser.role === 'guest' || editingUser.role === 'sales') updatePayload.sales_division = editingUser.sales_division ?? null;
+    const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id);
+    setSaving(false);
+    if (error) { notify('error', 'Gagal menyimpan: ' + error.message); return; }
+    notify('success', 'Akun berhasil diperbarui!'); setEditingUser(null); fetchUsers();
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Hapus akun ini?')) return;
+    const { error } = await supabase.from('users').delete().eq('id', userId);
+    if (error) { notify('error', 'Gagal menghapus akun.'); return; }
+    notify('success', 'Akun dihapus.'); fetchUsers();
+  };
+
+  function MenuPermissionSelector({ selected, target }: { selected: string[]; target: 'new' | 'edit' }) {
+    const toggle = (key: string) => {
+      if (target === 'new') { setNewUser(u => ({ ...u, allowed_menus: u.allowed_menus.includes(key) ? u.allowed_menus.filter(k => k !== key) : [...u.allowed_menus, key] })); }
+      else if (editingUser) { const cur = editingUser.allowed_menus ?? ALL_MENU_KEYS; setEditingUser({ ...editingUser, allowed_menus: cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key] }); }
+    };
+    return (
+      <div>
+        <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Menu Access</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {ALL_MENU_KEYS.map(key => {
+            const m = menuLabels[key]; const checked = selected.includes(key);
+            return (
+              <button key={key} type="button" onClick={() => toggle(key)}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all text-left text-xs ${checked ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'border-rose-500 bg-rose-500' : 'border-slate-300 bg-white'}`}>
+                  {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                <span>{m.icon}</span>
+                <span className="font-semibold truncate">{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  const filteredUsers = users.filter(u => !searchQuery || u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.username?.toLowerCase().includes(searchQuery.toLowerCase()) || u.role?.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {notification && (
+        <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 flex-shrink-0 ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          {notification.type === 'success' ? '✅' : '❌'} {notification.msg}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div className="flex border-b border-slate-200 px-5 pt-3 flex-shrink-0">
+        {(['list', 'add'] as const).map(tab => (
+          <button key={tab} onClick={() => { setActiveTab(tab); setEditingUser(null); }}
+            className={`px-4 py-2 text-sm font-bold border-b-2 transition-all mr-1 ${activeTab === tab ? 'border-rose-500 text-rose-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            {tab === 'list' ? `👥 Daftar Akun (${users.length})` : '➕ Tambah Akun'}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-5">
+        {activeTab === 'list' && (
+          <>
+            {/* Search bar */}
+            <div className="relative mb-4">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cari nama, username, atau role..."
+                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+            </div>
+
+            {loadingUsers ? (
+              <div className="flex items-center justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-rose-600 border-rose-200 animate-spin" /></div>
+            ) : editingUser ? (
+              <div className="space-y-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-slate-800">✏️ Edit: {editingUser.full_name}</h3>
+                  <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Full Name</label>
+                    <input value={editingUser.full_name} onChange={e => setEditingUser({ ...editingUser, full_name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Username</label>
+                    <input value={editingUser.username} onChange={e => setEditingUser({ ...editingUser, username: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Password</label>
+                    <input value={editingUser.password} onChange={e => setEditingUser({ ...editingUser, password: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Role</label>
+                    <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                      <option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="team">Team</option><option value="guest">Guest</option>
+                    </select>
+                  </div>
+                  {editingUser.role === 'team' && (
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Team Type</label>
+                      <div className="flex gap-2">
+                        {['Team PTS', 'Team Services'].map(t => (
+                          <button key={t} type="button" onClick={() => setEditingUser({ ...editingUser, team_type: t })}
+                            className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all ${editingUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                            {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(editingUser.role === 'guest' || editingUser.role === 'sales') && (
+                    <div>
+                      <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Sales Division</label>
+                      <select value={editingUser.sales_division || ''} onChange={e => setEditingUser({ ...editingUser, sales_division: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                        <option value="">-- Pilih Divisi --</option>{SALES_DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Jabatan</label>
+                    <select value={editingUser.jabatan || ''} onChange={e => setEditingUser({ ...editingUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                      <option value="">— Pilih Jabatan —</option>{JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-3">
+                    <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <button onClick={handleSaveEdit} disabled={saving} className="flex-1 bg-gradient-to-r from-rose-600 to-rose-700 text-white py-2.5 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
+                    {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                    💾 Simpan Perubahan
+                  </button>
+                  <button onClick={() => setEditingUser(null)} className="px-6 py-2.5 rounded-lg border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm transition-all">Batal</button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {filteredUsers.map(user => (
+                  <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white transition-all">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
+                      {user.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-800 text-sm truncate">{user.full_name}</p>
+                      <p className="text-xs text-slate-500">@{user.username}</p>
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
+                        {user.jabatan && <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ {user.jabatan}</span>}
+                        {user.sales_division && <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-100 text-violet-600 border border-violet-200">🏢 {user.sales_division}</span>}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      <button onClick={() => setEditingUser(user)} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">Edit</button>
+                      <button onClick={() => handleDeleteUser(user.id)} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-all">Hapus</button>
+                    </div>
+                  </div>
+                ))}
+                {filteredUsers.length === 0 && <div className="col-span-2 text-center py-10 text-slate-400 text-sm">Tidak ada akun ditemukan</div>}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'add' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Full Name *</label>
+                <input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="Nama lengkap" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Username *</label>
+                <input value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="username" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Password *</label>
+                <input value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="min 6 karakter" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Role</label>
+                <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                  <option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="team">Team</option><option value="guest">Guest</option>
+                </select>
+              </div>
+              {newUser.role === 'team' && (
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Team Type</label>
+                  <div className="flex gap-2">
+                    {['Team PTS', 'Team Services'].map(t => (
+                      <button key={t} type="button" onClick={() => setNewUser({ ...newUser, team_type: t })}
+                        className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all ${newUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                        {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(newUser.role === 'guest' || newUser.role === 'sales') && (
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Sales Division</label>
+                  <select value={newUser.sales_division} onChange={e => setNewUser({ ...newUser, sales_division: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                    <option value="">-- Pilih Divisi --</option>{SALES_DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Jabatan</label>
+                <select value={newUser.jabatan} onChange={e => setNewUser({ ...newUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                  <option value="">— Pilih Jabatan —</option>{JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
+                </select>
+              </div>
+              <div className="col-span-3">
+                <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
+              </div>
+            </div>
+            <button onClick={handleAddUser} disabled={saving}
+              className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              ➕ Tambah Akun
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UserManagementInline() {
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [divSupMaps, setDivSupMaps] = useState<{ id: string; sales_division: string; supervisor_id: string }[]>([]);
+  const [divIvpMaps, setDivIvpMaps] = useState<{ id: string; sales_division: string; ivp_id: string }[]>([]);
+  const [userSupMaps, setUserSupMaps] = useState<{ id: string; user_id: string; supervisor_id: string }[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'atasan' | 'ivp' | 'user_cc'>('atasan');
+  const [atasanDiv, setAtasanDiv] = useState('');
+  const [atasanSupId, setAtasanSupId] = useState('');
+  const [ivpDiv, setIvpDiv] = useState('');
+  const [ivpUserId, setIvpUserId] = useState('');
+  const [selectedCCUserId, setSelectedCCUserId] = useState('');
+  const [ccChecked, setCcChecked] = useState<Set<string>>(new Set());
+  const [ccSaving, setCcSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const notify = (type: 'success' | 'error' | 'info', msg: string) => { setNotification({ type, msg }); setTimeout(() => setNotification(null), 3500); };
+  useEffect(() => { fetchAll(); }, []);
+
+  const fetchAll = async () => {
+    setLoadingData(true);
+    const [usersRes, divSupRes, divIvpRes, userSupRes] = await Promise.all([
+      supabase.from('users').select('id, username, full_name, role, team_type, sales_division, phone_number, jabatan').order('full_name'),
+      supabase.from('division_supervisor_mappings').select('*').order('sales_division'),
+      supabase.from('division_ivp_mappings').select('*').order('sales_division'),
+      supabase.from('user_supervisor_mappings').select('*'),
+    ]);
+    if (usersRes.data) setAllUsers(usersRes.data);
+    if (divSupRes.data) setDivSupMaps(divSupRes.data);
+    if (divIvpRes.data) setDivIvpMaps(divIvpRes.data);
+    if (userSupRes.data) setUserSupMaps(userSupRes.data);
+    setLoadingData(false);
+  };
+
+  const getUserById = (id: string) => allUsers.find(u => u.id === id);
+  const ATASAN_JABATAN: JabatanType[] = ['Supervisor', 'Manager', 'Deputy General Manager', 'General Manager', 'Direktur'];
+  const supervisorCandidates = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.jabatan && ATASAN_JABATAN.includes(u.jabatan as JabatanType));
+  const ivpUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.sales_division === 'IVP');
+  const nonIvpDivisions = SALES_DIVISIONS.filter(d => d !== 'IVP');
+  const ccEligibleUsers = allUsers.filter(u => u.role?.toLowerCase() === 'guest' && u.jabatan && u.sales_division && u.sales_division !== 'IVP').sort((a, b) => (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0) - (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0));
+
+  useEffect(() => {
+    if (!selectedCCUserId) { setCcChecked(new Set()); return; }
+    const existing = userSupMaps.filter(m => m.user_id === selectedCCUserId).map(m => m.supervisor_id);
+    setCcChecked(new Set(existing));
+  }, [selectedCCUserId, userSupMaps]);
+
+  const getAutoSuggestedCC = (userId: string): string[] => {
+    const user = getUserById(userId);
+    if (!user?.jabatan || !user.sales_division) return [];
+    const ccJabatan = JABATAN_CC_RULES[user.jabatan as JabatanType] ?? [];
+    const supIds = divSupMaps.filter(m => m.sales_division === user.sales_division).map(m => m.supervisor_id);
+    return allUsers.filter(u => supIds.includes(u.id) && u.jabatan && ccJabatan.includes(u.jabatan as JabatanType)).map(u => u.id);
+  };
+
+  const handleSaveUserCC = async () => {
+    if (!selectedCCUserId) return;
+    setCcSaving(true);
+    try {
+      await supabase.from('user_supervisor_mappings').delete().eq('user_id', selectedCCUserId);
+      const toInsert = Array.from(ccChecked).map(supId => ({ user_id: selectedCCUserId, supervisor_id: supId }));
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('user_supervisor_mappings').insert(toInsert);
+        if (error) { notify('error', 'Gagal: ' + error.message); setCcSaving(false); return; }
+      }
+      notify('success', 'CC mapping disimpan!'); await fetchAll();
+    } catch (e: any) { notify('error', e.message); }
+    setCcSaving(false);
+  };
+
+  const handleAddAtasan = async () => {
+    if (!atasanDiv || !atasanSupId) { notify('error', 'Pilih divisi dan atasan.'); return; }
+    const existing = divSupMaps.find(m => m.sales_division === atasanDiv && m.supervisor_id === atasanSupId);
+    if (existing) { notify('info', 'Mapping ini sudah ada.'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('division_supervisor_mappings').insert([{ sales_division: atasanDiv, supervisor_id: atasanSupId }]);
+    if (error) notify('error', 'Gagal: ' + error.message);
+    else { notify('success', 'Mapping atasan ditambahkan!'); setAtasanDiv(''); setAtasanSupId(''); await fetchAll(); }
+    setSaving(false);
+  };
+
+  const handleDeleteAtasan = async (id: string) => {
+    if (!confirm('Hapus mapping atasan ini?')) return;
+    await supabase.from('division_supervisor_mappings').delete().eq('id', id);
+    notify('success', 'Dihapus.'); await fetchAll();
+  };
+
+  const handleAddIvp = async () => {
+    if (!ivpDiv || !ivpUserId) { notify('error', 'Pilih divisi dan IVP Account.'); return; }
+    const existing = divIvpMaps.find(m => m.sales_division === ivpDiv && m.ivp_id === ivpUserId);
+    if (existing) { notify('info', 'Mapping ini sudah ada.'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('division_ivp_mappings').insert([{ sales_division: ivpDiv, ivp_id: ivpUserId }]);
+    if (error) notify('error', 'Gagal: ' + error.message);
+    else { notify('success', 'IVP mapping ditambahkan!'); setIvpDiv(''); setIvpUserId(''); await fetchAll(); }
+    setSaving(false);
+  };
+
+  const handleDeleteIvp = async (id: string) => {
+    if (!confirm('Hapus mapping IVP ini?')) return;
+    await supabase.from('division_ivp_mappings').delete().eq('id', id);
+    notify('success', 'Dihapus.'); await fetchAll();
+  };
+
+  const jabatanBadge = (u: User | undefined) => {
+    if (!u?.jabatan) return null;
+    const cfg = JABATAN_CONFIG[u.jabatan as JabatanType];
+    if (!cfg) return null;
+    return <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border" style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}>{cfg.icon} {u.jabatan}</span>;
+  };
+
+  const atasanByDiv: Record<string, typeof divSupMaps> = {};
+  divSupMaps.forEach(m => { if (!atasanByDiv[m.sales_division]) atasanByDiv[m.sales_division] = []; atasanByDiv[m.sales_division].push(m); });
+  const ivpByDiv: Record<string, typeof divIvpMaps> = {};
+  divIvpMaps.forEach(m => { if (!ivpByDiv[m.sales_division]) ivpByDiv[m.sales_division] = []; ivpByDiv[m.sales_division].push(m); });
+
+  const selectedUserObj = selectedCCUserId ? getUserById(selectedCCUserId) : null;
+  const selectedJabatan = selectedUserObj?.jabatan as JabatanType | undefined;
+  const autoSuggested = selectedCCUserId ? getAutoSuggestedCC(selectedCCUserId) : [];
+  const potentialCCTargets = selectedUserObj ? allUsers.filter(u => {
+    if (u.id === selectedCCUserId) return false;
+    if (!u.jabatan) return false;
+    const targetTier = JABATAN_CONFIG[u.jabatan as JabatanType]?.tier ?? 0;
+    const selfTier = JABATAN_CONFIG[selectedJabatan as JabatanType]?.tier ?? 0;
+    return targetTier > selfTier;
+  }).sort((a, b) => (JABATAN_CONFIG[b.jabatan as JabatanType]?.tier ?? 0) - (JABATAN_CONFIG[a.jabatan as JabatanType]?.tier ?? 0)) : [];
+
+  // Search filter for atasan/ivp tabs
+  const filteredAtasanByDiv = Object.entries(atasanByDiv).filter(([div]) => !searchQuery || div.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredIvpByDiv = Object.entries(ivpByDiv).filter(([div]) => !searchQuery || div.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {notification && (
+        <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 flex-shrink-0 ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : notification.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+          {notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️'} {notification.msg}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 px-5 pt-3 gap-1 flex-shrink-0 flex-wrap">
+        <button onClick={() => setActiveTab('atasan')} className={`px-4 py-2 text-xs font-bold border-b-2 transition-all ${activeTab === 'atasan' ? 'border-amber-500 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          👨‍💼 Mapping Atasan ({Object.keys(atasanByDiv).length} divisi)
+        </button>
+        <button onClick={() => setActiveTab('ivp')} className={`px-4 py-2 text-xs font-bold border-b-2 transition-all ${activeTab === 'ivp' ? 'border-violet-500 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          🔗 IVP Account ({Object.keys(ivpByDiv).length} divisi)
+        </button>
+        <button onClick={() => setActiveTab('user_cc')} className={`px-4 py-2 text-xs font-bold border-b-2 transition-all ${activeTab === 'user_cc' ? 'border-teal-500 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          🏷️ CC per User ({userSupMaps.length})
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+        {loadingData ? (
+          <div className="flex items-center justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-t-teal-600 border-teal-200 animate-spin" /></div>
+        ) : (
+          <>
+            {/* Search bar for atasan & ivp tabs */}
+            {(activeTab === 'atasan' || activeTab === 'ivp') && (
+              <div className="px-5 pt-4 flex-shrink-0">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cari divisi..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'atasan' && (
+              <div className="p-5 space-y-5">
+                {/* Add form */}
+                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50">
+                  <p className="text-xs font-bold text-amber-700 mb-3">➕ Tambah Mapping Atasan</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1 text-slate-500 uppercase tracking-widest">Divisi Sales</label>
+                      <select value={atasanDiv} onChange={e => setAtasanDiv(e.target.value)} className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-200 bg-white">
+                        <option value="">-- Pilih Divisi --</option>{nonIvpDivisions.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1 text-slate-500 uppercase tracking-widest">Atasan</label>
+                      <select value={atasanSupId} onChange={e => setAtasanSupId(e.target.value)} className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-200 bg-white">
+                        <option value="">-- Pilih Atasan --</option>{supervisorCandidates.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.jabatan})</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <button onClick={handleAddAtasan} disabled={saving} className="w-full py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 disabled:opacity-50 transition-all">
+                        {saving ? '...' : '➕ Tambah'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {/* List */}
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredAtasanByDiv.map(([div, maps]) => (
+                    <div key={div} className="rounded-xl border border-amber-200 overflow-hidden">
+                      <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+                        <span className="font-bold text-amber-800 text-xs">📁 {div}</span>
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">{maps.length}</span>
+                      </div>
+                      <div className="divide-y divide-amber-50">
+                        {maps.map(m => {
+                          const u = getUserById(m.supervisor_id);
+                          return (
+                            <div key={m.id} className="px-3 py-2 flex items-center gap-2 bg-white hover:bg-amber-50/40 transition-colors">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-800 text-xs truncate">{u?.full_name ?? '—'}</p>
+                                <div className="mt-0.5">{jabatanBadge(u as User)}</div>
+                              </div>
+                              <button onClick={() => handleDeleteAtasan(m.id)} className="text-red-400 hover:text-red-600 flex-shrink-0 p-1 rounded hover:bg-red-50 transition-all" title="Hapus">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'ivp' && (
+              <div className="p-5 space-y-5">
+                {/* Add form */}
+                <div className="p-4 rounded-xl border border-violet-200 bg-violet-50">
+                  <p className="text-xs font-bold text-violet-700 mb-3">➕ Tambah IVP Account ke Divisi</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1 text-slate-500 uppercase tracking-widest">Divisi Sales</label>
+                      <select value={ivpDiv} onChange={e => setIvpDiv(e.target.value)} className="w-full border border-violet-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-200 bg-white">
+                        <option value="">-- Pilih Divisi --</option>{nonIvpDivisions.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1 text-slate-500 uppercase tracking-widest">IVP Account</label>
+                      <select value={ivpUserId} onChange={e => setIvpUserId(e.target.value)} className="w-full border border-violet-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-200 bg-white">
+                        <option value="">-- Pilih IVP --</option>{ivpUsers.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <button onClick={handleAddIvp} disabled={saving} className="w-full py-2 bg-violet-600 text-white rounded-lg text-sm font-bold hover:bg-violet-700 disabled:opacity-50 transition-all">
+                        {saving ? '...' : '➕ Tambah'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {/* List */}
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredIvpByDiv.map(([div, maps]) => (
+                    <div key={div} className="rounded-xl border border-violet-200 overflow-hidden">
+                      <div className="px-3 py-2 bg-violet-50 border-b border-violet-100 flex items-center justify-between">
+                        <span className="font-bold text-violet-800 text-xs">📁 {div}</span>
+                        <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">{maps.length}</span>
+                      </div>
+                      <div className="divide-y divide-violet-50">
+                        {maps.map(m => {
+                          const u = getUserById(m.ivp_id);
+                          return (
+                            <div key={m.id} className="px-3 py-2 flex items-center gap-2 bg-white hover:bg-violet-50/40 transition-colors">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-violet-900 text-xs truncate">{u?.full_name ?? '—'}</p>
+                                {u?.phone_number ? <p className="text-[10px] text-emerald-600">📱 {u.phone_number}</p> : <p className="text-[10px] text-rose-400">⚠️ No WA</p>}
+                              </div>
+                              <button onClick={() => handleDeleteIvp(m.id)} className="text-red-400 hover:text-red-600 flex-shrink-0 p-1 rounded hover:bg-red-50 transition-all" title="Hapus">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'user_cc' && (
+              <div className="p-5 space-y-4">
+                {/* Search user */}
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cari nama user..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+                </div>
+                <div className="grid grid-cols-2 gap-5">
+                  {/* Left: user list */}
+                  <div>
+                    <p className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-widest">Pilih User</p>
+                    <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+                      {ccEligibleUsers.filter(u => !searchQuery || u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => {
+                        const cfg = u.jabatan ? JABATAN_CONFIG[u.jabatan as JabatanType] : null;
+                        const isSelected = selectedCCUserId === u.id;
+                        return (
+                          <button key={u.id} onClick={() => setSelectedCCUserId(u.id)}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all"
+                            style={isSelected ? { background: 'rgba(13,148,136,0.1)', borderColor: 'rgba(13,148,136,0.4)' } : { background: '#f8fafc', borderColor: '#e2e8f0' }}>
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
+                              style={{ background: cfg?.bg ?? '#f1f5f9', border: `1.5px solid ${cfg?.border ?? '#e2e8f0'}` }}>
+                              {cfg?.icon ?? '👤'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-800 text-xs truncate">{u.full_name}</p>
+                              <p className="text-[10px] text-slate-500">{u.jabatan} · {u.sales_division}</p>
+                            </div>
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* Right: CC targets */}
+                  <div>
+                    {selectedUserObj ? (
+                      <>
+                        <p className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-widest">CC Targets untuk {selectedUserObj.full_name}</p>
+                        {autoSuggested.length > 0 && (
+                          <button onClick={() => setCcChecked(new Set(autoSuggested))}
+                            className="mb-2 px-3 py-1.5 text-xs font-bold rounded-lg bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 transition-all">
+                            ✨ Auto-suggest ({autoSuggested.length})
+                          </button>
+                        )}
+                        <div className="space-y-1 max-h-64 overflow-y-auto pr-1 mb-3">
+                          {potentialCCTargets.map(target => {
+                            const cfg = target.jabatan ? JABATAN_CONFIG[target.jabatan as JabatanType] : null;
+                            const isChecked = ccChecked.has(target.id);
+                            return (
+                              <button key={target.id} onClick={() => setCcChecked(prev => { const next = new Set(prev); isChecked ? next.delete(target.id) : next.add(target.id); return next; })}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left"
+                                style={isChecked ? { background: 'rgba(13,148,136,0.08)', borderColor: 'rgba(13,148,136,0.35)' } : { background: '#f8fafc', borderColor: '#e2e8f0' }}>
+                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${isChecked ? 'border-teal-500 bg-teal-500' : 'border-slate-300 bg-white'}`}>
+                                  {isChecked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-slate-800 text-xs truncate">{target.full_name}</p>
+                                  <p className="text-[10px]" style={{ color: cfg?.color ?? '#64748b' }}>{cfg?.icon} {target.jabatan}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button onClick={handleSaveUserCC} disabled={ccSaving}
+                          className="w-full py-2.5 bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                          {ccSaving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                          💾 Simpan CC Mapping
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-center h-40 text-slate-400 text-sm">← Pilih user untuk setting CC</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BrandPicSettingInline() {
+  // Re-export BrandPicSettingModal content without the fixed-overlay wrapper
+  return <BrandPicSettingContent />;
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -1972,10 +2846,9 @@ export default function Dashboard() {
   const [internalUrl, setInternalUrl] = useState<string>('/ticketing');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const [showSettings, setShowSettings] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminPanelTab, setAdminPanelTab] = useState<'settings' | 'userManagement' | 'picBrand'>('settings');
   const [showUserProfile, setShowUserProfile] = useState(false);
-  const [showUserManagement, setShowUserManagement] = useState(false);
-  const [showBrandPicSetting, setShowBrandPicSetting] = useState(false);
 
   const [visibleMenuItems, setVisibleMenuItems] = useState<MenuItem[]>([]);
 
@@ -2093,7 +2966,7 @@ export default function Dashboard() {
     setIsLoggedIn(false); setCurrentUser(null);
     localStorage.removeItem('currentUser');
     setShowSidebar(false); setIframeUrl(null); setShowTicketing(false); setInternalUrl('/ticketing');
-    setShowSettings(false); setShowUserProfile(false); setShowUserManagement(false); setShowBrandPicSetting(false);
+    setShowAdminPanel(false); setShowUserProfile(false);
     router.push('/dashboard');
   };
 
@@ -2390,38 +3263,19 @@ export default function Dashboard() {
               User Profile
             </button>
 
-            {/* Settings + User Management — admin/superadmin only */}
+            {/* Admin Panel — admin/superadmin only */}
             {isAdmin && (
-              <>
-                <button onClick={() => setShowSettings(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                  style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#4338ca' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.15)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.08)'; }}>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Settings
-                </button>
-                <button onClick={() => setShowUserManagement(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                  style={{ background: 'rgba(13,148,136,0.08)', border: '1px solid rgba(13,148,136,0.25)', color: '#0f766e' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(13,148,136,0.15)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(13,148,136,0.08)'; }}>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  User Management
-                </button>
-                <button onClick={() => setShowBrandPicSetting(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                  style={{ background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#b45309' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(217,119,6,0.15)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(217,119,6,0.08)'; }}>
-                  ⚙️ PIC Brand
-                </button>
-              </>
+              <button onClick={() => { setAdminPanelTab('settings'); setShowAdminPanel(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#4338ca' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.15)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.08)'; }}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Admin Panel
+              </button>
             )}
 
             <button onClick={handleLogout}
@@ -2443,10 +3297,8 @@ export default function Dashboard() {
   // ── MODAL RENDERS (shared) ──
   const renderModals = () => (
     <>
-      {showSettings && <AccountSettingsModal onClose={() => setShowSettings(false)} />}
+      {showAdminPanel && <AdminPanelModal initialTab={adminPanelTab} onClose={() => setShowAdminPanel(false)} />}
       {showUserProfile && currentUser && <UserProfileModal currentUser={currentUser} onClose={() => setShowUserProfile(false)} />}
-      {showUserManagement && <UserManagementModal onClose={() => setShowUserManagement(false)} />}
-      {showBrandPicSetting && <BrandPicSettingModal onClose={() => setShowBrandPicSetting(false)} />}
     </>
   );
 
