@@ -176,30 +176,37 @@ function MiniPieChart({data,title,icon,activeFilter,onSliceClick}:{
 
 function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanList:KegiatanEntry[]}) {
   const now=new Date();
-  const thisWeek=toKey(getMonday(now));
   const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const thisYear=String(now.getFullYear());
+  // Filter hanya hari kerja (Senin-Jumat) untuk penghitungan
+  const weekdayRows=allRows.filter(r=>{
+    if(!r.day_date)return false;
+    const[y,m,d]=r.day_date.split('-').map(Number);
+    const dow=new Date(y,m-1,d).getDay();
+    return dow>=1&&dow<=5;
+  });
   const piketDateMap:Record<string,string>={};
   allRows.forEach(r=>{piketDateMap[r.id]=r.day_date;});
   const kgFor=(f:(d:string)=>boolean)=>kegiatanList.filter(k=>{const d=piketDateMap[k.piket_id];return d&&f(d);});
-  const weekKg=kgFor(d=>getWeekKey(d)===thisWeek);
   const monthKg=kgFor(d=>d.startsWith(thisMonth));
   const yearKg=kgFor(d=>d.startsWith(thisYear));
   const countDemo=(kg:KegiatanEntry[])=>kg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi).length;
+  const monthRows=weekdayRows.filter(r=>r.day_date?.startsWith(thisMonth));
+  const yearRows=weekdayRows.filter(r=>r.day_date?.startsWith(thisYear));
   const cards=[
-    {p:'Minggu Ini',demo:countDemo(weekKg),kg:weekKg.length,tot:allRows.filter(r=>getWeekKey(r.day_date)===thisWeek).length,c:'#2563eb',g:'linear-gradient(135deg,#2563eb,#1e40af)',sh:'rgba(37,99,235,0.3)'},
-    {p:'Bulan Ini',demo:countDemo(monthKg),kg:monthKg.length,tot:allRows.filter(r=>r.day_date?.startsWith(thisMonth)).length,c:'#7c3aed',g:'linear-gradient(135deg,#7c3aed,#4c1d95)',sh:'rgba(124,58,237,0.3)'},
-    {p:'Tahun '+thisYear,demo:countDemo(yearKg),kg:yearKg.length,tot:allRows.filter(r=>r.day_date?.startsWith(thisYear)).length,c:'#059669',g:'linear-gradient(135deg,#059669,#047857)',sh:'rgba(5,150,105,0.3)'},
-    {p:'Total Semua',demo:countDemo(kegiatanList),kg:kegiatanList.length,tot:allRows.length,c:'#dc2626',g:'linear-gradient(135deg,#dc2626,#991b1b)',sh:'rgba(220,38,38,0.3)'},
+    {p:'Bulan Ini',sub:MONTH_NAMES[now.getMonth()]+' '+now.getFullYear(),demo:countDemo(monthKg),kg:monthKg.length,tot:monthRows.length,c:'#7c3aed',g:'linear-gradient(135deg,#7c3aed,#4c1d95)',sh:'rgba(124,58,237,0.3)'},
+    {p:'Tahun '+thisYear,sub:'Jan – Des '+thisYear,demo:countDemo(yearKg),kg:yearKg.length,tot:yearRows.length,c:'#059669',g:'linear-gradient(135deg,#059669,#047857)',sh:'rgba(5,150,105,0.3)'},
+    {p:'Total Semua',sub:'Sejak awal data',demo:countDemo(kegiatanList),kg:kegiatanList.length,tot:weekdayRows.length,c:'#dc2626',g:'linear-gradient(135deg,#dc2626,#991b1b)',sh:'rgba(220,38,38,0.3)'},
   ];
   return(
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {cards.map(c=>(
         <div key={c.p} className="rounded-2xl p-4 relative overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:`1px solid ${c.c}25`,boxShadow:`0 4px 16px ${c.sh}`}}>
           <div className="absolute right-3 top-2 text-3xl opacity-10 select-none">📋</div>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{color:c.c}}>{c.p}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest leading-none" style={{color:c.c}}>{c.p}</p>
+          <p className="text-[9px] text-gray-400 mb-2 mt-0.5">{c.sub}</p>
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">Total Hari</span><span className="text-sm font-black" style={{color:c.c}}>{c.tot}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">Hari Kerja Piket</span><span className="text-sm font-black" style={{color:c.c}}>{c.tot}</span></div>
             <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">🏢 Demo</span><span className="text-sm font-black text-emerald-600">{c.demo}</span></div>
             <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">📋 Kegiatan</span><span className="text-sm font-black text-amber-600">{c.kg}</span></div>
           </div>
