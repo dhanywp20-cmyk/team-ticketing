@@ -112,6 +112,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     full_name: '',
     role: 'guest',
     team_type: '',
+    phone_number: '',
     sales_division: '',
     jabatan: '',
     allowed_menus: ALL_MENU_KEYS,
@@ -158,16 +159,15 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       role: newUser.role,
       allowed_menus: newUser.allowed_menus,
       jabatan: newUser.jabatan || null,
+      phone_number: newUser.phone_number || null,
+      sales_division: newUser.sales_division || null,
     };
     if (newUser.role === 'team') insertPayload.team_type = newUser.team_type || null;
-    if (newUser.role === 'guest' || newUser.role === 'sales') {
-      insertPayload.sales_division = newUser.sales_division || null;
-    }
     const { error } = await supabase.from('users').insert([insertPayload]);
     setSaving(false);
     if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
     notify('success', 'Akun berhasil ditambahkan!');
-    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS });
+    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', phone_number: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS });
     setActiveTab('list');
     fetchUsers();
   };
@@ -182,14 +182,12 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
       role: editingUser.role,
       allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS,
       jabatan: editingUser.jabatan ?? null,
+      phone_number: editingUser.phone_number ?? null,
+      sales_division: editingUser.sales_division ?? null,
     };
     if (editingUser.role === 'team') updatePayload.team_type = editingUser.team_type ?? null;
     else if (editingUser.team_type === 'Pending Approval') {
       updatePayload.team_type = null;
-      updatePayload.sales_division = editingUser.sales_division ?? null;
-    }
-    if (editingUser.role === 'guest' || editingUser.role === 'sales') {
-      updatePayload.sales_division = editingUser.sales_division ?? null;
     }
     const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id);
     setSaving(false);
@@ -335,21 +333,23 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                             </div>
                           </div>
                         )}
-                        {(editingUser.role === 'guest' || editingUser.role === 'sales') && (
-                          <div>
-                            <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Sales Division</label>
-                            <select value={editingUser.sales_division || ''} onChange={e => setEditingUser({ ...editingUser, sales_division: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
-                              <option value="">-- Pilih Divisi --</option>
-                              {SALES_DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
-                            </select>
-                          </div>
-                        )}
-                        <div className="col-span-2">
+                        <div>
+                          <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Sales Division</label>
+                          <select value={editingUser.sales_division || ''} onChange={e => setEditingUser({ ...editingUser, sales_division: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
+                            <option value="">-- Pilih Divisi --</option>
+                            {SALES_DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
+                          </select>
+                        </div>
+                        <div>
                           <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Jabatan / Posisi</label>
                           <select value={editingUser.jabatan || ''} onChange={e => setEditingUser({ ...editingUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
                             <option value="">— Pilih Jabatan —</option>
                             {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
                           </select>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Nomor Telepon / WhatsApp</label>
+                          <input value={editingUser.phone_number || ''} onChange={e => setEditingUser({ ...editingUser, phone_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="Contoh: 08123456789" />
                         </div>
                       </div>
                       <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
@@ -372,6 +372,9 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-slate-800 text-sm truncate">{user.full_name}</p>
                             <p className="text-xs text-slate-500">@{user.username}</p>
+                            {user.phone_number && (
+                              <p className="text-xs text-slate-400 mt-0.5">📞 {user.phone_number}</p>
+                            )}
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
                               {user.jabatan && (
@@ -428,12 +431,23 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                     <option value="guest">Guest</option>
                   </select>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Jabatan / Posisi</label>
                   <select value={newUser.jabatan} onChange={e => setNewUser({ ...newUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
                     <option value="">— Pilih Jabatan —</option>
                     {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Sales Division</label>
+                  <select value={newUser.sales_division} onChange={e => setNewUser({ ...newUser, sales_division: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
+                    <option value="">-- Pilih Divisi --</option>
+                    {SALES_DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold mb-1 text-slate-600 tracking-widest uppercase">Nomor Telepon / WhatsApp</label>
+                  <input value={newUser.phone_number} onChange={e => setNewUser({ ...newUser, phone_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none" placeholder="Contoh: 08123456789" />
                 </div>
               </div>
               {newUser.role === 'team' && (
@@ -449,15 +463,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                   </div>
                 </div>
               )}
-              {(newUser.role === 'guest' || newUser.role === 'sales') && (
-                <div>
-                  <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Sales Division {newUser.role === 'guest' ? '*' : ''}</label>
-                  <select value={newUser.sales_division} onChange={e => setNewUser({ ...newUser, sales_division: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none bg-white">
-                    <option value="">-- Pilih Divisi --</option>
-                    {SALES_DIVISIONS.map(div => <option key={div} value={div}>{div}</option>)}
-                  </select>
-                </div>
-              )}
+
               <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
               <button onClick={handleAddUser} disabled={saving}
                 className="w-full bg-gradient-to-r from-rose-600 to-rose-700 text-white py-3 rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
