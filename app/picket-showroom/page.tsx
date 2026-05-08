@@ -178,40 +178,96 @@ function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanLis
   const now=new Date();
   const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const thisYear=String(now.getFullYear());
-  // Filter hanya hari kerja (Senin-Jumat) untuk penghitungan
-  const weekdayRows=allRows.filter(r=>{
-    if(!r.day_date)return false;
-    const[y,m,d]=r.day_date.split('-').map(Number);
-    const dow=new Date(y,m-1,d).getDay();
-    return dow>=1&&dow<=5;
-  });
+
+  // Build piket date map
   const piketDateMap:Record<string,string>={};
   allRows.forEach(r=>{piketDateMap[r.id]=r.day_date;});
+
+  // Filter kegiatan by period
   const kgFor=(f:(d:string)=>boolean)=>kegiatanList.filter(k=>{const d=piketDateMap[k.piket_id];return d&&f(d);});
   const monthKg=kgFor(d=>d.startsWith(thisMonth));
   const yearKg=kgFor(d=>d.startsWith(thisYear));
-  const countDemo=(kg:KegiatanEntry[])=>kg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi).length;
-  const monthRows=weekdayRows.filter(r=>r.day_date?.startsWith(thisMonth));
-  const yearRows=weekdayRows.filter(r=>r.day_date?.startsWith(thisYear));
+
+  // Helper counts
+  const demoKg=(kg:KegiatanEntry[])=>kg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi);
+  const uniqueTamu=(kg:KegiatanEntry[])=>new Set(kg.filter(k=>k.tamu_instansi).map(k=>k.tamu_instansi!)).size;
+  const uniqueDiv=(kg:KegiatanEntry[])=>new Set(kg.filter(k=>k.sales_division).map(k=>k.sales_division!)).size;
+  // Days that had any kegiatan
+  const activeDays=(kg:KegiatanEntry[])=>new Set(kg.map(k=>piketDateMap[k.piket_id]).filter(Boolean)).size;
+  // Top produk
+  const topProduk=(kg:KegiatanEntry[])=>{
+    const map:Record<string,number>={};
+    kg.forEach(k=>(k.produk||[]).forEach(p=>{map[p]=(map[p]||0)+1;}));
+    const sorted=Object.entries(map).sort(([,a],[,b])=>b-a);
+    return sorted[0]?sorted[0][0]:'—';
+  };
+
   const cards=[
-    {p:'Bulan Ini',sub:MONTH_NAMES[now.getMonth()]+' '+now.getFullYear(),demo:countDemo(monthKg),kg:monthKg.length,tot:monthRows.length,c:'#7c3aed',g:'linear-gradient(135deg,#7c3aed,#4c1d95)',sh:'rgba(124,58,237,0.3)'},
-    {p:'Tahun '+thisYear,sub:'Jan – Des '+thisYear,demo:countDemo(yearKg),kg:yearKg.length,tot:yearRows.length,c:'#059669',g:'linear-gradient(135deg,#059669,#047857)',sh:'rgba(5,150,105,0.3)'},
-    {p:'Total Semua',sub:'Sejak awal data',demo:countDemo(kegiatanList),kg:kegiatanList.length,tot:weekdayRows.length,c:'#dc2626',g:'linear-gradient(135deg,#dc2626,#991b1b)',sh:'rgba(220,38,38,0.3)'},
+    {
+      p:'Bulan Ini', sub:MONTH_NAMES[now.getMonth()]+' '+now.getFullYear(),
+      c:'#7c3aed', g:'linear-gradient(135deg,#7c3aed,#4c1d95)', sh:'rgba(124,58,237,0.25)',
+      icon:'📅',
+      stats:[
+        {label:'Hari Aktif',val:activeDays(monthKg),hint:'hari ada kegiatan',color:'#7c3aed'},
+        {label:'Demo Tamu',val:demoKg(monthKg).length,hint:'sesi demo product',color:'#2563eb'},
+        {label:'Tamu Unik',val:uniqueTamu(monthKg),hint:'instansi berbeda',color:'#0891b2'},
+        {label:'Divisi Sales',val:uniqueDiv(monthKg),hint:'divisi aktif',color:'#7c3aed'},
+        {label:'Kegiatan',val:monthKg.length,hint:'total semua jenis',color:'#d97706'},
+        {label:'Top Produk',val:topProduk(monthKg),hint:'paling sering demo',color:'#059669',isText:true},
+      ],
+    },
+    {
+      p:'Tahun '+thisYear, sub:'Jan – Des '+thisYear,
+      c:'#059669', g:'linear-gradient(135deg,#059669,#047857)', sh:'rgba(5,150,105,0.25)',
+      icon:'📊',
+      stats:[
+        {label:'Hari Aktif',val:activeDays(yearKg),hint:'hari ada kegiatan',color:'#059669'},
+        {label:'Demo Tamu',val:demoKg(yearKg).length,hint:'sesi demo product',color:'#2563eb'},
+        {label:'Tamu Unik',val:uniqueTamu(yearKg),hint:'instansi berbeda',color:'#0891b2'},
+        {label:'Divisi Sales',val:uniqueDiv(yearKg),hint:'divisi aktif',color:'#7c3aed'},
+        {label:'Kegiatan',val:yearKg.length,hint:'total semua jenis',color:'#d97706'},
+        {label:'Top Produk',val:topProduk(yearKg),hint:'paling sering demo',color:'#059669',isText:true},
+      ],
+    },
+    {
+      p:'Total Keseluruhan', sub:'Sejak awal data tersimpan',
+      c:'#dc2626', g:'linear-gradient(135deg,#dc2626,#991b1b)', sh:'rgba(220,38,38,0.25)',
+      icon:'🏆',
+      stats:[
+        {label:'Hari Aktif',val:activeDays(kegiatanList),hint:'hari ada kegiatan',color:'#dc2626'},
+        {label:'Demo Tamu',val:demoKg(kegiatanList).length,hint:'sesi demo product',color:'#2563eb'},
+        {label:'Tamu Unik',val:uniqueTamu(kegiatanList),hint:'instansi berbeda',color:'#0891b2'},
+        {label:'Divisi Sales',val:uniqueDiv(kegiatanList),hint:'divisi aktif',color:'#7c3aed'},
+        {label:'Kegiatan',val:kegiatanList.length,hint:'total semua jenis',color:'#d97706'},
+        {label:'Top Produk',val:topProduk(kegiatanList),hint:'paling sering demo',color:'#059669',isText:true},
+      ],
+    },
   ];
+
   return(
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {cards.map(c=>(
-        <div key={c.p} className="rounded-2xl p-4 relative overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:`1px solid ${c.c}25`,boxShadow:`0 4px 16px ${c.sh}`}}>
-          <div className="absolute right-3 top-2 text-3xl opacity-10 select-none">📋</div>
-          <p className="text-[10px] font-bold uppercase tracking-widest leading-none" style={{color:c.c}}>{c.p}</p>
-          <p className="text-[9px] text-gray-400 mb-2 mt-0.5">{c.sub}</p>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">Hari Kerja Piket</span><span className="text-sm font-black" style={{color:c.c}}>{c.tot}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">🏢 Demo</span><span className="text-sm font-black text-emerald-600">{c.demo}</span></div>
-            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">📋 Kegiatan</span><span className="text-sm font-black text-amber-600">{c.kg}</span></div>
+        <div key={c.p} className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.97)',border:`1px solid ${c.c}20`,boxShadow:`0 4px 20px ${c.sh}`}}>
+          {/* Card header */}
+          <div className="px-4 py-2.5 flex items-center gap-2" style={{background:c.g}}>
+            <span className="text-base">{c.icon}</span>
+            <div>
+              <p className="text-xs font-black text-white leading-none tracking-wide">{c.p}</p>
+              <p className="text-[9px] text-white/70 mt-0.5">{c.sub}</p>
+            </div>
           </div>
-          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{background:`${c.c}15`}}>
-            <div className="h-full rounded-full" style={{width:`${c.tot>0?Math.min((c.kg/c.tot)*100,100):0}%`,background:c.g}}/>
+          {/* Stats grid */}
+          <div className="grid grid-cols-3 divide-x divide-y" style={{divideColor:'rgba(0,0,0,0.05)'}}>
+            {c.stats.map((s,i)=>(
+              <div key={i} className="px-3 py-2.5 flex flex-col gap-0.5" style={{borderColor:'rgba(0,0,0,0.05)',borderWidth: i%3!==0?'0 0 0 1px':'0', borderTopWidth: i>=3?'1px':'0'}}>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">{s.label}</span>
+                {(s as any).isText
+                  ? <span className="text-[11px] font-black leading-tight truncate" style={{color:s.color}}>{s.val}</span>
+                  : <span className="text-xl font-black leading-tight" style={{color:s.color}}>{s.val}</span>
+                }
+                <span className="text-[8px] text-slate-300 leading-none">{s.hint}</span>
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -1075,10 +1131,23 @@ export default function PiketShowroomPage() {
     return true;
   });
 
-  const kPieAll=Object.entries(kegiatanList.reduce((acc,k)=>{(k.kebutuhan||[]).forEach(x=>{acc[x]=(acc[x]||0)+1;});return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
-  const divPieAll=Object.entries(kegiatanList.reduce((acc,k)=>{if(k.sales_division)acc[k.sales_division]=(acc[k.sales_division]||0)+1;return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
-  const kgTypePie=JENIS_KEGIATAN_LIST.map(j=>({label:j,value:kegiatanList.filter(k=>k.jenis_kegiatan===j).length,color:KEGIATAN_COLORS[j]})).filter(d=>d.value>0);
-  const instansiPie=Object.entries(kegiatanList.filter(k=>k.tamu_instansi).reduce((acc,k)=>{const key=k.tamu_instansi!;acc[key]=(acc[key]||0)+1;return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  const now2=new Date();
+  const thisMonth2=`${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`;
+  const thisYear2=String(now2.getFullYear());
+  const [pieFilter,setPieFilter]=useState<'bulan'|'tahun'|'semua'>('semua');
+  const piketDateMapPie:Record<string,string>={};
+  allRows.forEach(r=>{piketDateMapPie[r.id]=r.day_date;});
+  const filteredKgForPie=kegiatanList.filter(k=>{
+    const d=piketDateMapPie[k.piket_id];
+    if(!d)return false;
+    if(pieFilter==='bulan')return d.startsWith(thisMonth2);
+    if(pieFilter==='tahun')return d.startsWith(thisYear2);
+    return true;
+  });
+  const kPieAll=Object.entries(filteredKgForPie.reduce((acc,k)=>{(k.kebutuhan||[]).forEach(x=>{acc[x]=(acc[x]||0)+1;});return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  const divPieAll=Object.entries(filteredKgForPie.reduce((acc,k)=>{if(k.sales_division)acc[k.sales_division]=(acc[k.sales_division]||0)+1;return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  const kgTypePie=JENIS_KEGIATAN_LIST.map(j=>({label:j,value:filteredKgForPie.filter(k=>k.jenis_kegiatan===j).length,color:KEGIATAN_COLORS[j]})).filter(d=>d.value>0);
+  const instansiPie=Object.entries(filteredKgForPie.filter(k=>k.tamu_instansi).reduce((acc,k)=>{const key=k.tamu_instansi!;acc[key]=(acc[key]||0)+1;return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
 
   return(
     <div className="min-h-screen flex flex-col relative" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover',backgroundPosition:'center',backgroundAttachment:'fixed'}}>
@@ -1128,11 +1197,29 @@ export default function PiketShowroomPage() {
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
           <TamuSummaryCards allRows={allRows} kegiatanList={kegiatanList}/>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <MiniPieChart data={instansiPie} title="Tamu per Instansi" icon="🏢" activeFilter={filterInstansi} onSliceClick={l=>setFilterInstansi(filterInstansi===l?null:l)}/>
-            <MiniPieChart data={kgTypePie} title="Jenis Kegiatan" icon="📋" activeFilter={filterKegiatan} onSliceClick={l=>setFilterKegiatan(filterKegiatan===l?null:l)}/>
-            <MiniPieChart data={kPieAll} title="Kebutuhan" icon="🎯" activeFilter={filterKebutuhan} onSliceClick={l=>setFilterKebutuhan(filterKebutuhan===l?null:l)}/>
-            <MiniPieChart data={divPieAll} title="Division" icon="🏷️" activeFilter={filterDivision} onSliceClick={l=>setFilterDivision(filterDivision===l?null:l)}/>
+          <div className="space-y-2">
+            {/* Period toggle for pie charts */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex-shrink-0">Periode Pie Chart:</span>
+              <div className="flex items-center gap-1">
+                {([['bulan','Bulan Ini','#7c3aed'],['tahun','Tahun Ini','#059669'],['semua','Semua','#dc2626']] as const).map(([v,label,color])=>(
+                  <button key={v} onClick={()=>setPieFilter(v)}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all"
+                    style={pieFilter===v?{background:color,color:'white',boxShadow:`0 2px 8px ${color}40`}:{background:'rgba(255,255,255,0.7)',color:'#64748b',border:'1px solid rgba(0,0,0,0.1)'}}>
+                    {label}
+                  </button>
+                ))}
+                <span className="text-[9px] text-slate-400 ml-1">
+                  {pieFilter==='bulan'?`${MONTH_NAMES[now2.getMonth()]} ${now2.getFullYear()}`:pieFilter==='tahun'?thisYear2:'All time'} · {filteredKgForPie.length} kegiatan
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <MiniPieChart data={instansiPie} title="Tamu per Instansi" icon="🏢" activeFilter={filterInstansi} onSliceClick={l=>setFilterInstansi(filterInstansi===l?null:l)}/>
+              <MiniPieChart data={kgTypePie} title="Jenis Kegiatan" icon="📋" activeFilter={filterKegiatan} onSliceClick={l=>setFilterKegiatan(filterKegiatan===l?null:l)}/>
+              <MiniPieChart data={kPieAll} title="Kebutuhan Terbanyak" icon="🎯" activeFilter={filterKebutuhan} onSliceClick={l=>setFilterKebutuhan(filterKebutuhan===l?null:l)}/>
+              <MiniPieChart data={divPieAll} title="Division Sales" icon="🏷️" activeFilter={filterDivision} onSliceClick={l=>setFilterDivision(filterDivision===l?null:l)}/>
+            </div>
           </div>
 
           {/* ── TABLE (full width) ── */}
