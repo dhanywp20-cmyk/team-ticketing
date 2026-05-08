@@ -1243,6 +1243,8 @@ export default function PiketShowroomPage() {
     const{data}=await supabase.from('piket_schedules').select('*').eq('week_start',row.week_start).eq('day_of_week',row.day_of_week).single();
     if(data){setFillDetail(data as PiketRow);fetchData();}
   },[fetchData]);
+
+  const displayRows = effectiveRows.filter(row=>{
     // Hide weekends from list (Sabtu/Minggu hidden, shown only in mini calendar)
     const d=new Date(row.day_date+'T00:00:00');
     if(d.getDay()===0||d.getDay()===6)return false;
