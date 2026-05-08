@@ -204,7 +204,7 @@ function TamuInstansiPie({tamuDetails,activeFilter,onSliceClick}:{
   const map:Record<string,number>={};
   tamuDetails.forEach(td=>{if(td.tamu_instansi){map[td.tamu_instansi]=(map[td.tamu_instansi]||0)+1;}});
   const data=Object.entries(map).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
-  return <MiniPieChart data={data} title="Tamu per Instansi (Semua)" icon="🏢" activeFilter={activeFilter} onSliceClick={onSliceClick}/>;
+  return <MiniPieChart data={data} title="Tamu per Instansi" icon="🏢" activeFilter={activeFilter} onSliceClick={onSliceClick}/>;
 }
 
 // ─── Tamu Summary Cards ───────────────────────────────────────────────────────
@@ -783,7 +783,6 @@ export default function PiketShowroomPage() {
   const [calMonth,setCalMonth]=useState<Date>(()=>new Date());
   const [selDay,setSelDay]=useState<string|null>(null);
   const [filterInstansi,setFilterInstansi]=useState<string|null>(null);
-  const [filterSales,setFilterSales]=useState<string|null>(null);
   const [filterDivision,setFilterDivision]=useState<string|null>(null);
   const wk=toKey(weekStart);
 
@@ -831,7 +830,6 @@ export default function PiketShowroomPage() {
     if(filterTamu&&rowTd.length===0)return false;
     if(filterKebutuhan&&!rowTd.some(td=>td.kebutuhan?.includes(filterKebutuhan)))return false;
     if(filterInstansi&&!rowTd.some(td=>td.tamu_instansi===filterInstansi))return false;
-    if(filterSales&&!rowTd.some(td=>td.nama_sales===filterSales))return false;
     if(filterDivision&&!rowTd.some(td=>td.sales_division===filterDivision))return false;
     if(search){
       const q=search.toLowerCase();
@@ -847,10 +845,6 @@ export default function PiketShowroomPage() {
   tamuDetails.forEach(td=>(td.kebutuhan||[]).forEach(k=>{kMapAll[k]=(kMapAll[k]||0)+1;}));
   const kPieAll=Object.entries(kMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
 
-  const salesMapAll:Record<string,number>={};
-  tamuDetails.forEach(td=>{if(td.nama_sales){salesMapAll[td.nama_sales]=(salesMapAll[td.nama_sales]||0)+1;}});
-  const salesPieAll=Object.entries(salesMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
-
   const divMapAll:Record<string,number>={};
   tamuDetails.forEach(td=>{if(td.sales_division){divMapAll[td.sales_division]=(divMapAll[td.sales_division]||0)+1;}});
   const divPieAll=Object.entries(divMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
@@ -858,6 +852,29 @@ export default function PiketShowroomPage() {
   return(
     <div className="min-h-screen flex flex-col relative" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover',backgroundPosition:'center',backgroundAttachment:'fixed'}}>
       <div className="absolute inset-0 pointer-events-none" style={{background:'rgba(255,255,255,0.08)'}}/>
+
+      {/* ── INITIAL LOADING OVERLAY ── */}
+      {loading&&rows.length===0&&(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover',backgroundPosition:'center'}}>
+          <div className="absolute inset-0" style={{background:'rgba(255,255,255,0.15)',backdropFilter:'blur(2px)'}}/>
+          <div className="relative flex flex-col items-center gap-4 px-10 py-8 rounded-3xl" style={{background:'rgba(255,255,255,0.92)',backdropFilter:'blur(20px)',boxShadow:'0 8px 40px rgba(0,0,0,0.18)',border:'1px solid rgba(255,255,255,0.9)'}}>
+            <div className="relative w-16 h-16">
+              <svg className="w-16 h-16 animate-spin" viewBox="0 0 64 64" fill="none">
+                <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6"/>
+                <path d="M32 6 A26 26 0 0 1 58 32" stroke="url(#loadGrad)" strokeWidth="6" strokeLinecap="round"/>
+                <defs>
+                  <linearGradient id="loadGrad" x1="32" y1="6" x2="58" y2="32" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#dc2626"/>
+                    <stop offset="1" stopColor="#991b1b"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <p className="text-sm font-bold text-slate-700 tracking-wide">Loading...</p>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 flex flex-col min-h-screen">
 
         {/* ── HEADER ── */}
@@ -881,15 +898,6 @@ export default function PiketShowroomPage() {
                   Atur Jadwal
                 </button>
               )}
-              {currentUser&&(
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)'}}>
-                  <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center text-white text-[10px] font-black">{currentUser.full_name?.charAt(0)||'?'}</div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800 leading-none">{currentUser.full_name}</p>
-                    <p className="text-[9px] text-slate-500">{currentUser.role}</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </header>
@@ -900,24 +908,19 @@ export default function PiketShowroomPage() {
           <TamuSummaryCards allRows={allRows} tamuDetails={tamuDetails}/>
 
           {/* ── PIE CHARTS ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <TamuInstansiPie
               tamuDetails={tamuDetails}
               activeFilter={filterInstansi}
               onSliceClick={label=>setFilterInstansi(filterInstansi===label?null:label)}
             />
             <MiniPieChart
-              data={kPieAll} title="Kebutuhan (Semua) — Klik filter" icon="🎯"
+              data={kPieAll} title="Kebutuhan" icon="🎯"
               activeFilter={filterKebutuhan}
               onSliceClick={label=>setFilterKebutuhan(filterKebutuhan===label?null:label)}
             />
             <MiniPieChart
-              data={salesPieAll} title="Sales (Semua) — Klik filter" icon="👤"
-              activeFilter={filterSales}
-              onSliceClick={label=>setFilterSales(filterSales===label?null:label)}
-            />
-            <MiniPieChart
-              data={divPieAll} title="Division (Semua) — Klik filter" icon="🏷️"
+              data={divPieAll} title="Division" icon="🏷️"
               activeFilter={filterDivision}
               onSliceClick={label=>setFilterDivision(filterDivision===label?null:label)}
             />
@@ -952,8 +955,8 @@ export default function PiketShowroomPage() {
                         style={{background:'rgba(255,255,255,0.9)'}}>›</button>
                     </div>
                   </div>
-                  {(search||filterDay||filterTamu||filterKebutuhan||filterInstansi||filterSales||filterDivision)&&(
-                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);setFilterInstansi(null);setFilterSales(null);setFilterDivision(null);}}
+                  {(search||filterDay||filterTamu||filterKebutuhan||filterInstansi||filterDivision)&&(
+                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);setFilterInstansi(null);setFilterDivision(null);}}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',color:'#dc2626'}}>
                       ✕ Reset Filter
@@ -979,7 +982,7 @@ export default function PiketShowroomPage() {
                   </button>
                 </div>
                 {/* ── ACTIVE FILTER CHIPS ── */}
-                {(filterInstansi||filterKebutuhan||filterSales||filterDivision)&&(
+                {(filterInstansi||filterKebutuhan||filterDivision)&&(
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {filterInstansi&&(
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.35)'}}>
@@ -993,13 +996,6 @@ export default function PiketShowroomPage() {
                         <span className="text-[10px] font-bold text-violet-600">🎯 Kebutuhan:</span>
                         <span className="text-[10px] font-semibold text-violet-700">{filterKebutuhan}</span>
                         <button onClick={()=>setFilterKebutuhan(null)} className="text-[10px] font-black text-violet-400 hover:text-violet-700 ml-0.5 hover:bg-violet-100 rounded px-0.5 transition-all">✕</button>
-                      </div>
-                    )}
-                    {filterSales&&(
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.35)'}}>
-                        <span className="text-[10px] font-bold text-emerald-600">👤 Sales:</span>
-                        <span className="text-[10px] font-semibold text-emerald-700">{filterSales}</span>
-                        <button onClick={()=>setFilterSales(null)} className="text-[10px] font-black text-emerald-400 hover:text-emerald-700 ml-0.5 hover:bg-emerald-100 rounded px-0.5 transition-all">✕</button>
                       </div>
                     )}
                     {filterDivision&&(
@@ -1017,7 +1013,17 @@ export default function PiketShowroomPage() {
                 <div className="flex justify-center py-16"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/><p className="text-sm text-slate-500">Memuat jadwal...</p></div></div>
               ):(
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
+                  <table className="w-full text-sm border-collapse table-fixed" style={{minWidth:'860px'}}>
+                    <colgroup>
+                      <col style={{width:'4%'}} />   {/* No */}
+                      <col style={{width:'9%'}} />     {/* Tanggal */}
+                      <col style={{width:'14%'}} />    {/* PIC */}
+                      <col style={{width:'18%'}} />    {/* Tamu Instansi */}
+                      <col style={{width:'13%'}} />    {/* Sales */}
+                      <col style={{width:'22%'}} />    {/* Kebutuhan */}
+                      <col style={{width:'7%'}} />     {/* Foto */}
+                      <col style={{width:'9%'}} />     {/* Action */}
+                    </colgroup>
                     <thead>
                       <tr style={{background:'rgba(248,250,252,0.9)',borderBottom:'2px solid #e5e7eb'}}>
                         <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>No</th>
@@ -1096,7 +1102,7 @@ export default function PiketShowroomPage() {
                                 <div className="flex flex-col gap-0.5">
                                   <span className="text-xs font-bold text-slate-800">{td.nama_sales}</span>
                                   {td.sales_division&&(
-                                    <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full text-white w-fit" style={{background:dc.grad}}>{td.sales_division}</span>
+                                    <span className="text-xs text-purple-500 font-semibold mt-0.5" style={{background:dc.grad}}>{td.sales_division}</span>
                                   )}
                                 </div>
                               ):<span className="text-gray-300 text-xs">—</span>}
