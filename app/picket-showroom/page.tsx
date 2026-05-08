@@ -84,29 +84,59 @@ function getWeekKey(dateStr:string):string{
 }
 
 // ─── Rolling schedule ─────────────────────────────────────────────────────────
-// Epoch = 2024-01-01 (Senin). Setiap 2 minggu = 1 slot rolling.
-// Jadwal yg sudah tersimpan di DB tidak akan berubah — hanya dipakai untuk minggu baru yg kosong.
-function getRollingUserId(ws:Date, dayIdx:number, users:UserRow[]):string {
-  if(!users.length) return '';
-  const epoch=new Date(2024,0,1); // local date: 1 Jan 2024
-  const weeksDiff=Math.round((ws.getTime()-epoch.getTime())/(7*24*60*60*1000));
-  const biWeekSlot=Math.floor(weeksDiff/2);
-  return users[(biWeekSlot*5+dayIdx)%users.length]?.id||'';
+// Compute PIC untuk tanggal tertentu berdasarkan pola jadwal DB.
+// Ambil semua jadwal DB yang sudah tersimpan → urutkan → temukan pola 2-mingguan
+// → project ke depan secara infinite.
+
+// Dari DB rows, build pola: week_start → {day_of_week → user_id}
+type WeekPattern = Record<DayOfWeek, string>; // day → user_id
+
+function buildRollingPattern(dbRows: PiketRow[]): {weekKeys: string[]; patterns: Record<string, WeekPattern>} {
+  const patterns: Record<string, WeekPattern> = {};
+  dbRows.forEach(r => {
+    if (!patterns[r.week_start]) patterns[r.week_start] = {} as WeekPattern;
+    const uid = r.pic_ivp_id || r.pic_ump_id || r.pic_mlds_id || '';
+    if (uid) patterns[r.week_start][r.day_of_week] = uid;
+  });
+  const weekKeys = Object.keys(patterns).sort();
+  return { weekKeys, patterns };
 }
 
-// Get rolling names for a date (weekday only) — used by mini calendar for dates not in DB
-function getRollingNames(date:Date, users:UserRow[]):{name:string;team:string}[] {
-  if(!users.length) return [];
-  const dow=date.getDay();
-  if(dow===0||dow===6) return []; // weekend
-  const dayIdx=dow-1; // Mon=0..Fri=4
-  const ws=getMonday(date);
-  const uid=getRollingUserId(ws,dayIdx,users);
-  if(!uid) return [];
-  const u=users.find(x=>x.id===uid);
-  if(!u) return [];
-  const team=u.team_type==='Team PTS'?'PTS IVP':u.team_type==='Team PTS UMP'?'PTS UMP':'PTS MLDS';
-  return [{name:u.full_name,team}];
+// Untuk tanggal tertentu, cari user_id dari pola rolling
+// Cycle length = jumlah minggu unik di DB (min 1, max 2 untuk pola 2 minggu)
+function getRollingUserForDate(date: Date, dbRows: PiketRow[]): string {
+  const dow = date.getDay();
+  if (dow === 0 || dow === 6) return ''; // weekend
+  const dayIdx = dow - 1; // Mon=0..Fri=4
+  const dayName = DAYS_OF_WEEK[dayIdx];
+  if (!dayName) return '';
+
+  const { weekKeys, patterns } = buildRollingPattern(dbRows);
+  if (weekKeys.length === 0) return '';
+
+  const ws = getMonday(date);
+  const wsKey = toKey(ws);
+
+  // Jika minggu ini ada di DB, pakai langsung
+  if (patterns[wsKey]?.[dayName]) return patterns[wsKey][dayName];
+
+  // Cari pola: ambil cycle dari minggu-minggu yang ada
+  // Cycle = semua weekKeys yang tersimpan, berulang setiap N minggu
+  const cycleLen = weekKeys.length;
+  // Hitung offset minggu dari minggu pertama pola
+  const firstWs = new Date(weekKeys[0] + 'T00:00:00');
+  const weeksDiff = Math.round((ws.getTime() - firstWs.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  if (weeksDiff < 0) return ''; // sebelum pola, tidak compute
+  const slotIdx = weeksDiff % cycleLen;
+  const patternWeek = weekKeys[slotIdx];
+  return patterns[patternWeek]?.[dayName] || '';
+}
+
+// Untuk mini calendar: return nama PIC dari rolling
+function getRollingNameForDate(date: Date, dbRows: PiketRow[], users: UserRow[]): string {
+  const uid = getRollingUserForDate(date, dbRows);
+  if (!uid) return '';
+  return users.find(u => u.id === uid)?.full_name || '';
 }
 
 // ─── Pie Chart ────────────────────────────────────────────────────────────────
@@ -302,18 +332,14 @@ function MiniCalendarPopup({allRows,users,onClose}:{allRows:PiketRow[];users:Use
   const [calMonth,setCalMonth]=useState(()=>new Date());
   const y=calMonth.getFullYear(),m=calMonth.getMonth();
   const today=toKey(new Date());
-  // Count only DB rows for the month header
   const totalMonth=allRows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 
-  // Build full calendar grid starting Monday
   const firstOfMonth=new Date(y,m,1);
   const firstDayOfWeek=firstOfMonth.getDay();
   const startOffset=firstDayOfWeek===0?6:firstDayOfWeek-1;
   const gridStart=new Date(y,m,1-startOffset);
-  // Grid: 6 rows x 7 cols = 42 cells
   const gridCells:Date[]=Array.from({length:42},(_,i)=>addDays(gridStart,i));
 
-  // Build map: dateKey -> PiketRow[] from DB
   const rowMap:Record<string,PiketRow[]>={};
   allRows.forEach(r=>{if(!rowMap[r.day_date])rowMap[r.day_date]=[];rowMap[r.day_date].push(r);});
 
@@ -323,36 +349,22 @@ function MiniCalendarPopup({allRows,users,onClose}:{allRows:PiketRow[];users:Use
     <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden" style={{width:'640px',maxWidth:'95vw',animation:'scale-in 0.2s ease-out',border:'1.5px solid rgba(220,38,38,0.2)'}}>
-        {/* Header */}
         <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
           <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">‹</button>
           <div className="text-center">
             <p className="text-white font-black text-base">{MONTH_NAMES[m]} {y}</p>
-            <p className="text-white/70 text-[11px]">{totalMonth>0?`${totalMonth} jadwal tersimpan`:'Jadwal dari rolling schedule'}</p>
+            <p className="text-white/70 text-[11px]">{totalMonth} jadwal tersimpan bulan ini</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">›</button>
             <button onClick={onClose} className="text-white/70 hover:text-white font-bold text-lg w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-lg">✕</button>
           </div>
         </div>
-        {/* Legend */}
-        <div className="px-4 py-2 flex items-center gap-4 border-b border-gray-100" style={{background:'rgba(248,250,252,0.9)'}}>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm" style={{background:'rgba(220,38,38,0.18)'}}/>
-            <span className="text-[10px] font-semibold text-gray-500">Tersimpan di DB</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm border border-dashed" style={{borderColor:'#94a3b8',background:'rgba(148,163,184,0.08)'}}/>
-            <span className="text-[10px] font-semibold text-gray-400">Rolling (estimasi)</span>
-          </div>
-        </div>
-        {/* Day headers */}
         <div className="grid grid-cols-7 border-b border-gray-100">
           {WEEK_DAYS.map((d,i)=>(
             <div key={i} className="text-center text-[11px] font-bold py-2" style={{color:i<5?'#374151':'#d1d5db'}}>{d}</div>
           ))}
         </div>
-        {/* Grid */}
         <div className="grid grid-cols-7" style={{minHeight:'360px'}}>
           {gridCells.map((date,i)=>{
             const ds=toKey(date);
@@ -362,40 +374,31 @@ function MiniCalendarPopup({allRows,users,onClose}:{allRows:PiketRow[];users:Use
             const isWeekend=dow===0||dow===6;
             const dayRows=rowMap[ds]||[];
             const hasDB=dayRows.length>0;
-
-            // DB confirmed pics
             const dbPics=dayRows.flatMap(r=>[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[]);
             const dc=hasDB?DAY_COLOR[dayRows[0].day_of_week]:null;
-
-            // Rolling virtual pics (only show when no DB data and is weekday and inMonth)
-            const rollingNames=(!hasDB&&!isWeekend&&inMonth)?getRollingNames(date,users):[];
-            // day color for rolling based on weekday
-            const rollingDayIdx=dow-1; // Mon=0..Fri=4
-            const rollingDay=DAYS_OF_WEEK[rollingDayIdx] as DayOfWeek|undefined;
-            const rollingDc=rollingDay?DAY_COLOR[rollingDay]:null;
-
+            // Rolling: compute dari pola DB untuk tanggal yang belum ada
+            const rollingName=(!hasDB&&!isWeekend&&inMonth)?getRollingNameForDate(date,allRows,users):'';
+            const rollingDow=DAYS_OF_WEEK[dow-1] as DayOfWeek|undefined;
+            const rollingDc=rollingDow?DAY_COLOR[rollingDow]:null;
             return(
               <div key={i} className="border-r border-b border-gray-100 p-1.5 min-h-[60px] relative"
                 style={{background:isT?'rgba(220,38,38,0.06)':!inMonth?'rgba(0,0,0,0.015)':'white'}}>
-                {/* Date number */}
                 <div className="w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-1"
                   style={{background:isT?'#dc2626':'transparent',color:isT?'white':!inMonth?'#d1d5db':isWeekend?'#d1d5db':'#374151',fontWeight:isT?900:600}}>
                   {date.getDate()}
                 </div>
-                {/* DB confirmed names */}
                 {hasDB&&inMonth&&dbPics.map((name,pi)=>(
-                  <div key={`db-${pi}`} className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
+                  <div key={pi} className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
                     style={{color:dc?.accent||'#374151',background:`${dc?.accent||'#dc2626'}18`}}>
                     {name}
                   </div>
                 ))}
-                {/* Rolling virtual names — dimmer style with dashed border */}
-                {rollingNames.map((r,ri)=>(
-                  <div key={`roll-${ri}`} className="text-[9px] leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
-                    style={{color:rollingDc?.accent||'#94a3b8',background:`${rollingDc?.accent||'#94a3b8'}0d`,border:`1px dashed ${rollingDc?.accent||'#94a3b8'}50`,fontWeight:500,fontStyle:'italic'}}>
-                    {r.name}
+                {rollingName&&(
+                  <div className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
+                    style={{color:rollingDc?.accent||'#94a3b8',background:`${rollingDc?.accent||'#94a3b8'}12`}}>
+                    {rollingName}
                   </div>
-                ))}
+                )}
               </div>
             );
           })}
@@ -621,7 +624,7 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
   );
 }
 
-// ─── Schedule Modal — 2 minggu + auto rolling ─────────────────────────────────
+// ─── Schedule Modal — 2 minggu ────────────────────────────────────────────────
 
 function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:UserRow[];onClose:()=>void;onSaved:()=>void}) {
   const week2Start=addDays(weekStart,7);
@@ -634,16 +637,6 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
   const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
   const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
 
-  const applyRolling=(base?:W2)=>{
-    const na:W2={[wk1]:{}as any,[wk2]:{}as any};
-    [[wk1,weekStart],[wk2,week2Start]].forEach(([wk,ws])=>{
-      DAYS_OF_WEEK.forEach((day,dayIdx)=>{
-        (na as any)[wk as string][day]=(base as any)?.[wk as string]?.[day]||getRollingUserId(ws as Date,dayIdx,users)||'';
-      });
-    });
-    setAssign(na);
-  };
-
   useEffect(()=>{
     (async()=>{
       setLoading(true);
@@ -652,10 +645,20 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
       if(data&&data.length>0){
         (data as PiketRow[]).forEach(s=>{if(na[s.week_start])na[s.week_start][s.day_of_week]=s.pic_ivp_id||s.pic_ump_id||s.pic_mlds_id||'';});
       }
-      // Fill empty days with rolling
-      [[wk1,weekStart],[wk2,week2Start]].forEach(([wk,ws])=>{
-        DAYS_OF_WEEK.forEach((day,dayIdx)=>{if(!na[wk as string][day])na[wk as string][day]=getRollingUserId(ws as Date,dayIdx,users);});
-      });
+      // Fill empty days by projecting rolling pattern from existing DB data
+      const{data:allData}=await supabase.from('piket_schedules').select('week_start,day_of_week,pic_ivp_id,pic_ump_id,pic_mlds_id');
+      if(allData&&allData.length>0){
+        const allRows=allData as PiketRow[];
+        [[wk1,weekStart],[wk2,week2Start]].forEach(([wk,ws])=>{
+          DAYS_OF_WEEK.forEach(day=>{
+            if(!na[wk as string][day]){
+              const date=getDayDate(ws as Date,day);
+              const uid=getRollingUserForDate(date,allRows);
+              if(uid) na[wk as string][day]=uid;
+            }
+          });
+        });
+      }
       setAssign(na);
       setLoading(false);
     })();
@@ -703,16 +706,6 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
           </div>
         </div>
         {toast&&<div className={`mx-5 mt-3 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 ${toast.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{toast.type==='success'?'✅':'❌'} {toast.msg}</div>}
-
-        <div className="mx-5 mt-4 p-3 rounded-xl flex items-center justify-between gap-3" style={{background:'rgba(37,99,235,0.06)',border:'1px solid rgba(37,99,235,0.2)'}}>
-          <div>
-            <p className="text-xs font-bold text-blue-700">🔄 Auto Rolling — setiap 2 minggu</p>
-            <p className="text-[10px] text-blue-500 mt-0.5">Jadwal lama tidak berubah. Perubahan hanya berlaku untuk minggu yg dipilih ke depan.</p>
-          </div>
-          <button onClick={()=>applyRolling()} className="flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{background:'linear-gradient(135deg,#2563eb,#1e40af)'}}>
-            Apply Rolling
-          </button>
-        </div>
 
         <div className="p-5 max-h-[58vh] overflow-y-auto space-y-4">
           {loading?<div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/></div>:(
