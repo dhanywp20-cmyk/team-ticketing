@@ -1955,23 +1955,48 @@ function NotificationBar({ currentUser, onNavigate }: NotificationBarProps) {
 
   const totalCount = ticketNotifs.length + requireNotifs.length + reminderNotifs.length + reviewNotifs.length;
 
+  // Jika semua notif disembunyikan (misal Team PTS UMP/MLDS), tidak render apapun
+  const hasAnyBell = (
+    (!isTeamPTS_SubGroup && (isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales')) ||
+    (!isTeamPTS_SubGroup && (isAdmin || isPTS)) ||
+    (!isTeamPTS_SubGroup && (isAdmin || (isTeamPTS && !isTeamServices) || roleLC === 'guest' || roleLC === 'sales'))
+  );
+  if (!hasAnyBell) return null;
+
   return (
-    <div className="flex items-center gap-2">
-      {/* Ticket: admin semua, team hanya di-assign, guest/sales yang buat atau di-mapping — disembunyikan untuk Team PTS UMP & MLDS */}
-      {!isTeamPTS_SubGroup && (isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales') && (
-        <NotifBell icon="🎫" label="Ticket" count={ticketNotifs.length} color="#be123c" bgColor="rgba(254,205,211,0.6)" borderColor="#fda4af" dotColor="#e11d48" items={ticketNotifs} onItemClick={handleClick} />
-      )}
-      {/* Require: admin semua aktif, team PTS di-assign, guest/sales yang buat / brand PIC / supervised */}
-      {!isTeamPTS_SubGroup && (isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales') && (
-        <NotifBell icon="🏗️" label="Require" count={requireNotifs.length} color="#7e22ce" bgColor="rgba(233,213,255,0.6)" borderColor="#c4b5fd" dotColor="#9333ea" items={requireNotifs} onItemClick={handleClick} />
-      )}
-      {/* Reminder: hanya admin/superadmin dan team PTS */}
-      {!isTeamPTS_SubGroup && (isAdmin || isPTS) && (
-        <NotifBell icon="🗓️" label="Reminder" count={reminderNotifs.length} color="#0e7490" bgColor="rgba(207,250,254,0.6)" borderColor="#67e8f9" dotColor="#0891b2" items={reminderNotifs} onItemClick={handleClick} />
-      )}
-      {/* Review: admin, team PTS, guest, dan sales */}
-      {!isTeamPTS_SubGroup && (isAdmin || (isTeamPTS && !isTeamServices) || roleLC === 'guest' || roleLC === 'sales') && (
-        <NotifBell icon="⭐" label="Review" count={reviewNotifs.length} color="#b45309" bgColor="rgba(254,243,199,0.6)" borderColor="#fcd34d" dotColor="#d97706" items={reviewNotifs} onItemClick={handleClick} />
+    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl"
+      style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 1px 8px rgba(0,0,0,0.07)' }}>
+      {/* Individual bells */}
+      <div className="flex items-center gap-1">
+        {/* Ticket */}
+        {!isTeamPTS_SubGroup && (isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales') && (
+          <NotifBell icon="🎫" label="Ticket" count={ticketNotifs.length} color="#be123c" bgColor="rgba(254,205,211,0.6)" borderColor="#fda4af" dotColor="#e11d48" items={ticketNotifs} onItemClick={handleClick} />
+        )}
+        {/* Require */}
+        {!isTeamPTS_SubGroup && (isAdmin || roleLC === 'team' || roleLC === 'team_pts' || roleLC === 'guest' || roleLC === 'sales') && (
+          <NotifBell icon="🏗️" label="Require" count={requireNotifs.length} color="#7e22ce" bgColor="rgba(233,213,255,0.6)" borderColor="#c4b5fd" dotColor="#9333ea" items={requireNotifs} onItemClick={handleClick} />
+        )}
+        {/* Reminder */}
+        {!isTeamPTS_SubGroup && (isAdmin || isPTS) && (
+          <NotifBell icon="🗓️" label="Reminder" count={reminderNotifs.length} color="#0e7490" bgColor="rgba(207,250,254,0.6)" borderColor="#67e8f9" dotColor="#0891b2" items={reminderNotifs} onItemClick={handleClick} />
+        )}
+        {/* Review */}
+        {!isTeamPTS_SubGroup && (isAdmin || (isTeamPTS && !isTeamServices) || roleLC === 'guest' || roleLC === 'sales') && (
+          <NotifBell icon="⭐" label="Review" count={reviewNotifs.length} color="#b45309" bgColor="rgba(254,243,199,0.6)" borderColor="#fcd34d" dotColor="#d97706" items={reviewNotifs} onItemClick={handleClick} />
+        )}
+      </div>
+      {/* Total count badge — separator + total */}
+      {totalCount > 0 && (
+        <>
+          <div className="w-px h-5 mx-1 flex-shrink-0" style={{ background: 'rgba(0,0,0,0.1)' }} />
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 1px 4px rgba(220,38,38,0.35)' }}>
+            <svg className="w-3 h-3 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span className="text-white font-bold text-xs leading-none">{totalCount}</span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -3267,15 +3292,16 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* CENTER */}
-          {currentUser && (
-            <div className="flex-1 flex justify-center px-4">
-              <NotificationBar currentUser={currentUser} onNavigate={handleNotifNavigate} />
-            </div>
-          )}
+          {/* CENTER — kosong, tidak ada di sidebar view */}
+          <div className="flex-1" />
 
           {/* RIGHT */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {/* NotificationBar — pindah ke kanan dengan total badge */}
+            {currentUser && (
+              <NotificationBar currentUser={currentUser} onNavigate={handleNotifNavigate} />
+            )}
+
             {/* User badge — hanya di main menu (non-sidebar) */}
             {!showSidebar && (
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm">
@@ -3301,21 +3327,6 @@ export default function Dashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 User Profile
-              </button>
-            )}
-
-            {/* Admin Panel — admin/superadmin only */}
-            {isAdmin && (
-              <button onClick={() => { setAdminPanelTab('settings'); setShowAdminPanel(true); }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', color: '#4338ca' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.15)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.08)'; }}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Admin Panel
               </button>
             )}
 
@@ -3548,7 +3559,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* SIDEBAR BOTTOM: User Profile + Sign Out */}
+          {/* SIDEBAR BOTTOM: User Profile + Admin Panel (admin only) + Sign Out */}
           <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
             {sidebarCollapsed ? (
               /* ── Collapsed state: icon-only buttons ── */
@@ -3562,6 +3573,15 @@ export default function Dashboard() {
                   onClick={() => setShowUserProfile(true)}>
                   {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
                 </div>
+                {isAdmin && (
+                  <button onClick={() => { setAdminPanelTab('settings'); setShowAdminPanel(true); }} className="w-9 h-9 rounded-lg flex items-center justify-center transition-all" style={{ color: '#94a3b8' }} title="Admin Panel"
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#4338ca'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.1)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </button>
+                )}
                 <button onClick={handleLogout} className="w-9 h-9 rounded-lg flex items-center justify-center transition-all" style={{ color: '#94a3b8' }} title="Sign Out"
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#b91c1c'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
@@ -3571,15 +3591,15 @@ export default function Dashboard() {
                 </button>
               </div>
             ) : (
-              /* ── Expanded state: user profile row + sign out ── */
-              <div className="p-3 space-y-1.5">
-                {/* User profile row — di atas */}
+              /* ── Expanded state: user profile row + admin panel (if admin) + sign out ── */
+              <div className="p-3 space-y-1">
+                {/* User profile row — di atas, dengan arrow lebih visible */}
                 <button
                   onClick={() => setShowUserProfile(true)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left group"
                   style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.05)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.07)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.03)'; }}>
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.07)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(200,134,29,0.25)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.03)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(0,0,0,0.05)'; }}>
                   <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
                     style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
                     {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
@@ -3588,10 +3608,29 @@ export default function Dashboard() {
                     <p className="text-sm font-semibold truncate leading-tight" style={{ color: '#1e293b' }}>{currentUser?.full_name ?? '-'}</p>
                     <p className="text-[10px] font-bold tracking-widest uppercase mt-0.5" style={{ color: '#c8861d' }}>{currentUser?.role ?? '-'}</p>
                   </div>
-                  <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#cbd5e1' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  {/* Arrow lebih visible dengan background */}
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all"
+                    style={{ background: 'rgba(200,134,29,0.12)', color: '#c8861d' }}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </button>
+
+                {/* Admin Panel — hanya admin/superadmin */}
+                {isAdmin && (
+                  <button onClick={() => { setAdminPanelTab('settings'); setShowAdminPanel(true); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+                    style={{ color: '#64748b', border: '1px solid transparent' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.07)'; (e.currentTarget as HTMLButtonElement).style.color = '#4338ca'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(99,102,241,0.18)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#64748b'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; }}>
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Admin Panel
+                  </button>
+                )}
 
                 {/* Sign out — di bawah */}
                 <button onClick={handleLogout}
