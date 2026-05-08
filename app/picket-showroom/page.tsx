@@ -10,224 +10,144 @@ const supabase = createClient(
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DAYS_OF_WEEK = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] as const;
+const DAYS_OF_WEEK = ['Senin','Selasa','Rabu','Kamis','Jumat'] as const;
 type DayOfWeek = typeof DAYS_OF_WEEK[number];
-const DAY_EN: Record<DayOfWeek, string> = { Senin: 'MON', Selasa: 'TUE', Rabu: 'WED', Kamis: 'THU', Jumat: 'FRI' };
-const DAY_COLOR: Record<DayOfWeek, { accent: string; light: string; grad: string }> = {
-  Senin: { accent: '#dc2626', light: 'rgba(220,38,38,0.08)', grad: 'linear-gradient(135deg,#dc2626,#991b1b)' },
-  Selasa: { accent: '#d97706', light: 'rgba(217,119,6,0.08)', grad: 'linear-gradient(135deg,#d97706,#92400e)' },
-  Rabu: { accent: '#2563eb', light: 'rgba(37,99,235,0.08)', grad: 'linear-gradient(135deg,#2563eb,#1e3a8a)' },
-  Kamis: { accent: '#7c3aed', light: 'rgba(124,58,237,0.08)', grad: 'linear-gradient(135deg,#7c3aed,#4c1d95)' },
-  Jumat: { accent: '#059669', light: 'rgba(5,150,105,0.08)', grad: 'linear-gradient(135deg,#059669,#064e3b)' },
+const DAY_EN: Record<DayOfWeek,string> = {Senin:'MON',Selasa:'TUE',Rabu:'WED',Kamis:'THU',Jumat:'FRI'};
+const DAY_COLOR: Record<DayOfWeek,{accent:string;light:string;grad:string}> = {
+  Senin:  {accent:'#dc2626',light:'rgba(220,38,38,0.08)',  grad:'linear-gradient(135deg,#dc2626,#991b1b)'},
+  Selasa: {accent:'#d97706',light:'rgba(217,119,6,0.08)',  grad:'linear-gradient(135deg,#d97706,#92400e)'},
+  Rabu:   {accent:'#2563eb',light:'rgba(37,99,235,0.08)',  grad:'linear-gradient(135deg,#2563eb,#1e3a8a)'},
+  Kamis:  {accent:'#7c3aed',light:'rgba(124,58,237,0.08)', grad:'linear-gradient(135deg,#7c3aed,#4c1d95)'},
+  Jumat:  {accent:'#059669',light:'rgba(5,150,105,0.08)',  grad:'linear-gradient(135deg,#059669,#064e3b)'},
 };
-const TEAM_LABEL: Record<string, { dot: string; text: string }> = {
-  'PTS IVP': { dot: '#dc2626', text: '#991b1b' },
-  'PTS UMP': { dot: '#2563eb', text: '#1e40af' },
-  'PTS MLDS': { dot: '#7c3aed', text: '#6d28d9' },
+const TEAM_LABEL: Record<string,{dot:string;text:string}> = {
+  'PTS IVP':  {dot:'#dc2626',text:'#991b1b'},
+  'PTS UMP':  {dot:'#2563eb',text:'#1e40af'},
+  'PTS MLDS': {dot:'#7c3aed',text:'#6d28d9'},
 };
 const KEBUTUHAN_LIST = [
-  'Meeting Room', 'Auditorium', 'Command Center', 'Digital Signage Kiosk',
-  'Digital Signage Custom', 'Paging System', 'Background Music', 'Signage LED Outdoor',
-  'Smartclass Room', 'Ballroom', 'Camera ETLE', 'Conference Room',
-  'Paperless System', 'Delegate System', 'Camera Tracking',
+  'Meeting Room','Auditorium','Command Center','Digital Signage Kiosk',
+  'Digital Signage Custom','Paging System','Background Music','Signage LED Outdoor',
+  'Smartclass Room','Ballroom','Camera ETLE','Conference Room',
+  'Paperless System','Delegate System','Camera Tracking',
 ];
-const PRODUK_LIST = ['All Product', 'Videowall', 'LED', 'IFP', 'Audio System', 'Lighting', 'Kiosk'];
-const JENIS_KEGIATAN_LIST = ['Demo Product', 'RnD', 'Maintenance', 'Shooting Markom'] as const;
+const PRODUK_LIST = ['All Product','Videowall','LED','IFP','Audio System','Lighting','Kiosk'];
+const JENIS_KEGIATAN_LIST = ['Demo Product','RnD','Maintenance','Shooting Markom'] as const;
 type JenisKegiatan = typeof JENIS_KEGIATAN_LIST[number];
 const SALES_DIVISIONS = [
-  'IVP', 'MLDS', 'HAVS', 'Enterprise', 'DEC', 'ICS', 'POJ', 'VOJ', 'LOCOS',
-  'VISIONMEDIA', 'UMP', 'BISOL', 'KIMS', 'IDC', 'IOCMEDAN', 'IOCPekanbaru',
-  'IOCBandung', 'IOCJATENG', 'MVISEMARANG', 'POSSurabaya', 'IOCSurabaya',
-  'IOCBali', 'SGP', 'SGP1', 'SGP2', 'OSS',
+  'IVP','MLDS','HAVS','Enterprise','DEC','ICS','POJ','VOJ','LOCOS',
+  'VISIONMEDIA','UMP','BISOL','KIMS','IDC','IOCMEDAN','IOCPekanbaru',
+  'IOCBandung','IOCJATENG','MVISEMARANG','POSSurabaya','IOCSurabaya',
+  'IOCBali','SGP','SGP1','SGP2','OSS',
 ];
-const PIE_COLORS = ['#7c3aed', '#0ea5e9', '#10b981', '#e11d48', '#f59e0b', '#6366f1', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
-const KEGIATAN_COLORS: Record<string, string> = {
-  'Demo Product': '#2563eb', 'RnD': '#7c3aed', 'Maintenance': '#d97706', 'Shooting Markom': '#059669',
+const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+const KEGIATAN_COLORS: Record<string,string> = {
+  'Demo Product':'#2563eb','RnD':'#7c3aed','Maintenance':'#d97706','Shooting Markom':'#059669',
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface UserRow { id: string; full_name: string; username: string; team_type?: string; role: string; }
+interface UserRow { id:string; full_name:string; username:string; team_type?:string; role:string; }
 interface PiketRow {
-  id: string; week_start: string; day_of_week: DayOfWeek; day_date: string;
-  pic_ivp_id: string | null; pic_ivp_name: string | null;
-  pic_ump_id: string | null; pic_ump_name: string | null;
-  pic_mlds_id: string | null; pic_mlds_name: string | null;
-  tamu_instansi: string | null; kebutuhan: string[];
-  created_at: string; updated_at: string;
+  id:string; week_start:string; day_of_week:DayOfWeek; day_date:string;
+  pic_ivp_id:string|null; pic_ivp_name:string|null;
+  pic_ump_id:string|null; pic_ump_name:string|null;
+  pic_mlds_id:string|null; pic_mlds_name:string|null;
+  tamu_instansi:string|null; kebutuhan:string[];
+  created_at:string; updated_at:string;
 }
 interface KegiatanEntry {
-  id?: string; piket_id: string;
-  jenis_kegiatan: JenisKegiatan; jam_mulai: string; jam_selesai: string; produk: string[];
-  tamu_instansi: string | null; nama_sales: string | null; sales_division: string | null;
-  kebutuhan: string[]; keterangan: string | null; created_at: string;
+  id?:string; piket_id:string;
+  jenis_kegiatan:JenisKegiatan; jam_mulai:string; jam_selesai:string; produk:string[];
+  tamu_instansi:string|null; nama_sales:string|null; sales_division:string|null;
+  kebutuhan:string[]; keterangan:string|null; created_at:string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getMonday(d: Date): Date {
-  const r = new Date(d); r.setHours(0, 0, 0, 0);
-  const day = r.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  r.setDate(r.getDate() + diff);
+function getMonday(d:Date):Date{
+  // Use local date to avoid timezone shift
+  const r=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const day=r.getDay(); // 0=Sun,1=Mon,...,6=Sat
+  const diff=day===0?-6:1-day;
+  r.setDate(r.getDate()+diff);
   return r;
 }
-function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
-function toKey(d: Date): string { return d.toISOString().split('T')[0]; }
-function getDayDate(ws: Date, day: DayOfWeek): Date { return addDays(ws, DAYS_OF_WEEK.indexOf(day)); }
-function isToday(d: Date): boolean { const t = new Date(); return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate(); }
-function getWeekKey(dateStr: string): string { return toKey(getMonday(new Date(dateStr + 'T00:00:00'))); }
-
-// ─── Rolling schedule GLOBAL (berlaku untuk seterusnya) ─────────────────────────
-// Epoch = 2024-01-01 (Senin). Setiap 2 minggu = 1 slot rolling.
-// Fungsi ini akan menghasilkan PIC untuk tanggal tertentu berdasarkan pola rolling global
-function getRollingUserForDate(targetDate: Date, users: UserRow[]): { ivp: string | null; ump: string | null; mlds: string | null } {
-  if (!users.length) return { ivp: null, ump: null, mlds: null };
-
-  const epoch = new Date('2024-01-01T00:00:00');
-  const daysDiff = Math.floor((targetDate.getTime() - epoch.getTime()) / (24 * 60 * 60 * 1000));
-  const weekIndex = Math.floor(daysDiff / 7);
-  const biWeekSlot = Math.floor(weekIndex / 2);
-  const dayOfWeekIdx = targetDate.getDay(); // 0=Sunday, 1=Monday...
-  const mondayOffset = dayOfWeekIdx === 0 ? 6 : dayOfWeekIdx - 1; // convert to 0=Monday
-
-  // Pisahkan users berdasarkan team
-  const ivpUsers = users.filter(u => u.team_type === 'Team PTS');
-  const umpUsers = users.filter(u => u.team_type === 'Team PTS UMP');
-  const mldsUsers = users.filter(u => u.team_type === 'Team PTS MLDS');
-
-  const totalSlots = 5; // 5 hari kerja
-  const ivpUser = ivpUsers.length ? ivpUsers[(biWeekSlot * totalSlots + mondayOffset) % ivpUsers.length] : null;
-  const umpUser = umpUsers.length ? umpUsers[(biWeekSlot * totalSlots + mondayOffset) % umpUsers.length] : null;
-  const mldsUser = mldsUsers.length ? mldsUsers[(biWeekSlot * totalSlots + mondayOffset) % mldsUsers.length] : null;
-
-  return {
-    ivp: ivpUser?.id || null,
-    ump: umpUser?.id || null,
-    mlds: mldsUser?.id || null,
-  };
+function addDays(d:Date,n:number):Date{const r=new Date(d.getFullYear(),d.getMonth(),d.getDate());r.setDate(r.getDate()+n);return r;}
+function toKey(d:Date):string{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`;}
+function getDayDate(ws:Date,day:DayOfWeek):Date{return addDays(ws,DAYS_OF_WEEK.indexOf(day));}
+function isToday(d:Date):boolean{const t=new Date();return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate();}
+function getWeekKey(dateStr:string):string{
+  const[y,m,dd]=dateStr.split('-').map(Number);
+  return toKey(getMonday(new Date(y,m-1,dd)));
 }
 
-// Get PIC names for a date from DB or generate from rolling
-async function getPICForDate(date: Date, users: UserRow[]): Promise<{ ivpId: string | null; ivpName: string | null; umpId: string | null; umpName: string | null; mldsId: string | null; mldsName: string | null }> {
-  const dateStr = toKey(date);
-  const dayOfWeek = date.toLocaleDateString('id-ID', { weekday: 'long' }) as DayOfWeek;
-  if (!DAYS_OF_WEEK.includes(dayOfWeek)) {
-    // Weekend - no PIC needed
-    return { ivpId: null, ivpName: null, umpId: null, umpName: null, mldsId: null, mldsName: null };
-  }
-
-  // Cek di database
-  const { data: existing } = await supabase
-    .from('piket_schedules')
-    .select('*')
-    .eq('day_date', dateStr)
-    .maybeSingle();
-
-  if (existing) {
-    // Return existing data
-    const ivpUser = users.find(u => u.id === existing.pic_ivp_id);
-    const umpUser = users.find(u => u.id === existing.pic_ump_id);
-    const mldsUser = users.find(u => u.id === existing.pic_mlds_id);
-    return {
-      ivpId: existing.pic_ivp_id,
-      ivpName: existing.pic_ivp_name || ivpUser?.full_name || null,
-      umpId: existing.pic_ump_id,
-      umpName: existing.pic_ump_name || umpUser?.full_name || null,
-      mldsId: existing.pic_mlds_id,
-      mldsName: existing.pic_mlds_name || mldsUser?.full_name || null,
-    };
-  }
-
-  // Generate dari rolling
-  const rolling = getRollingUserForDate(date, users);
-  const ivpUser = users.find(u => u.id === rolling.ivp);
-  const umpUser = users.find(u => u.id === rolling.ump);
-  const mldsUser = users.find(u => u.id === rolling.mlds);
-
-  // Simpan ke database untuk下次 akses lebih cepat
-  const weekStart = toKey(getMonday(date));
-  const { error } = await supabase.from('piket_schedules').upsert({
-    week_start: weekStart,
-    day_of_week: dayOfWeek,
-    day_date: dateStr,
-    pic_ivp_id: rolling.ivp,
-    pic_ivp_name: ivpUser?.full_name || null,
-    pic_ump_id: rolling.ump,
-    pic_ump_name: umpUser?.full_name || null,
-    pic_mlds_id: rolling.mlds,
-    pic_mlds_name: mldsUser?.full_name || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'day_date' });
-
-  if (error) console.error('Error saving rolling schedule:', error);
-
-  return {
-    ivpId: rolling.ivp,
-    ivpName: ivpUser?.full_name || null,
-    umpId: rolling.ump,
-    umpName: umpUser?.full_name || null,
-    mldsId: rolling.mlds,
-    mldsName: mldsUser?.full_name || null,
-  };
+// ─── Rolling schedule ─────────────────────────────────────────────────────────
+// Epoch = 2024-01-01 (Senin). Setiap 2 minggu = 1 slot rolling.
+// Jadwal yg sudah tersimpan di DB tidak akan berubah — hanya dipakai untuk minggu baru yg kosong.
+function getRollingUserId(ws:Date, dayIdx:number, users:UserRow[]):string {
+  if(!users.length) return '';
+  const epoch=new Date('2024-01-01T00:00:00');
+  const weeksDiff=Math.round((ws.getTime()-epoch.getTime())/(7*24*60*60*1000));
+  const biWeekSlot=Math.floor(weeksDiff/2);
+  return users[(biWeekSlot*5+dayIdx)%users.length]?.id||'';
 }
 
 // ─── Pie Chart ────────────────────────────────────────────────────────────────
 
-function MiniPieChart({ data, title, icon, activeFilter, onSliceClick }: {
-  data: { label: string; value: number; color: string }[]; title: string; icon: string;
-  activeFilter?: string | null; onSliceClick?: (l: string) => void;
+function MiniPieChart({data,title,icon,activeFilter,onSliceClick}:{
+  data:{label:string;value:number;color:string}[];title:string;icon:string;
+  activeFilter?:string|null;onSliceClick?:(l:string)=>void;
 }) {
-  const [hov, setHov] = useState<number | null>(null);
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (!total) return (
-    <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.8)' }}>
+  const [hov,setHov]=useState<number|null>(null);
+  const total=data.reduce((s,d)=>s+d.value,0);
+  if(!total) return(
+    <div className="rounded-2xl p-4" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(255,255,255,0.8)'}}>
       <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{icon} {title}</p>
       <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
     </div>
   );
-  let cum = -Math.PI / 2;
-  const cx = 60, cy = 60, r = 50, ir = 28;
-  const slices = data.map((d, i) => {
-    const angle = (d.value / total) * 2 * Math.PI;
-    if (data.length === 1) { cum += angle; return { ...d, path: '', full: true, i }; }
-    const x1 = cx + r * Math.cos(cum), y1 = cy + r * Math.sin(cum), x2 = cx + r * Math.cos(cum + angle), y2 = cy + r * Math.sin(cum + angle);
-    const xi1 = cx + ir * Math.cos(cum), yi1 = cy + ir * Math.sin(cum), xi2 = cx + ir * Math.cos(cum + angle), yi2 = cy + ir * Math.sin(cum + angle);
-    const lg = angle > Math.PI ? 1 : 0;
-    const path = `M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${lg} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${lg} 0 ${xi1} ${yi1} Z`;
-    cum += angle; return { ...d, path, full: false, i };
+  let cum=-Math.PI/2;
+  const cx=60,cy=60,r=50,ir=28;
+  const slices=data.map((d,i)=>{
+    const angle=(d.value/total)*2*Math.PI;
+    if(data.length===1){cum+=angle;return{...d,path:'',full:true,i};}
+    const x1=cx+r*Math.cos(cum),y1=cy+r*Math.sin(cum),x2=cx+r*Math.cos(cum+angle),y2=cy+r*Math.sin(cum+angle);
+    const xi1=cx+ir*Math.cos(cum),yi1=cy+ir*Math.sin(cum),xi2=cx+ir*Math.cos(cum+angle),yi2=cy+ir*Math.sin(cum+angle);
+    const lg=angle>Math.PI?1:0;
+    const path=`M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${lg} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${lg} 0 ${xi1} ${yi1} Z`;
+    cum+=angle;return{...d,path,full:false,i};
   });
-  return (
-    <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.8)' }}>
+  return(
+    <div className="rounded-2xl p-4" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(255,255,255,0.8)'}}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">{icon} {title}</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-          {slices.map(s => s.full ? (
-            <g key={s.i} style={{ cursor: onSliceClick ? 'pointer' : 'default' }} onClick={() => onSliceClick?.(s.label)} onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)}>
-              <circle cx={60} cy={60} r={50} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45} style={{ filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }} />
-              <circle cx={60} cy={60} r={28} fill="white" />
+          {slices.map(s=>s.full?(
+            <g key={s.i} style={{cursor:onSliceClick?'pointer':'default'}} onClick={()=>onSliceClick?.(s.label)} onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}>
+              <circle cx={60} cy={60} r={50} fill={s.color} opacity={hov===null||hov===s.i?1:0.45} style={{filter:hov===s.i||activeFilter===s.label?`drop-shadow(0 0 5px ${s.color})`:'none'}}/>
+              <circle cx={60} cy={60} r={28} fill="white"/>
             </g>
-          ) : (
-            <path key={s.i} d={s.path} fill={s.color} opacity={hov === null || hov === s.i ? 1 : 0.45}
-              style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s', filter: hov === s.i || activeFilter === s.label ? `drop-shadow(0 0 5px ${s.color})` : 'none' }}
-              onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick?.(s.label)} />
+          ):(
+            <path key={s.i} d={s.path} fill={s.color} opacity={hov===null||hov===s.i?1:0.45}
+              style={{cursor:onSliceClick?'pointer':'default',transition:'opacity 0.15s',filter:hov===s.i||activeFilter===s.label?`drop-shadow(0 0 5px ${s.color})`:'none'}}
+              onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)} onClick={()=>onSliceClick?.(s.label)}/>
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
         <div className="flex flex-col gap-1 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
-          {slices.map(s => {
-            const isActive = activeFilter === s.label;
-            return (
+          {slices.map(s=>{
+            const isActive=activeFilter===s.label;
+            return(
               <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
-                style={{ background: hov === s.i || isActive ? `${s.color}20` : 'transparent', outline: isActive ? `1.5px solid ${s.color}` : 'none' }}
-                onMouseEnter={() => setHov(s.i)} onMouseLeave={() => setHov(null)} onClick={() => onSliceClick?.(s.label)}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                style={{background:hov===s.i||isActive?`${s.color}20`:'transparent',outline:isActive?`1.5px solid ${s.color}`:'none'}}
+                onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)} onClick={()=>onSliceClick?.(s.label)}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{background:s.color}}/>
                 <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
-                <span className="text-[10px] font-bold" style={{ color: s.color }}>{s.value}</span>
-                {isActive && <span className="text-[9px] font-bold text-purple-600">✓</span>}
+                <span className="text-[10px] font-bold" style={{color:s.color}}>{s.value}</span>
+                {isActive&&<span className="text-[9px] font-bold text-purple-600">✓</span>}
               </div>
             );
           })}
@@ -239,37 +159,37 @@ function MiniPieChart({ data, title, icon, activeFilter, onSliceClick }: {
 
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
-function TamuSummaryCards({ allRows, kegiatanList }: { allRows: PiketRow[]; kegiatanList: KegiatanEntry[] }) {
-  const now = new Date();
-  const thisWeek = toKey(getMonday(now));
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const thisYear = String(now.getFullYear());
-  const piketDateMap: Record<string, string> = {};
-  allRows.forEach(r => { piketDateMap[r.id] = r.day_date; });
-  const kgFor = (f: (d: string) => boolean) => kegiatanList.filter(k => { const d = piketDateMap[k.piket_id]; return d && f(d); });
-  const weekKg = kgFor(d => getWeekKey(d) === thisWeek);
-  const monthKg = kgFor(d => d.startsWith(thisMonth));
-  const yearKg = kgFor(d => d.startsWith(thisYear));
-  const countDemo = (kg: KegiatanEntry[]) => kg.filter(k => k.jenis_kegiatan === 'Demo Product' && k.tamu_instansi).length;
-  const cards = [
-    { p: 'Minggu Ini', demo: countDemo(weekKg), kg: weekKg.length, tot: allRows.filter(r => getWeekKey(r.day_date) === thisWeek).length, c: '#2563eb', g: 'linear-gradient(135deg,#2563eb,#1e40af)', sh: 'rgba(37,99,235,0.3)' },
-    { p: 'Bulan Ini', demo: countDemo(monthKg), kg: monthKg.length, tot: allRows.filter(r => r.day_date?.startsWith(thisMonth)).length, c: '#7c3aed', g: 'linear-gradient(135deg,#7c3aed,#4c1d95)', sh: 'rgba(124,58,237,0.3)' },
-    { p: 'Tahun ' + thisYear, demo: countDemo(yearKg), kg: yearKg.length, tot: allRows.filter(r => r.day_date?.startsWith(thisYear)).length, c: '#059669', g: 'linear-gradient(135deg,#059669,#047857)', sh: 'rgba(5,150,105,0.3)' },
-    { p: 'Total Semua', demo: countDemo(kegiatanList), kg: kegiatanList.length, tot: allRows.length, c: '#dc2626', g: 'linear-gradient(135deg,#dc2626,#991b1b)', sh: 'rgba(220,38,38,0.3)' },
+function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanList:KegiatanEntry[]}) {
+  const now=new Date();
+  const thisWeek=toKey(getMonday(now));
+  const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const thisYear=String(now.getFullYear());
+  const piketDateMap:Record<string,string>={};
+  allRows.forEach(r=>{piketDateMap[r.id]=r.day_date;});
+  const kgFor=(f:(d:string)=>boolean)=>kegiatanList.filter(k=>{const d=piketDateMap[k.piket_id];return d&&f(d);});
+  const weekKg=kgFor(d=>getWeekKey(d)===thisWeek);
+  const monthKg=kgFor(d=>d.startsWith(thisMonth));
+  const yearKg=kgFor(d=>d.startsWith(thisYear));
+  const countDemo=(kg:KegiatanEntry[])=>kg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi).length;
+  const cards=[
+    {p:'Minggu Ini',demo:countDemo(weekKg),kg:weekKg.length,tot:allRows.filter(r=>getWeekKey(r.day_date)===thisWeek).length,c:'#2563eb',g:'linear-gradient(135deg,#2563eb,#1e40af)',sh:'rgba(37,99,235,0.3)'},
+    {p:'Bulan Ini',demo:countDemo(monthKg),kg:monthKg.length,tot:allRows.filter(r=>r.day_date?.startsWith(thisMonth)).length,c:'#7c3aed',g:'linear-gradient(135deg,#7c3aed,#4c1d95)',sh:'rgba(124,58,237,0.3)'},
+    {p:'Tahun '+thisYear,demo:countDemo(yearKg),kg:yearKg.length,tot:allRows.filter(r=>r.day_date?.startsWith(thisYear)).length,c:'#059669',g:'linear-gradient(135deg,#059669,#047857)',sh:'rgba(5,150,105,0.3)'},
+    {p:'Total Semua',demo:countDemo(kegiatanList),kg:kegiatanList.length,tot:allRows.length,c:'#dc2626',g:'linear-gradient(135deg,#dc2626,#991b1b)',sh:'rgba(220,38,38,0.3)'},
   ];
-  return (
+  return(
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {cards.map(c => (
-        <div key={c.p} className="rounded-2xl p-4 relative overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', border: `1px solid ${c.c}25`, boxShadow: `0 4px 16px ${c.sh}` }}>
+      {cards.map(c=>(
+        <div key={c.p} className="rounded-2xl p-4 relative overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:`1px solid ${c.c}25`,boxShadow:`0 4px 16px ${c.sh}`}}>
           <div className="absolute right-3 top-2 text-3xl opacity-10 select-none">📋</div>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: c.c }}>{c.p}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{color:c.c}}>{c.p}</p>
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">Total Hari</span><span className="text-sm font-black" style={{ color: c.c }}>{c.tot}</span></div>
+            <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">Total Hari</span><span className="text-sm font-black" style={{color:c.c}}>{c.tot}</span></div>
             <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">🏢 Demo</span><span className="text-sm font-black text-emerald-600">{c.demo}</span></div>
             <div className="flex items-center justify-between"><span className="text-[10px] text-gray-500">📋 Kegiatan</span><span className="text-sm font-black text-amber-600">{c.kg}</span></div>
           </div>
-          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{ background: `${c.c}15` }}>
-            <div className="h-full rounded-full" style={{ width: `${c.tot > 0 ? Math.min((c.kg / c.tot) * 100, 100) : 0}%`, background: c.g }} />
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{background:`${c.c}15`}}>
+            <div className="h-full rounded-full" style={{width:`${c.tot>0?Math.min((c.kg/c.tot)*100,100):0}%`,background:c.g}}/>
           </div>
         </div>
       ))}
@@ -277,67 +197,76 @@ function TamuSummaryCards({ allRows, kegiatanList }: { allRows: PiketRow[]; kegi
   );
 }
 
-// ─── Mini Calendar Popup (full 30 hari termasuk Sabtu-Minggu) ──────────────────────────────────────────────────────
+// ─── Mini Calendar Popup ──────────────────────────────────────────────────────
 
-function MiniCalendarPopup({ allRows, onClose }: { allRows: PiketRow[]; onClose: () => void }) {
-  const [calMonth, setCalMonth] = useState(() => new Date());
-  const y = calMonth.getFullYear(), m = calMonth.getMonth();
-  const today = toKey(new Date());
-  const totalMonth = allRows.filter(r => r.day_date?.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`)).length;
+function MiniCalendarPopup({allRows,onClose}:{allRows:PiketRow[];onClose:()=>void}) {
+  const [calMonth,setCalMonth]=useState(()=>new Date());
+  const y=calMonth.getFullYear(),m=calMonth.getMonth();
+  const today=toKey(new Date());
+  const totalMonth=allRows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 
-  const firstOfMonth = new Date(y, m, 1);
-  const firstDayOfWeek = firstOfMonth.getDay();
-  const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-  const gridStart = new Date(firstOfMonth);
-  gridStart.setDate(1 - startOffset);
-  const gridCells: Date[] = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  // Build full calendar grid starting Monday
+  // Find first Monday on or before the 1st of month
+  const firstOfMonth=new Date(y,m,1);
+  const firstDayOfWeek=firstOfMonth.getDay(); // 0=Sun,1=Mon...
+  const startOffset=firstDayOfWeek===0?6:firstDayOfWeek-1; // days to go back to Monday
+  const gridStart=new Date(y,m,1-startOffset);
+  // Grid: 6 rows x 7 cols = 42 cells
+  const gridCells:Date[]=Array.from({length:42},(_,i)=>addDays(gridStart,i));
 
-  const rowMap: Record<string, PiketRow[]> = {};
-  allRows.forEach(r => { if (!rowMap[r.day_date]) rowMap[r.day_date] = []; rowMap[r.day_date].push(r); });
+  // Build map: dateKey -> row for quick lookup
+  const rowMap:Record<string,PiketRow[]>={};
+  allRows.forEach(r=>{if(!rowMap[r.day_date])rowMap[r.day_date]=[];rowMap[r.day_date].push(r);});
 
-  const WEEK_DAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+  const WEEK_DAYS=['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
 
-  return (
+  return(
     <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden" style={{ width: '640px', maxWidth: '95vw', animation: 'scale-in 0.2s ease-out', border: '1.5px solid rgba(220,38,38,0.2)' }}>
-        <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
-          <button onClick={() => setCalMonth(new Date(y, m - 1, 1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">‹</button>
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden" style={{width:'640px',maxWidth:'95vw',animation:'scale-in 0.2s ease-out',border:'1.5px solid rgba(220,38,38,0.2)'}}>
+        {/* Header */}
+        <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
+          <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">‹</button>
           <div className="text-center">
             <p className="text-white font-black text-base">{MONTH_NAMES[m]} {y}</p>
             <p className="text-white/70 text-[11px]">{totalMonth} jadwal bulan ini</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setCalMonth(new Date(y, m + 1, 1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">›</button>
+            <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">›</button>
             <button onClick={onClose} className="text-white/70 hover:text-white font-bold text-lg w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-lg">✕</button>
           </div>
         </div>
+        {/* Day headers */}
         <div className="grid grid-cols-7 border-b border-gray-100">
-          {WEEK_DAYS.map((d, i) => (
-            <div key={i} className="text-center text-[11px] font-bold py-2" style={{ color: i < 5 ? '#374151' : '#d1d5db' }}>{d}</div>
+          {WEEK_DAYS.map((d,i)=>(
+            <div key={i} className="text-center text-[11px] font-bold py-2" style={{color:i<5?'#374151':'#d1d5db'}}>{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7" style={{ minHeight: '360px' }}>
-          {gridCells.map((date, i) => {
-            const ds = toKey(date);
-            const inMonth = date.getMonth() === m;
-            const isT = ds === today;
-            const isSat = date.getDay() === 6, isSun = date.getDay() === 0;
-            const isWeekend = isSat || isSun;
-            const dayRows = rowMap[ds] || [];
-            const hasPiket = dayRows.length > 0;
-            const pics = dayRows.flatMap(r => [r.pic_ivp_name, r.pic_ump_name, r.pic_mlds_name].filter(Boolean) as string[]);
-            const dc = hasPiket ? DAY_COLOR[dayRows[0].day_of_week] : null;
-            return (
+        {/* Grid */}
+        <div className="grid grid-cols-7" style={{minHeight:'360px'}}>
+          {gridCells.map((date,i)=>{
+            const ds=toKey(date);
+            const inMonth=date.getMonth()===m;
+            const isT=ds===today;
+            const isSat=date.getDay()===6,isSun=date.getDay()===0;
+            const isWeekend=isSat||isSun;
+            const dayRows=rowMap[ds]||[];
+            const hasPiket=dayRows.length>0;
+            // Get PIC names for this day
+            const pics=dayRows.flatMap(r=>[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[]);
+            const dc=hasPiket?DAY_COLOR[dayRows[0].day_of_week]:null;
+            return(
               <div key={i} className="border-r border-b border-gray-100 last:border-r-0 p-1.5 min-h-[60px] relative"
-                style={{ background: isT ? 'rgba(220,38,38,0.06)' : !inMonth ? 'rgba(0,0,0,0.015)' : 'white' }}>
-                <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-1 ${isT ? 'text-white' : ''}`}
-                  style={{ background: isT ? '#dc2626' : 'transparent', color: isT ? 'white' : !inMonth ? '#d1d5db' : isWeekend ? '#d1d5db' : '#374151', fontWeight: isT ? 900 : 600 }}>
+                style={{background:isT?'rgba(220,38,38,0.06)':!inMonth?'rgba(0,0,0,0.015)':'white'}}>
+                {/* Date number */}
+                <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-1 ${isT?'text-white':''}` }
+                  style={{background:isT?'#dc2626':'transparent',color:isT?'white':!inMonth?'#d1d5db':isWeekend?'#d1d5db':'#374151',fontWeight:isT?900:600}}>
                   {date.getDate()}
                 </div>
-                {hasPiket && inMonth && pics.map((name, pi) => (
+                {/* PIC names — show directly under date */}
+                {hasPiket&&inMonth&&pics.map((name,pi)=>(
                   <div key={pi} className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
-                    style={{ color: dc?.accent || '#374151', background: `${dc?.accent || '#dc2626'}12` }}>
+                    style={{color:dc?.accent||'#374151',background:`${dc?.accent||'#dc2626'}12`}}>
                     {name}
                   </div>
                 ))}
@@ -353,207 +282,212 @@ function MiniCalendarPopup({ allRows, onClose }: { allRows: PiketRow[]; onClose:
 // ─── Fill Detail Modal ────────────────────────────────────────────────────────
 
 interface KFEntry {
-  id?: string; jenis_kegiatan: JenisKegiatan; jam_mulai: string; jam_selesai: string; produk: string[];
-  tamu_instansi: string; nama_sales: string; sales_division: string; kebutuhan: string[]; keterangan: string;
+  id?:string; jenis_kegiatan:JenisKegiatan; jam_mulai:string; jam_selesai:string; produk:string[];
+  tamu_instansi:string; nama_sales:string; sales_division:string; kebutuhan:string[]; keterangan:string;
 }
-const emptyKF = (): KFEntry => ({ jenis_kegiatan: 'Demo Product', jam_mulai: '09:00', jam_selesai: '10:00', produk: [], tamu_instansi: '', nama_sales: '', sales_division: '', kebutuhan: [], keterangan: '' });
+const emptyKF=():KFEntry=>({jenis_kegiatan:'Demo Product',jam_mulai:'09:00',jam_selesai:'10:00',produk:[],tamu_instansi:'',nama_sales:'',sales_division:'',kebutuhan:[],keterangan:''});
 
-function FillDetailModal({ row, onClose, onSaved }: { row: PiketRow; onClose: () => void; onSaved: () => void }) {
-  const [entries, setEntries] = useState<KFEntry[]>([emptyKF()]);
-  const [loadingE, setLoadingE] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const dc = DAY_COLOR[row.day_of_week];
-  const notify = (type: 'success' | 'error', msg: string) => { setToast({ type, msg }); setTimeout(() => setToast(null), 3500); };
+function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;onSaved:()=>void}) {
+  const [entries,setEntries]=useState<KFEntry[]>([emptyKF()]);
+  const [loadingE,setLoadingE]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
+  const dc=DAY_COLOR[row.day_of_week];
+  const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3500);};
 
-  useEffect(() => {
-    (async () => {
+  useEffect(()=>{
+    (async()=>{
       setLoadingE(true);
-      const { data } = await supabase.from('piket_tamu_detail').select('*').eq('piket_id', row.id).order('created_at');
-      if (data && data.length > 0) {
-        setEntries((data as KegiatanEntry[]).map(d => ({
-          id: d.id, jenis_kegiatan: d.jenis_kegiatan || 'Demo Product',
-          jam_mulai: d.jam_mulai || '09:00', jam_selesai: d.jam_selesai || '10:00', produk: d.produk || [],
-          tamu_instansi: d.tamu_instansi || '', nama_sales: d.nama_sales || '', sales_division: d.sales_division || '',
-          kebutuhan: d.kebutuhan || [], keterangan: d.keterangan || '',
+      const{data}=await supabase.from('piket_tamu_detail').select('*').eq('piket_id',row.id).order('created_at');
+      if(data&&data.length>0){
+        setEntries((data as KegiatanEntry[]).map(d=>({
+          id:d.id,jenis_kegiatan:d.jenis_kegiatan||'Demo Product',
+          jam_mulai:d.jam_mulai||'09:00',jam_selesai:d.jam_selesai||'10:00',produk:d.produk||[],
+          tamu_instansi:d.tamu_instansi||'',nama_sales:d.nama_sales||'',sales_division:d.sales_division||'',
+          kebutuhan:d.kebutuhan||[],keterangan:d.keterangan||'',
         })));
       }
       setLoadingE(false);
     })();
-  }, [row.id]);
+  },[row.id]);
 
-  const upd = (i: number, p: Partial<KFEntry>) => setEntries(prev => prev.map((e, x) => x === i ? { ...e, ...p } : e));
-  const toggleK = (i: number, k: string) => setEntries(prev => prev.map((e, x) => x === i ? { ...e, kebutuhan: e.kebutuhan.includes(k) ? e.kebutuhan.filter(v => v !== k) : [...e.kebutuhan, k] } : e));
-  const toggleP = (i: number, p: string) => {
-    if (p === 'All Product') setEntries(prev => prev.map((e, x) => x === i ? { ...e, produk: e.produk.includes('All Product') ? [] : ['All Product'] } : e));
-    else setEntries(prev => prev.map((e, x) => { if (x !== i) return e; const wo = e.produk.filter(v => v !== 'All Product'); return { ...e, produk: wo.includes(p) ? wo.filter(v => v !== p) : [...wo, p] }; }));
+  const upd=(i:number,p:Partial<KFEntry>)=>setEntries(prev=>prev.map((e,x)=>x===i?{...e,...p}:e));
+  const toggleK=(i:number,k:string)=>setEntries(prev=>prev.map((e,x)=>x===i?{...e,kebutuhan:e.kebutuhan.includes(k)?e.kebutuhan.filter(v=>v!==k):[...e.kebutuhan,k]}:e));
+  const toggleP=(i:number,p:string)=>{
+    if(p==='All Product') setEntries(prev=>prev.map((e,x)=>x===i?{...e,produk:e.produk.includes('All Product')?[]:['All Product']}:e));
+    else setEntries(prev=>prev.map((e,x)=>{if(x!==i)return e;const wo=e.produk.filter(v=>v!=='All Product');return{...e,produk:wo.includes(p)?wo.filter(v=>v!==p):[...wo,p]};}));
   };
 
-  const handleSave = async () => {
+  const handleSave=async()=>{
     setSaving(true);
-    try {
-      await supabase.from('piket_tamu_detail').delete().eq('piket_id', row.id);
-      const ins = entries.filter(e => e.jenis_kegiatan).map(e => ({
-        piket_id: row.id, jenis_kegiatan: e.jenis_kegiatan,
-        jam_mulai: e.jam_mulai || null, jam_selesai: e.jam_selesai || null, produk: e.produk,
-        tamu_instansi: e.jenis_kegiatan === 'Demo Product' ? (e.tamu_instansi || null) : null,
-        nama_sales: e.jenis_kegiatan === 'Demo Product' ? (e.nama_sales || null) : null,
-        sales_division: e.jenis_kegiatan === 'Demo Product' ? (e.sales_division || null) : null,
-        kebutuhan: e.jenis_kegiatan === 'Demo Product' ? e.kebutuhan : [],
-        keterangan: e.jenis_kegiatan !== 'Demo Product' ? (e.keterangan || null) : null,
-        created_at: new Date().toISOString(),
+    try{
+      await supabase.from('piket_tamu_detail').delete().eq('piket_id',row.id);
+      const ins=entries.filter(e=>e.jenis_kegiatan).map(e=>({
+        piket_id:row.id,jenis_kegiatan:e.jenis_kegiatan,
+        jam_mulai:e.jam_mulai||null,jam_selesai:e.jam_selesai||null,produk:e.produk,
+        tamu_instansi:e.jenis_kegiatan==='Demo Product'?(e.tamu_instansi||null):null,
+        nama_sales:e.jenis_kegiatan==='Demo Product'?(e.nama_sales||null):null,
+        sales_division:e.jenis_kegiatan==='Demo Product'?(e.sales_division||null):null,
+        kebutuhan:e.jenis_kegiatan==='Demo Product'?e.kebutuhan:[],
+        keterangan:e.jenis_kegiatan!=='Demo Product'?(e.keterangan||null):null,
+        created_at:new Date().toISOString(),
       }));
-      if (ins.length > 0) { const { error } = await supabase.from('piket_tamu_detail').insert(ins); if (error) throw error; }
-      const fd = ins.find(e => e.jenis_kegiatan === 'Demo Product');
-      await supabase.from('piket_schedules').update({ tamu_instansi: fd?.tamu_instansi || null, kebutuhan: fd?.kebutuhan || [], updated_at: new Date().toISOString() }).eq('id', row.id);
-      notify('success', 'Data tersimpan!');
-      setTimeout(() => { onSaved(); onClose(); }, 700);
-    } catch (e: any) { notify('error', 'Gagal: ' + e.message); }
+      if(ins.length>0){const{error}=await supabase.from('piket_tamu_detail').insert(ins);if(error)throw error;}
+      const fd=ins.find(e=>e.jenis_kegiatan==='Demo Product');
+      await supabase.from('piket_schedules').update({tamu_instansi:fd?.tamu_instansi||null,kebutuhan:fd?.kebutuhan||[],updated_at:new Date().toISOString()}).eq('id',row.id);
+      notify('success','Data tersimpan!');
+      setTimeout(()=>{onSaved();onClose();},700);
+    }catch(e:any){notify('error','Gagal: '+e.message);}
     setSaving(false);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4" style={{ animation: 'scale-in 0.25s ease-out', border: `1.5px solid ${dc.accent}40` }}>
-        <div className="px-6 py-5 rounded-t-2xl" style={{ background: dc.grad }}>
+  return(
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4" style={{animation:'scale-in 0.25s ease-out',border:`1.5px solid ${dc.accent}40`}}>
+        <div className="px-6 py-5 rounded-t-2xl" style={{background:dc.grad}}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-white">✍️ Detail Piket — {row.day_of_week}</h2>
-              <p className="text-white/70 text-xs mt-0.5">{new Date(row.day_date + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} · {[row.pic_ivp_name, row.pic_ump_name, row.pic_mlds_name].filter(Boolean).join(' / ') || 'Belum ada PIC'}</p>
+              <p className="text-white/70 text-xs mt-0.5">{new Date(row.day_date+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})} · {[row.pic_ivp_name,row.pic_ump_name,row.pic_mlds_name].filter(Boolean).join(' / ')||'Belum ada PIC'}</p>
             </div>
             <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
         </div>
-        {toast && <div className={`mx-5 mt-4 px-4 py-3 rounded-xl text-sm font-semibold flex gap-2 ${toast.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}><span>{toast.type === 'success' ? '✅' : '❌'}</span><span>{toast.msg}</span></div>}
+        {toast&&<div className={`mx-5 mt-4 px-4 py-3 rounded-xl text-sm font-semibold flex gap-2 ${toast.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}><span>{toast.type==='success'?'✅':'❌'}</span><span>{toast.msg}</span></div>}
         <div className="p-6 space-y-5 max-h-[72vh] overflow-y-auto">
-          {loadingE ? <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin" /></div>
-            : entries.map((entry, idx) => (
-              <div key={idx} className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${dc.accent}30`, background: 'rgba(255,255,255,0.7)' }}>
-                <div className="flex items-center justify-between px-4 py-2.5" style={{ background: dc.light, borderBottom: `1px solid ${dc.accent}20` }}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white" style={{ background: dc.grad }}>{idx + 1}</div>
-                    <span className="text-xs font-bold" style={{ color: dc.accent }}>Kegiatan {idx + 1}</span>
-                    {entry.jenis_kegiatan && <span className="text-[9px] font-bold px-2 py-0.5 rounded text-white" style={{ background: KEGIATAN_COLORS[entry.jenis_kegiatan] || dc.accent }}>{entry.jenis_kegiatan}</span>}
-                  </div>
-                  {entries.length > 1 && <button onClick={() => setEntries(p => p.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
+          {loadingE?<div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/></div>
+          :entries.map((entry,idx)=>(
+            <div key={idx} className="rounded-2xl overflow-hidden" style={{border:`1.5px solid ${dc.accent}30`,background:'rgba(255,255,255,0.7)'}}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{background:dc.light,borderBottom:`1px solid ${dc.accent}20`}}>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white" style={{background:dc.grad}}>{idx+1}</div>
+                  <span className="text-xs font-bold" style={{color:dc.accent}}>Kegiatan {idx+1}</span>
+                  {entry.jenis_kegiatan&&<span className="text-[9px] font-bold px-2 py-0.5 rounded text-white" style={{background:KEGIATAN_COLORS[entry.jenis_kegiatan]||dc.accent}}>{entry.jenis_kegiatan}</span>}
                 </div>
-                <div className="p-4 space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">📋 Jenis Kegiatan</label>
-                    <select value={entry.jenis_kegiatan} onChange={e => upd(idx, { jenis_kegiatan: e.target.value as JenisKegiatan })}
-                      className="w-full rounded-xl px-3 py-2.5 text-sm outline-none bg-white" style={{ border: '1px solid rgba(0,0,0,0.12)' }}>
-                      {JENIS_KEGIATAN_LIST.map(j => <option key={j} value={j}>{j}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🕐 Jam Mulai</label>
-                      <input type="time" value={entry.jam_mulai} onChange={e => upd(idx, { jam_mulai: e.target.value })}
-                        className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.12)' }} />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🕑 Jam Selesai</label>
-                      <input type="time" value={entry.jam_selesai} onChange={e => upd(idx, { jam_selesai: e.target.value })}
-                        className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.12)' }} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold mb-2 tracking-widest uppercase text-slate-400">📦 Produk yang Digunakan</label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {PRODUK_LIST.map(p => {
-                        const isAll = entry.produk.includes('All Product');
-                        const isSel = entry.produk.includes(p);
-                        const isDis = (p === 'All Product' && entry.produk.length > 0 && !isAll) || (p !== 'All Product' && isAll);
-                        return (
-                          <button key={p} type="button" onClick={() => !isDis && toggleP(idx, p)} disabled={isDis}
-                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                            style={isSel ? { borderColor: dc.accent, background: `${dc.accent}12`, color: dc.accent } : { borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.6)', color: '#64748b' }}>
-                            <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                              style={isSel ? { borderColor: dc.accent, background: dc.accent } : { borderColor: '#d1d5db', background: 'white' }}>
-                              {isSel && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                            </div>
-                            <span className="text-xs font-semibold leading-tight">{p}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {entry.jenis_kegiatan === 'Demo Product' && (
-                    <>
-                      <div>
-                        <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🏢 Tamu Instansi</label>
-                        <input value={entry.tamu_instansi} onChange={e => upd(idx, { tamu_instansi: e.target.value })}
-                          className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.12)' }} placeholder="Nama instansi / perusahaan tamu..." />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">👤 Nama Sales</label>
-                          <input value={entry.nama_sales} onChange={e => upd(idx, { nama_sales: e.target.value })}
-                            className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.12)' }} placeholder="Nama sales..." />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🏷️ Division</label>
-                          <select value={entry.sales_division} onChange={e => upd(idx, { sales_division: e.target.value })}
-                            className="w-full rounded-xl px-3 py-2.5 text-sm outline-none bg-white" style={{ border: '1px solid rgba(0,0,0,0.12)' }}>
-                            <option value="">— Pilih Division —</option>
-                            {SALES_DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🎯 Kebutuhan</label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {KEBUTUHAN_LIST.map(k => {
-                            const chk = entry.kebutuhan.includes(k);
-                            return (
-                              <button key={k} type="button" onClick={() => toggleK(idx, k)}
-                                className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-left transition-all"
-                                style={chk ? { borderColor: dc.accent, background: `${dc.accent}12`, color: dc.accent } : { borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)', color: '#64748b' }}>
-                                <div className="w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0"
-                                  style={chk ? { borderColor: dc.accent, background: dc.accent } : { borderColor: '#d1d5db', background: 'white' }}>
-                                  {chk && <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                </div>
-                                <span className="text-xs font-semibold leading-tight">{k}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {entry.kebutuhan.length > 0 && (
-                          <div className="mt-2 p-2.5 rounded-xl flex flex-wrap gap-1.5" style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.08)' }}>
-                            {entry.kebutuhan.map(k => <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: dc.grad }}>{k}<button onClick={() => toggleK(idx, k)} className="ml-0.5 opacity-80">✕</button></span>)}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                  {entry.jenis_kegiatan !== 'Demo Product' && (
-                    <div>
-                      <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">📝 Keterangan</label>
-                      <textarea value={entry.keterangan} onChange={e => upd(idx, { keterangan: e.target.value })} rows={3}
-                        className="w-full rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
-                        style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.12)' }} placeholder={`Keterangan ${entry.jenis_kegiatan}...`} />
-                    </div>
-                  )}
-                </div>
+                {entries.length>1&&<button onClick={()=>setEntries(p=>p.filter((_,i)=>i!==idx))} className="text-red-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>}
               </div>
-            ))}
-          {!loadingE && (
-            <button onClick={() => setEntries(p => [...p, emptyKF()])}
+              <div className="p-4 space-y-4">
+                {/* Jenis Kegiatan */}
+                <div>
+                  <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">📋 Jenis Kegiatan</label>
+                  <select value={entry.jenis_kegiatan} onChange={e=>upd(idx,{jenis_kegiatan:e.target.value as JenisKegiatan})}
+                    className="w-full rounded-xl px-3 py-2.5 text-sm outline-none bg-white" style={{border:'1px solid rgba(0,0,0,0.12)'}}>
+                    {JENIS_KEGIATAN_LIST.map(j=><option key={j} value={j}>{j}</option>)}
+                  </select>
+                </div>
+                {/* Jam */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🕐 Jam Mulai</label>
+                    <input type="time" value={entry.jam_mulai} onChange={e=>upd(idx,{jam_mulai:e.target.value})}
+                      className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}}/>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🕑 Jam Selesai</label>
+                    <input type="time" value={entry.jam_selesai} onChange={e=>upd(idx,{jam_selesai:e.target.value})}
+                      className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}}/>
+                  </div>
+                </div>
+                {/* Produk — checkbox grid */}
+                <div>
+                  <label className="block text-[10px] font-bold mb-2 tracking-widest uppercase text-slate-400">📦 Produk yang Digunakan</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {PRODUK_LIST.map(p=>{
+                      const isAll=entry.produk.includes('All Product');
+                      const isSel=entry.produk.includes(p);
+                      const isDis=(p==='All Product'&&entry.produk.length>0&&!isAll)||(p!=='All Product'&&isAll);
+                      return(
+                        <button key={p} type="button" onClick={()=>!isDis&&toggleP(idx,p)} disabled={isDis}
+                          className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          style={isSel?{borderColor:dc.accent,background:`${dc.accent}12`,color:dc.accent}:{borderColor:'rgba(0,0,0,0.1)',background:'rgba(255,255,255,0.6)',color:'#64748b'}}>
+                          <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                            style={isSel?{borderColor:dc.accent,background:dc.accent}:{borderColor:'#d1d5db',background:'white'}}>
+                            {isSel&&<svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
+                          </div>
+                          <span className="text-xs font-semibold leading-tight">{p}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* Demo Product fields */}
+                {entry.jenis_kegiatan==='Demo Product'&&(
+                  <>
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🏢 Tamu Instansi</label>
+                      <input value={entry.tamu_instansi} onChange={e=>upd(idx,{tamu_instansi:e.target.value})}
+                        className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}} placeholder="Nama instansi / perusahaan tamu..."/>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">👤 Nama Sales</label>
+                        <input value={entry.nama_sales} onChange={e=>upd(idx,{nama_sales:e.target.value})}
+                          className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}} placeholder="Nama sales..."/>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🏷️ Division</label>
+                        <select value={entry.sales_division} onChange={e=>upd(idx,{sales_division:e.target.value})}
+                          className="w-full rounded-xl px-3 py-2.5 text-sm outline-none bg-white" style={{border:'1px solid rgba(0,0,0,0.12)'}}>
+                          <option value="">— Pilih Division —</option>
+                          {SALES_DIVISIONS.map(d=><option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">🎯 Kebutuhan</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {KEBUTUHAN_LIST.map(k=>{
+                          const chk=entry.kebutuhan.includes(k);
+                          return(
+                            <button key={k} type="button" onClick={()=>toggleK(idx,k)}
+                              className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 text-left transition-all"
+                              style={chk?{borderColor:dc.accent,background:`${dc.accent}12`,color:dc.accent}:{borderColor:'rgba(0,0,0,0.1)',background:'rgba(255,255,255,0.5)',color:'#64748b'}}>
+                              <div className="w-3.5 h-3.5 rounded border-2 flex items-center justify-center flex-shrink-0"
+                                style={chk?{borderColor:dc.accent,background:dc.accent}:{borderColor:'#d1d5db',background:'white'}}>
+                                {chk&&<svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
+                              </div>
+                              <span className="text-xs font-semibold leading-tight">{k}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {entry.kebutuhan.length>0&&(
+                        <div className="mt-2 p-2.5 rounded-xl flex flex-wrap gap-1.5" style={{background:'rgba(0,0,0,0.03)',border:'1px solid rgba(0,0,0,0.08)'}}>
+                          {entry.kebutuhan.map(k=><span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{background:dc.grad}}>{k}<button onClick={()=>toggleK(idx,k)} className="ml-0.5 opacity-80">✕</button></span>)}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {/* Non-demo */}
+                {entry.jenis_kegiatan!=='Demo Product'&&(
+                  <div>
+                    <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">📝 Keterangan</label>
+                    <textarea value={entry.keterangan} onChange={e=>upd(idx,{keterangan:e.target.value})} rows={3}
+                      className="w-full rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
+                      style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}} placeholder={`Keterangan ${entry.jenis_kegiatan}...`}/>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {!loadingE&&(
+            <button onClick={()=>setEntries(p=>[...p,emptyKF()])}
               className="w-full py-3 rounded-2xl border-2 border-dashed text-sm font-bold flex items-center justify-center gap-2"
-              style={{ borderColor: `${dc.accent}60`, color: dc.accent, background: `${dc.accent}08` }}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              style={{borderColor:`${dc.accent}60`,color:dc.accent,background:`${dc.accent}08`}}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
               Tambah Kegiatan Lain
             </button>
           )}
         </div>
         <div className="px-6 pb-6 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-semibold text-sm" style={{ background: 'rgba(255,255,255,0.95)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>Batal</button>
-          <button onClick={handleSave} disabled={saving || loadingE}
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-semibold text-sm" style={{background:'rgba(255,255,255,0.95)',color:'#64748b',border:'1px solid rgba(0,0,0,0.12)'}}>Batal</button>
+          <button onClick={handleSave} disabled={saving||loadingE}
             className="flex-1 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-60"
-            style={{ background: dc.grad, boxShadow: `0 4px 14px ${dc.accent}35` }}>
-            {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}💾 Simpan Detail
+            style={{background:dc.grad,boxShadow:`0 4px 14px ${dc.accent}35`}}>
+            {saving&&<div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>}💾 Simpan Detail
           </button>
         </div>
       </div>
@@ -561,220 +495,159 @@ function FillDetailModal({ row, onClose, onSaved }: { row: PiketRow; onClose: ()
   );
 }
 
-// ─── Schedule Modal — Edit jadwal untuk masa depan (mulai dari tanggal yang dipilih) ─────────────────────────────────
+// ─── Schedule Modal — 2 minggu + auto rolling ─────────────────────────────────
 
-function ScheduleModal({ startDate, users, onClose, onSaved }: { startDate: Date; users: UserRow[]; onClose: () => void; onSaved: () => void }) {
-  // Show 2 weeks of editable schedule starting from startDate (Monday)
-  const [scheduleDates, setScheduleDates] = useState<Date[]>([]);
-  const [assignments, setAssignments] = useState<Record<string, { ivp: string; ump: string; mlds: string }>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const notify = (type: 'success' | 'error', msg: string) => { setToast({ type, msg }); setTimeout(() => setToast(null), 3000); };
+function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:UserRow[];onClose:()=>void;onSaved:()=>void}) {
+  const week2Start=addDays(weekStart,7);
+  const wk1=toKey(weekStart),wk2=toKey(week2Start);
+  type W2 = Record<string,Record<DayOfWeek,string>>;
+  const initW2=():W2=>{const r:W2={[wk1]:{}as any,[wk2]:{}as any};DAYS_OF_WEEK.forEach(d=>{r[wk1][d]='';r[wk2][d]='';});return r;};
+  const [assign,setAssign]=useState<W2>(initW2);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
+  const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
 
-  // Generate 2 weeks of weekdays (Monday to Friday)
-  useEffect(() => {
-    const dates: Date[] = [];
-    for (let i = 0; i < 14; i++) {
-      const date = addDays(startDate, i);
-      const dayOfWeek = date.getDay();
-      // Only include Monday-Friday (1-5)
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        dates.push(date);
-      }
-    }
-    setScheduleDates(dates);
-  }, [startDate]);
+  const applyRolling=(base?:W2)=>{
+    const na:W2={[wk1]:{}as any,[wk2]:{}as any};
+    [[wk1,weekStart],[wk2,week2Start]].forEach(([wk,ws])=>{
+      DAYS_OF_WEEK.forEach((day,dayIdx)=>{
+        (na as any)[wk as string][day]=(base as any)?.[wk as string]?.[day]||getRollingUserId(ws as Date,dayIdx,users)||'';
+      });
+    });
+    setAssign(na);
+  };
 
-  // Load existing assignments
-  useEffect(() => {
-    const loadAssignments = async () => {
+  useEffect(()=>{
+    (async()=>{
       setLoading(true);
-      const dateStrs = scheduleDates.map(d => toKey(d));
-      const { data } = await supabase
-        .from('piket_schedules')
-        .select('*')
-        .in('day_date', dateStrs);
+      const{data}=await supabase.from('piket_schedules').select('*').in('week_start',[wk1,wk2]);
+      const na=initW2();
+      if(data&&data.length>0){
+        (data as PiketRow[]).forEach(s=>{if(na[s.week_start])na[s.week_start][s.day_of_week]=s.pic_ivp_id||s.pic_ump_id||s.pic_mlds_id||'';});
+      }
+      // Fill empty days with rolling
+      [[wk1,weekStart],[wk2,week2Start]].forEach(([wk,ws])=>{
+        DAYS_OF_WEEK.forEach((day,dayIdx)=>{if(!na[wk as string][day])na[wk as string][day]=getRollingUserId(ws as Date,dayIdx,users);});
+      });
+      setAssign(na);
+      setLoading(false);
+    })();
+  },[wk1,wk2]);
 
-      const newAssignments: Record<string, { ivp: string; ump: string; mlds: string }> = {};
-      for (const date of scheduleDates) {
-        const dateStr = toKey(date);
-        const existing = (data as PiketRow[])?.find(r => r.day_date === dateStr);
-        if (existing) {
-          newAssignments[dateStr] = {
-            ivp: existing.pic_ivp_id || '',
-            ump: existing.pic_ump_id || '',
-            mlds: existing.pic_mlds_id || '',
-          };
-        } else {
-          // Generate from rolling as default
-          const rolling = getRollingUserForDate(date, users);
-          newAssignments[dateStr] = {
-            ivp: rolling.ivp || '',
-            ump: rolling.ump || '',
-            mlds: rolling.mlds || '',
-          };
+  const handleSave=async()=>{
+    setSaving(true);
+    try{
+      for(const [wk,ws] of [[wk1,weekStart],[wk2,week2Start]] as [string,Date][]){
+        for(const day of DAYS_OF_WEEK){
+          const uid=assign[wk]?.[day]||'';
+          const u=users.find(x=>x.id===uid);
+          const tt=u?.team_type||'';
+          const isIVP=tt==='Team PTS',isUMP=tt==='Team PTS UMP',isMlds=tt==='Team PTS MLDS';
+          const{error}=await supabase.from('piket_schedules').upsert({
+            week_start:wk,day_of_week:day,day_date:toKey(getDayDate(ws,day)),
+            pic_ivp_id:isIVP?uid:null,pic_ivp_name:isIVP?u?.full_name||null:null,
+            pic_ump_id:isUMP?uid:null,pic_ump_name:isUMP?u?.full_name||null:null,
+            pic_mlds_id:isMlds?uid:null,pic_mlds_name:isMlds?u?.full_name||null:null,
+            created_at:new Date().toISOString(),updated_at:new Date().toISOString(),
+          },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
+          if(error){notify('error',`Gagal ${day} ${wk}: ${error.message}`);setSaving(false);return;}
         }
       }
-      setAssignments(newAssignments);
-      setLoading(false);
-    };
-    if (scheduleDates.length) loadAssignments();
-  }, [scheduleDates, users]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      for (const date of scheduleDates) {
-        const dateStr = toKey(date);
-        const assign = assignments[dateStr];
-        const weekStart = toKey(getMonday(date));
-        const dayOfWeek = date.toLocaleDateString('id-ID', { weekday: 'long' }) as DayOfWeek;
-
-        const ivpUser = users.find(u => u.id === assign.ivp);
-        const umpUser = users.find(u => u.id === assign.ump);
-        const mldsUser = users.find(u => u.id === assign.mlds);
-
-        const { error } = await supabase.from('piket_schedules').upsert({
-          week_start: weekStart,
-          day_of_week: dayOfWeek,
-          day_date: dateStr,
-          pic_ivp_id: assign.ivp || null,
-          pic_ivp_name: ivpUser?.full_name || null,
-          pic_ump_id: assign.ump || null,
-          pic_ump_name: umpUser?.full_name || null,
-          pic_mlds_id: assign.mlds || null,
-          pic_mlds_name: mldsUser?.full_name || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'day_date' });
-
-        if (error) throw error;
-      }
-      notify('success', 'Jadwal berhasil disimpan!');
-      setTimeout(() => { onSaved(); onClose(); }, 800);
-    } catch (e: any) {
-      notify('error', 'Gagal: ' + e.message);
-    }
+      notify('success','Jadwal 2 minggu tersimpan!');
+      setTimeout(()=>{onSaved();onClose();},800);
+    }catch(e:any){notify('error','Gagal: '+e.message);}
     setSaving(false);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
+  const fmtWk=(ws:Date)=>`${ws.toLocaleDateString('id-ID',{day:'2-digit',month:'short'})} – ${addDays(ws,4).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}`;
 
-  const getTeamUserOptions = (teamType: string) => {
-    return users.filter(u => u.team_type === teamType);
-  };
-
-  if (scheduleDates.length === 0) return null;
-
-  return (
+  return(
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto">
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-5xl my-4" style={{ animation: 'scale-in 0.25s ease-out', border: '1.5px solid rgba(220,38,38,0.25)' }}>
-        <div className="px-6 py-5 rounded-t-2xl" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4" style={{animation:'scale-in 0.25s ease-out',border:'1.5px solid rgba(220,38,38,0.25)'}}>
+        <div className="px-6 py-5 rounded-t-2xl" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">📋 Edit Jadwal Piket</h2>
-              <p className="text-red-200/80 text-xs mt-0.5">
-                {formatDate(scheduleDates[0])} — {formatDate(scheduleDates[scheduleDates.length - 1])}
-              </p>
-              <p className="text-red-200/70 text-[10px] mt-1">⚠️ Perubahan akan berlaku mulai tanggal yang dipilih ke depan</p>
+              <h2 className="text-lg font-bold text-white">📋 Atur Jadwal Piket — 2 Minggu</h2>
+              <p className="text-red-200/80 text-xs mt-0.5">{fmtWk(weekStart)} &amp; {fmtWk(week2Start)}</p>
             </div>
             <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
         </div>
+        {toast&&<div className={`mx-5 mt-3 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 ${toast.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{toast.type==='success'?'✅':'❌'} {toast.msg}</div>}
 
-        {toast && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 ${toast.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{toast.type === 'success' ? '✅' : '❌'} {toast.msg}</div>}
+        <div className="mx-5 mt-4 p-3 rounded-xl flex items-center justify-between gap-3" style={{background:'rgba(37,99,235,0.06)',border:'1px solid rgba(37,99,235,0.2)'}}>
+          <div>
+            <p className="text-xs font-bold text-blue-700">🔄 Auto Rolling — setiap 2 minggu</p>
+            <p className="text-[10px] text-blue-500 mt-0.5">Jadwal lama tidak berubah. Perubahan hanya berlaku untuk minggu yg dipilih ke depan.</p>
+          </div>
+          <button onClick={()=>applyRolling()} className="flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{background:'linear-gradient(135deg,#2563eb,#1e40af)'}}>
+            Apply Rolling
+          </button>
+        </div>
 
-        <div className="p-5 max-h-[60vh] overflow-y-auto">
-          {loading ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin" /></div>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-xs text-gray-500 mb-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                💡 <span className="font-semibold">Informasi:</span> Jadwal yang sudah ada sebelumnya tidak akan berubah. Perubahan hanya berlaku untuk tanggal yang dipilih ke depan.
-                Sistem akan menggunakan pola rolling otomatis untuk tanggal yang belum diatur.
+        <div className="p-5 max-h-[58vh] overflow-y-auto space-y-4">
+          {loading?<div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/></div>:(
+            <>
+              {/* Column headers */}
+              <div className="grid grid-cols-[100px_1fr_1fr] gap-2">
+                <div/>
+                {[{wk:wk1,ws:weekStart},{wk:wk2,ws:week2Start}].map(({wk,ws})=>(
+                  <div key={wk} className="text-center py-1.5 rounded-lg text-[10px] font-bold" style={{background:'rgba(220,38,38,0.07)',color:'#dc2626',border:'1px solid rgba(220,38,38,0.2)'}}>
+                    📅 {fmtWk(ws)}
+                  </div>
+                ))}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-600">Tanggal</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-600">Hari</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-600">Team PTS (IVP)</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-600">Team PTS UMP</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-600">Team PTS MLDS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleDates.map((date, idx) => {
-                      const dateStr = toKey(date);
-                      const assign = assignments[dateStr] || { ivp: '', ump: '', mlds: '' };
-                      const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' });
-                      const dc = DAY_COLOR[dayName as DayOfWeek] || DAY_COLOR.Senin;
-                      const isPastDate = date < new Date(new Date().setHours(0, 0, 0, 0));
-
-                      return (
-                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50" style={{ opacity: isPastDate ? 0.6 : 1 }}>
-                          <td className="px-4 py-3 text-sm font-medium">{formatDate(date)}</td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-1 rounded text-xs font-bold text-white" style={{ background: dc.grad }}>{dayName}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={assign.ivp}
-                              onChange={(e) => setAssignments(prev => ({ ...prev, [dateStr]: { ...prev[dateStr], ivp: e.target.value } }))}
-                              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
-                              disabled={isPastDate}
-                            >
-                              <option value="">— Pilih PIC —</option>
-                              {getTeamUserOptions('Team PTS').map(u => (
-                                <option key={u.id} value={u.id}>{u.full_name}</option>
-                              ))}
+              {DAYS_OF_WEEK.map((day,dayIdx)=>{
+                const dc=DAY_COLOR[day];
+                return(
+                  <div key={day} className="grid grid-cols-[100px_1fr_1fr] gap-2 items-center">
+                    {/* Day label */}
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{background:dc.light}}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-black flex-shrink-0" style={{background:dc.grad}}>{DAY_EN[day]}</div>
+                      <span className="text-xs font-bold" style={{color:dc.accent}}>{day}</span>
+                    </div>
+                    {/* 2 week dropdowns */}
+                    {[{wk:wk1,ws:weekStart},{wk:wk2,ws:week2Start}].map(({wk,ws})=>{
+                      const date=getDayDate(ws,day);
+                      const u=users.find(x=>x.id===assign[wk]?.[day]);
+                      const tt=u?.team_type||'';
+                      const teamKey=tt==='Team PTS'?'PTS IVP':tt==='Team PTS UMP'?'PTS UMP':tt==='Team PTS MLDS'?'PTS MLDS':'';
+                      const tc=teamKey?TEAM_LABEL[teamKey]:null;
+                      return(
+                        <div key={wk} className="relative">
+                          {isToday(date)&&<span className="absolute -top-2 left-2 text-[8px] font-bold px-1 py-0.5 rounded text-white z-10" style={{background:dc.accent}}>TODAY</span>}
+                          <div className="flex items-center gap-1.5 p-1.5 rounded-xl border" style={{borderColor:`${dc.accent}25`,background:'white'}}>
+                            {tc&&<div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background:tc.dot}}/>}
+                            <select value={assign[wk]?.[day]||''} onChange={e=>setAssign(p=>({...p,[wk]:{...p[wk],[day]:e.target.value}}))}
+                              className="flex-1 text-[11px] outline-none bg-transparent min-w-0 py-1">
+                              <option value="">— Belum —</option>
+                              <optgroup label="Team PTS">
+                                {users.filter(u=>u.team_type==='Team PTS').map(u=><option key={u.id} value={u.id}>{u.full_name}</option>)}
+                              </optgroup>
+                              <optgroup label="Team PTS UMP">
+                                {users.filter(u=>u.team_type==='Team PTS UMP').map(u=><option key={u.id} value={u.id}>{u.full_name}</option>)}
+                              </optgroup>
+                              <optgroup label="Team PTS MLDS">
+                                {users.filter(u=>u.team_type==='Team PTS MLDS').map(u=><option key={u.id} value={u.id}>{u.full_name}</option>)}
+                              </optgroup>
                             </select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={assign.ump}
-                              onChange={(e) => setAssignments(prev => ({ ...prev, [dateStr]: { ...prev[dateStr], ump: e.target.value } }))}
-                              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
-                              disabled={isPastDate}
-                            >
-                              <option value="">— Pilih PIC —</option>
-                              {getTeamUserOptions('Team PTS UMP').map(u => (
-                                <option key={u.id} value={u.id}>{u.full_name}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={assign.mlds}
-                              onChange={(e) => setAssignments(prev => ({ ...prev, [dateStr]: { ...prev[dateStr], mlds: e.target.value } }))}
-                              className="w-full px-3 py-2 rounded-lg text-sm border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
-                              disabled={isPastDate}
-                            >
-                              <option value="">— Pilih PIC —</option>
-                              {getTeamUserOptions('Team PTS MLDS').map(u => (
-                                <option key={u.id} value={u.id}>{u.full_name}</option>
-                              ))}
-                            </select>
-                          </td>
-                        </tr>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
         <div className="px-5 pb-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-semibold text-sm" style={{ background: 'rgba(255,255,255,0.95)', color: '#64748b', border: '1px solid rgba(0,0,0,0.12)' }}>Batal</button>
-          <button onClick={handleSave} disabled={saving || loading} className="flex-1 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.35)' }}>
-            {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}💾 Simpan Perubahan
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-semibold text-sm" style={{background:'rgba(255,255,255,0.95)',color:'#64748b',border:'1px solid rgba(0,0,0,0.12)'}}>Batal</button>
+          <button onClick={handleSave} disabled={saving||loading} className="flex-1 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60" style={{background:'linear-gradient(135deg,#dc2626,#b91c1c)',boxShadow:'0 4px 14px rgba(220,38,38,0.35)'}}>
+            {saving&&<div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>}💾 Simpan 2 Minggu
           </button>
         </div>
       </div>
@@ -784,282 +657,299 @@ function ScheduleModal({ startDate, users, onClose, onSaved }: { startDate: Date
 
 // ─── Export Excel (XLSX) — sama gaya Ticketing ───────────────────────────────
 
-function exportToExcel(allRows: PiketRow[], kegiatanList: KegiatanEntry[]) {
-  const runExport = (XLSX: any) => {
-    const exportDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-    const sorted = [...allRows].sort((a, b) => a.day_date.localeCompare(b.day_date));
+function exportToExcel(allRows:PiketRow[], kegiatanList:KegiatanEntry[]) {
+  const runExport = (XLSX:any) => {
+    const exportDate = new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+    const sorted = [...allRows].sort((a,b)=>a.day_date.localeCompare(b.day_date));
 
-    const border = { top: { style: 'thin', color: { rgb: 'D1D5DB' } }, bottom: { style: 'thin', color: { rgb: 'D1D5DB' } }, left: { style: 'thin', color: { rgb: 'D1D5DB' } }, right: { style: 'thin', color: { rgb: 'D1D5DB' } } };
-    const boldBorder = { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } };
-    const hdrStyle = { font: { name: 'Arial', bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '991B1B' }, patternType: 'solid' }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: boldBorder };
-    const hdrBlue = { font: { name: 'Arial', bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E3A5F' }, patternType: 'solid' }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: boldBorder };
-    const secHdr = { font: { name: 'Arial', bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'DC2626' }, patternType: 'solid' }, alignment: { horizontal: 'center', vertical: 'center' }, border: boldBorder };
-    const secHdrGreen = { font: { name: 'Arial', bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '059669' }, patternType: 'solid' }, alignment: { horizontal: 'center', vertical: 'center' }, border: boldBorder };
-    const secHdrPurple = { font: { name: 'Arial', bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '7C3AED' }, patternType: 'solid' }, alignment: { horizontal: 'center', vertical: 'center' }, border: boldBorder };
-    const secHdrBlue2 = { font: { name: 'Arial', bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2563EB' }, patternType: 'solid' }, alignment: { horizontal: 'center', vertical: 'center' }, border: boldBorder };
-    const cellStyle = { font: { name: 'Arial', sz: 10 }, alignment: { vertical: 'center', wrapText: true }, border };
-    const altStyle = { ...cellStyle, fill: { fgColor: { rgb: 'FFF5F5' }, patternType: 'solid' } };
-    const titleStyle = { font: { name: 'Arial', bold: true, sz: 16, color: { rgb: '991B1B' } }, alignment: { horizontal: 'left', vertical: 'center' } };
-    const subTitleStyle = { font: { name: 'Arial', sz: 10, color: { rgb: '6B7280' } }, alignment: { horizontal: 'left', vertical: 'center' } };
-    const ctr = (v: any, s: any) => ({ v, s, t: typeof v === 'number' ? 'n' : 's' });
-    const cell = (v: any, s?: any) => ({ v, s: s || cellStyle, t: typeof v === 'number' ? 'n' : 's' });
-    const empty = (s?: any) => ({ v: '', s: s || cellStyle, t: 's' });
-    const row0 = (n: number, s?: any) => Array(n).fill(null).map(() => empty(s));
+    // ── Style definitions (same as ticketing) ──────────────────────────────
+    const border = {top:{style:'thin',color:{rgb:'D1D5DB'}},bottom:{style:'thin',color:{rgb:'D1D5DB'}},left:{style:'thin',color:{rgb:'D1D5DB'}},right:{style:'thin',color:{rgb:'D1D5DB'}}};
+    const boldBorder = {top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}};
+    const hdrStyle = {font:{name:'Arial',bold:true,sz:11,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'991B1B'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:boldBorder};
+    const hdrBlue = {font:{name:'Arial',bold:true,sz:11,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1E3A5F'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:boldBorder};
+    const secHdr = {font:{name:'Arial',bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'DC2626'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:boldBorder};
+    const secHdrGreen = {font:{name:'Arial',bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'059669'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:boldBorder};
+    const secHdrPurple = {font:{name:'Arial',bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'7C3AED'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:boldBorder};
+    const secHdrBlue2 = {font:{name:'Arial',bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'2563EB'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:boldBorder};
+    const cellStyle = {font:{name:'Arial',sz:10},alignment:{vertical:'center',wrapText:true},border};
+    const altStyle = {...cellStyle,fill:{fgColor:{rgb:'FFF5F5'},patternType:'solid'}};
+    const titleStyle = {font:{name:'Arial',bold:true,sz:16,color:{rgb:'991B1B'}},alignment:{horizontal:'left',vertical:'center'}};
+    const subTitleStyle = {font:{name:'Arial',sz:10,color:{rgb:'6B7280'}},alignment:{horizontal:'left',vertical:'center'}};
+    const ctr = (v:any,s:any) => ({v,s,t:typeof v==='number'?'n':'s'});
+    const cell = (v:any,s?:any) => ({v,s:s||cellStyle,t:typeof v==='number'?'n':'s'});
+    const empty = (s?:any) => ({v:'',s:s||cellStyle,t:'s'});
+    const row0 = (n:number,s?:any) => Array(n).fill(null).map(()=>empty(s));
 
-    const kgColorMap: Record<string, { bg: string; fg: string }> = {
-      'Demo Product': { bg: 'DBEAFE', fg: '1E40AF' },
-      'RnD': { bg: 'EDE9FE', fg: '6D28D9' },
-      'Maintenance': { bg: 'FEF3C7', fg: '92400E' },
-      'Shooting Markom': { bg: 'D1FAE5', fg: '065F46' },
+    // Warna per jenis kegiatan
+    const kgColorMap:Record<string,{bg:string;fg:string}> = {
+      'Demo Product'   :{bg:'DBEAFE',fg:'1E40AF'},
+      'RnD'            :{bg:'EDE9FE',fg:'6D28D9'},
+      'Maintenance'    :{bg:'FEF3C7',fg:'92400E'},
+      'Shooting Markom':{bg:'D1FAE5',fg:'065F46'},
     };
-    const kgStyle = (jenis: string, base: any = {}) => ({
-      ...base, ...cellStyle,
-      ...(kgColorMap[jenis] ? { font: { name: 'Arial', sz: 10, bold: true, color: { rgb: kgColorMap[jenis].fg } }, fill: { fgColor: { rgb: kgColorMap[jenis].bg }, patternType: 'solid' } } : {}),
+    const kgStyle=(jenis:string,base:any={})=>({
+      ...base,...cellStyle,
+      ...(kgColorMap[jenis]?{font:{name:'Arial',sz:10,bold:true,color:{rgb:kgColorMap[jenis].fg}},fill:{fgColor:{rgb:kgColorMap[jenis].bg},patternType:'solid'}}:{}),
     });
 
-    const picStyle = (team: string, base: any = {}) => {
-      const colors: Record<string, { bg: string; fg: string }> = { 'PTS IVP': { bg: 'FEE2E2', fg: '991B1B' }, 'PTS UMP': { bg: 'DBEAFE', fg: '1E3A5F' }, 'PTS MLDS': { bg: 'EDE9FE', fg: '6D28D9' } };
-      const c = colors[team] || { bg: 'F3F4F6', fg: '374151' };
-      return { ...base, ...cellStyle, font: { name: 'Arial', sz: 9, bold: true, color: { rgb: c.fg } }, fill: { fgColor: { rgb: c.bg }, patternType: 'solid' } };
+    // PIC team color
+    const picStyle=(team:string,base:any={})=>{
+      const colors:Record<string,{bg:string;fg:string}> = {'PTS IVP':{bg:'FEE2E2',fg:'991B1B'},'PTS UMP':{bg:'DBEAFE',fg:'1E3A5F'},'PTS MLDS':{bg:'EDE9FE',fg:'6D28D9'}};
+      const c=colors[team]||{bg:'F3F4F6',fg:'374151'};
+      return{...base,...cellStyle,font:{name:'Arial',sz:9,bold:true,color:{rgb:c.fg}},fill:{fgColor:{rgb:c.bg},patternType:'solid'}};
     };
 
     const wb = XLSX.utils.book_new();
 
-    // SHEET 1 — Dashboard
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 1 — 📊 Dashboard
+    // ════════════════════════════════════════════════════════════════════════
     {
       const COLS = 6;
       const totalHari = sorted.length;
       const totalKegiatan = kegiatanList.length;
-      const totalDemo = kegiatanList.filter(k => k.jenis_kegiatan === 'Demo Product' && k.tamu_instansi).length;
-      const totalRnD = kegiatanList.filter(k => k.jenis_kegiatan === 'RnD').length;
-      const totalMaint = kegiatanList.filter(k => k.jenis_kegiatan === 'Maintenance').length;
-      const totalShoot = kegiatanList.filter(k => k.jenis_kegiatan === 'Shooting Markom').length;
+      const totalDemo = kegiatanList.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi).length;
+      const totalRnD = kegiatanList.filter(k=>k.jenis_kegiatan==='RnD').length;
+      const totalMaint = kegiatanList.filter(k=>k.jenis_kegiatan==='Maintenance').length;
+      const totalShoot = kegiatanList.filter(k=>k.jenis_kegiatan==='Shooting Markom').length;
 
-      const data: any[][] = [
-        [cell('📊 PIKET SHOWROOM — DASHBOARD REPORT', titleStyle), ...row0(COLS - 1, titleStyle)],
-        [cell(`Tanggal Export: ${exportDate}`, subTitleStyle), ...row0(COLS - 1)],
+      const data:any[][] = [
+        [cell('📊 PIKET SHOWROOM — DASHBOARD REPORT',titleStyle),...row0(COLS-1,titleStyle)],
+        [cell(`Tanggal Export: ${exportDate}`,subTitleStyle),...row0(COLS-1)],
         row0(COLS),
-        [ctr('RINGKASAN STATISTIK', secHdr), ...row0(COLS - 1, secHdr)],
-        [ctr('Kategori', hdrStyle), ctr('Jumlah', hdrStyle), ctr('Persentase', hdrStyle), ctr('', hdrStyle), ctr('', hdrStyle), ctr('', hdrStyle)],
+        // ── Ringkasan ──
+        [ctr('RINGKASAN STATISTIK',secHdr),...row0(COLS-1,secHdr)],
+        [ctr('Kategori',hdrStyle),ctr('Jumlah',hdrStyle),ctr('Persentase',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle)],
       ];
       const stats = [
-        { label: 'Total Hari Piket', val: totalHari, fg: '1E3A5F' },
-        { label: 'Total Kegiatan', val: totalKegiatan, fg: 'DC2626' },
-        { label: 'Demo Product', val: totalDemo, fg: '1E40AF' },
-        { label: 'RnD', val: totalRnD, fg: '6D28D9' },
-        { label: 'Maintenance', val: totalMaint, fg: '92400E' },
-        { label: 'Shooting Markom', val: totalShoot, fg: '065F46' },
+        {label:'Total Hari Piket',  val:totalHari,   fg:'1E3A5F'},
+        {label:'Total Kegiatan',     val:totalKegiatan,fg:'DC2626'},
+        {label:'Demo Product',       val:totalDemo,   fg:'1E40AF'},
+        {label:'RnD',                val:totalRnD,    fg:'6D28D9'},
+        {label:'Maintenance',        val:totalMaint,  fg:'92400E'},
+        {label:'Shooting Markom',    val:totalShoot,  fg:'065F46'},
       ];
-      stats.forEach((s, i) => {
-        const pct = totalKegiatan > 0 ? ((s.val / totalKegiatan) * 100).toFixed(1) + '%' : '0%';
-        const rs = i % 2 === 0 ? cellStyle : altStyle;
+      stats.forEach((s,i)=>{
+        const pct = totalKegiatan>0?((s.val/totalKegiatan)*100).toFixed(1)+'%':'0%';
+        const rs = i%2===0?cellStyle:altStyle;
         data.push([
-          cell(s.label, { ...rs, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: s.fg } } }),
-          ctr(s.val, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
-          ctr(pct, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
-          empty(), empty(), empty(),
+          cell(s.label,{...rs,font:{name:'Arial',sz:10,bold:true,color:{rgb:s.fg}}}),
+          ctr(s.val,{...rs,alignment:{horizontal:'center',vertical:'center'}}),
+          ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),
+          empty(),empty(),empty(),
         ]);
       });
 
       data.push(row0(COLS));
 
-      const instansiMap: Record<string, number> = {};
-      kegiatanList.filter(k => k.tamu_instansi).forEach(k => { instansiMap[k.tamu_instansi!] = (instansiMap[k.tamu_instansi!] || 0) + 1; });
-      const instansiArr = Object.entries(instansiMap).sort(([, a], [, b]) => b - a);
-      if (instansiArr.length > 0) {
-        data.push([ctr('TAMU INSTANSI', secHdrBlue2), ...row0(COLS - 1, secHdrBlue2)]);
-        data.push([ctr('Instansi', hdrBlue), ctr('Jumlah Demo', hdrBlue), ctr('Persentase', hdrBlue), ctr('', hdrBlue), ctr('', hdrBlue), ctr('', hdrBlue)]);
-        instansiArr.forEach(([inst, cnt], i) => {
-          const pct = totalDemo > 0 ? ((cnt / totalDemo) * 100).toFixed(1) + '%' : '0%';
-          const rs = i % 2 === 0 ? cellStyle : altStyle;
-          data.push([cell(inst, rs), ctr(cnt, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }), ctr(pct, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }), empty(), empty(), empty()]);
+      // ── Statistik per Instansi ──
+      const instansiMap:Record<string,number>={};
+      kegiatanList.filter(k=>k.tamu_instansi).forEach(k=>{instansiMap[k.tamu_instansi!]=(instansiMap[k.tamu_instansi!]||0)+1;});
+      const instansiArr = Object.entries(instansiMap).sort(([,a],[,b])=>b-a);
+      if(instansiArr.length>0){
+        data.push([ctr('TAMU INSTANSI',secHdrBlue2),...row0(COLS-1,secHdrBlue2)]);
+        data.push([ctr('Instansi',hdrBlue),ctr('Jumlah Demo',hdrBlue),ctr('Persentase',hdrBlue),ctr('',hdrBlue),ctr('',hdrBlue),ctr('',hdrBlue)]);
+        instansiArr.forEach(([inst,cnt],i)=>{
+          const pct = totalDemo>0?((cnt/totalDemo)*100).toFixed(1)+'%':'0%';
+          const rs = i%2===0?cellStyle:altStyle;
+          data.push([cell(inst,rs),ctr(cnt,{...rs,alignment:{horizontal:'center',vertical:'center'}}),ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),empty(),empty(),empty()]);
         });
         data.push(row0(COLS));
       }
 
-      const picMap: Record<string, number> = {};
-      sorted.forEach(r => {
-        const names = [r.pic_ivp_name, r.pic_ump_name, r.pic_mlds_name].filter(Boolean) as string[];
-        names.forEach(n => { picMap[n] = (picMap[n] || 0) + 1; });
+      // ── Statistik PIC ──
+      const picMap:Record<string,number>={};
+      sorted.forEach(r=>{
+        const names=[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[];
+        names.forEach(n=>{picMap[n]=(picMap[n]||0)+1;});
       });
-      const picArr = Object.entries(picMap).sort(([, a], [, b]) => b - a);
-      if (picArr.length > 0) {
-        data.push([ctr('STATISTIK PIC PIKET', secHdrGreen), ...row0(COLS - 1, secHdrGreen)]);
-        data.push([ctr('Nama PIC', hdrStyle), ctr('Total Hari Piket', hdrStyle), ctr('Persentase', hdrStyle), ctr('', hdrStyle), ctr('', hdrStyle), ctr('', hdrStyle)]);
-        picArr.forEach(([name, cnt], i) => {
-          const pct = totalHari > 0 ? ((cnt / totalHari) * 100).toFixed(1) + '%' : '0%';
-          const rs = i % 2 === 0 ? cellStyle : altStyle;
-          data.push([cell(name, rs), ctr(cnt, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }), ctr(pct, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }), empty(), empty(), empty()]);
+      const picArr = Object.entries(picMap).sort(([,a],[,b])=>b-a);
+      if(picArr.length>0){
+        data.push([ctr('STATISTIK PIC PIKET',secHdrGreen),...row0(COLS-1,secHdrGreen)]);
+        data.push([ctr('Nama PIC',hdrStyle),ctr('Total Hari Piket',hdrStyle),ctr('Persentase',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle)]);
+        picArr.forEach(([name,cnt],i)=>{
+          const pct = totalHari>0?((cnt/totalHari)*100).toFixed(1)+'%':'0%';
+          const rs = i%2===0?cellStyle:altStyle;
+          data.push([cell(name,rs),ctr(cnt,{...rs,alignment:{horizontal:'center',vertical:'center'}}),ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),empty(),empty(),empty()]);
         });
         data.push(row0(COLS));
       }
 
-      const kbtMap: Record<string, number> = {};
-      kegiatanList.forEach(k => (k.kebutuhan || []).forEach(kb => { kbtMap[kb] = (kbtMap[kb] || 0) + 1; }));
-      const kbtArr = Object.entries(kbtMap).sort(([, a], [, b]) => b - a);
-      if (kbtArr.length > 0) {
-        data.push([ctr('KEBUTUHAN TERBANYAK', secHdrPurple), ...row0(COLS - 1, secHdrPurple)]);
-        data.push([ctr('Kebutuhan', hdrStyle), ctr('Jumlah', hdrStyle), ctr('Persentase', hdrStyle), ctr('', hdrStyle), ctr('', hdrStyle), ctr('', hdrStyle)]);
-        kbtArr.slice(0, 10).forEach(([kb, cnt], i) => {
-          const pct = totalDemo > 0 ? ((cnt / totalDemo) * 100).toFixed(1) + '%' : '0%';
-          const rs = i % 2 === 0 ? cellStyle : altStyle;
-          data.push([cell(kb, rs), ctr(cnt, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }), ctr(pct, { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }), empty(), empty(), empty()]);
+      // ── Statistik Kebutuhan ──
+      const kbtMap:Record<string,number>={};
+      kegiatanList.forEach(k=>(k.kebutuhan||[]).forEach(kb=>{kbtMap[kb]=(kbtMap[kb]||0)+1;}));
+      const kbtArr = Object.entries(kbtMap).sort(([,a],[,b])=>b-a);
+      if(kbtArr.length>0){
+        data.push([ctr('KEBUTUHAN TERBANYAK',secHdrPurple),...row0(COLS-1,secHdrPurple)]);
+        data.push([ctr('Kebutuhan',hdrStyle),ctr('Jumlah',hdrStyle),ctr('Persentase',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle)]);
+        kbtArr.slice(0,10).forEach(([kb,cnt],i)=>{
+          const pct = totalDemo>0?((cnt/totalDemo)*100).toFixed(1)+'%':'0%';
+          const rs = i%2===0?cellStyle:altStyle;
+          data.push([cell(kb,rs),ctr(cnt,{...rs,alignment:{horizontal:'center',vertical:'center'}}),ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),empty(),empty(),empty()]);
         });
       }
 
       const ws = XLSX.utils.aoa_to_sheet(data);
-      const merges: any[] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
-        { s: { r: 3, c: 0 }, e: { r: 3, c: COLS - 1 } },
+      // Merges: title row, subtitle row, section headers
+      const merges:any[]=[
+        {s:{r:0,c:0},e:{r:0,c:COLS-1}},
+        {s:{r:1,c:0},e:{r:1,c:COLS-1}},
+        {s:{r:3,c:0},e:{r:3,c:COLS-1}},
       ];
-      let ri = 5 + stats.length + 1;
-      if (instansiArr.length > 0) { merges.push({ s: { r: ri, c: 0 }, e: { r: ri, c: COLS - 1 } }); ri += instansiArr.length + 2; }
-      if (picArr.length > 0) { merges.push({ s: { r: ri, c: 0 }, e: { r: ri, c: COLS - 1 } }); ri += picArr.length + 2; }
-      if (kbtArr.length > 0) { merges.push({ s: { r: ri, c: 0 }, e: { r: ri, c: COLS - 1 } }); }
-      ws['!merges'] = merges;
-      ws['!cols'] = [{ wch: 32 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
-      ws['!rows'] = [{ hpt: 34 }, { hpt: 18 }, { hpt: 8 }, { hpt: 24 }];
-      XLSX.utils.book_append_sheet(wb, ws, '📊 Dashboard');
+      // Auto-merge section header rows
+      let ri=5+stats.length+1;
+      if(instansiArr.length>0){merges.push({s:{r:ri,c:0},e:{r:ri,c:COLS-1}});ri+=instansiArr.length+2;}
+      if(picArr.length>0){merges.push({s:{r:ri,c:0},e:{r:ri,c:COLS-1}});ri+=picArr.length+2;}
+      if(kbtArr.length>0){merges.push({s:{r:ri,c:0},e:{r:ri,c:COLS-1}});}
+      ws['!merges']=merges;
+      ws['!cols']=[{wch:32},{wch:16},{wch:14},{wch:16},{wch:16},{wch:16}];
+      ws['!rows']=[{hpt:34},{hpt:18},{hpt:8},{hpt:24}];
+      XLSX.utils.book_append_sheet(wb,ws,'📊 Dashboard');
     }
 
-    // SHEET 2 — Jadwal Piket (hanya Senin-Jumat)
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 2 — 📋 Jadwal Piket
+    // ════════════════════════════════════════════════════════════════════════
     {
-      const weekdaysOnly = sorted.filter(r => DAYS_OF_WEEK.includes(r.day_of_week as DayOfWeek));
-      const headers = ['No.', 'Tanggal', 'Hari', 'PIC', 'Team PIC', 'Jenis Kegiatan', 'Jam Mulai', 'Jam Selesai', 'Produk', 'Tamu Instansi', 'Nama Sales', 'Division Sales', 'Kebutuhan', 'Keterangan'];
-      const COLS = headers.length;
-      const data: any[][] = [
-        [cell('📋 DATA JADWAL PIKET SHOWROOM', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '991B1B' } } }), ...row0(COLS - 1)],
-        [cell(`Total: ${weekdaysOnly.length} hari piket · ${kegiatanList.length} kegiatan · Export: ${exportDate}`, subTitleStyle), ...row0(COLS - 1)],
+      const headers=['No.','Tanggal','Hari','PIC','Team PIC','Jenis Kegiatan','Jam Mulai','Jam Selesai','Produk','Tamu Instansi','Nama Sales','Division Sales','Kebutuhan','Keterangan'];
+      const COLS=headers.length;
+      const data:any[][]=[
+        [cell('📋 DATA JADWAL PIKET SHOWROOM',{...titleStyle,font:{name:'Arial',bold:true,sz:14,color:{rgb:'991B1B'}}}),...row0(COLS-1)],
+        [cell(`Total: ${sorted.length} hari piket · ${kegiatanList.length} kegiatan · Export: ${exportDate}`,subTitleStyle),...row0(COLS-1)],
         row0(COLS),
-        headers.map(h => ctr(h, hdrStyle)),
+        headers.map(h=>ctr(h,hdrStyle)),
       ];
-      let rowIdx = 0;
-      weekdaysOnly.forEach(piket => {
-        const kgs = kegiatanList.filter(k => k.piket_id === piket.id);
-        const toR = kgs.length > 0 ? kgs : [null];
-        const dateObj = new Date(piket.day_date + 'T00:00:00');
-        const dateStr = dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-        const picNames = [piket.pic_ivp_name, piket.pic_ump_name, piket.pic_mlds_name].filter(Boolean).join(' / ') || '-';
-        const picTeams = [piket.pic_ivp_name ? 'PTS IVP' : '', piket.pic_ump_name ? 'PTS UMP' : '', piket.pic_mlds_name ? 'PTS MLDS' : ''].filter(Boolean).join(' / ') || '-';
-        const teamKey = piket.pic_ivp_name ? 'PTS IVP' : piket.pic_ump_name ? 'PTS UMP' : 'PTS MLDS';
-        toR.forEach((kg, ki) => {
-          const rs = rowIdx % 2 === 0 ? cellStyle : altStyle;
-          const ctrStyle = { ...rs, alignment: { horizontal: 'center', vertical: 'center' } };
+      let rowIdx=0;
+      sorted.forEach(piket=>{
+        const kgs=kegiatanList.filter(k=>k.piket_id===piket.id);
+        const toR=kgs.length>0?kgs:[null];
+        const dateObj=new Date(piket.day_date+'T00:00:00');
+        const dateStr=dateObj.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+        const picNames=[piket.pic_ivp_name,piket.pic_ump_name,piket.pic_mlds_name].filter(Boolean).join(' / ')||'-';
+        const picTeams=[piket.pic_ivp_name?'PTS IVP':'',piket.pic_ump_name?'PTS UMP':'',piket.pic_mlds_name?'PTS MLDS':''].filter(Boolean).join(' / ')||'-';
+        const teamKey=piket.pic_ivp_name?'PTS IVP':piket.pic_ump_name?'PTS UMP':'PTS MLDS';
+        toR.forEach((kg,ki)=>{
+          const rs = rowIdx%2===0?cellStyle:altStyle;
+          const ctrStyle = {...rs,alignment:{horizontal:'center',vertical:'center'}};
           data.push([
-            ctr(rowIdx + 1, ctrStyle),
-            cell(dateStr, rs),
-            cell(piket.day_of_week, { ...rs, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '991B1B' } } }),
-            cell(picNames, picStyle(teamKey, rs)),
-            cell(picTeams, { ...rs, font: { name: 'Arial', sz: 9, color: { rgb: '6B7280' } } }),
-            kg ? cell(kg.jenis_kegiatan, kgStyle(kg.jenis_kegiatan)) : cell('-', rs),
-            kg?.jam_mulai ? ctr(kg.jam_mulai, ctrStyle) : cell('-', rs),
-            kg?.jam_selesai ? ctr(kg.jam_selesai, ctrStyle) : cell('-', rs),
-            cell(kg?.produk?.join(', ') || '-', rs),
-            cell(kg?.tamu_instansi || '-', rs),
-            cell(kg?.nama_sales || '-', rs),
-            cell(kg?.sales_division || '-', rs),
-            cell(kg?.kebutuhan?.join(', ') || '-', rs),
-            cell(kg?.keterangan || '-', { ...rs, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } }),
+            ctr(rowIdx+1,ctrStyle),
+            cell(dateStr,rs),
+            cell(piket.day_of_week,{...rs,font:{name:'Arial',sz:10,bold:true,color:{rgb:'991B1B'}}}),
+            cell(picNames,picStyle(teamKey,rs)),
+            cell(picTeams,{...rs,font:{name:'Arial',sz:9,color:{rgb:'6B7280'}}}),
+            kg ? cell(kg.jenis_kegiatan,kgStyle(kg.jenis_kegiatan)) : cell('-',rs),
+            kg?.jam_mulai ? ctr(kg.jam_mulai,ctrStyle) : cell('-',rs),
+            kg?.jam_selesai ? ctr(kg.jam_selesai,ctrStyle) : cell('-',rs),
+            cell(kg?.produk?.join(', ')||'-',rs),
+            cell(kg?.tamu_instansi||'-',rs),
+            cell(kg?.nama_sales||'-',rs),
+            cell(kg?.sales_division||'-',rs),
+            cell(kg?.kebutuhan?.join(', ')||'-',rs),
+            cell(kg?.keterangan||'-',{...rs,alignment:{horizontal:'left',vertical:'center',wrapText:true}}),
           ]);
           rowIdx++;
         });
       });
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } }];
-      ws['!cols'] = [{ wch: 5 }, { wch: 24 }, { wch: 10 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 26 }, { wch: 26 }, { wch: 20 }, { wch: 14 }, { wch: 32 }, { wch: 36 }];
-      ws['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 8 }, { hpt: 32 }];
-      XLSX.utils.book_append_sheet(wb, ws, '📋 Jadwal Piket');
+      const ws=XLSX.utils.aoa_to_sheet(data);
+      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:COLS-1}},{s:{r:1,c:0},e:{r:1,c:COLS-1}}];
+      ws['!cols']=[{wch:5},{wch:24},{wch:10},{wch:22},{wch:14},{wch:18},{wch:10},{wch:10},{wch:26},{wch:26},{wch:20},{wch:14},{wch:32},{wch:36}];
+      ws['!rows']=[{hpt:28},{hpt:18},{hpt:8},{hpt:32}];
+      XLSX.utils.book_append_sheet(wb,ws,'📋 Jadwal Piket');
     }
 
-    // SHEET 3 — Demo Product
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 3 — 🏢 Demo Product
+    // ════════════════════════════════════════════════════════════════════════
     {
-      const demoKg = kegiatanList.filter(k => k.jenis_kegiatan === 'Demo Product' && k.tamu_instansi);
-      const headers = ['No.', 'Tanggal', 'Hari', 'PIC', 'Tamu Instansi', 'Nama Sales', 'Division', 'Produk', 'Kebutuhan'];
-      const COLS = headers.length;
-      const data: any[][] = [
-        [cell('🏢 DATA DEMO PRODUCT — PIKET SHOWROOM', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '1E40AF' } } }), ...row0(COLS - 1)],
-        [cell(`Total Demo: ${demoKg.length} · Export: ${exportDate}`, subTitleStyle), ...row0(COLS - 1)],
+      const demoKg=kegiatanList.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi);
+      const headers=['No.','Tanggal','Hari','PIC','Tamu Instansi','Nama Sales','Division','Produk','Kebutuhan'];
+      const COLS=headers.length;
+      const data:any[][]=[
+        [cell('🏢 DATA DEMO PRODUCT — PIKET SHOWROOM',{...titleStyle,font:{name:'Arial',bold:true,sz:14,color:{rgb:'1E40AF'}}}),...row0(COLS-1)],
+        [cell(`Total Demo: ${demoKg.length} · Export: ${exportDate}`,subTitleStyle),...row0(COLS-1)],
         row0(COLS),
-        headers.map(h => ctr(h, hdrBlue)),
+        headers.map(h=>ctr(h,hdrBlue)),
       ];
-      const piketMap: Record<string, PiketRow> = {};
-      sorted.forEach(r => { piketMap[r.id] = r; });
-      demoKg.forEach((kg, i) => {
-        const piket = piketMap[kg.piket_id];
-        if (!piket) return;
-        const rs = i % 2 === 0 ? cellStyle : altStyle;
-        const ctrStyle = { ...rs, alignment: { horizontal: 'center', vertical: 'center' } };
-        const dateStr = new Date(piket.day_date + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-        const picNames = [piket.pic_ivp_name, piket.pic_ump_name, piket.pic_mlds_name].filter(Boolean).join(' / ') || '-';
+      // Build piket map
+      const piketMap:Record<string,PiketRow>={};
+      sorted.forEach(r=>{piketMap[r.id]=r;});
+      demoKg.forEach((kg,i)=>{
+        const piket=piketMap[kg.piket_id];
+        if(!piket)return;
+        const rs=i%2===0?cellStyle:altStyle;
+        const ctrStyle={...rs,alignment:{horizontal:'center',vertical:'center'}};
+        const dateStr=new Date(piket.day_date+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+        const picNames=[piket.pic_ivp_name,piket.pic_ump_name,piket.pic_mlds_name].filter(Boolean).join(' / ')||'-';
         data.push([
-          ctr(i + 1, ctrStyle),
-          cell(dateStr, rs),
-          cell(piket.day_of_week, { ...rs, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '991B1B' } } }),
-          cell(picNames, rs),
-          cell(kg.tamu_instansi || '-', { ...rs, font: { name: 'Arial', sz: 10, bold: true } }),
-          cell(kg.nama_sales || '-', rs),
-          cell(kg.sales_division || '-', { ...rs, alignment: { horizontal: 'center', vertical: 'center' } }),
-          cell(kg.produk?.join(', ') || '-', rs),
-          cell(kg.kebutuhan?.join(', ') || '-', rs),
+          ctr(i+1,ctrStyle),
+          cell(dateStr,rs),
+          cell(piket.day_of_week,{...rs,font:{name:'Arial',sz:10,bold:true,color:{rgb:'991B1B'}}}),
+          cell(picNames,rs),
+          cell(kg.tamu_instansi||'-',{...rs,font:{name:'Arial',sz:10,bold:true}}),
+          cell(kg.nama_sales||'-',rs),
+          cell(kg.sales_division||'-',{...rs,alignment:{horizontal:'center',vertical:'center'}}),
+          cell(kg.produk?.join(', ')||'-',rs),
+          cell(kg.kebutuhan?.join(', ')||'-',rs),
         ]);
       });
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } }];
-      ws['!cols'] = [{ wch: 5 }, { wch: 24 }, { wch: 10 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 14 }, { wch: 26 }, { wch: 36 }];
-      ws['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 8 }, { hpt: 32 }];
-      XLSX.utils.book_append_sheet(wb, ws, '🏢 Demo Product');
+      const ws=XLSX.utils.aoa_to_sheet(data);
+      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:COLS-1}},{s:{r:1,c:0},e:{r:1,c:COLS-1}}];
+      ws['!cols']=[{wch:5},{wch:24},{wch:10},{wch:22},{wch:28},{wch:20},{wch:14},{wch:26},{wch:36}];
+      ws['!rows']=[{hpt:28},{hpt:18},{hpt:8},{hpt:32}];
+      XLSX.utils.book_append_sheet(wb,ws,'🏢 Demo Product');
     }
 
-    // SHEET 4 — Kegiatan Lain
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 4 — 🔧 Kegiatan Lain (RnD, Maintenance, Shooting)
+    // ════════════════════════════════════════════════════════════════════════
     {
-      const lainKg = kegiatanList.filter(k => k.jenis_kegiatan !== 'Demo Product');
-      const headers = ['No.', 'Tanggal', 'Hari', 'PIC', 'Jenis Kegiatan', 'Jam Mulai', 'Jam Selesai', 'Produk', 'Keterangan'];
-      const COLS = headers.length;
-      const data: any[][] = [
-        [cell('🔧 KEGIATAN LAIN — RnD / MAINTENANCE / SHOOTING MARKOM', { ...titleStyle, font: { name: 'Arial', bold: true, sz: 14, color: { rgb: '7C3AED' } } }), ...row0(COLS - 1)],
-        [cell(`Total: ${lainKg.length} kegiatan · Export: ${exportDate}`, subTitleStyle), ...row0(COLS - 1)],
+      const lainKg=kegiatanList.filter(k=>k.jenis_kegiatan!=='Demo Product');
+      const headers=['No.','Tanggal','Hari','PIC','Jenis Kegiatan','Jam Mulai','Jam Selesai','Produk','Keterangan'];
+      const COLS=headers.length;
+      const data:any[][]=[
+        [cell('🔧 KEGIATAN LAIN — RnD / MAINTENANCE / SHOOTING MARKOM',{...titleStyle,font:{name:'Arial',bold:true,sz:14,color:{rgb:'7C3AED'}}}),...row0(COLS-1)],
+        [cell(`Total: ${lainKg.length} kegiatan · Export: ${exportDate}`,subTitleStyle),...row0(COLS-1)],
         row0(COLS),
-        headers.map(h => ctr(h, { ...hdrStyle, fill: { fgColor: { rgb: '7C3AED' }, patternType: 'solid' } })),
+        headers.map(h=>ctr(h,{...hdrStyle,fill:{fgColor:{rgb:'7C3AED'},patternType:'solid'}})),
       ];
-      const piketMap: Record<string, PiketRow> = {};
-      sorted.forEach(r => { piketMap[r.id] = r; });
-      lainKg.forEach((kg, i) => {
-        const piket = piketMap[kg.piket_id];
-        if (!piket) return;
-        const rs = i % 2 === 0 ? cellStyle : altStyle;
-        const ctrStyle = { ...rs, alignment: { horizontal: 'center', vertical: 'center' } };
-        const dateStr = new Date(piket.day_date + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-        const picNames = [piket.pic_ivp_name, piket.pic_ump_name, piket.pic_mlds_name].filter(Boolean).join(' / ') || '-';
+      const piketMap:Record<string,PiketRow>={};
+      sorted.forEach(r=>{piketMap[r.id]=r;});
+      lainKg.forEach((kg,i)=>{
+        const piket=piketMap[kg.piket_id];
+        if(!piket)return;
+        const rs=i%2===0?cellStyle:altStyle;
+        const ctrStyle={...rs,alignment:{horizontal:'center',vertical:'center'}};
+        const dateStr=new Date(piket.day_date+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+        const picNames=[piket.pic_ivp_name,piket.pic_ump_name,piket.pic_mlds_name].filter(Boolean).join(' / ')||'-';
         data.push([
-          ctr(i + 1, ctrStyle),
-          cell(dateStr, rs),
-          cell(piket.day_of_week, { ...rs, font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '991B1B' } } }),
-          cell(picNames, rs),
-          cell(kg.jenis_kegiatan, kgStyle(kg.jenis_kegiatan)),
-          kg.jam_mulai ? ctr(kg.jam_mulai, ctrStyle) : cell('-', rs),
-          kg.jam_selesai ? ctr(kg.jam_selesai, ctrStyle) : cell('-', rs),
-          cell(kg.produk?.join(', ') || '-', rs),
-          cell(kg.keterangan || '-', { ...rs, alignment: { horizontal: 'left', vertical: 'center', wrapText: true } }),
+          ctr(i+1,ctrStyle),
+          cell(dateStr,rs),
+          cell(piket.day_of_week,{...rs,font:{name:'Arial',sz:10,bold:true,color:{rgb:'991B1B'}}}),
+          cell(picNames,rs),
+          cell(kg.jenis_kegiatan,kgStyle(kg.jenis_kegiatan)),
+          kg.jam_mulai?ctr(kg.jam_mulai,ctrStyle):cell('-',rs),
+          kg.jam_selesai?ctr(kg.jam_selesai,ctrStyle):cell('-',rs),
+          cell(kg.produk?.join(', ')||'-',rs),
+          cell(kg.keterangan||'-',{...rs,alignment:{horizontal:'left',vertical:'center',wrapText:true}}),
         ]);
       });
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } }];
-      ws['!cols'] = [{ wch: 5 }, { wch: 24 }, { wch: 10 }, { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 26 }, { wch: 44 }];
-      ws['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 8 }, { hpt: 32 }];
-      XLSX.utils.book_append_sheet(wb, ws, '🔧 Kegiatan Lain');
+      const ws=XLSX.utils.aoa_to_sheet(data);
+      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:COLS-1}},{s:{r:1,c:0},e:{r:1,c:COLS-1}}];
+      ws['!cols']=[{wch:5},{wch:24},{wch:10},{wch:22},{wch:18},{wch:10},{wch:10},{wch:26},{wch:44}];
+      ws['!rows']=[{hpt:28},{hpt:18},{hpt:8},{hpt:32}];
+      XLSX.utils.book_append_sheet(wb,ws,'🔧 Kegiatan Lain');
     }
 
-    const fileName = `Piket_Showroom_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, fileName, { bookType: 'xlsx', type: 'binary', cellStyles: true });
+    const fileName=`Piket_Showroom_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb,fileName,{bookType:'xlsx',type:'binary',cellStyles:true});
   };
 
-  if ((window as any).XLSX) runExport((window as any).XLSX);
+  if((window as any).XLSX) runExport((window as any).XLSX);
   else {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.onload = () => runExport((window as any).XLSX);
-    script.onerror = () => alert('Gagal memuat library Excel. Coba lagi atau periksa koneksi internet.');
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload=()=>runExport((window as any).XLSX);
+    script.onerror=()=>alert('Gagal memuat library Excel. Coba lagi atau periksa koneksi internet.');
     document.head.appendChild(script);
   }
 }
@@ -1067,155 +957,99 @@ function exportToExcel(allRows: PiketRow[], kegiatanList: KegiatanEntry[]) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PiketShowroomPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [displayStartDate, setDisplayStartDate] = useState<Date>(() => getMonday(new Date()));
-  const [rows, setRows] = useState<PiketRow[]>([]);
-  const [allRows, setAllRows] = useState<PiketRow[]>([]);
-  const [kegiatanList, setKegiatanList] = useState<KegiatanEntry[]>([]);
-  const [ptUsers, setPtUsers] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [fillDetail, setFillDetail] = useState<PiketRow | null>(null);
-  const [search, setSearch] = useState('');
-  const [filterDay, setFilterDay] = useState<DayOfWeek | ''>('');
-  const [filterTamu, setFilterTamu] = useState(false);
-  const [filterKebutuhan, setFilterKebutuhan] = useState<string | null>(null);
-  const [filterInstansi, setFilterInstansi] = useState<string | null>(null);
-  const [filterDivision, setFilterDivision] = useState<string | null>(null);
-  const [filterKegiatan, setFilterKegiatan] = useState<string | null>(null);
+  const [currentUser,setCurrentUser]=useState<any>(null);
+  const [weekStart,setWeekStart]=useState<Date>(()=>getMonday(new Date()));
+  const [rows,setRows]=useState<PiketRow[]>([]);
+  const [allRows,setAllRows]=useState<PiketRow[]>([]);
+  const [kegiatanList,setKegiatanList]=useState<KegiatanEntry[]>([]);
+  const [ptUsers,setPtUsers]=useState<UserRow[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [showSchedule,setShowSchedule]=useState(false);
+  const [showCalendar,setShowCalendar]=useState(false);
+  const [fillDetail,setFillDetail]=useState<PiketRow|null>(null);
+  const [search,setSearch]=useState('');
+  const [filterDay,setFilterDay]=useState<DayOfWeek|''>('');
+  const [filterTamu,setFilterTamu]=useState(false);
+  const [filterKebutuhan,setFilterKebutuhan]=useState<string|null>(null);
+  const [filterInstansi,setFilterInstansi]=useState<string|null>(null);
+  const [filterDivision,setFilterDivision]=useState<string|null>(null);
+  const [filterKegiatan,setFilterKegiatan]=useState<string|null>(null);
+  const wk=toKey(weekStart);
 
-  useEffect(() => { try { const s = localStorage.getItem('currentUser'); if (s) setCurrentUser(JSON.parse(s)); } catch { } });
-  const isAdmin = currentUser && ['admin', 'superadmin'].includes(currentUser.role?.toLowerCase() || '');
+  useEffect(()=>{try{const s=localStorage.getItem('currentUser');if(s)setCurrentUser(JSON.parse(s));}catch{}});
+  const isAdmin=currentUser&&['admin','superadmin'].includes(currentUser.role?.toLowerCase()||'');
 
-  // Fetch data for display 2 weeks (Senin-Jumat only)
-  const fetchDisplayData = useCallback(async () => {
+  const fetchData=useCallback(async()=>{
     setLoading(true);
-    const startDate = displayStartDate;
-    const endDate = addDays(startDate, 13); // 2 weeks including weekends for DB query
-
-    const dateStrs: string[] = [];
-    for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
-      dateStrs.push(toKey(d));
-    }
-
-    const [wRes, aRes, uRes, kgRes] = await Promise.all([
-      supabase.from('piket_schedules').select('*').in('day_date', dateStrs).order('day_date'),
+    const wk2=toKey(addDays(weekStart,7));
+    const[wRes,aRes,uRes,kgRes]=await Promise.all([
+      supabase.from('piket_schedules').select('*').in('week_start',[wk,wk2]).order('day_date'),
       supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name'),
-      supabase.from('users').select('id,full_name,username,team_type,role').in('team_type', ['Team PTS', 'Team PTS UMP', 'Team PTS MLDS']).order('full_name'),
+      supabase.from('users').select('id,full_name,username,team_type,role').in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS']).order('full_name'),
       supabase.from('piket_tamu_detail').select('*').order('created_at'),
     ]);
-
-    if (wRes.data) setRows(wRes.data as PiketRow[]);
-    if (aRes.data) setAllRows(aRes.data as PiketRow[]);
-    if (uRes.data) setPtUsers(uRes.data as UserRow[]);
-    if (kgRes.data) setKegiatanList(kgRes.data as KegiatanEntry[]);
-
-    // Generate missing weekdays (Senin-Jumat) that don't have data
-    const existingDateStrs = new Set((wRes.data as PiketRow[])?.map(r => r.day_date) || []);
-    const missingDays: PiketRow[] = [];
-
-    for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
-      const dateStr = toKey(d);
-      const dayOfWeek = d.toLocaleDateString('id-ID', { weekday: 'long' }) as DayOfWeek;
-      if (DAYS_OF_WEEK.includes(dayOfWeek) && !existingDateStrs.has(dateStr)) {
-        // Generate from rolling
-        const rolling = getRollingUserForDate(d, uRes.data as UserRow[] || []);
-        const ivpUser = (uRes.data as UserRow[])?.find(u => u.id === rolling.ivp);
-        const umpUser = (uRes.data as UserRow[])?.find(u => u.id === rolling.ump);
-        const mldsUser = (uRes.data as UserRow[])?.find(u => u.id === rolling.mlds);
-
-        const newRow: PiketRow = {
-          id: `temp-${dateStr}`,
-          week_start: toKey(getMonday(d)),
-          day_of_week: dayOfWeek,
-          day_date: dateStr,
-          pic_ivp_id: rolling.ivp,
-          pic_ivp_name: ivpUser?.full_name || null,
-          pic_ump_id: rolling.ump,
-          pic_ump_name: umpUser?.full_name || null,
-          pic_mlds_id: rolling.mlds,
-          pic_mlds_name: mldsUser?.full_name || null,
-          tamu_instansi: null,
-          kebutuhan: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        missingDays.push(newRow);
-      }
-    }
-
-    if (missingDays.length) {
-      setRows(prev => [...prev, ...missingDays].sort((a, b) => a.day_date.localeCompare(b.day_date)));
-    }
-
+    if(wRes.data)setRows(wRes.data as PiketRow[]);
+    if(aRes.data)setAllRows(aRes.data as PiketRow[]);
+    if(uRes.data)setPtUsers(uRes.data as UserRow[]);
+    if(kgRes.data)setKegiatanList(kgRes.data as KegiatanEntry[]);
     setLoading(false);
-  }, [displayStartDate]);
+  },[weekStart]);
 
-  useEffect(() => { fetchDisplayData(); }, [fetchDisplayData]);
+  useEffect(()=>{fetchData();},[fetchData]);
+  useEffect(()=>{
+    const ch=supabase.channel('piket-rt').on('postgres_changes',{event:'*',schema:'public',table:'piket_schedules'},()=>{setTimeout(fetchData,300);}).subscribe();
+    return()=>{supabase.removeChannel(ch);};
+  },[fetchData]);
 
-  // Subscribe to realtime changes
-  useEffect(() => {
-    const ch = supabase.channel('piket-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'piket_schedules' }, () => { setTimeout(fetchDisplayData, 300); })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [fetchDisplayData]);
+  const isCurrWeek=wk===toKey(getMonday(new Date()));
+  const fmtW=(ws:Date)=>`${ws.toLocaleDateString('id-ID',{day:'2-digit',month:'short'})} – ${addDays(ws,4).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}`;
+  const wLabel=fmtW(weekStart);
+  const wLabel2=fmtW(addDays(weekStart,7));
 
-  const formatWeekRange = (startDate: Date) => {
-    const endDate = addDays(startDate, 13); // 2 weeks
-    const startDay = startDate.getDate();
-    const startMonth = startDate.toLocaleDateString('id-ID', { month: 'short' });
-    const endDay = endDate.getDate();
-    const endMonth = endDate.toLocaleDateString('id-ID', { month: 'short' });
-    const endYear = endDate.getFullYear();
-    return `${startDay} ${startMonth} — ${endDay} ${endMonth} ${endYear}`;
-  };
+  const displayRows=rows.slice().sort((a,b)=>a.day_date.localeCompare(b.day_date)).filter(row=>{
+    // Hide weekends from list (Sabtu/Minggu hidden, shown only in mini calendar)
+    const d=new Date(row.day_date+'T00:00:00');
+    if(d.getDay()===0||d.getDay()===6)return false;
+    if(filterDay&&row.day_of_week!==filterDay)return false;
+    const rowKg=kegiatanList.filter(k=>k.piket_id===row.id);
+    if(filterTamu&&!rowKg.some(k=>k.tamu_instansi))return false;
+    if(filterKebutuhan&&!rowKg.some(k=>k.kebutuhan?.includes(filterKebutuhan)))return false;
+    if(filterInstansi&&!rowKg.some(k=>k.tamu_instansi===filterInstansi))return false;
+    if(filterDivision&&!rowKg.some(k=>k.sales_division===filterDivision))return false;
+    if(filterKegiatan&&!rowKg.some(k=>k.jenis_kegiatan===filterKegiatan))return false;
+    if(search){
+      const q=search.toLowerCase();
+      const mp=!!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.day_of_week.toLowerCase().includes(q));
+      const mk=rowKg.some(k=>k.tamu_instansi?.toLowerCase().includes(q)||k.nama_sales?.toLowerCase().includes(q)||k.kebutuhan?.some(x=>x.toLowerCase().includes(q))||k.keterangan?.toLowerCase().includes(q)||k.jenis_kegiatan?.toLowerCase().includes(q));
+      return mp||mk;
+    }
+    return true;
+  });
 
-  // Filter rows to show only weekdays (Senin-Jumat)
-  const displayRows = rows
-    .filter(row => DAYS_OF_WEEK.includes(row.day_of_week as DayOfWeek))
-    .sort((a, b) => a.day_date.localeCompare(b.day_date))
-    .filter(row => {
-      if (filterDay && row.day_of_week !== filterDay) return false;
-      const rowKg = kegiatanList.filter(k => k.piket_id === row.id);
-      if (filterTamu && !rowKg.some(k => k.tamu_instansi)) return false;
-      if (filterKebutuhan && !rowKg.some(k => k.kebutuhan?.includes(filterKebutuhan))) return false;
-      if (filterInstansi && !rowKg.some(k => k.tamu_instansi === filterInstansi)) return false;
-      if (filterDivision && !rowKg.some(k => k.sales_division === filterDivision)) return false;
-      if (filterKegiatan && !rowKg.some(k => k.jenis_kegiatan === filterKegiatan)) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        const mp = !!(row.pic_ivp_name?.toLowerCase().includes(q) || row.pic_ump_name?.toLowerCase().includes(q) || row.pic_mlds_name?.toLowerCase().includes(q) || row.day_of_week.toLowerCase().includes(q));
-        const mk = rowKg.some(k => k.tamu_instansi?.toLowerCase().includes(q) || k.nama_sales?.toLowerCase().includes(q) || k.kebutuhan?.some(x => x.toLowerCase().includes(q)) || k.keterangan?.toLowerCase().includes(q) || k.jenis_kegiatan?.toLowerCase().includes(q));
-        return mp || mk;
-      }
-      return true;
-    });
+  const kPieAll=Object.entries(kegiatanList.reduce((acc,k)=>{(k.kebutuhan||[]).forEach(x=>{acc[x]=(acc[x]||0)+1;});return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  const divPieAll=Object.entries(kegiatanList.reduce((acc,k)=>{if(k.sales_division)acc[k.sales_division]=(acc[k.sales_division]||0)+1;return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  const kgTypePie=JENIS_KEGIATAN_LIST.map(j=>({label:j,value:kegiatanList.filter(k=>k.jenis_kegiatan===j).length,color:KEGIATAN_COLORS[j]})).filter(d=>d.value>0);
+  const instansiPie=Object.entries(kegiatanList.filter(k=>k.tamu_instansi).reduce((acc,k)=>{const key=k.tamu_instansi!;acc[key]=(acc[key]||0)+1;return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
 
-  const kPieAll = Object.entries(kegiatanList.reduce((acc, k) => { (k.kebutuhan || []).forEach(x => { acc[x] = (acc[x] || 0) + 1; }); return acc; }, {} as Record<string, number>)).sort(([, a], [, b]) => b - a).slice(0, 12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  const divPieAll = Object.entries(kegiatanList.reduce((acc, k) => { if (k.sales_division) acc[k.sales_division] = (acc[k.sales_division] || 0) + 1; return acc; }, {} as Record<string, number>)).sort(([, a], [, b]) => b - a).slice(0, 12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-  const kgTypePie = JENIS_KEGIATAN_LIST.map(j => ({ label: j, value: kegiatanList.filter(k => k.jenis_kegiatan === j).length, color: KEGIATAN_COLORS[j] })).filter(d => d.value > 0);
-  const instansiPie = Object.entries(kegiatanList.filter(k => k.tamu_instansi).reduce((acc, k) => { const key = k.tamu_instansi!; acc[key] = (acc[key] || 0) + 1; return acc; }, {} as Record<string, number>)).sort(([, a], [, b]) => b - a).slice(0, 12).map(([label, value], i) => ({ label, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
-
-  return (
-    <div className="min-h-screen flex flex-col relative" style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
-      {loading && rows.length === 0 && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center" style={{ backgroundImage: `url('/IVP_Background.png')`, backgroundSize: 'cover' }}>
-          <div className="absolute inset-0" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(2px)' }} />
-          <div className="relative flex flex-col items-center gap-4 px-10 py-8 rounded-3xl" style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
-            <svg className="w-16 h-16 animate-spin" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6" /><path d="M32 6 A26 26 0 0 1 58 32" stroke="#dc2626" strokeWidth="6" strokeLinecap="round" /></svg>
+  return(
+    <div className="min-h-screen flex flex-col relative" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover',backgroundPosition:'center',backgroundAttachment:'fixed'}}>
+      <div className="absolute inset-0 pointer-events-none" style={{background:'rgba(255,255,255,0.08)'}}/>
+      {loading&&rows.length===0&&(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover'}}>
+          <div className="absolute inset-0" style={{background:'rgba(255,255,255,0.15)',backdropFilter:'blur(2px)'}}/>
+          <div className="relative flex flex-col items-center gap-4 px-10 py-8 rounded-3xl" style={{background:'rgba(255,255,255,0.92)',backdropFilter:'blur(20px)',boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+            <svg className="w-16 h-16 animate-spin" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6"/><path d="M32 6 A26 26 0 0 1 58 32" stroke="#dc2626" strokeWidth="6" strokeLinecap="round"/></svg>
             <p className="text-sm font-bold text-slate-700">Loading...</p>
           </div>
         </div>
       )}
 
       <div className="relative z-10 flex flex-col min-h-screen">
-        <header className="sticky top-0 z-50" style={{ background: 'rgba(255,255,255,0.9)', borderBottom: '3px solid #dc2626', backdropFilter: 'blur(16px)' }}>
+        {/* ── HEADER ── */}
+        <header className="sticky top-0 z-50" style={{background:'rgba(255,255,255,0.9)',borderBottom:'3px solid #dc2626',backdropFilter:'blur(16px)'}}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)', boxShadow: '0 3px 12px rgba(220,38,38,0.4)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)',boxShadow:'0 3px 12px rgba(220,38,38,0.4)'}}>
                 <span className="text-lg">🏪</span>
               </div>
               <div>
@@ -1224,18 +1058,18 @@ export default function PiketShowroomPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => exportToExcel(allRows, kegiatanList)}
+              <button onClick={()=>exportToExcel(allRows,kegiatanList)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
-                style={{ background: 'linear-gradient(135deg,#059669,#047857)', boxShadow: '0 4px 14px rgba(5,150,105,0.3)' }}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                style={{background:'linear-gradient(135deg,#059669,#047857)',boxShadow:'0 4px 14px rgba(5,150,105,0.3)'}}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Export Report
               </button>
-              {isAdmin && (
-                <button onClick={() => setShowSchedule(true)}
+              {isAdmin&&(
+                <button onClick={()=>setShowSchedule(true)}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
-                  style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', boxShadow: '0 4px 14px rgba(220,38,38,0.4)' }}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                  Edit Jadwal
+                  style={{background:'linear-gradient(135deg,#dc2626,#b91c1c)',boxShadow:'0 4px 14px rgba(220,38,38,0.4)'}}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                  Atur Jadwal
                 </button>
               )}
             </div>
@@ -1243,46 +1077,47 @@ export default function PiketShowroomPage() {
         </header>
 
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
-          <TamuSummaryCards allRows={allRows} kegiatanList={kegiatanList} />
+          <TamuSummaryCards allRows={allRows} kegiatanList={kegiatanList}/>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <MiniPieChart data={instansiPie} title="Tamu per Instansi" icon="🏢" activeFilter={filterInstansi} onSliceClick={l => setFilterInstansi(filterInstansi === l ? null : l)} />
-            <MiniPieChart data={kgTypePie} title="Jenis Kegiatan" icon="📋" activeFilter={filterKegiatan} onSliceClick={l => setFilterKegiatan(filterKegiatan === l ? null : l)} />
-            <MiniPieChart data={kPieAll} title="Kebutuhan" icon="🎯" activeFilter={filterKebutuhan} onSliceClick={l => setFilterKebutuhan(filterKebutuhan === l ? null : l)} />
-            <MiniPieChart data={divPieAll} title="Division" icon="🏷️" activeFilter={filterDivision} onSliceClick={l => setFilterDivision(filterDivision === l ? null : l)} />
+            <MiniPieChart data={instansiPie} title="Tamu per Instansi" icon="🏢" activeFilter={filterInstansi} onSliceClick={l=>setFilterInstansi(filterInstansi===l?null:l)}/>
+            <MiniPieChart data={kgTypePie} title="Jenis Kegiatan" icon="📋" activeFilter={filterKegiatan} onSliceClick={l=>setFilterKegiatan(filterKegiatan===l?null:l)}/>
+            <MiniPieChart data={kPieAll} title="Kebutuhan" icon="🎯" activeFilter={filterKebutuhan} onSliceClick={l=>setFilterKebutuhan(filterKebutuhan===l?null:l)}/>
+            <MiniPieChart data={divPieAll} title="Division" icon="🏷️" activeFilter={filterDivision} onSliceClick={l=>setFilterDivision(filterDivision===l?null:l)}/>
           </div>
 
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(200,200,200,0.6)' }}>
+          {/* ── TABLE (full width) ── */}
+          <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.97)',border:'1px solid rgba(200,200,200,0.6)'}}>
             <div className="px-5 py-3.5 border-b border-gray-200 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Jadwal Piket</span>
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule Piket</span>
                   <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{displayRows.length}</span>
+                  {/* Week nav — 2 minggu */}
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setDisplayStartDate(d => addDays(d, -14))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">‹‹</button>
-                    <button onClick={() => setDisplayStartDate(d => addDays(d, -7))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-base text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">‹</button>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.2)' }}>
+                    <button onClick={()=>setWeekStart(d=>addDays(d,-14))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">‹‹</button>
+                    <button onClick={()=>setWeekStart(d=>addDays(d,-7))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-base text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">‹</button>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{background:'rgba(220,38,38,0.07)',border:'1px solid rgba(220,38,38,0.2)'}}>
                       <div className="flex flex-col">
-                        <span className="text-[8px] font-bold text-red-400 uppercase tracking-widest leading-none mb-0.5">PERIODE</span>
-                        <span className="text-[11px] font-bold text-red-700">{formatWeekRange(displayStartDate)}</span>
+                        <span className="text-[11px] font-bold text-red-700 leading-tight">{wLabel}</span>
+                        <span className="text-[10px] text-red-400 leading-tight">{wLabel2}</span>
                       </div>
-                      {toKey(displayStartDate) !== toKey(getMonday(new Date())) && (
-                        <button onClick={() => setDisplayStartDate(getMonday(new Date()))} className="text-[9px] font-bold px-2 py-1 rounded-lg text-white flex-shrink-0" style={{ background: '#dc2626' }}>Hari Ini</button>
-                      )}
+                      {!isCurrWeek&&<button onClick={()=>setWeekStart(getMonday(new Date()))} className="text-[9px] font-bold px-2 py-1 rounded-lg text-white flex-shrink-0" style={{background:'#dc2626'}}>Ini</button>}
                     </div>
-                    <button onClick={() => setDisplayStartDate(d => addDays(d, 7))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-base text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">›</button>
-                    <button onClick={() => setDisplayStartDate(d => addDays(d, 14))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">››</button>
+                    <button onClick={()=>setWeekStart(d=>addDays(d,7))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-base text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">›</button>
+                    <button onClick={()=>setWeekStart(d=>addDays(d,14))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">››</button>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setShowCalendar(true)}
+                  {/* Show Calendar popup */}
+                  <button onClick={()=>setShowCalendar(true)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border"
-                    style={{ background: 'rgba(37,99,235,0.06)', borderColor: 'rgba(37,99,235,0.25)', color: '#2563eb' }}>
-                    📅 Kalender
+                    style={{background:'rgba(37,99,235,0.06)',borderColor:'rgba(37,99,235,0.25)',color:'#2563eb'}}>
+                    📅 Show Calendar
                   </button>
-                  {(search || filterDay || filterTamu || filterKebutuhan || filterInstansi || filterDivision || filterKegiatan) && (
-                    <button onClick={() => { setSearch(''); setFilterDay(''); setFilterTamu(false); setFilterKebutuhan(null); setFilterInstansi(null); setFilterDivision(null); setFilterKegiatan(null); }}
-                      className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#dc2626' }}>
+                  {(search||filterDay||filterTamu||filterKebutuhan||filterInstansi||filterDivision||filterKegiatan)&&(
+                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);setFilterInstansi(null);setFilterDivision(null);setFilterKegiatan(null);}}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold" style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',color:'#dc2626'}}>
                       ✕ Reset Filter
                     </button>
                   )}
@@ -1290,130 +1125,137 @@ export default function PiketShowroomPage() {
               </div>
               <div className="flex flex-wrap gap-2 items-center">
                 <div className="relative flex-1 min-w-[160px]">
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama, instansi, kegiatan..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl text-sm outline-none" style={{ background: 'rgba(248,250,252,0.9)', border: '1px solid rgba(0,0,0,0.1)' }} />
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nama, instansi, kegiatan..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl text-sm outline-none" style={{background:'rgba(248,250,252,0.9)',border:'1px solid rgba(0,0,0,0.1)'}}/>
                 </div>
-                <select value={filterDay} onChange={e => setFilterDay(e.target.value as any)} className="px-3 py-2 rounded-xl text-xs font-semibold outline-none bg-white" style={{ border: '1px solid rgba(0,0,0,0.1)' }}>
-                  <option value="">Semua Hari</option>{DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d}</option>)}
+                <select value={filterDay} onChange={e=>setFilterDay(e.target.value as any)} className="px-3 py-2 rounded-xl text-xs font-semibold outline-none bg-white" style={{border:'1px solid rgba(0,0,0,0.1)'}}>
+                  <option value="">Semua Hari</option>{DAYS_OF_WEEK.map(d=><option key={d} value={d}>{d}</option>)}
                 </select>
-                <select value={filterKegiatan || ''} onChange={e => setFilterKegiatan(e.target.value || null)} className="px-3 py-2 rounded-xl text-xs font-semibold outline-none bg-white" style={{ border: '1px solid rgba(0,0,0,0.1)' }}>
-                  <option value="">Semua Kegiatan</option>{JENIS_KEGIATAN_LIST.map(j => <option key={j} value={j}>{j}</option>)}
+                <select value={filterKegiatan||''} onChange={e=>setFilterKegiatan(e.target.value||null)} className="px-3 py-2 rounded-xl text-xs font-semibold outline-none bg-white" style={{border:'1px solid rgba(0,0,0,0.1)'}}>
+                  <option value="">Semua Kegiatan</option>{JENIS_KEGIATAN_LIST.map(j=><option key={j} value={j}>{j}</option>)}
                 </select>
-                <button onClick={() => setFilterTamu(f => !f)} className="px-3 py-2 rounded-xl text-xs font-semibold border"
-                  style={filterTamu ? { background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.4)', color: '#059669' } : { background: 'transparent', borderColor: 'rgba(0,0,0,0.1)', color: '#64748b' }}>
+                <button onClick={()=>setFilterTamu(f=>!f)} className="px-3 py-2 rounded-xl text-xs font-semibold border"
+                  style={filterTamu?{background:'rgba(16,185,129,0.12)',borderColor:'rgba(16,185,129,0.4)',color:'#059669'}:{background:'transparent',borderColor:'rgba(0,0,0,0.1)',color:'#64748b'}}>
                   🏢 Ada Tamu
                 </button>
               </div>
-              {(filterInstansi || filterKebutuhan || filterDivision || filterKegiatan) && (
+              {(filterInstansi||filterKebutuhan||filterDivision||filterKegiatan)&&(
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {filterInstansi && (<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.35)' }}><span className="text-[10px] font-bold text-sky-600">🏢 {filterInstansi}</span><button onClick={() => setFilterInstansi(null)} className="text-sky-400 text-[10px] ml-1">✕</button></div>)}
-                  {filterKebutuhan && (<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.35)' }}><span className="text-[10px] font-bold text-violet-600">🎯 {filterKebutuhan}</span><button onClick={() => setFilterKebutuhan(null)} className="text-violet-400 text-[10px] ml-1">✕</button></div>)}
-                  {filterDivision && (<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)' }}><span className="text-[10px] font-bold text-amber-600">🏷️ {filterDivision}</span><button onClick={() => setFilterDivision(null)} className="text-amber-400 text-[10px] ml-1">✕</button></div>)}
-                  {filterKegiatan && (<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: `${KEGIATAN_COLORS[filterKegiatan] || '#6366f1'}18`, border: `1px solid ${KEGIATAN_COLORS[filterKegiatan] || '#6366f1'}50` }}><span className="text-[10px] font-bold" style={{ color: KEGIATAN_COLORS[filterKegiatan] || '#6366f1' }}>📋 {filterKegiatan}</span><button onClick={() => setFilterKegiatan(null)} className="text-[10px] ml-1" style={{ color: KEGIATAN_COLORS[filterKegiatan] || '#6366f1' }}>✕</button></div>)}
+                  {filterInstansi&&(<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.35)'}}><span className="text-[10px] font-bold text-sky-600">🏢 {filterInstansi}</span><button onClick={()=>setFilterInstansi(null)} className="text-sky-400 text-[10px] ml-1">✕</button></div>)}
+                  {filterKebutuhan&&(<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(124,58,237,0.1)',border:'1px solid rgba(124,58,237,0.35)'}}><span className="text-[10px] font-bold text-violet-600">🎯 {filterKebutuhan}</span><button onClick={()=>setFilterKebutuhan(null)} className="text-violet-400 text-[10px] ml-1">✕</button></div>)}
+                  {filterDivision&&(<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.35)'}}><span className="text-[10px] font-bold text-amber-600">🏷️ {filterDivision}</span><button onClick={()=>setFilterDivision(null)} className="text-amber-400 text-[10px] ml-1">✕</button></div>)}
+                  {filterKegiatan&&(<div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:`${KEGIATAN_COLORS[filterKegiatan]||'#6366f1'}18`,border:`1px solid ${KEGIATAN_COLORS[filterKegiatan]||'#6366f1'}50`}}><span className="text-[10px] font-bold" style={{color:KEGIATAN_COLORS[filterKegiatan]||'#6366f1'}}>📋 {filterKegiatan}</span><button onClick={()=>setFilterKegiatan(null)} className="text-[10px] ml-1" style={{color:KEGIATAN_COLORS[filterKegiatan]||'#6366f1'}}>✕</button></div>)}
                 </div>
               )}
             </div>
 
-            {loading ? (
-              <div className="flex justify-center py-16"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-t-red-600 border-red-200 animate-spin" /><p className="text-sm text-slate-500">Memuat jadwal...</p></div></div>
-            ) : (
+            {loading?(
+              <div className="flex justify-center py-16"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/><p className="text-sm text-slate-500">Memuat jadwal...</p></div></div>
+            ):(
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse" style={{ minWidth: '1100px' }}>
+                <table className="w-full text-sm border-collapse" style={{minWidth:'1100px'}}>
                   <colgroup>
-                    <col style={{ width: '3%' }} /><col style={{ width: '7%' }} /><col style={{ width: '9%' }} /><col style={{ width: '14%' }} /><col style={{ width: '7%' }} />
-                    <col style={{ width: '9%' }} /><col style={{ width: '9%' }} /><col style={{ width: '8%' }} /><col style={{ width: '10%' }} /><col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} /><col style={{ width: '8%' }} />
+                    <col style={{width:'3%'}}/><col style={{width:'7%'}}/><col style={{width:'10%'}}/><col style={{width:'9%'}}/><col style={{width:'9%'}}/><col style={{width:'7%'}}/>
+                    <col style={{width:'13%'}}/><col style={{width:'9%'}}/><col style={{width:'13%'}}/><col style={{width:'12%'}}/><col style={{width:'8%'}}/>
                   </colgroup>
                   <thead>
-                    <tr style={{ background: 'rgba(248,250,252,0.9)', borderBottom: '2px solid #e5e7eb' }}>
-                      {['No', 'Tanggal', 'PIC', 'Kegiatan', 'Jam', 'Produk', 'Tamu Instansi', 'Sales', 'Kebutuhan', 'Keterangan', 'Action'].map((h, i) => (
-                        <th key={h} className="px-3 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{ borderRight: i < 10 ? '1px solid #e5e7eb' : 'none' }}>{h}</th>
+                    <tr style={{background:'rgba(248,250,252,0.9)',borderBottom:'2px solid #e5e7eb'}}>
+                      {['No','Tanggal','PIC','Kegiatan','Jam','Produk','Tamu Instansi','Sales','Kebutuhan','Keterangan','Action'].map((h,i)=>(
+                        <th key={h} className="px-3 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:i<10?'1px solid #e5e7eb':'none'}}>{h}</th>
                       ))}
-                    <tr>
+                    </tr>
                   </thead>
                   <tbody>
-                    {displayRows.length === 0 ? (
+                    {displayRows.length===0?(
                       <tr><td colSpan={11} className="text-center py-16 text-gray-400">
                         <div className="text-4xl mb-3">📋</div>
-                        <p className="font-semibold">{rows.length === 0 ? 'Belum ada jadwal' : 'Tidak ada hasil filter'}</p>
-                        {rows.length === 0 && isAdmin && <p className="text-xs mt-1">Klik "Edit Jadwal" untuk menambahkan jadwal piket</p>}
+                        <p className="font-semibold">{rows.length===0?'Belum ada jadwal':'Tidak ada hasil filter'}</p>
+                        {rows.length===0&&isAdmin&&<p className="text-xs mt-1">Klik "Atur Jadwal" untuk menambahkan jadwal piket</p>}
                       </td></tr>
-                    ) : displayRows.map((row, idx) => {
-                      const dc = DAY_COLOR[row.day_of_week as DayOfWeek];
-                      const todayRow = row.day_date === toKey(new Date());
-                      const rowKg = kegiatanList.filter(k => k.piket_id === row.id);
-                      const kgToShow = rowKg.length > 0 ? rowKg : [null];
-                      return kgToShow.map((kg, kgIdx) => (
+                    ):displayRows.map((row,idx)=>{
+                      const dc=DAY_COLOR[row.day_of_week];
+                      const todayRow=row.day_date===toKey(new Date());
+                      const rowKg=kegiatanList.filter(k=>k.piket_id===row.id);
+                      const kgToShow=rowKg.length>0?rowKg:[null];
+                      return kgToShow.map((kg,kgIdx)=>(
                         <tr key={`${row.id}-${kgIdx}`} className="transition-colors hover:bg-gray-50/70"
-                          style={{ borderBottom: kgIdx === kgToShow.length - 1 ? '2px solid #e5e7eb' : '1px solid #f3f4f6', background: todayRow ? 'rgba(220,38,38,0.025)' : undefined }}>
-                          {kgIdx === 0 && (
+                          style={{borderBottom:kgIdx===kgToShow.length-1?'2px solid #e5e7eb':'1px solid #f3f4f6',background:todayRow?'rgba(220,38,38,0.025)':undefined}}>
+                          {kgIdx===0&&(
                             <>
-                              <td className="px-3 py-3 text-gray-400 text-xs align-middle" rowSpan={kgToShow.length} style={{ borderRight: '1px solid #e5e7eb', verticalAlign: 'middle' }}>{idx + 1}</td>
-                              <td className="px-3 py-3 align-middle" rowSpan={kgToShow.length} style={{ borderRight: '1px solid #e5e7eb', verticalAlign: 'middle' }}>
-                                <div className="flex flex-col" style={{ borderLeft: `3px solid ${dc.accent}`, paddingLeft: '6px' }}>
-                                  <span className="text-base font-black leading-tight" style={{ color: dc.accent }}>{new Date(row.day_date + 'T00:00:00').getDate()}</span>
-                                  <span className="text-[9px] font-bold" style={{ color: dc.accent }}>{new Date(row.day_date + 'T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })}</span>
-                                  <span className="text-xs font-bold mt-0.5" style={{ color: dc.accent }}>{row.day_of_week}</span>
-                                  {todayRow && <span className="text-[8px] font-bold px-1 py-0.5 rounded text-white mt-0.5 w-fit" style={{ background: dc.accent }}>HARI INI</span>}
+                              <td className="px-3 py-3 text-gray-400 text-xs align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>{idx+1}</td>
+                              <td className="px-3 py-3 align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>
+                                <div className="flex flex-col" style={{borderLeft:`3px solid ${dc.accent}`,paddingLeft:'6px'}}>
+                                  <span className="text-base font-black leading-tight" style={{color:dc.accent}}>{new Date(row.day_date+'T00:00:00').getDate()}</span>
+                                  <span className="text-[9px] font-bold" style={{color:dc.accent}}>{new Date(row.day_date+'T00:00:00').toLocaleDateString('id-ID',{month:'short',year:'2-digit'})}</span>
+                                  <span className="text-xs font-bold mt-0.5" style={{color:dc.accent}}>{row.day_of_week}</span>
+                                  {todayRow&&<span className="text-[8px] font-bold px-1 py-0.5 rounded text-white mt-0.5 w-fit" style={{background:dc.accent}}>HARI INI</span>}
                                 </div>
                               </td>
-                              <td className="px-3 py-3 align-middle" rowSpan={kgToShow.length} style={{ borderRight: '1px solid #e5e7eb', verticalAlign: 'middle' }}>
+                              <td className="px-3 py-3 align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>
                                 <div className="space-y-1">
-                                  {([['pic_ivp_name', 'PTS IVP'], ['pic_ump_name', 'PTS UMP'], ['pic_mlds_name', 'PTS MLDS']] as [keyof PiketRow, string][]).map(([f, team]) => {
-                                    const name = row[f] as string | null; if (!name) return null;
-                                    const tc = TEAM_LABEL[team];
-                                    return (<div key={team} className="flex items-center gap-1.5"><div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0" style={{ background: tc.dot }}>{name.charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="text-xs font-semibold text-slate-800 truncate leading-tight">{name}</p><span className="text-[8px] font-bold uppercase" style={{ color: tc.text }}>{team}</span></div></div>);
+                                  {([['pic_ivp_name','PTS IVP'],['pic_ump_name','PTS UMP'],['pic_mlds_name','PTS MLDS']] as [keyof PiketRow,string][]).map(([f,team])=>{
+                                    const name=row[f] as string|null;if(!name)return null;
+                                    const tc=TEAM_LABEL[team];
+                                    return(<div key={team} className="flex items-center gap-1.5"><div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0" style={{background:tc.dot}}>{name.charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="text-xs font-semibold text-slate-800 truncate leading-tight">{name}</p><span className="text-[8px] font-bold uppercase" style={{color:tc.text}}>{team}</span></div></div>);
                                   })}
-                                  {![row.pic_ivp_name, row.pic_ump_name, row.pic_mlds_name].some(Boolean) && <span className="text-gray-300 text-xs">—</span>}
+                                  {![row.pic_ivp_name,row.pic_ump_name,row.pic_mlds_name].some(Boolean)&&<span className="text-gray-300 text-xs">—</span>}
                                 </div>
                               </td>
                             </>
                           )}
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg ? (
+                          {/* Kegiatan — underline, no rounded */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?(
                               <span className="text-[10px] font-bold border-b-2 pb-0.5"
-                                style={{ color: KEGIATAN_COLORS[kg.jenis_kegiatan] || dc.accent, borderBottomColor: KEGIATAN_COLORS[kg.jenis_kegiatan] || dc.accent }}>
+                                style={{color:KEGIATAN_COLORS[kg.jenis_kegiatan]||dc.accent,borderBottomColor:KEGIATAN_COLORS[kg.jenis_kegiatan]||dc.accent}}>
                                 {kg.jenis_kegiatan}
                               </span>
-                            ) : <span className="text-gray-300 text-xs">—</span>}
+                            ):<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg?.jam_mulai ? (
+                          {/* Jam — label Mulai/Selesai */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?.jam_mulai?(
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-1"><span className="text-[8px] font-bold text-slate-400 w-10 flex-shrink-0">Mulai</span><span className="text-xs font-bold text-slate-700">{kg.jam_mulai}</span></div>
                                 <div className="flex items-center gap-1"><span className="text-[8px] font-bold text-slate-400 w-10 flex-shrink-0">Selesai</span><span className="text-xs font-bold text-slate-700">{kg.jam_selesai}</span></div>
                               </div>
-                            ) : <span className="text-gray-300 text-xs">—</span>}
+                            ):<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg?.produk && kg.produk.length > 0 ? (
+                          {/* Produk — plain text, no rounded */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?.produk&&kg.produk.length>0?(
                               <div className="flex flex-col gap-0.5">
-                                {kg.produk.map(p => <span key={p} className="text-[10px] font-semibold" style={{ color: dc.accent }}>{p}</span>)}
+                                {kg.produk.map(p=><span key={p} className="text-[10px] font-semibold" style={{color:dc.accent}}>{p}</span>)}
                               </div>
-                            ) : <span className="text-gray-300 text-xs">—</span>}
+                            ):<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg?.tamu_instansi ? (<button onClick={() => setFilterInstansi(filterInstansi === kg.tamu_instansi ? null : kg.tamu_instansi!)} className="flex items-center gap-1 hover:opacity-80 text-left"><span>🏢</span><span className="text-xs font-semibold text-slate-700 underline decoration-dotted">{kg.tamu_instansi}</span></button>) : <span className="text-gray-300 text-xs">—</span>}
+                          {/* Tamu */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?.tamu_instansi?(<button onClick={()=>setFilterInstansi(filterInstansi===kg.tamu_instansi?null:kg.tamu_instansi!)} className="flex items-center gap-1 hover:opacity-80 text-left"><span>🏢</span><span className="text-xs font-semibold text-slate-700 underline decoration-dotted">{kg.tamu_instansi}</span></button>):<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg?.nama_sales ? (<div className="flex flex-col gap-0.5"><span className="text-[10px] font-bold text-slate-800">{kg.nama_sales}</span>{kg.sales_division && <span className="text-[9px] text-purple-500 font-semibold">{kg.sales_division}</span>}</div>) : <span className="text-gray-300 text-xs">—</span>}
+                          {/* Sales */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?.nama_sales?(<div className="flex flex-col gap-0.5"><span className="text-[10px] font-bold text-slate-800">{kg.nama_sales}</span>{kg.sales_division&&<span className="text-[9px] text-purple-500 font-semibold">{kg.sales_division}</span>}</div>):<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg?.jenis_kegiatan === 'Demo Product' && kg.kebutuhan && kg.kebutuhan.length > 0 ? (
+                          {/* Kebutuhan — kolom terpisah */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?.jenis_kegiatan==='Demo Product'&&kg.kebutuhan&&kg.kebutuhan.length>0?(
                               <div className="flex flex-col gap-0.5">
-                                {kg.kebutuhan.map(k => <span key={k} className="flex items-center gap-1 text-[10px] font-semibold text-slate-600"><span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: dc.accent }} />{k}</span>)}
+                                {kg.kebutuhan.map(k=><span key={k} className="flex items-center gap-1 text-[10px] font-semibold text-slate-600"><span className="w-1 h-1 rounded-full flex-shrink-0" style={{background:dc.accent}}/>{k}</span>)}
                               </div>
-                            ) : <span className="text-gray-300 text-xs">—</span>}
+                            ):<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-3 align-middle" style={{ borderRight: '1px solid #e5e7eb' }}>
-                            {kg?.keterangan ? <span className="text-xs text-slate-600 leading-snug">{kg.keterangan}</span> : <span className="text-gray-300 text-xs">—</span>}
+                          {/* Keterangan — kolom terpisah */}
+                          <td className="px-3 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                            {kg?.keterangan?<span className="text-xs text-slate-600 leading-snug">{kg.keterangan}</span>:<span className="text-gray-300 text-xs">—</span>}
                           </td>
-                          {kgIdx === 0 && (
-                            <td className="px-3 py-3 align-middle text-center" rowSpan={kgToShow.length} style={{ verticalAlign: 'middle' }}>
-                              <button onClick={() => setFillDetail(row)}
+                          {/* Action */}
+                          {kgIdx===0&&(
+                            <td className="px-3 py-3 align-middle text-center" rowSpan={kgToShow.length} style={{verticalAlign:'middle'}}>
+                              <button onClick={()=>setFillDetail(row)}
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
-                                style={{ background: dc.grad, boxShadow: `0 2px 8px ${dc.accent}30` }}>
+                                style={{background:dc.grad,boxShadow:`0 2px 8px ${dc.accent}30`}}>
                                 ✍️ Isi
                               </button>
                             </td>
@@ -1423,18 +1265,18 @@ export default function PiketShowroomPage() {
                     })}
                   </tbody>
                 </table>
-                <div className="flex items-center justify-between px-5 py-2.5" style={{ borderTop: '1px solid #e5e7eb' }}>
-                  <span className="text-[10px] text-gray-400">{displayRows.length} jadwal ditampilkan</span>
-                  <span className="text-[10px] text-gray-400">Hanya menampilkan Senin s/d Jumat</span>
+                <div className="flex items-center justify-between px-5 py-2.5" style={{borderTop:'1px solid #e5e7eb'}}>
+                  <span className="text-[10px] text-gray-400">{displayRows.length} hari kerja ditampilkan</span>
+                  <span className="text-[10px] text-gray-400">{rows.length} total · {kegiatanList.filter(k=>displayRows.some(r=>r.id===k.piket_id)).length} kegiatan</span>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {showSchedule && isAdmin && <ScheduleModal startDate={displayStartDate} users={ptUsers} onClose={() => setShowSchedule(false)} onSaved={fetchDisplayData} />}
-        {fillDetail && <FillDetailModal row={fillDetail} onClose={() => setFillDetail(null)} onSaved={fetchDisplayData} />}
-        {showCalendar && <MiniCalendarPopup allRows={allRows} onClose={() => setShowCalendar(false)} />}
+        {showSchedule&&isAdmin&&<ScheduleModal weekStart={weekStart} users={ptUsers} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>}
+        {fillDetail&&<FillDetailModal row={fillDetail} onClose={()=>setFillDetail(null)} onSaved={fetchData}/>}
+        {showCalendar&&<MiniCalendarPopup allRows={allRows} onClose={()=>setShowCalendar(false)}/>}
       </div>
 
       <style jsx>{`
