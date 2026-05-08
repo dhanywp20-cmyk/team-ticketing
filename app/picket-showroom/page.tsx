@@ -48,7 +48,8 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UserRow {
-  id:string; name:string; team:string; is_active:boolean;
+  id:string; full_name:string; username:string;
+  team_type?:string; role:string;
 }
 interface PiketRow {
   id:string; week_start:string; day_of_week:DayOfWeek; day_date:string;
@@ -653,9 +654,9 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
   const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
   const wk=toKey(weekStart);
 
-  const ivpUsers=users.filter(u=>u.team==='PTS IVP');
-  const umpUsers=users.filter(u=>u.team==='PTS UMP');
-  const mldsUsers=users.filter(u=>u.team==='PTS MLDS');
+  const ivpUsers=users.filter(u=>u.team_type==='Team PTS');
+  const umpUsers=users.filter(u=>u.team_type==='Team PTS UMP');
+  const mldsUsers=users.filter(u=>u.team_type==='Team PTS MLDS');
 
   useEffect(()=>{
     const load=async()=>{
@@ -681,9 +682,9 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
         const mldsU=users.find(u=>u.id===a.mlds);
         await supabase.from('piket_schedules').upsert({
           week_start:wk,day_of_week:day,day_date:toKey(getDayDate(weekStart,day)),
-          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpU?.name||null,
-          pic_ump_id:a.ump||null,pic_ump_name:umpU?.name||null,
-          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsU?.name||null,
+          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpU?.full_name||null,
+          pic_ump_id:a.ump||null,pic_ump_name:umpU?.full_name||null,
+          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsU?.full_name||null,
           updated_at:new Date().toISOString(),
         },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
       }
@@ -728,7 +729,7 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
                           <select value={(assign[day] as any)[key]} onChange={e=>setAssign(p=>({...p,[day]:{...p[day],[key]:e.target.value}}))}
                             className="w-full rounded-xl px-3 py-2 text-xs outline-none bg-white" style={{border:`1px solid ${tc.dot}30`}}>
                             <option value="">— Belum ditentukan —</option>
-                            {opts.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                            {opts.map(u=><option key={u.id} value={u.id}>{u.full_name}</option>)}
                           </select>
                         </div>
                       );
@@ -787,9 +788,9 @@ export default function PiketShowroomPage() {
     const[wRes,aRes,uRes,tdRes]=await Promise.all([
       supabase.from('piket_schedules').select('*').eq('week_start',wk),
       supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name,tamu_instansi,kebutuhan'),
-      supabase.from('piket_persons').select('id,name,team,is_active')
-        .eq('is_active',true)
-        .order('name'),
+      supabase.from('users').select('id,full_name,username,team_type,role')
+        .in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS'])
+        .order('full_name'),
       supabase.from('piket_tamu_detail').select('*').order('created_at'),
     ]);
     if(wRes.data)setRows(wRes.data as PiketRow[]);
