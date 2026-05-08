@@ -2872,6 +2872,7 @@ export default function Dashboard() {
   const [showTicketing, setShowTicketing] = useState(false);
   const [internalUrl, setInternalUrl] = useState<string>('/ticketing');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarTheme, setSidebarTheme] = useState<'light' | 'dark'>('light');
 
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminPanelTab, setAdminPanelTab] = useState<'settings' | 'userManagement' | 'picBrand'>('settings');
@@ -3538,11 +3539,88 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="p-3 space-y-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-            {sidebarCollapsed && (
-              <button onClick={() => setSidebarCollapsed(false)} className="w-full flex justify-center p-2 rounded-xl transition-all text-slate-400 hover:text-slate-700" style={{ background: 'rgba(0,0,0,0.05)' }} title="Expand sidebar">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M6 5l7 7-7 7" /></svg>
-              </button>
+          {/* SIDEBAR BOTTOM: User Profile + Theme + Sign Out */}
+          <div className="flex-shrink-0" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+            {sidebarCollapsed ? (
+              /* ── Collapsed state: icon-only buttons ── */
+              <div className="p-2 flex flex-col items-center gap-1.5">
+                <button onClick={() => setSidebarCollapsed(false)} className="w-9 h-9 rounded-lg flex items-center justify-center transition-all text-slate-400 hover:text-slate-700" style={{ background: 'rgba(0,0,0,0.05)' }} title="Expand sidebar">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M6 5l7 7-7 7" /></svg>
+                </button>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 cursor-pointer"
+                  style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}
+                  title={currentUser?.full_name ?? ''}
+                  onClick={() => setShowUserProfile(true)}>
+                  {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+                </div>
+                <button onClick={handleLogout} className="w-9 h-9 rounded-lg flex items-center justify-center transition-all" style={{ background: 'rgba(239,68,68,0.07)', color: '#b91c1c' }} title="Sign Out"
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* ── Expanded state: full user card + theme + signout ── */
+              <div className="p-3 space-y-2">
+                {/* Theme toggle */}
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl" style={{ background: 'rgba(0,0,0,0.04)' }}>
+                  <span className="text-xs font-semibold text-slate-500 flex-shrink-0">Theme</span>
+                  <div className="flex gap-1 ml-auto">
+                    <button
+                      onClick={() => setSidebarTheme('light')}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                      style={sidebarTheme === 'light'
+                        ? { background: 'rgba(200,134,29,0.15)', color: '#92600a', border: '1px solid rgba(200,134,29,0.35)' }
+                        : { background: 'transparent', color: '#94a3b8', border: '1px solid transparent' }}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
+                      Light
+                    </button>
+                    <button
+                      onClick={() => setSidebarTheme('dark')}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                      style={sidebarTheme === 'dark'
+                        ? { background: 'rgba(30,30,60,0.18)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.35)' }
+                        : { background: 'transparent', color: '#94a3b8', border: '1px solid transparent' }}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                      Dark
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sign out */}
+                <button onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+                  style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', color: '#b91c1c' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.14)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; }}>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Sign out
+                </button>
+
+                {/* User profile row */}
+                <button
+                  onClick={() => setShowUserProfile(true)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left"
+                  style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', color: '#78350f' }}>
+                    {currentUser?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 truncate leading-tight">{currentUser?.full_name ?? '-'}</p>
+                    <p className="text-[10px] font-bold tracking-widest uppercase mt-0.5" style={{ color: '#c8861d' }}>{currentUser?.role ?? '-'}</p>
+                  </div>
+                  <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         </div>
