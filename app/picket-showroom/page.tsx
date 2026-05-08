@@ -257,7 +257,7 @@ function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanLis
             </div>
           </div>
           {/* Stats grid */}
-          <div className="grid grid-cols-3 divide-x divide-y" style={{divideColor:'rgba(0,0,0,0.05)'}}>
+          <div className="grid grid-cols-3 divide-x divide-y divide-slate-100">
             {c.stats.map((s,i)=>(
               <div key={i} className="px-3 py-2.5 flex flex-col gap-0.5" style={{borderColor:'rgba(0,0,0,0.05)',borderWidth: i%3!==0?'0 0 0 1px':'0', borderTopWidth: i>=3?'1px':'0'}}>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">{s.label}</span>
