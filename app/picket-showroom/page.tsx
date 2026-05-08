@@ -838,6 +838,25 @@ function exportToExcel(allRows:PiketRow[], kegiatanList:KegiatanEntry[]) {
       const totalRnD = kegiatanList.filter(k=>k.jenis_kegiatan==='RnD').length;
       const totalMaint = kegiatanList.filter(k=>k.jenis_kegiatan==='Maintenance').length;
       const totalShoot = kegiatanList.filter(k=>k.jenis_kegiatan==='Shooting Markom').length;
+      const activeDaysSet = new Set(kegiatanList.map(k=>{const r=sorted.find(r=>r.id===k.piket_id);return r?.day_date;}).filter(Boolean));
+      const totalActiveDays = activeDaysSet.size;
+
+      // Top divisi
+      const divMapEx:Record<string,number>={};
+      kegiatanList.forEach(k=>{if(k.sales_division)divMapEx[k.sales_division]=(divMapEx[k.sales_division]||0)+1;});
+      const divArrEx=Object.entries(divMapEx).sort(([,a],[,b])=>b-a);
+      const topDivisiEx=divArrEx[0]?.[0]||'-';
+      const topDivisiCountEx=divArrEx[0]?.[1]||0;
+
+      // Top kegiatan
+      const kgMapEx:Record<string,number>={'Demo Product':totalDemo,'RnD':totalRnD,'Maintenance':totalMaint,'Shooting Markom':totalShoot};
+      const topKgEx=Object.entries(kgMapEx).sort(([,a],[,b])=>b-a)[0]?.[0]||'-';
+
+      // Top produk
+      const prodMapEx:Record<string,number>={};
+      kegiatanList.forEach(k=>(k.produk||[]).forEach(p=>{prodMapEx[p]=(prodMapEx[p]||0)+1;}));
+      const prodArrEx=Object.entries(prodMapEx).sort(([,a],[,b])=>b-a);
+      const topProdukEx=prodArrEx[0]?.[0]||'-';
 
       const data:any[][] = [
         [cell('📊 PIKET SHOWROOM — DASHBOARD REPORT',titleStyle),...row0(COLS-1,titleStyle)],
@@ -845,28 +864,46 @@ function exportToExcel(allRows:PiketRow[], kegiatanList:KegiatanEntry[]) {
         row0(COLS),
         // ── Ringkasan ──
         [ctr('RINGKASAN STATISTIK',secHdr),...row0(COLS-1,secHdr)],
-        [ctr('Kategori',hdrStyle),ctr('Jumlah',hdrStyle),ctr('Persentase',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle)],
+        [ctr('Kategori',hdrStyle),ctr('Jumlah',hdrStyle),ctr('Persentase / Keterangan',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle)],
       ];
       const stats = [
-        {label:'Total Hari Piket',  val:totalHari,   fg:'1E3A5F'},
-        {label:'Total Kegiatan',     val:totalKegiatan,fg:'DC2626'},
-        {label:'Demo Product',       val:totalDemo,   fg:'1E40AF'},
-        {label:'RnD',                val:totalRnD,    fg:'6D28D9'},
-        {label:'Maintenance',        val:totalMaint,  fg:'92400E'},
-        {label:'Shooting Markom',    val:totalShoot,  fg:'065F46'},
+        {label:'Hari Aktif (ada kegiatan)', val:totalActiveDays, note:`dari ${totalHari} hari piket`, fg:'1E3A5F'},
+        {label:'Total Kegiatan',            val:totalKegiatan,   note:'semua jenis',                  fg:'DC2626'},
+        {label:'Demo Product',              val:totalDemo,       note:totalKegiatan>0?((totalDemo/totalKegiatan)*100).toFixed(1)+'%':'0%', fg:'1E40AF'},
+        {label:'RnD',                       val:totalRnD,        note:totalKegiatan>0?((totalRnD/totalKegiatan)*100).toFixed(1)+'%':'0%',  fg:'6D28D9'},
+        {label:'Maintenance',               val:totalMaint,      note:totalKegiatan>0?((totalMaint/totalKegiatan)*100).toFixed(1)+'%':'0%',fg:'92400E'},
+        {label:'Shooting Markom',           val:totalShoot,      note:totalKegiatan>0?((totalShoot/totalKegiatan)*100).toFixed(1)+'%':'0%',fg:'065F46'},
+        {label:'Top Jenis Kegiatan',        val:topKgEx,         note:'terbanyak',                    fg:'7C3AED', isText:true},
+        {label:'Top Divisi Sales',          val:topDivisiEx,     note:`${topDivisiCountEx}x kegiatan`,fg:'0891B2', isText:true},
+        {label:'Top Produk Demo',           val:topProdukEx,     note:`${prodArrEx[0]?.[1]||0}x digunakan`, fg:'059669', isText:true},
       ];
       stats.forEach((s,i)=>{
-        const pct = totalKegiatan>0?((s.val/totalKegiatan)*100).toFixed(1)+'%':'0%';
         const rs = i%2===0?cellStyle:altStyle;
         data.push([
           cell(s.label,{...rs,font:{name:'Arial',sz:10,bold:true,color:{rgb:s.fg}}}),
-          ctr(s.val,{...rs,alignment:{horizontal:'center',vertical:'center'}}),
-          ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),
+          (s as any).isText
+            ? cell(s.val,{...rs,font:{name:'Arial',sz:10,bold:true,color:{rgb:s.fg}}})
+            : ctr(s.val,{...rs,alignment:{horizontal:'center',vertical:'center'}}),
+          cell(s.note,{...rs,font:{name:'Arial',sz:9,color:{rgb:'6B7280'}}}),
           empty(),empty(),empty(),
         ]);
       });
 
       data.push(row0(COLS));
+
+      // ── Statistik Produk (baru) ──
+      if(prodArrEx.length>0){
+        const secHdrTeal={font:{name:'Arial',bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'0F766E'},patternType:'solid'},alignment:{horizontal:'center',vertical:'center'},border:boldBorder};
+        data.push([ctr('PENGGUNAAN PRODUK',secHdrTeal),...row0(COLS-1,secHdrTeal)]);
+        data.push([ctr('Produk',hdrBlue),ctr('Jumlah Digunakan',hdrBlue),ctr('Persentase',hdrBlue),ctr('',hdrBlue),ctr('',hdrBlue),ctr('',hdrBlue)]);
+        const totalProduk=prodArrEx.reduce((s,[,v])=>s+v,0);
+        prodArrEx.forEach(([prod,cnt],i)=>{
+          const pct=totalProduk>0?((cnt/totalProduk)*100).toFixed(1)+'%':'0%';
+          const rs=i%2===0?cellStyle:altStyle;
+          data.push([cell(prod,rs),ctr(cnt,{...rs,alignment:{horizontal:'center',vertical:'center'}}),ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),empty(),empty(),empty()]);
+        });
+        data.push(row0(COLS));
+      }
 
       // ── Statistik per Instansi ──
       const instansiMap:Record<string,number>={};
@@ -879,6 +916,18 @@ function exportToExcel(allRows:PiketRow[], kegiatanList:KegiatanEntry[]) {
           const pct = totalDemo>0?((cnt/totalDemo)*100).toFixed(1)+'%':'0%';
           const rs = i%2===0?cellStyle:altStyle;
           data.push([cell(inst,rs),ctr(cnt,{...rs,alignment:{horizontal:'center',vertical:'center'}}),ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),empty(),empty(),empty()]);
+        });
+        data.push(row0(COLS));
+      }
+
+      // ── Statistik Division Sales ──
+      if(divArrEx.length>0){
+        data.push([ctr('DIVISION SALES AKTIF',secHdrPurple),...row0(COLS-1,secHdrPurple)]);
+        data.push([ctr('Division',hdrStyle),ctr('Jumlah Kegiatan',hdrStyle),ctr('Persentase',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle),ctr('',hdrStyle)]);
+        divArrEx.forEach(([div,cnt],i)=>{
+          const pct=totalKegiatan>0?((cnt/totalKegiatan)*100).toFixed(1)+'%':'0%';
+          const rs=i%2===0?cellStyle:altStyle;
+          data.push([cell(div,rs),ctr(cnt,{...rs,alignment:{horizontal:'center',vertical:'center'}}),ctr(pct,{...rs,alignment:{horizontal:'center',vertical:'center'}}),empty(),empty(),empty()]);
         });
         data.push(row0(COLS));
       }
@@ -916,19 +965,13 @@ function exportToExcel(allRows:PiketRow[], kegiatanList:KegiatanEntry[]) {
       }
 
       const ws = XLSX.utils.aoa_to_sheet(data);
-      // Merges: title row, subtitle row, section headers
       const merges:any[]=[
         {s:{r:0,c:0},e:{r:0,c:COLS-1}},
         {s:{r:1,c:0},e:{r:1,c:COLS-1}},
         {s:{r:3,c:0},e:{r:3,c:COLS-1}},
       ];
-      // Auto-merge section header rows
-      let ri=5+stats.length+1;
-      if(instansiArr.length>0){merges.push({s:{r:ri,c:0},e:{r:ri,c:COLS-1}});ri+=instansiArr.length+2;}
-      if(picArr.length>0){merges.push({s:{r:ri,c:0},e:{r:ri,c:COLS-1}});ri+=picArr.length+2;}
-      if(kbtArr.length>0){merges.push({s:{r:ri,c:0},e:{r:ri,c:COLS-1}});}
       ws['!merges']=merges;
-      ws['!cols']=[{wch:32},{wch:16},{wch:14},{wch:16},{wch:16},{wch:16}];
+      ws['!cols']=[{wch:32},{wch:16},{wch:24},{wch:16},{wch:16},{wch:16}];
       ws['!rows']=[{hpt:34},{hpt:18},{hpt:8},{hpt:24}];
       XLSX.utils.book_append_sheet(wb,ws,'📊 Dashboard');
     }
@@ -1101,7 +1144,7 @@ export default function PiketShowroomPage() {
   const [filterDivision,setFilterDivision]=useState<string|null>(null);
   const [filterKegiatan,setFilterKegiatan]=useState<string|null>(null);
   const [summaryYear,setSummaryYear]=useState<number>(new Date().getFullYear());
-  const [summaryMonth,setSummaryMonth]=useState<number|null>(new Date().getMonth()+1);
+  const [summaryMonth,setSummaryMonth]=useState<number|null>(null);
   const wk=toKey(weekStart);
 
   useEffect(()=>{try{const s=localStorage.getItem('currentUser');if(s)setCurrentUser(JSON.parse(s));}catch{}});
