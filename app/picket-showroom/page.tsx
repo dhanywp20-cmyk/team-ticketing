@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -1188,7 +1188,34 @@ export default function PiketShowroomPage() {
   const wLabel=fmtW(weekStart);
   const wLabel2=fmtW(addDays(weekStart,7));
 
-  const displayRows=rows.slice().sort((a,b)=>a.day_date.localeCompare(b.day_date)).filter(row=>{
+  // Generate virtual rows dari rolling untuk minggu yang belum ada di DB
+  const effectiveRows = useMemo(()=>{
+    const existingKeys = new Set(rows.map(r=>`${r.week_start}__${r.day_of_week}`));
+    const virtual: PiketRow[] = [];
+    [weekStart, addDays(weekStart,7)].forEach(ws=>{
+      const wkKey = toKey(ws);
+      DAYS_OF_WEEK.forEach((day,dayIdx)=>{
+        if(existingKeys.has(`${wkKey}__${day}`)) return; // sudah ada di DB
+        const date = getDayDate(ws, day);
+        const name = getRollingNameForDate(date, allRows);
+        if(!name) return;
+        virtual.push({
+          id: `virtual-${wkKey}-${day}`,
+          week_start: wkKey,
+          day_of_week: day,
+          day_date: toKey(date),
+          pic_ivp_name: name,
+          pic_ump_id: null, pic_ivp_id: null, pic_mlds_id: null,
+          pic_ump_name: null, pic_mlds_name: null,
+          tamu_instansi: null, kebutuhan: [],
+          created_at: '', updated_at: '',
+        });
+      });
+    });
+    return [...rows, ...virtual];
+  }, [rows, allRows, weekStart]);
+
+  const displayRows=effectiveRows.slice().sort((a,b)=>a.day_date.localeCompare(b.day_date)).filter(row=>{
     // Hide weekends from list (Sabtu/Minggu hidden, shown only in mini calendar)
     const d=new Date(row.day_date+'T00:00:00');
     if(d.getDay()===0||d.getDay()===6)return false;
@@ -1369,11 +1396,12 @@ export default function PiketShowroomPage() {
                     ):displayRows.map((row,idx)=>{
                       const dc=DAY_COLOR[row.day_of_week];
                       const todayRow=row.day_date===toKey(new Date());
+                      const isVirtual=row.id.startsWith('virtual-');
                       const rowKg=kegiatanList.filter(k=>k.piket_id===row.id);
                       const kgToShow=rowKg.length>0?rowKg:[null];
                       return kgToShow.map((kg,kgIdx)=>(
                         <tr key={`${row.id}-${kgIdx}`} className="transition-colors hover:bg-gray-50/70"
-                          style={{borderBottom:kgIdx===kgToShow.length-1?'2px solid #e5e7eb':'1px solid #f3f4f6',background:todayRow?'rgba(220,38,38,0.025)':undefined}}>
+                          style={{borderBottom:kgIdx===kgToShow.length-1?'2px solid #e5e7eb':'1px solid #f3f4f6',background:todayRow?'rgba(220,38,38,0.025)':isVirtual?'rgba(148,163,184,0.04)':undefined}}>
                           {kgIdx===0&&(
                             <>
                               <td className="px-3 py-3 text-gray-400 text-xs align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>{idx+1}</td>
@@ -1446,11 +1474,14 @@ export default function PiketShowroomPage() {
                           {/* Action */}
                           {kgIdx===0&&(
                             <td className="px-3 py-3 align-middle text-center" rowSpan={kgToShow.length} style={{verticalAlign:'middle'}}>
-                              <button onClick={()=>setFillDetail(row)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
-                                style={{background:dc.grad,boxShadow:`0 2px 8px ${dc.accent}30`}}>
-                                ✍️ Isi
-                              </button>
+                              {row.id.startsWith('virtual-')
+                                ? <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Rolling</span>
+                                : <button onClick={()=>setFillDetail(row)}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
+                                    style={{background:dc.grad,boxShadow:`0 2px 8px ${dc.accent}30`}}>
+                                    ✍️ Isi
+                                  </button>
+                              }
                             </td>
                           )}
                         </tr>
