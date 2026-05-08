@@ -174,103 +174,90 @@ function MiniPieChart({data,title,icon,activeFilter,onSliceClick}:{
 
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
-function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanList:KegiatanEntry[]}) {
+function TamuSummaryCards({allRows,kegiatanList,period,onPeriodChange}:{
+  allRows:PiketRow[];kegiatanList:KegiatanEntry[];
+  period:'bulan'|'tahun'|'semua';onPeriodChange:(p:'bulan'|'tahun'|'semua')=>void;
+}) {
   const now=new Date();
   const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const thisYear=String(now.getFullYear());
 
-  // Build piket date map
   const piketDateMap:Record<string,string>={};
   allRows.forEach(r=>{piketDateMap[r.id]=r.day_date;});
 
-  // Filter kegiatan by period
-  const kgFor=(f:(d:string)=>boolean)=>kegiatanList.filter(k=>{const d=piketDateMap[k.piket_id];return d&&f(d);});
-  const monthKg=kgFor(d=>d.startsWith(thisMonth));
-  const yearKg=kgFor(d=>d.startsWith(thisYear));
+  const activeKg=kegiatanList.filter(k=>{
+    const d=piketDateMap[k.piket_id];
+    if(!d)return false;
+    if(period==='bulan')return d.startsWith(thisMonth);
+    if(period==='tahun')return d.startsWith(thisYear);
+    return true;
+  });
 
-  // Helper counts
-  const demoKg=(kg:KegiatanEntry[])=>kg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi);
-  const uniqueTamu=(kg:KegiatanEntry[])=>new Set(kg.filter(k=>k.tamu_instansi).map(k=>k.tamu_instansi!)).size;
-  const uniqueDiv=(kg:KegiatanEntry[])=>new Set(kg.filter(k=>k.sales_division).map(k=>k.sales_division!)).size;
-  // Days that had any kegiatan
-  const activeDays=(kg:KegiatanEntry[])=>new Set(kg.map(k=>piketDateMap[k.piket_id]).filter(Boolean)).size;
-  // Top produk
-  const topProduk=(kg:KegiatanEntry[])=>{
-    const map:Record<string,number>={};
-    kg.forEach(k=>(k.produk||[]).forEach(p=>{map[p]=(map[p]||0)+1;}));
-    const sorted=Object.entries(map).sort(([,a],[,b])=>b-a);
-    return sorted[0]?sorted[0][0]:'—';
-  };
+  const demoList=activeKg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi);
+  const uniqueTamu=new Set(activeKg.filter(k=>k.tamu_instansi).map(k=>k.tamu_instansi!)).size;
+  const uniqueDiv=new Set(activeKg.filter(k=>k.sales_division).map(k=>k.sales_division!)).size;
+  const activeDays=new Set(activeKg.map(k=>piketDateMap[k.piket_id]).filter(Boolean)).size;
+  const rndCount=activeKg.filter(k=>k.jenis_kegiatan==='RnD').length;
+  const maintCount=activeKg.filter(k=>k.jenis_kegiatan==='Maintenance').length;
+  const shootCount=activeKg.filter(k=>k.jenis_kegiatan==='Shooting Markom').length;
+  const topProdukMap:Record<string,number>={};
+  activeKg.forEach(k=>(k.produk||[]).forEach(p=>{topProdukMap[p]=(topProdukMap[p]||0)+1;}));
+  const topProduk=Object.entries(topProdukMap).sort(([,a],[,b])=>b-a)[0]?.[0]||'—';
 
-  const cards=[
-    {
-      p:'Bulan Ini', sub:MONTH_NAMES[now.getMonth()]+' '+now.getFullYear(),
-      c:'#7c3aed', g:'linear-gradient(135deg,#7c3aed,#4c1d95)', sh:'rgba(124,58,237,0.25)',
-      icon:'📅',
-      stats:[
-        {label:'Hari Aktif',val:activeDays(monthKg),hint:'hari ada kegiatan',color:'#7c3aed'},
-        {label:'Demo Tamu',val:demoKg(monthKg).length,hint:'sesi demo product',color:'#2563eb'},
-        {label:'Tamu Unik',val:uniqueTamu(monthKg),hint:'instansi berbeda',color:'#0891b2'},
-        {label:'Divisi Sales',val:uniqueDiv(monthKg),hint:'divisi aktif',color:'#7c3aed'},
-        {label:'Kegiatan',val:monthKg.length,hint:'total semua jenis',color:'#d97706'},
-        {label:'Top Produk',val:topProduk(monthKg),hint:'paling sering demo',color:'#059669',isText:true},
-      ],
-    },
-    {
-      p:'Tahun '+thisYear, sub:'Jan – Des '+thisYear,
-      c:'#059669', g:'linear-gradient(135deg,#059669,#047857)', sh:'rgba(5,150,105,0.25)',
-      icon:'📊',
-      stats:[
-        {label:'Hari Aktif',val:activeDays(yearKg),hint:'hari ada kegiatan',color:'#059669'},
-        {label:'Demo Tamu',val:demoKg(yearKg).length,hint:'sesi demo product',color:'#2563eb'},
-        {label:'Tamu Unik',val:uniqueTamu(yearKg),hint:'instansi berbeda',color:'#0891b2'},
-        {label:'Divisi Sales',val:uniqueDiv(yearKg),hint:'divisi aktif',color:'#7c3aed'},
-        {label:'Kegiatan',val:yearKg.length,hint:'total semua jenis',color:'#d97706'},
-        {label:'Top Produk',val:topProduk(yearKg),hint:'paling sering demo',color:'#059669',isText:true},
-      ],
-    },
-    {
-      p:'Total Keseluruhan', sub:'Sejak awal data tersimpan',
-      c:'#dc2626', g:'linear-gradient(135deg,#dc2626,#991b1b)', sh:'rgba(220,38,38,0.25)',
-      icon:'🏆',
-      stats:[
-        {label:'Hari Aktif',val:activeDays(kegiatanList),hint:'hari ada kegiatan',color:'#dc2626'},
-        {label:'Demo Tamu',val:demoKg(kegiatanList).length,hint:'sesi demo product',color:'#2563eb'},
-        {label:'Tamu Unik',val:uniqueTamu(kegiatanList),hint:'instansi berbeda',color:'#0891b2'},
-        {label:'Divisi Sales',val:uniqueDiv(kegiatanList),hint:'divisi aktif',color:'#7c3aed'},
-        {label:'Kegiatan',val:kegiatanList.length,hint:'total semua jenis',color:'#d97706'},
-        {label:'Top Produk',val:topProduk(kegiatanList),hint:'paling sering demo',color:'#059669',isText:true},
-      ],
-    },
+  const periodLabel=period==='bulan'?`${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`:period==='tahun'?`Tahun ${now.getFullYear()}`:'Semua Data';
+  const accentColor=period==='bulan'?'#7c3aed':period==='tahun'?'#059669':'#dc2626';
+  const accentGrad=period==='bulan'?'linear-gradient(135deg,#7c3aed,#4c1d95)':period==='tahun'?'linear-gradient(135deg,#059669,#047857)':'linear-gradient(135deg,#dc2626,#991b1b)';
+
+  const stats=[
+    {label:'Hari Aktif',val:activeDays,hint:'ada kegiatan',icon:'📅',color:accentColor},
+    {label:'Demo Tamu',val:demoList.length,hint:'sesi demo',icon:'🏢',color:'#2563eb'},
+    {label:'Tamu Unik',val:uniqueTamu,hint:'instansi',icon:'👥',color:'#0891b2'},
+    {label:'Divisi Aktif',val:uniqueDiv,hint:'sales division',icon:'🏷️',color:'#7c3aed'},
+    {label:'Total Kegiatan',val:activeKg.length,hint:'semua jenis',icon:'📋',color:'#d97706'},
+    {label:'RnD',val:rndCount,hint:'research & dev',icon:'🔬',color:'#7c3aed'},
+    {label:'Maintenance',val:maintCount,hint:'perawatan',icon:'🔧',color:'#d97706'},
+    {label:'Shooting',val:shootCount,hint:'markom',icon:'🎬',color:'#059669'},
+    {label:'Top Produk',val:topProduk,hint:'paling sering',icon:'🥇',color:'#059669',isText:true},
   ];
 
   return(
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-      {cards.map(c=>(
-        <div key={c.p} className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.97)',border:`1px solid ${c.c}20`,boxShadow:`0 4px 20px ${c.sh}`}}>
-          {/* Card header */}
-          <div className="px-4 py-2.5 flex items-center gap-2" style={{background:c.g}}>
-            <span className="text-base">{c.icon}</span>
-            <div>
-              <p className="text-xs font-black text-white leading-none tracking-wide">{c.p}</p>
-              <p className="text-[9px] text-white/70 mt-0.5">{c.sub}</p>
-            </div>
-          </div>
-          {/* Stats grid */}
-          <div className="grid grid-cols-3 divide-x divide-y divide-slate-100">
-            {c.stats.map((s,i)=>(
-              <div key={i} className="px-3 py-2.5 flex flex-col gap-0.5" style={{borderColor:'rgba(0,0,0,0.05)',borderWidth: i%3!==0?'0 0 0 1px':'0', borderTopWidth: i>=3?'1px':'0'}}>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">{s.label}</span>
-                {(s as any).isText
-                  ? <span className="text-[11px] font-black leading-tight truncate" style={{color:s.color}}>{s.val}</span>
-                  : <span className="text-xl font-black leading-tight" style={{color:s.color}}>{s.val}</span>
-                }
-                <span className="text-[8px] text-slate-300 leading-none">{s.hint}</span>
-              </div>
-            ))}
+    <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.97)',border:`1px solid ${accentColor}20`,boxShadow:`0 4px 20px ${accentColor}20`}}>
+      {/* Header with toggle */}
+      <div className="px-4 py-2.5 flex items-center justify-between gap-3" style={{background:accentGrad}}>
+        <div className="flex items-center gap-2">
+          <span className="text-base">📊</span>
+          <div>
+            <p className="text-xs font-black text-white leading-none">Ringkasan Aktivitas</p>
+            <p className="text-[9px] text-white/70 mt-0.5">{periodLabel}</p>
           </div>
         </div>
-      ))}
+        {/* Toggle */}
+        <div className="flex items-center gap-1 bg-black/20 rounded-xl p-1">
+          {([['bulan','Bulan'],['tahun','Tahun'],['semua','Semua']] as const).map(([v,label])=>(
+            <button key={v} onClick={()=>onPeriodChange(v)}
+              className="px-3 py-1 rounded-lg text-[10px] font-bold transition-all"
+              style={period===v?{background:'white',color:accentColor}:{color:'rgba(255,255,255,0.7)'}}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Stats horizontal */}
+      <div className="flex divide-x divide-slate-100 overflow-x-auto">
+        {stats.map((s,i)=>(
+          <div key={i} className="flex-1 min-w-[90px] px-3 py-3 flex flex-col gap-0.5 flex-shrink-0">
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-[11px]">{s.icon}</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none truncate">{s.label}</span>
+            </div>
+            {(s as any).isText
+              ? <span className="text-[12px] font-black leading-tight truncate" style={{color:s.color}}>{s.val}</span>
+              : <span className="text-2xl font-black leading-none" style={{color:s.color}}>{s.val}</span>
+            }
+            <span className="text-[8px] text-slate-300 leading-none">{s.hint}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1079,6 +1066,7 @@ export default function PiketShowroomPage() {
   const [filterInstansi,setFilterInstansi]=useState<string|null>(null);
   const [filterDivision,setFilterDivision]=useState<string|null>(null);
   const [filterKegiatan,setFilterKegiatan]=useState<string|null>(null);
+  const [summaryPeriod,setSummaryPeriod]=useState<'bulan'|'tahun'|'semua'>('bulan');
   const wk=toKey(weekStart);
 
   useEffect(()=>{try{const s=localStorage.getItem('currentUser');if(s)setCurrentUser(JSON.parse(s));}catch{}});
@@ -1134,14 +1122,13 @@ export default function PiketShowroomPage() {
   const now2=new Date();
   const thisMonth2=`${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`;
   const thisYear2=String(now2.getFullYear());
-  const [pieFilter,setPieFilter]=useState<'bulan'|'tahun'|'semua'>('semua');
   const piketDateMapPie:Record<string,string>={};
   allRows.forEach(r=>{piketDateMapPie[r.id]=r.day_date;});
   const filteredKgForPie=kegiatanList.filter(k=>{
     const d=piketDateMapPie[k.piket_id];
     if(!d)return false;
-    if(pieFilter==='bulan')return d.startsWith(thisMonth2);
-    if(pieFilter==='tahun')return d.startsWith(thisYear2);
+    if(summaryPeriod==='bulan')return d.startsWith(thisMonth2);
+    if(summaryPeriod==='tahun')return d.startsWith(thisYear2);
     return true;
   });
   const kPieAll=Object.entries(filteredKgForPie.reduce((acc,k)=>{(k.kebutuhan||[]).forEach(x=>{acc[x]=(acc[x]||0)+1;});return acc;},{}as Record<string,number>)).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
@@ -1195,31 +1182,13 @@ export default function PiketShowroomPage() {
         </header>
 
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
-          <TamuSummaryCards allRows={allRows} kegiatanList={kegiatanList}/>
+          <TamuSummaryCards allRows={allRows} kegiatanList={kegiatanList} period={summaryPeriod} onPeriodChange={setSummaryPeriod}/>
 
-          <div className="space-y-2">
-            {/* Period toggle for pie charts */}
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex-shrink-0">Periode Pie Chart:</span>
-              <div className="flex items-center gap-1">
-                {([['bulan','Bulan Ini','#7c3aed'],['tahun','Tahun Ini','#059669'],['semua','Semua','#dc2626']] as const).map(([v,label,color])=>(
-                  <button key={v} onClick={()=>setPieFilter(v)}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all"
-                    style={pieFilter===v?{background:color,color:'white',boxShadow:`0 2px 8px ${color}40`}:{background:'rgba(255,255,255,0.7)',color:'#64748b',border:'1px solid rgba(0,0,0,0.1)'}}>
-                    {label}
-                  </button>
-                ))}
-                <span className="text-[9px] text-slate-400 ml-1">
-                  {pieFilter==='bulan'?`${MONTH_NAMES[now2.getMonth()]} ${now2.getFullYear()}`:pieFilter==='tahun'?thisYear2:'All time'} · {filteredKgForPie.length} kegiatan
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <MiniPieChart data={instansiPie} title="Tamu per Instansi" icon="🏢" activeFilter={filterInstansi} onSliceClick={l=>setFilterInstansi(filterInstansi===l?null:l)}/>
-              <MiniPieChart data={kgTypePie} title="Jenis Kegiatan" icon="📋" activeFilter={filterKegiatan} onSliceClick={l=>setFilterKegiatan(filterKegiatan===l?null:l)}/>
-              <MiniPieChart data={kPieAll} title="Kebutuhan Terbanyak" icon="🎯" activeFilter={filterKebutuhan} onSliceClick={l=>setFilterKebutuhan(filterKebutuhan===l?null:l)}/>
-              <MiniPieChart data={divPieAll} title="Division Sales" icon="🏷️" activeFilter={filterDivision} onSliceClick={l=>setFilterDivision(filterDivision===l?null:l)}/>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <MiniPieChart data={instansiPie} title="Tamu per Instansi" icon="🏢" activeFilter={filterInstansi} onSliceClick={l=>setFilterInstansi(filterInstansi===l?null:l)}/>
+            <MiniPieChart data={kgTypePie} title="Jenis Kegiatan" icon="📋" activeFilter={filterKegiatan} onSliceClick={l=>setFilterKegiatan(filterKegiatan===l?null:l)}/>
+            <MiniPieChart data={kPieAll} title="Kebutuhan Terbanyak" icon="🎯" activeFilter={filterKebutuhan} onSliceClick={l=>setFilterKebutuhan(filterKebutuhan===l?null:l)}/>
+            <MiniPieChart data={divPieAll} title="Division Sales" icon="🏷️" activeFilter={filterDivision} onSliceClick={l=>setFilterDivision(filterDivision===l?null:l)}/>
           </div>
 
           {/* ── TABLE (full width) ── */}
