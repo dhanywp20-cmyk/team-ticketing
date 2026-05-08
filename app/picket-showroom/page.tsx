@@ -12,36 +12,40 @@ const supabase = createClient(
 
 const DAYS_OF_WEEK = ['Senin','Selasa','Rabu','Kamis','Jumat'] as const;
 type DayOfWeek = typeof DAYS_OF_WEEK[number];
-
-const DAY_EN: Record<DayOfWeek,string> = { Senin:'MON', Selasa:'TUE', Rabu:'WED', Kamis:'THU', Jumat:'FRI' };
-
+const DAY_EN: Record<DayOfWeek,string> = {Senin:'MON',Selasa:'TUE',Rabu:'WED',Kamis:'THU',Jumat:'FRI'};
 const DAY_COLOR: Record<DayOfWeek,{accent:string;light:string;grad:string}> = {
-  Senin:  {accent:'#dc2626', light:'rgba(220,38,38,0.08)',  grad:'linear-gradient(135deg,#dc2626,#991b1b)'},
-  Selasa: {accent:'#d97706', light:'rgba(217,119,6,0.08)',  grad:'linear-gradient(135deg,#d97706,#92400e)'},
-  Rabu:   {accent:'#2563eb', light:'rgba(37,99,235,0.08)',  grad:'linear-gradient(135deg,#2563eb,#1e3a8a)'},
-  Kamis:  {accent:'#7c3aed', light:'rgba(124,58,237,0.08)', grad:'linear-gradient(135deg,#7c3aed,#4c1d95)'},
-  Jumat:  {accent:'#059669', light:'rgba(5,150,105,0.08)',  grad:'linear-gradient(135deg,#059669,#064e3b)'},
+  Senin:  {accent:'#dc2626',light:'rgba(220,38,38,0.08)',  grad:'linear-gradient(135deg,#dc2626,#991b1b)'},
+  Selasa: {accent:'#d97706',light:'rgba(217,119,6,0.08)',  grad:'linear-gradient(135deg,#d97706,#92400e)'},
+  Rabu:   {accent:'#2563eb',light:'rgba(37,99,235,0.08)',  grad:'linear-gradient(135deg,#2563eb,#1e3a8a)'},
+  Kamis:  {accent:'#7c3aed',light:'rgba(124,58,237,0.08)', grad:'linear-gradient(135deg,#7c3aed,#4c1d95)'},
+  Jumat:  {accent:'#059669',light:'rgba(5,150,105,0.08)',  grad:'linear-gradient(135deg,#059669,#064e3b)'},
 };
-
-const TEAM_COLOR: Record<string,{dot:string;text:string;bg:string;badge:string}> = {
-  'PTS IVP':  {dot:'#dc2626',text:'#991b1b',bg:'rgba(220,38,38,0.1)',  badge:'bg-red-100 text-red-700 border-red-200'},
-  'PTS UMP':  {dot:'#2563eb',text:'#1e40af',bg:'rgba(37,99,235,0.1)',  badge:'bg-blue-100 text-blue-700 border-blue-200'},
-  'PTS MLDS': {dot:'#7c3aed',text:'#6d28d9',bg:'rgba(124,58,237,0.1)', badge:'bg-violet-100 text-violet-700 border-violet-200'},
+const TEAM_LABEL: Record<string,{dot:string;text:string;bg:string}> = {
+  'PTS IVP':  {dot:'#dc2626',text:'#991b1b',bg:'rgba(220,38,38,0.1)'},
+  'PTS UMP':  {dot:'#2563eb',text:'#1e40af',bg:'rgba(37,99,235,0.1)'},
+  'PTS MLDS': {dot:'#7c3aed',text:'#6d28d9',bg:'rgba(124,58,237,0.1)'},
 };
-
+// team_type in DB → display label
+// 'Team PTS' → PTS IVP, 'Team PTS UMP' → PTS UMP, 'Team PTS MLDS' → PTS MLDS
+function teamTypeToLabel(tt:string):string {
+  if (tt==='Team PTS UMP') return 'PTS UMP';
+  if (tt==='Team PTS MLDS') return 'PTS MLDS';
+  return 'PTS IVP'; // 'Team PTS' = internal IVP
+}
 const KEBUTUHAN_LIST = [
   'Meeting Room','Auditorium','Command Center','Digital Signage Kiosk',
   'Digital Signage Custom','Paging System','Background Music','Signage LED Outdoor',
   'Smartclass Room','Ballroom','Camera ETLE','Conference Room',
   'Paperless System','Delegate System','Camera Tracking',
 ];
-
 const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Person { id:string; name:string; team:'PTS IVP'|'PTS UMP'|'PTS MLDS'; is_active:boolean; }
-
+interface UserRow {
+  id:string; full_name:string; username:string;
+  team_type?:string; role:string;
+}
 interface PiketRow {
   id:string; week_start:string; day_of_week:DayOfWeek; day_date:string;
   pic_ivp_id:string|null; pic_ivp_name:string|null;
@@ -54,26 +58,25 @@ interface PiketRow {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getMonday(d:Date):Date {
-  const r=new Date(d), day=r.getDay();
-  r.setDate(r.getDate()-day+(day===0?-6:1)); r.setHours(0,0,0,0); return r;
+  const r=new Date(d),day=r.getDay();
+  r.setDate(r.getDate()-day+(day===0?-6:1));r.setHours(0,0,0,0);return r;
 }
-function addDays(d:Date,n:number):Date { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
-function toKey(d:Date):string { return d.toISOString().split('T')[0]; }
-function getDayDate(ws:Date,day:DayOfWeek):Date { return addDays(ws,DAYS_OF_WEEK.indexOf(day)); }
-function isToday(d:Date):boolean {
-  const t=new Date();
-  return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate();
-}
-function fmtDate(ds:string):string {
-  return new Date(ds+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'});
-}
+function addDays(d:Date,n:number):Date{const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+function toKey(d:Date):string{return d.toISOString().split('T')[0];}
+function getDayDate(ws:Date,day:DayOfWeek):Date{return addDays(ws,DAYS_OF_WEEK.indexOf(day));}
+function isToday(d:Date):boolean{const t=new Date();return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate();}
 
-// ─── Donut Pie — identical to Reminder Schedule ───────────────────────────────
+// ─── Donut Pie Chart — identical to Reminder Schedule ────────────────────────
 
-function MiniPieChart({data,title,icon}:{data:{label:string;value:number;color:string}[];title:string;icon:string;}) {
+function MiniPieChart({data,title,icon,activeFilter,onSliceClick}:{
+  data:{label:string;value:number;color:string}[];
+  title:string;icon:string;
+  activeFilter?:string|null;
+  onSliceClick?:(label:string)=>void;
+}) {
   const [hov,setHov]=useState<number|null>(null);
   const total=data.reduce((s,d)=>s+d.value,0);
-  if (total===0) return (
+  if(total===0) return(
     <div className="rounded-2xl p-4 flex flex-col gap-2" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(255,255,255,0.8)',backdropFilter:'blur(10px)'}}>
       <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{icon} {title}</p>
       <p className="text-gray-400 text-sm text-center py-4">Belum ada data</p>
@@ -83,44 +86,49 @@ function MiniPieChart({data,title,icon}:{data:{label:string;value:number;color:s
   const cx=60,cy=60,r=50,ir=28;
   const slices=data.map((d,i)=>{
     const angle=(d.value/total)*2*Math.PI;
-    if (data.length===1){cum+=angle;return{...d,path:'',full:true,i};}
+    if(data.length===1){cum+=angle;return{...d,path:'',full:true,i};}
     const x1=cx+r*Math.cos(cum),y1=cy+r*Math.sin(cum);
     const x2=cx+r*Math.cos(cum+angle),y2=cy+r*Math.sin(cum+angle);
     const xi1=cx+ir*Math.cos(cum),yi1=cy+ir*Math.sin(cum);
     const xi2=cx+ir*Math.cos(cum+angle),yi2=cy+ir*Math.sin(cum+angle);
     const lg=angle>Math.PI?1:0;
     const path=`M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${lg} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${ir} ${ir} 0 ${lg} 0 ${xi1} ${yi1} Z`;
-    cum+=angle;
-    return{...d,path,full:false,i};
+    cum+=angle;return{...d,path,full:false,i};
   });
-  return (
+  return(
     <div className="rounded-2xl p-4 flex flex-col gap-3" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(255,255,255,0.8)',backdropFilter:'blur(10px)'}}>
       <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
       <div className="flex items-center gap-3">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map(s=>s.full?(
-            <g key={s.i} onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}>
-              <circle cx={60} cy={60} r={50} fill={s.color} opacity={hov===null||hov===s.i?1:0.45} style={{filter:hov===s.i?`drop-shadow(0 0 5px ${s.color})`:'none'}}/>
+            <g key={s.i} style={{cursor:onSliceClick?'pointer':'default'}} onClick={()=>onSliceClick&&onSliceClick(s.label)} onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}>
+              <circle cx={60} cy={60} r={50} fill={s.color} opacity={hov===null||hov===s.i?1:0.45} style={{filter:hov===s.i||activeFilter===s.label?`drop-shadow(0 0 5px ${s.color})`:'none'}}/>
               <circle cx={60} cy={60} r={28} fill="white"/>
             </g>
           ):(
             <path key={s.i} d={s.path} fill={s.color} opacity={hov===null||hov===s.i?1:0.45}
-              style={{cursor:'default',transition:'opacity 0.15s',filter:hov===s.i?`drop-shadow(0 0 5px ${s.color})`:'none'}}
-              onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}/>
+              style={{cursor:onSliceClick?'pointer':'default',transition:'opacity 0.15s',filter:hov===s.i||activeFilter===s.label?`drop-shadow(0 0 5px ${s.color})`:'none'}}
+              onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}
+              onClick={()=>onSliceClick&&onSliceClick(s.label)}/>
           ))}
           <text x="60" y="57" textAnchor="middle" fontSize="16" fontWeight="800" fill="#1e293b">{total}</text>
           <text x="60" y="70" textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">TOTAL</text>
         </svg>
         <div className="flex flex-col gap-1 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
-          {slices.map(s=>(
-            <div key={s.i} className="flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 transition-all"
-              style={{background:hov===s.i?`${s.color}20`:'transparent'}}
-              onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{background:s.color}}/>
-              <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
-              <span className="text-[10px] font-bold flex-shrink-0" style={{color:s.color}}>{s.value}</span>
-            </div>
-          ))}
+          {slices.map(s=>{
+            const isActive=activeFilter===s.label;
+            return(
+              <div key={s.i} className="flex items-center gap-1.5 cursor-pointer rounded-lg px-1.5 py-0.5 transition-all"
+                style={{background:hov===s.i||isActive?`${s.color}20`:'transparent',outline:isActive?`1.5px solid ${s.color}`:'none'}}
+                onMouseEnter={()=>setHov(s.i)} onMouseLeave={()=>setHov(null)}
+                onClick={()=>onSliceClick&&onSliceClick(s.label)}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{background:s.color}}/>
+                <span className="text-[10px] font-semibold text-gray-600 truncate flex-1">{s.label}</span>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{color:s.color}}>{s.value}</span>
+                {isActive&&<span className="text-[9px] font-bold text-purple-600 flex-shrink-0">✓</span>}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -129,59 +137,112 @@ function MiniPieChart({data,title,icon}:{data:{label:string;value:number;color:s
 
 // ─── Mini Calendar — identical to Reminder Schedule ──────────────────────────
 
-function MiniCalendar({rows,calMonth,setCalMonth,selDay,setSelDay}:{
-  rows:PiketRow[]; calMonth:Date; setCalMonth:(d:Date)=>void; selDay:string|null; setSelDay:(s:string|null)=>void;
+function MiniCalendar({allRows,calMonth,setCalMonth,selDay,setSelDay}:{
+  allRows:PiketRow[];calMonth:Date;setCalMonth:(d:Date)=>void;
+  selDay:string|null;setSelDay:(s:string|null)=>void;
 }) {
-  const y=calMonth.getFullYear(), m=calMonth.getMonth();
+  const y=calMonth.getFullYear(),m=calMonth.getMonth();
   const firstDay=new Date(y,m,1).getDay();
   const daysInMonth=new Date(y,m+1,0).getDate();
   const today=toKey(new Date());
   const monthNames=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
-
-  const getCount=(day:number)=>{
+  const getRowsForDay=(day:number)=>{
     const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    return rows.filter(r=>r.day_date===ds).length;
+    return allRows.filter(r=>r.day_date===ds);
   };
-  const totalMonth=rows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
+  const totalMonth=allRows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 
-  return (
-    <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.08)',backdropFilter:'blur(12px)',width:320}}>
-      <div className="px-4 py-3 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
-        <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
-        <div className="text-center">
-          <p className="text-white font-bold text-sm">{monthNames[m]} {y}</p>
-          <p className="text-white/70 text-[10px] mt-0.5">{totalMonth} jadwal bulan ini</p>
+  // Selected day rows for summary below calendar
+  const selRows=selDay?allRows.filter(r=>r.day_date===selDay):[];
+
+  return(
+    <div className="flex-shrink-0 space-y-3" style={{width:320}}>
+      <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.08)',backdropFilter:'blur(12px)'}}>
+        <div className="px-4 py-3 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
+          <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
+          <div className="text-center">
+            <p className="text-white font-bold text-sm">{monthNames[m]} {y}</p>
+            <p className="text-white/70 text-[10px] mt-0.5">{totalMonth} jadwal bulan ini</p>
+          </div>
+          <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">›</button>
         </div>
-        <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">›</button>
+        <div className="p-3">
+          <div className="grid grid-cols-7 mb-1.5">
+            {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i)=>(
+              <div key={i} className="text-center text-[10px] font-bold py-1" style={{color:'#94a3b8'}}>{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-0.5">
+            {Array.from({length:(firstDay===0?6:firstDay-1)}).map((_,i)=><div key={`e-${i}`}/>)}
+            {Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{
+              const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+              const dayRows=getRowsForDay(day);
+              const cnt=dayRows.length;
+              const isSel=selDay===ds;
+              const isT=ds===today;
+              return(
+                <button key={day} onClick={()=>setSelDay(isSel?null:ds)}
+                  className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] font-semibold transition-all"
+                  style={{background:isSel?'#dc2626':isT?'rgba(220,38,38,0.12)':'transparent',color:isSel?'white':isT?'#dc2626':'#374151',fontWeight:isT||isSel?800:600}}>
+                  {day}
+                  {cnt>0&&<span className="absolute bottom-0.5 w-1 h-1 rounded-full" style={{background:isSel?'white':'#dc2626'}}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
-      <div className="p-3">
-        <div className="grid grid-cols-7 mb-1.5">
-          {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i)=>(
-            <div key={i} className="text-center text-[10px] font-bold py-1" style={{color:'#94a3b8'}}>{d}</div>
-          ))}
+
+      {/* Summary below calendar when a day is selected */}
+      {selDay&&selRows.length>0&&(
+        <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.08)',backdropFilter:'blur(12px)'}}>
+          <div className="px-4 py-2.5 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
+            <div>
+              <p className="text-white font-bold text-xs">📅 {new Date(selDay+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}</p>
+              <p className="text-white/70 text-[10px]">Summary Piket</p>
+            </div>
+            <button onClick={()=>setSelDay(null)} className="text-white/70 hover:text-white text-xs font-bold bg-white/15 hover:bg-white/25 px-2 py-1 rounded-lg transition-all">✕</button>
+          </div>
+          <div className="p-3 space-y-3">
+            {selRows.map(row=>{
+              const dc=DAY_COLOR[row.day_of_week];
+              return(
+                <div key={row.id} className="rounded-xl p-3 space-y-2" style={{background:dc.light,border:`1px solid ${dc.accent}25`}}>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:dc.accent}}/>
+                    <span className="text-xs font-black" style={{color:dc.accent}}>{row.day_of_week}</span>
+                  </div>
+                  {/* PIC List */}
+                  <div className="space-y-1">
+                    {([['pic_ivp_name','PTS IVP'],['pic_ump_name','PTS UMP'],['pic_mlds_name','PTS MLDS']] as [keyof PiketRow,string][]).map(([f,team])=>{
+                      const name=row[f] as string|null;
+                      const tc=TEAM_LABEL[team];
+                      return name?(
+                        <div key={team} className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0" style={{background:tc.dot}}>{name.charAt(0).toUpperCase()}</div>
+                          <div><p className="text-[10px] font-bold text-slate-800 leading-tight">{name}</p><span className="text-[8px] font-bold uppercase" style={{color:tc.text}}>{team}</span></div>
+                        </div>
+                      ):null;
+                    })}
+                  </div>
+                  {row.tamu_instansi&&<div className="flex items-center gap-1 text-[10px] text-slate-600"><span>🏢</span><span className="font-semibold">{row.tamu_instansi}</span></div>}
+                  {row.kebutuhan&&row.kebutuhan.length>0&&(
+                    <div className="flex flex-wrap gap-1">
+                      {row.kebutuhan.map(k=><span key={k} className="text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{background:dc.accent}}>{k}</span>)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({length:(firstDay===0?6:firstDay-1)}).map((_,i)=><div key={`e-${i}`}/>)}
-          {Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{
-            const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            const cnt=getCount(day);
-            const isSel=selDay===ds;
-            const isT=ds===today;
-            return (
-              <button key={day} onClick={()=>setSelDay(isSel?null:ds)}
-                className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] font-semibold transition-all"
-                style={{
-                  background:isSel?'#dc2626':isT?'rgba(220,38,38,0.12)':'transparent',
-                  color:isSel?'white':isT?'#dc2626':'#374151',
-                  fontWeight:isT||isSel?800:600,
-                }}>
-                {day}
-                {cnt>0&&<span className="absolute bottom-0.5 w-1 h-1 rounded-full" style={{background:isSel?'white':'#dc2626'}}/>}
-              </button>
-            );
-          })}
+      )}
+      {selDay&&selRows.length===0&&(
+        <div className="rounded-2xl p-4 text-center" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.08)',backdropFilter:'blur(12px)'}}>
+          <p className="text-sm text-slate-400">Tidak ada jadwal pada tanggal ini</p>
+          <p className="text-[10px] text-slate-300 mt-1">{new Date(selDay+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'})}</p>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -197,18 +258,17 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
   const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
   const fileRef=useRef<HTMLInputElement>(null);
   const dc=DAY_COLOR[row.day_of_week];
-
   const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
   const toggleK=(k:string)=>setKebutuhan(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k]);
 
   const handleUpload=async(file:File)=>{
     setUploading(true);
     try{
-      const ext=file.name.split('.').pop();
+      const ext=file.name.split('.').pop()||'jpg';
       const path=`piket/${row.id}_${Date.now()}.${ext}`;
-      const{error:upErr}=await supabase.storage.from('piket-photos').upload(path,file,{upsert:true});
-      if(upErr) throw upErr;
-      const{data:urlData}=supabase.storage.from('piket-photos').getPublicUrl(path);
+      const {error:upErr}=await supabase.storage.from('piket-photos').upload(path,file,{upsert:true,contentType:file.type});
+      if(upErr)throw upErr;
+      const {data:urlData}=supabase.storage.from('piket-photos').getPublicUrl(path);
       setFotoUrl(urlData.publicUrl);
       notify('success','Foto berhasil diupload!');
     }catch(e:any){notify('error','Upload gagal: '+e.message);}
@@ -226,7 +286,7 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
     setTimeout(()=>{onSaved();onClose();},700);
   };
 
-  return (
+  return(
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto"
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-lg my-4"
@@ -235,7 +295,10 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-white">✍️ Detail Piket — {row.day_of_week}</h2>
-              <p className="text-white/70 text-xs mt-0.5">{fmtDate(row.day_date)} · {[row.pic_ivp_name,row.pic_ump_name,row.pic_mlds_name].filter(Boolean).join(' / ')||'Belum ada PIC'}</p>
+              <p className="text-white/70 text-xs mt-0.5">
+                {new Date(row.day_date+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})} ·&nbsp;
+                {[row.pic_ivp_name,row.pic_ump_name,row.pic_mlds_name].filter(Boolean).join(' / ')||'Belum ada PIC'}
+              </p>
             </div>
             <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -252,32 +315,36 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
               style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}}
               placeholder="Nama instansi / perusahaan tamu..."/>
           </div>
-          {/* Kebutuhan */}
+          {/* Kebutuhan — vertikal */}
           <div>
             <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{color:'#94a3b8'}}>🎯 Kebutuhan <span className="font-normal normal-case text-slate-400">(bisa lebih dari satu)</span></label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               {KEBUTUHAN_LIST.map(k=>{
                 const checked=kebutuhan.includes(k);
-                return (
+                return(
                   <button key={k} type="button" onClick={()=>toggleK(k)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-left transition-all"
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl border-2 text-left transition-all"
                     style={checked?{borderColor:dc.accent,background:`${dc.accent}12`,color:dc.accent}:{borderColor:'rgba(0,0,0,0.1)',background:'rgba(255,255,255,0.5)',color:'#64748b'}}>
                     <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
                       style={checked?{borderColor:dc.accent,background:dc.accent}:{borderColor:'#d1d5db',background:'white'}}>
                       {checked&&<svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
                     </div>
-                    <span className="text-xs font-semibold leading-tight">{k}</span>
+                    <span className="text-sm font-semibold leading-tight flex-1">{k}</span>
+                    {checked&&<span className="text-xs">✓</span>}
                   </button>
                 );
               })}
             </div>
             {kebutuhan.length>0&&(
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {kebutuhan.map(k=>(
-                  <span key={k} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{background:dc.grad}}>
-                    {k}<button onClick={()=>toggleK(k)} className="ml-0.5 opacity-80 hover:opacity-100">✕</button>
-                  </span>
-                ))}
+              <div className="mt-3 p-3 rounded-xl" style={{background:'rgba(0,0,0,0.03)',border:'1px solid rgba(0,0,0,0.08)'}}>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Dipilih ({kebutuhan.length}):</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {kebutuhan.map(k=>(
+                    <span key={k} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{background:dc.grad}}>
+                      {k}<button onClick={()=>toggleK(k)} className="ml-0.5 opacity-80 hover:opacity-100">✕</button>
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -295,10 +362,13 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
                 style={{borderColor:'rgba(0,0,0,0.15)'}}
                 onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor=dc.accent;(e.currentTarget as HTMLButtonElement).style.color=dc.accent;}}
                 onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor='rgba(0,0,0,0.15)';(e.currentTarget as HTMLButtonElement).style.color='#64748b';}}>
-                {uploading?<><div className="w-4 h-4 border-2 border-t-slate-500 border-slate-200 rounded-full animate-spin"/>Mengupload...</>:<><span className="text-xl">📁</span>Klik untuk upload foto</>}
+                {uploading
+                  ?<><div className="w-4 h-4 border-2 border-t-slate-500 border-slate-200 rounded-full animate-spin"/>Mengupload...</>
+                  :<><span className="text-xl">📷</span>Klik untuk upload foto</>}
               </button>
             )}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)handleUpload(f);}}/>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={e=>{const f=e.target.files?.[0];if(f)handleUpload(f);e.target.value='';}}/>
           </div>
         </div>
         <div className="px-6 pb-6 flex gap-3">
@@ -316,102 +386,30 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
   );
 }
 
-// ─── Person Modal ─────────────────────────────────────────────────────────────
+// ─── Schedule Modal (admin only) ──────────────────────────────────────────────
 
-function PersonModal({onClose}:{onClose:()=>void}) {
-  const [persons,setPersons]=useState<Person[]>([]);
-  const [loading,setLoading]=useState(true);
-  const [newName,setNewName]=useState('');
-  const [newTeam,setNewTeam]=useState<Person['team']>('PTS IVP');
-  const [saving,setSaving]=useState(false);
-  const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
-  const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
-
-  const loadPersons=async()=>{setLoading(true);const{data}=await supabase.from('piket_persons').select('*').order('team').order('name');if(data)setPersons(data as Person[]);setLoading(false);};
-  useEffect(()=>{loadPersons();},[]);
-
-  const handleAdd=async()=>{
-    if(!newName.trim()){notify('error','Nama wajib diisi!');return;}
-    setSaving(true);
-    const{error}=await supabase.from('piket_persons').insert([{name:newName.trim(),team:newTeam,is_active:true}]);
-    if(error)notify('error','Gagal: '+error.message);else{notify('success','Ditambahkan!');setNewName('');await loadPersons();}
-    setSaving(false);
-  };
-  const handleToggle=async(p:Person)=>{await supabase.from('piket_persons').update({is_active:!p.is_active}).eq('id',p.id);await loadPersons();};
-  const handleDelete=async(id:string)=>{if(!confirm('Hapus?'))return;await supabase.from('piket_persons').delete().eq('id',id);notify('success','Dihapus.');await loadPersons();};
-  const grouped={'PTS IVP':persons.filter(p=>p.team==='PTS IVP'),'PTS UMP':persons.filter(p=>p.team==='PTS UMP'),'PTS MLDS':persons.filter(p=>p.team==='PTS MLDS')};
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4">
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-xl max-h-[88vh] flex flex-col" style={{animation:'scale-in 0.25s ease-out',border:'1.5px solid rgba(220,38,38,0.25)'}}>
-        <div className="px-6 py-5 rounded-t-2xl flex-shrink-0" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
-          <div className="flex items-center justify-between">
-            <div><h2 className="text-lg font-bold text-white">👥 Kelola Anggota Piket</h2><p className="text-red-200/80 text-xs mt-0.5">Daftar nama per tim piket showroom</p></div>
-            <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
-          </div>
-        </div>
-        {toast&&<div className={`mx-5 mt-3 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 flex-shrink-0 ${toast.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{toast.type==='success'?'✅':'❌'} {toast.msg}</div>}
-        <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0" style={{background:'rgba(248,250,252,0.8)'}}>
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">➕ Tambah Anggota</p>
-          <div className="flex gap-3 items-end">
-            <div className="flex-1"><label className="block text-xs font-bold mb-1 tracking-widest uppercase" style={{color:'#94a3b8'}}>Nama</label><input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleAdd()} className="w-full rounded-xl px-4 py-2.5 text-sm outline-none" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}} placeholder="Nama lengkap..."/></div>
-            <div className="w-36"><label className="block text-xs font-bold mb-1 tracking-widest uppercase" style={{color:'#94a3b8'}}>Tim</label><select value={newTeam} onChange={e=>setNewTeam(e.target.value as Person['team'])} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none bg-white" style={{border:'1px solid rgba(0,0,0,0.12)'}}><option>PTS IVP</option><option>PTS UMP</option><option>PTS MLDS</option></select></div>
-            <button onClick={handleAdd} disabled={saving} className="px-4 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50" style={{background:'linear-gradient(135deg,#dc2626,#b91c1c)',boxShadow:'0 4px 14px rgba(220,38,38,0.35)'}}>{saving?'...':'➕ Tambah'}</button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {loading?<div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/></div>:(
-            Object.entries(grouped).map(([team,members])=>{
-              const tc=TEAM_COLOR[team];
-              return (
-                <div key={team} className="rounded-xl overflow-hidden" style={{border:`1px solid ${tc.dot}30`}}>
-                  <div className="px-4 py-2.5 flex items-center justify-between" style={{background:`${tc.dot}12`,borderBottom:`1px solid ${tc.dot}20`}}>
-                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{background:tc.dot}}/><span className="font-bold text-sm" style={{color:tc.text}}>{team}</span></div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{background:`${tc.dot}15`,color:tc.text}}>{members.length} orang</span>
-                  </div>
-                  <div className="divide-y divide-gray-50 bg-white">
-                    {members.length===0?<div className="px-4 py-3 text-xs text-slate-400 italic text-center">Belum ada anggota</div>:members.map(p=>(
-                      <div key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0" style={{background:tc.dot}}>{p.name.charAt(0).toUpperCase()}</div>
-                        <span className={`flex-1 text-sm font-semibold ${p.is_active?'text-slate-800':'text-slate-400 line-through'}`}>{p.name}</span>
-                        <button onClick={()=>handleToggle(p)} className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${p.is_active?'bg-amber-50 text-amber-700 border-amber-200':'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{p.is_active?'Nonaktifkan':'Aktifkan'}</button>
-                        <button onClick={()=>handleDelete(p.id)} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200 transition-all">Hapus</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-      <style jsx>{`@keyframes scale-in{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}`}</style>
-    </div>
-  );
-}
-
-// ─── Schedule Setting Modal ───────────────────────────────────────────────────
-
-function ScheduleModal({weekStart,onClose,onSaved}:{weekStart:Date;onClose:()=>void;onSaved:()=>void}) {
-  const [persons,setPersons]=useState<Person[]>([]);
-  const [assign,setAssign]=useState<Record<DayOfWeek,{ivp:string;ump:string;mlds:string}>>(()=>{const r:any={};DAYS_OF_WEEK.forEach(d=>{r[d]={ivp:'',ump:'',mlds:''};});return r;});
+function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:UserRow[];onClose:()=>void;onSaved:()=>void}) {
+  const [assign,setAssign]=useState<Record<DayOfWeek,{ivp:string;ump:string;mlds:string}>>(()=>{
+    const r:any={};DAYS_OF_WEEK.forEach(d=>{r[d]={ivp:'',ump:'',mlds:''};});return r;
+  });
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
   const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
   const wk=toKey(weekStart);
 
+  // Users by team
+  const ivpUsers=users.filter(u=>u.team_type==='Team PTS');
+  const umpUsers=users.filter(u=>u.team_type==='Team PTS UMP');
+  const mldsUsers=users.filter(u=>u.team_type==='Team PTS MLDS');
+
   useEffect(()=>{
     const load=async()=>{
       setLoading(true);
-      const[pR,sR]=await Promise.all([
-        supabase.from('piket_persons').select('*').eq('is_active',true).order('name'),
-        supabase.from('piket_schedules').select('*').eq('week_start',wk),
-      ]);
-      if(pR.data)setPersons(pR.data as Person[]);
-      if(sR.data&&sR.data.length>0){
+      const{data}=await supabase.from('piket_schedules').select('*').eq('week_start',wk);
+      if(data&&data.length>0){
         const na:any={};DAYS_OF_WEEK.forEach(d=>{na[d]={ivp:'',ump:'',mlds:''};});
-        (sR.data as PiketRow[]).forEach(s=>{na[s.day_of_week]={ivp:s.pic_ivp_id||'',ump:s.pic_ump_id||'',mlds:s.pic_mlds_id||''};});
+        (data as PiketRow[]).forEach(s=>{na[s.day_of_week]={ivp:s.pic_ivp_id||'',ump:s.pic_ump_id||'',mlds:s.pic_mlds_id||''};});
         setAssign(na);
       }
       setLoading(false);
@@ -424,12 +422,14 @@ function ScheduleModal({weekStart,onClose,onSaved}:{weekStart:Date;onClose:()=>v
     try{
       for(const day of DAYS_OF_WEEK){
         const a=assign[day];
-        const ivpP=persons.find(p=>p.id===a.ivp),umpP=persons.find(p=>p.id===a.ump),mldsP=persons.find(p=>p.id===a.mlds);
+        const ivpU=users.find(u=>u.id===a.ivp);
+        const umpU=users.find(u=>u.id===a.ump);
+        const mldsU=users.find(u=>u.id===a.mlds);
         await supabase.from('piket_schedules').upsert({
           week_start:wk,day_of_week:day,day_date:toKey(getDayDate(weekStart,day)),
-          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpP?.name||null,
-          pic_ump_id:a.ump||null,pic_ump_name:umpP?.name||null,
-          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsP?.name||null,
+          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpU?.full_name||null,
+          pic_ump_id:a.ump||null,pic_ump_name:umpU?.full_name||null,
+          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsU?.full_name||null,
           updated_at:new Date().toISOString(),
         },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
       }
@@ -439,10 +439,9 @@ function ScheduleModal({weekStart,onClose,onSaved}:{weekStart:Date;onClose:()=>v
     setSaving(false);
   };
 
-  const ivpP=persons.filter(p=>p.team==='PTS IVP'),umpP=persons.filter(p=>p.team==='PTS UMP'),mldsP=persons.filter(p=>p.team==='PTS MLDS');
   const wLabel=`${weekStart.toLocaleDateString('id-ID',{day:'2-digit',month:'long'})} – ${addDays(weekStart,4).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
 
-  return (
+  return(
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000] p-4 overflow-y-auto">
       <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-2xl my-4" style={{animation:'scale-in 0.25s ease-out',border:'1.5px solid rgba(220,38,38,0.25)'}}>
         <div className="px-6 py-5 rounded-t-2xl" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
@@ -456,7 +455,7 @@ function ScheduleModal({weekStart,onClose,onSaved}:{weekStart:Date;onClose:()=>v
           {loading?<div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/></div>:(
             DAYS_OF_WEEK.map(day=>{
               const dc=DAY_COLOR[day],date=getDayDate(weekStart,day);
-              return (
+              return(
                 <div key={day} className="rounded-xl overflow-hidden" style={{border:`1px solid ${dc.accent}25`}}>
                   <div className="flex items-center gap-3 px-4 py-2.5" style={{background:dc.light,borderBottom:`1px solid ${dc.accent}20`}}>
                     <div className="w-9 h-9 rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0" style={{background:dc.grad}}>
@@ -467,15 +466,15 @@ function ScheduleModal({weekStart,onClose,onSaved}:{weekStart:Date;onClose:()=>v
                     {isToday(date)&&<span className="text-[9px] font-bold px-2 py-0.5 rounded-full text-white" style={{background:dc.accent}}>HARI INI</span>}
                   </div>
                   <div className="grid grid-cols-3 gap-3 p-4 bg-white">
-                    {([['ivp','PTS IVP',ivpP],['ump','PTS UMP',umpP],['mlds','PTS MLDS',mldsP]] as [string,string,Person[]][]).map(([key,label,opts])=>{
-                      const tc=TEAM_COLOR[label];
-                      return (
+                    {([['ivp','PTS IVP',ivpUsers],['ump','PTS UMP',umpUsers],['mlds','PTS MLDS',mldsUsers]] as [string,string,UserRow[]][]).map(([key,label,opts])=>{
+                      const tc=TEAM_LABEL[label];
+                      return(
                         <div key={key}>
                           <div className="flex items-center gap-1.5 mb-1.5"><div className="w-2 h-2 rounded-full" style={{background:tc.dot}}/><label className="text-[10px] font-bold uppercase tracking-widest" style={{color:tc.text}}>{label}</label></div>
                           <select value={(assign[day] as any)[key]} onChange={e=>setAssign(p=>({...p,[day]:{...p[day],[key]:e.target.value}}))}
                             className="w-full rounded-xl px-3 py-2 text-xs outline-none bg-white" style={{border:`1px solid ${tc.dot}30`}}>
                             <option value="">— Belum ditentukan —</option>
-                            {opts.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                            {opts.map(u=><option key={u.id} value={u.id}>{u.full_name}</option>)}
                           </select>
                         </div>
                       );
@@ -498,82 +497,102 @@ function ScheduleModal({weekStart,onClose,onSaved}:{weekStart:Date;onClose:()=>v
   );
 }
 
+// ─── Person Modal (admin only) ────────────────────────────────────────────────
+// Not needed anymore — users come from table 'users' with team_type
+// Kept as info panel
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PiketShowroomPage() {
+  const [currentUser,setCurrentUser]=useState<any>(null);
   const [weekStart,setWeekStart]=useState<Date>(()=>getMonday(new Date()));
   const [rows,setRows]=useState<PiketRow[]>([]);
+  const [allRows,setAllRows]=useState<PiketRow[]>([]);
+  const [ptUsers,setPtUsers]=useState<UserRow[]>([]);
   const [loading,setLoading]=useState(true);
-  const [showPerson,setShowPerson]=useState(false);
   const [showSchedule,setShowSchedule]=useState(false);
   const [fillDetail,setFillDetail]=useState<PiketRow|null>(null);
   const [photoZoom,setPhotoZoom]=useState<string|null>(null);
   const [search,setSearch]=useState('');
   const [filterDay,setFilterDay]=useState<DayOfWeek|''>('');
   const [filterTamu,setFilterTamu]=useState(false);
-  const [filterK,setFilterK]=useState(false);
+  const [filterKebutuhan,setFilterKebutuhan]=useState<string|null>(null);
   const [calMonth,setCalMonth]=useState<Date>(()=>new Date());
   const [selDay,setSelDay]=useState<string|null>(null);
   const wk=toKey(weekStart);
 
-  // Load ALL rows for calendar (all time), filtered rows for display
-  const [allRows,setAllRows]=useState<PiketRow[]>([]);
+  // Read current user from localStorage
+  useEffect(()=>{
+    try{
+      const saved=localStorage.getItem('currentUser');
+      if(saved)setCurrentUser(JSON.parse(saved));
+    }catch{}
+  },[]);
+
+  const isAdmin=currentUser&&['admin','superadmin'].includes(currentUser.role?.toLowerCase()||'');
 
   const fetchData=useCallback(async()=>{
     setLoading(true);
-    const[wRes,aRes]=await Promise.all([
+    const[wRes,aRes,uRes]=await Promise.all([
       supabase.from('piket_schedules').select('*').eq('week_start',wk),
-      supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,tamu_instansi,kebutuhan'),
+      supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name,tamu_instansi,kebutuhan'),
+      // Load team PTS users from users table
+      supabase.from('users').select('id,full_name,username,team_type,role')
+        .in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS'])
+        .order('full_name'),
     ]);
     if(wRes.data)setRows(wRes.data as PiketRow[]);
     if(aRes.data)setAllRows(aRes.data as PiketRow[]);
+    if(uRes.data)setPtUsers(uRes.data as UserRow[]);
     setLoading(false);
   },[wk]);
 
   useEffect(()=>{fetchData();},[fetchData]);
   useEffect(()=>{
-    const ch=supabase.channel('piket-rt').on('postgres_changes',{event:'*',schema:'public',table:'piket_schedules'},()=>{setTimeout(fetchData,300);}).subscribe();
+    const ch=supabase.channel('piket-rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'piket_schedules'},()=>{setTimeout(fetchData,300);})
+      .subscribe();
     return()=>{supabase.removeChannel(ch);};
   },[fetchData]);
 
   const isCurrWeek=wk===toKey(getMonday(new Date()));
   const wLabel=`${weekStart.toLocaleDateString('id-ID',{day:'2-digit',month:'long'})} – ${addDays(weekStart,4).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
 
-  // Filter rows
+  // Filter rows for table display — calendar selection does NOT filter table
   const displayRows=rows.filter(row=>{
-    if(filterDay&&row.day_of_week!==filterDay) return false;
-    if(filterTamu&&!row.tamu_instansi) return false;
-    if(filterK&&(!row.kebutuhan||row.kebutuhan.length===0)) return false;
-    if(selDay&&row.day_date!==selDay) return false;
+    if(filterDay&&row.day_of_week!==filterDay)return false;
+    if(filterTamu&&!row.tamu_instansi)return false;
+    if(filterKebutuhan&&(!row.kebutuhan||!row.kebutuhan.includes(filterKebutuhan)))return false;
     if(search){
       const q=search.toLowerCase();
-      return !!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.tamu_instansi?.toLowerCase().includes(q)||row.kebutuhan?.some(k=>k.toLowerCase().includes(q))||row.day_of_week.toLowerCase().includes(q));
+      return!!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.tamu_instansi?.toLowerCase().includes(q)||row.kebutuhan?.some(k=>k.toLowerCase().includes(q))||row.day_of_week.toLowerCase().includes(q));
     }
     return true;
   });
 
-  // Stat cards
+  // Stat cards (no "hari ini")
   const totalRows=rows.length;
-  const hasTamuRows=rows.filter(r=>r.tamu_instansi).length;
-  const hasKRows=rows.filter(r=>r.kebutuhan&&r.kebutuhan.length>0).length;
-  const todayRows=rows.filter(r=>r.day_date===toKey(new Date())).length;
+  const hasTamuCount=rows.filter(r=>r.tamu_instansi).length;
+  const hasKCount=rows.filter(r=>r.kebutuhan&&r.kebutuhan.length>0).length;
 
-  // Pie data
+  // Pie data — from ALL rows (not just current week)
+  const tamuAllCount=allRows.filter(r=>r.tamu_instansi).length;
+  const noTamuAllCount=allRows.length-tamuAllCount;
   const tamuPie=[
-    {label:'Ada Tamu',value:hasTamuRows,color:'#10b981'},
-    {label:'Tanpa Tamu',value:totalRows-hasTamuRows,color:'#e2e8f0'},
+    {label:'Ada Tamu',value:tamuAllCount,color:'#10b981'},
+    {label:'Tanpa Tamu',value:noTamuAllCount,color:'#e2e8f0'},
   ].filter(d=>d.value>0);
 
-  const kMap:Record<string,number>={};
-  rows.forEach(r=>(r.kebutuhan||[]).forEach(k=>{kMap[k]=(kMap[k]||0)+1;}));
-  const kPie=Object.entries(kMap).sort(([,a],[,b])=>b-a).slice(0,10).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  const kMapAll:Record<string,number>={};
+  allRows.forEach(r=>(r.kebutuhan||[]).forEach(k=>{kMapAll[k]=(kMapAll[k]||0)+1;}));
+  const kPieAll=Object.entries(kMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
 
-  return (
+  return(
     <div className="min-h-screen flex flex-col relative" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover',backgroundPosition:'center',backgroundAttachment:'fixed'}}>
       <div className="absolute inset-0 pointer-events-none" style={{background:'rgba(255,255,255,0.08)'}}/>
       <div className="relative z-10 flex flex-col min-h-screen">
 
-        {/* ── HEADER — identical to Reminder Schedule ── */}
+        {/* ── HEADER ── */}
         <header className="sticky top-0 z-50" style={{background:'rgba(255,255,255,0.9)',borderBottom:'3px solid #dc2626',backdropFilter:'blur(16px)'}}>
           <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
@@ -586,19 +605,15 @@ export default function PiketShowroomPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={()=>setShowPerson(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                style={{background:'rgba(99,102,241,0.08)',border:'1px solid rgba(99,102,241,0.25)',color:'#4338ca'}}
-                onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background='rgba(99,102,241,0.15)';}}
-                onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background='rgba(99,102,241,0.08)';}}>
-                👥 Kelola Anggota
-              </button>
-              <button onClick={()=>setShowSchedule(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
-                style={{background:'linear-gradient(135deg,#dc2626,#b91c1c)',boxShadow:'0 4px 14px rgba(220,38,38,0.4)'}}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
-                Atur Jadwal
-              </button>
+              {/* Admin-only buttons */}
+              {isAdmin&&(
+                <button onClick={()=>setShowSchedule(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
+                  style={{background:'linear-gradient(135deg,#dc2626,#b91c1c)',boxShadow:'0 4px 14px rgba(220,38,38,0.4)'}}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+                  Atur Jadwal
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -620,16 +635,15 @@ export default function PiketShowroomPage() {
             {!isCurrWeek&&<button onClick={()=>setWeekStart(getMonday(new Date()))} className="px-3 py-2 rounded-xl text-xs font-bold transition-all" style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.25)',color:'#dc2626'}}>Minggu Ini</button>}
           </div>
 
-          {/* ── STAT CARDS — same style as Reminder Schedule ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* ── STAT CARDS (3 cards, no "hari ini") ── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              {label:'Total Hari',value:totalRows,sub:'Minggu ini',grad:'linear-gradient(135deg,#4f46e5,#6d28d9)',icon:'📋',shadow:'rgba(79,70,229,0.35)',active:!filterTamu&&!filterK&&!selDay},
-              {label:'Ada Tamu',value:hasTamuRows,sub:'Instansi hadir',grad:'linear-gradient(135deg,#d97706,#b45309)',icon:'🏢',shadow:'rgba(217,119,6,0.35)',active:filterTamu,onClick:()=>setFilterTamu(f=>!f)},
-              {label:'Ada Kebutuhan',value:hasKRows,sub:'Kebutuhan tercatat',grad:'linear-gradient(135deg,#059669,#047857)',icon:'🎯',shadow:'rgba(5,150,105,0.35)',active:filterK,onClick:()=>setFilterK(f=>!f)},
-              {label:'Hari Ini',value:todayRows,sub:'Jadwal hari ini',grad:'linear-gradient(135deg,#0891b2,#0e7490)',icon:'📅',shadow:'rgba(8,145,178,0.35)',active:selDay===toKey(new Date()),onClick:()=>setSelDay(selDay===toKey(new Date())?null:toKey(new Date()))},
+              {label:'Total Hari',value:totalRows,sub:'Jadwal minggu ini',grad:'linear-gradient(135deg,#4f46e5,#6d28d9)',icon:'📋',shadow:'rgba(79,70,229,0.35)',active:!filterTamu&&!filterKebutuhan},
+              {label:'Ada Tamu',value:hasTamuCount,sub:'Instansi hadir minggu ini',grad:'linear-gradient(135deg,#d97706,#b45309)',icon:'🏢',shadow:'rgba(217,119,6,0.35)',active:filterTamu,onClick:()=>setFilterTamu(f=>!f)},
+              {label:'Ada Kebutuhan',value:hasKCount,sub:'Kebutuhan tercatat minggu ini',grad:'linear-gradient(135deg,#059669,#047857)',icon:'🎯',shadow:'rgba(5,150,105,0.35)',active:!!filterKebutuhan,onClick:()=>setFilterKebutuhan(null)},
             ].map(card=>(
               <div key={card.label} onClick={card.onClick}
-                className="rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-all hover:scale-[1.03] select-none"
+                className={`rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 transition-all hover:scale-[1.03] select-none ${card.onClick?'cursor-pointer':''}`}
                 style={{background:card.grad,boxShadow:card.active?`0 6px 24px ${card.shadow}`:`0 4px 16px ${card.shadow}`,outline:card.active?'3px solid white':'none',transform:card.active?'scale(1.04)':undefined}}>
                 <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
                 {card.active&&<div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none"/>}
@@ -640,36 +654,44 @@ export default function PiketShowroomPage() {
             ))}
           </div>
 
-          {/* ── PIE CHARTS — 2 charts, identical donut style ── */}
+          {/* ── PIE CHARTS — all-time data, kebutuhan clickable for filter ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MiniPieChart data={tamuPie} title="Statistik Tamu Minggu Ini" icon="🏢"/>
-            <MiniPieChart data={kPie} title="Top Kebutuhan Minggu Ini" icon="🎯"/>
+            <MiniPieChart data={tamuPie} title="Statistik Tamu (Semua)" icon="🏢"/>
+            <MiniPieChart
+              data={kPieAll} title="Kebutuhan (Semua) — Klik untuk filter" icon="🎯"
+              activeFilter={filterKebutuhan}
+              onSliceClick={label=>setFilterKebutuhan(filterKebutuhan===label?null:label)}
+            />
           </div>
+          {filterKebutuhan&&(
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{background:'rgba(124,58,237,0.1)',border:'1px solid rgba(124,58,237,0.3)'}}>
+              <span className="text-xs font-bold text-violet-700">🎯 Filter Kebutuhan Aktif:</span>
+              <span className="text-xs font-semibold text-violet-600">{filterKebutuhan}</span>
+              <button onClick={()=>setFilterKebutuhan(null)} className="ml-auto text-xs font-bold text-violet-500 hover:text-violet-700 px-2 py-0.5 rounded-lg hover:bg-violet-100 transition-all">✕ Hapus filter</button>
+            </div>
+          )}
 
           {/* ── MAIN AREA: LIST + CALENDAR ── */}
           <div className="flex gap-4 items-start">
 
-            {/* ── SCHEDULE LIST ── */}
+            {/* ── SCHEDULE LIST TABLE ── */}
             <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.97)',border:'1px solid rgba(200,200,200,0.6)',backdropFilter:'blur(12px)'}}>
 
-              {/* List header + filters */}
-              <div className="px-5 py-3.5 border-b border-gray-100 space-y-3">
+              {/* Header + filters */}
+              <div className="px-5 py-3.5 border-b border-gray-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule Piket</span>
                     <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{displayRows.length}</span>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(search||filterDay||filterTamu||filterK||selDay)&&(
-                      <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterK(false);setSelDay(null);}}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
-                        style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',color:'#dc2626'}}>
-                        ✕ Reset Filter
-                      </button>
-                    )}
-                  </div>
+                  {(search||filterDay||filterTamu||filterKebutuhan)&&(
+                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);}}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                      style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',color:'#dc2626'}}>
+                      ✕ Reset Filter
+                    </button>
+                  )}
                 </div>
-                {/* Search row */}
                 <div className="flex flex-wrap gap-3 items-center">
                   <div className="relative flex-1 min-w-[180px]">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -687,65 +709,62 @@ export default function PiketShowroomPage() {
                     style={filterTamu?{background:'rgba(16,185,129,0.12)',borderColor:'rgba(16,185,129,0.4)',color:'#059669'}:{background:'transparent',borderColor:'rgba(0,0,0,0.1)',color:'#64748b'}}>
                     🏢 Ada Tamu
                   </button>
-                  <button onClick={()=>setFilterK(f=>!f)} className="px-3 py-2 rounded-xl text-xs font-semibold transition-all border"
-                    style={filterK?{background:'rgba(124,58,237,0.1)',borderColor:'rgba(124,58,237,0.35)',color:'#7c3aed'}:{background:'transparent',borderColor:'rgba(0,0,0,0.1)',color:'#64748b'}}>
-                    🎯 Ada Kebutuhan
-                  </button>
                 </div>
               </div>
 
-              {/* Table */}
+              {/* Table — with proper borders like Reminder Schedule */}
               {loading?(
                 <div className="flex justify-center py-16"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/><p className="text-sm text-slate-500">Memuat jadwal...</p></div></div>
               ):(
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm border-collapse">
                     <thead>
-                      <tr style={{background:'rgba(248,250,252,0.8)'}}>
-                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">No</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">Tanggal</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">PIC (IVP / UMP / MLDS)</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">Tamu Instansi</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">Kebutuhan</th>
-                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">Foto</th>
-                        <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">Action</th>
+                      <tr style={{background:'rgba(248,250,252,0.9)',borderBottom:'2px solid #e5e7eb'}}>
+                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>No</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>Tanggal</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>PIC</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>Tamu Instansi</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>Kebutuhan</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest" style={{borderRight:'1px solid #e5e7eb'}}>Foto</th>
+                        <th className="px-4 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {displayRows.length===0?(
-                        <tr><td colSpan={7} className="text-center py-16 text-gray-400"><div className="text-4xl mb-3">📋</div><p className="font-semibold">Tidak ada jadwal</p><p className="text-xs mt-1">Klik "Atur Jadwal" untuk menambahkan jadwal piket</p></td></tr>
+                        <tr><td colSpan={7} className="text-center py-16 text-gray-400">
+                          <div className="text-4xl mb-3">📋</div>
+                          <p className="font-semibold">{rows.length===0?'Belum ada jadwal':'Tidak ada hasil filter'}</p>
+                          {rows.length===0&&isAdmin&&<p className="text-xs mt-1">Klik "Atur Jadwal" untuk menambahkan jadwal piket minggu ini</p>}
+                        </td></tr>
                       ):displayRows.map((row,idx)=>{
                         const dc=DAY_COLOR[row.day_of_week];
-                        const today=row.day_date===toKey(new Date());
-                        return (
-                          <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors" style={today?{background:'rgba(220,38,38,0.03)'}:{}}>
-                            {/* No */}
-                            <td className="px-4 py-3 text-gray-500 text-xs font-medium">{idx+1}</td>
+                        const todayRow=row.day_date===toKey(new Date());
+                        return(
+                          <tr key={row.id} className="transition-colors hover:bg-gray-50/70" style={{borderBottom:'1px solid #e5e7eb',background:todayRow?'rgba(220,38,38,0.025)':undefined}}>
+                            <td className="px-4 py-3 text-gray-500 text-xs font-medium align-middle" style={{borderRight:'1px solid #e5e7eb'}}>{idx+1}</td>
                             {/* Tanggal */}
-                            <td className="px-4 py-3">
-                              <div className="inline-flex flex-col items-center px-2 py-1 rounded-xl text-center"
-                                style={{background:today?'rgba(220,38,38,0.12)':dc.light,border:`1px solid ${today?'rgba(220,38,38,0.35)':dc.accent+'30'}`}}>
-                                <span className="text-base font-black leading-none" style={{color:today?'#dc2626':dc.accent}}>{new Date(row.day_date+'T00:00:00').getDate()}</span>
-                                <span className="text-[8px] font-bold uppercase leading-tight" style={{color:today?'#dc2626':dc.accent}}>{new Date(row.day_date+'T00:00:00').toLocaleDateString('id-ID',{month:'short',year:'2-digit'})}</span>
+                            <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                              <div className="inline-flex flex-col items-center px-2 py-1.5 rounded-xl"
+                                style={{background:todayRow?'rgba(220,38,38,0.12)':dc.light,border:`1px solid ${todayRow?'rgba(220,38,38,0.35)':dc.accent+'30'}`}}>
+                                <span className="text-lg font-black leading-none" style={{color:todayRow?'#dc2626':dc.accent}}>{new Date(row.day_date+'T00:00:00').getDate()}</span>
+                                <span className="text-[8px] font-bold uppercase leading-tight" style={{color:todayRow?'#dc2626':dc.accent}}>{new Date(row.day_date+'T00:00:00').toLocaleDateString('id-ID',{month:'short',year:'2-digit'})}</span>
                               </div>
-                              <div className="mt-1">
-                                <span className="text-xs font-bold" style={{color:dc.accent}}>{row.day_of_week}</span>
-                                {today&&<span className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{background:dc.accent}}>HARI INI</span>}
-                              </div>
+                              <div className="mt-1"><span className="text-xs font-bold" style={{color:dc.accent}}>{row.day_of_week}</span></div>
+                              {todayRow&&<span className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white mt-0.5" style={{background:dc.accent}}>HARI INI</span>}
                             </td>
                             {/* PIC */}
-                            <td className="px-4 py-3">
-                              <div className="space-y-1">
+                            <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                              <div className="space-y-1.5">
                                 {([['pic_ivp_name','PTS IVP'],['pic_ump_name','PTS UMP'],['pic_mlds_name','PTS MLDS']] as [keyof PiketRow,string][]).map(([field,team])=>{
                                   const name=row[field] as string|null;
-                                  const tc=TEAM_COLOR[team];
+                                  const tc=TEAM_LABEL[team];
                                   return name?(
                                     <div key={team} className="flex items-center gap-1.5">
                                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0" style={{background:tc.dot}}>{name.charAt(0).toUpperCase()}</div>
-                                      <div className="min-w-0"><p className="text-xs font-semibold text-slate-800 truncate leading-tight">{name}</p><span className="text-[9px] font-bold uppercase" style={{color:tc.text}}>{team}</span></div>
+                                      <div className="min-w-0"><p className="text-xs font-semibold text-slate-800 truncate leading-tight">{name}</p><span className="text-[8px] font-bold uppercase" style={{color:tc.text}}>{team}</span></div>
                                     </div>
                                   ):(
-                                    <div key={team} className="flex items-center gap-1.5 opacity-30">
+                                    <div key={team} className="flex items-center gap-1.5 opacity-25">
                                       <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] text-slate-400 flex-shrink-0">—</div>
                                       <span className="text-[9px] text-slate-400 italic">{team}: —</span>
                                     </div>
@@ -754,27 +773,24 @@ export default function PiketShowroomPage() {
                               </div>
                             </td>
                             {/* Tamu */}
-                            <td className="px-4 py-3">
-                              {row.tamu_instansi?(
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-sm">🏢</span>
-                                  <span className="text-xs font-semibold text-slate-700">{row.tamu_instansi}</span>
-                                </div>
-                              ):<span className="text-gray-300 text-xs">—</span>}
+                            <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
+                              {row.tamu_instansi?<div className="flex items-center gap-1.5"><span className="text-sm">🏢</span><span className="text-xs font-semibold text-slate-700">{row.tamu_instansi}</span></div>:<span className="text-gray-300 text-xs">—</span>}
                             </td>
-                            {/* Kebutuhan */}
-                            <td className="px-4 py-3">
+                            {/* Kebutuhan — vertical list */}
+                            <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               {row.kebutuhan&&row.kebutuhan.length>0?(
-                                <div className="flex flex-wrap gap-1">
-                                  {row.kebutuhan.slice(0,2).map(k=>(
-                                    <span key={k} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{background:dc.accent}}>{k}</span>
+                                <div className="flex flex-col gap-1">
+                                  {row.kebutuhan.map(k=>(
+                                    <span key={k} className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700">
+                                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background:dc.accent}}/>
+                                      {k}
+                                    </span>
                                   ))}
-                                  {row.kebutuhan.length>2&&<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-slate-500" style={{background:'rgba(0,0,0,0.06)'}}>+{row.kebutuhan.length-2}</span>}
                                 </div>
                               ):<span className="text-gray-300 text-xs">—</span>}
                             </td>
                             {/* Foto */}
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               {row.foto_url?(
                                 <button onClick={()=>setPhotoZoom(row.foto_url!)} className="hover:opacity-80 transition-opacity">
                                   <img src={row.foto_url} alt="Foto" className="w-10 h-10 rounded-lg object-cover border border-slate-200 shadow-sm"/>
@@ -782,7 +798,7 @@ export default function PiketShowroomPage() {
                               ):<span className="text-gray-300 text-xs">—</span>}
                             </td>
                             {/* Action */}
-                            <td className="px-4 py-3 text-center">
+                            <td className="px-4 py-3 align-middle text-center">
                               <button onClick={()=>setFillDetail(row)} title="Isi / Edit Detail"
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
                                 style={{background:dc.grad,boxShadow:`0 2px 8px ${dc.accent}30`}}>
@@ -794,7 +810,7 @@ export default function PiketShowroomPage() {
                       })}
                     </tbody>
                   </table>
-                  <div className="flex items-center justify-between px-5 py-2.5 border-t border-gray-100" style={{background:'rgba(255,255,255,0.97)'}}>
+                  <div className="flex items-center justify-between px-5 py-2.5" style={{borderTop:'1px solid #e5e7eb',background:'rgba(255,255,255,0.97)'}}>
                     <span className="text-[10px] text-gray-400">{displayRows.length} jadwal ditampilkan</span>
                     <span className="text-[10px] text-gray-400">{rows.length} total minggu ini</span>
                   </div>
@@ -802,8 +818,8 @@ export default function PiketShowroomPage() {
               )}
             </div>
 
-            {/* ── MINI CALENDAR ── */}
-            <MiniCalendar rows={allRows} calMonth={calMonth} setCalMonth={setCalMonth} selDay={selDay} setSelDay={setSelDay}/>
+            {/* ── MINI CALENDAR + Summary ── */}
+            <MiniCalendar allRows={allRows} calMonth={calMonth} setCalMonth={setCalMonth} selDay={selDay} setSelDay={setSelDay}/>
           </div>
 
         </div>
@@ -811,20 +827,20 @@ export default function PiketShowroomPage() {
         {/* Photo zoom */}
         {photoZoom&&(
           <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={()=>setPhotoZoom(null)}>
-            <div className="relative max-w-3xl max-h-[90vh]">
+            <div className="relative max-w-3xl max-h-[90vh]" onClick={e=>e.stopPropagation()}>
               <img src={photoZoom} alt="Foto zoom" className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain"/>
               <button onClick={()=>setPhotoZoom(null)} className="absolute top-3 right-3 w-9 h-9 bg-black/60 text-white rounded-full flex items-center justify-center font-bold hover:bg-black/80 transition-all">✕</button>
             </div>
           </div>
         )}
 
-        {showPerson&&<PersonModal onClose={()=>setShowPerson(false)}/>}
-        {showSchedule&&<ScheduleModal weekStart={weekStart} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>}
+        {showSchedule&&isAdmin&&(
+          <ScheduleModal weekStart={weekStart} users={ptUsers} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>
+        )}
         {fillDetail&&<FillDetailModal row={fillDetail} onClose={()=>setFillDetail(null)} onSaved={fetchData}/>}
       </div>
 
       <style jsx>{`
-        @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
         @keyframes scale-in{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
         select option{background:#ffffff;color:#1e293b}
       `}</style>
