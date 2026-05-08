@@ -48,8 +48,7 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UserRow {
-  id:string; full_name:string; username:string;
-  team_type?:string; role:string;
+  id:string; name:string; team:string; is_active:boolean;
 }
 interface PiketRow {
   id:string; week_start:string; day_of_week:DayOfWeek; day_date:string;
@@ -198,35 +197,51 @@ function BarChart({data,title,icon,color,yLabel}:{
 
 // ─── Tamu Instansi Pie Chart ──────────────────────────────────────────────────
 
-function TamuInstansiPie({allRows,activeFilter,onSliceClick}:{
-  allRows:PiketRow[];activeFilter?:string|null;onSliceClick?:(label:string)=>void;
+function TamuInstansiPie({tamuDetails,activeFilter,onSliceClick}:{
+  tamuDetails:TamuDetailRow[];activeFilter?:string|null;onSliceClick?:(label:string)=>void;
 }) {
   const map:Record<string,number>={};
-  allRows.forEach(r=>{if(r.tamu_instansi){map[r.tamu_instansi]=(map[r.tamu_instansi]||0)+1;}});
+  tamuDetails.forEach(td=>{if(td.tamu_instansi){map[td.tamu_instansi]=(map[td.tamu_instansi]||0)+1;}});
   const data=Object.entries(map).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
   return <MiniPieChart data={data} title="Tamu per Instansi (Semua)" icon="🏢" activeFilter={activeFilter} onSliceClick={onSliceClick}/>;
 }
 
 // ─── Tamu Summary Cards ───────────────────────────────────────────────────────
 
-function TamuSummaryCards({allRows}:{allRows:PiketRow[]}) {
+function TamuSummaryCards({allRows,tamuDetails}:{allRows:PiketRow[];tamuDetails:TamuDetailRow[]}) {
   const now=new Date();
   const thisWeek=toKey(getMonday(now));
   const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const thisYear=String(now.getFullYear());
 
-  const countTamu=(rows:PiketRow[])=>rows.filter(r=>r.tamu_instansi).length;
-  const countK=(rows:PiketRow[])=>rows.filter(r=>r.kebutuhan&&r.kebutuhan.length>0).length;
+  // Build a map piket_id -> day_date for joining
+  const piketDateMap:Record<string,string>={};
+  allRows.forEach(r=>{piketDateMap[r.id]=r.day_date;});
 
-  const weekRows=allRows.filter(r=>getWeekKey(r.day_date)===thisWeek);
-  const monthRows=allRows.filter(r=>r.day_date?.startsWith(thisMonth));
-  const yearRows=allRows.filter(r=>r.day_date?.startsWith(thisYear));
+  const tdForPeriod=(filter:(d:string)=>boolean)=>tamuDetails.filter(td=>{
+    const d=piketDateMap[td.piket_id];
+    return d&&filter(d);
+  });
+
+  const weekTd  = tdForPeriod(d=>getWeekKey(d)===thisWeek);
+  const monthTd = tdForPeriod(d=>d.startsWith(thisMonth));
+  const yearTd  = tdForPeriod(d=>d.startsWith(thisYear));
+  const allTd   = tamuDetails;
+
+  // Count unique piket days that have at least one tamu entry for the period
+  const piketDaysInPeriod=(rows:PiketRow[])=>rows.length;
+  const weekRows  = allRows.filter(r=>getWeekKey(r.day_date)===thisWeek);
+  const monthRows = allRows.filter(r=>r.day_date?.startsWith(thisMonth));
+  const yearRows  = allRows.filter(r=>r.day_date?.startsWith(thisYear));
+
+  const countTamu=(td:TamuDetailRow[])=>td.filter(t=>t.tamu_instansi).length;
+  const countK   =(td:TamuDetailRow[])=>td.filter(t=>t.kebutuhan&&t.kebutuhan.length>0).length;
 
   const cards=[
-    {period:'Minggu Ini',tamu:countTamu(weekRows),kebutuhan:countK(weekRows),total:weekRows.length,color:'#2563eb',grad:'linear-gradient(135deg,#2563eb,#1e40af)',shadow:'rgba(37,99,235,0.3)'},
-    {period:'Bulan Ini',tamu:countTamu(monthRows),kebutuhan:countK(monthRows),total:monthRows.length,color:'#7c3aed',grad:'linear-gradient(135deg,#7c3aed,#4c1d95)',shadow:'rgba(124,58,237,0.3)'},
-    {period:'Tahun '+thisYear,tamu:countTamu(yearRows),kebutuhan:countK(yearRows),total:yearRows.length,color:'#059669',grad:'linear-gradient(135deg,#059669,#047857)',shadow:'rgba(5,150,105,0.3)'},
-    {period:'Total Semua',tamu:countTamu(allRows),kebutuhan:countK(allRows),total:allRows.length,color:'#dc2626',grad:'linear-gradient(135deg,#dc2626,#991b1b)',shadow:'rgba(220,38,38,0.3)'},
+    {period:'Minggu Ini',tamu:countTamu(weekTd),kebutuhan:countK(weekTd),total:piketDaysInPeriod(weekRows),color:'#2563eb',grad:'linear-gradient(135deg,#2563eb,#1e40af)',shadow:'rgba(37,99,235,0.3)'},
+    {period:'Bulan Ini',tamu:countTamu(monthTd),kebutuhan:countK(monthTd),total:piketDaysInPeriod(monthRows),color:'#7c3aed',grad:'linear-gradient(135deg,#7c3aed,#4c1d95)',shadow:'rgba(124,58,237,0.3)'},
+    {period:'Tahun '+thisYear,tamu:countTamu(yearTd),kebutuhan:countK(yearTd),total:piketDaysInPeriod(yearRows),color:'#059669',grad:'linear-gradient(135deg,#059669,#047857)',shadow:'rgba(5,150,105,0.3)'},
+    {period:'Total Semua',tamu:countTamu(allTd),kebutuhan:countK(allTd),total:allRows.length,color:'#dc2626',grad:'linear-gradient(135deg,#dc2626,#991b1b)',shadow:'rgba(220,38,38,0.3)'},
   ];
 
   return(
@@ -638,9 +653,9 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
   const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
   const wk=toKey(weekStart);
 
-  const ivpUsers=users.filter(u=>u.team_type==='Team PTS');
-  const umpUsers=users.filter(u=>u.team_type==='Team PTS UMP');
-  const mldsUsers=users.filter(u=>u.team_type==='Team PTS MLDS');
+  const ivpUsers=users.filter(u=>u.team==='PTS IVP');
+  const umpUsers=users.filter(u=>u.team==='PTS UMP');
+  const mldsUsers=users.filter(u=>u.team==='PTS MLDS');
 
   useEffect(()=>{
     const load=async()=>{
@@ -666,9 +681,9 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
         const mldsU=users.find(u=>u.id===a.mlds);
         await supabase.from('piket_schedules').upsert({
           week_start:wk,day_of_week:day,day_date:toKey(getDayDate(weekStart,day)),
-          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpU?.full_name||null,
-          pic_ump_id:a.ump||null,pic_ump_name:umpU?.full_name||null,
-          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsU?.full_name||null,
+          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpU?.name||null,
+          pic_ump_id:a.ump||null,pic_ump_name:umpU?.name||null,
+          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsU?.name||null,
           updated_at:new Date().toISOString(),
         },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
       }
@@ -713,7 +728,7 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
                           <select value={(assign[day] as any)[key]} onChange={e=>setAssign(p=>({...p,[day]:{...p[day],[key]:e.target.value}}))}
                             className="w-full rounded-xl px-3 py-2 text-xs outline-none bg-white" style={{border:`1px solid ${tc.dot}30`}}>
                             <option value="">— Belum ditentukan —</option>
-                            {opts.map(u=><option key={u.id} value={u.id}>{u.full_name}</option>)}
+                            {opts.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                           </select>
                         </div>
                       );
@@ -772,9 +787,9 @@ export default function PiketShowroomPage() {
     const[wRes,aRes,uRes,tdRes]=await Promise.all([
       supabase.from('piket_schedules').select('*').eq('week_start',wk),
       supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name,tamu_instansi,kebutuhan'),
-      supabase.from('users').select('id,full_name,username,team_type,role')
-        .in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS'])
-        .order('full_name'),
+      supabase.from('piket_persons').select('id,name,team,is_active')
+        .eq('is_active',true)
+        .order('name'),
       supabase.from('piket_tamu_detail').select('*').order('created_at'),
     ]);
     if(wRes.data)setRows(wRes.data as PiketRow[]);
@@ -795,21 +810,25 @@ export default function PiketShowroomPage() {
   const isCurrWeek=wk===toKey(getMonday(new Date()));
   const wLabel=`${weekStart.toLocaleDateString('id-ID',{day:'2-digit',month:'long'})} – ${addDays(weekStart,4).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
 
+  // Filter: displayRows — filter instansi/kebutuhan now cross-referenced with tamuDetails
   const displayRows=rows.filter(row=>{
     if(filterDay&&row.day_of_week!==filterDay)return false;
-    if(filterTamu&&!row.tamu_instansi)return false;
-    if(filterKebutuhan&&(!row.kebutuhan||!row.kebutuhan.includes(filterKebutuhan)))return false;
-    if(filterInstansi&&row.tamu_instansi!==filterInstansi)return false;
+    const rowTd=tamuDetails.filter(td=>td.piket_id===row.id);
+    if(filterTamu&&rowTd.length===0)return false;
+    if(filterKebutuhan&&!rowTd.some(td=>td.kebutuhan?.includes(filterKebutuhan)))return false;
+    if(filterInstansi&&!rowTd.some(td=>td.tamu_instansi===filterInstansi))return false;
     if(search){
       const q=search.toLowerCase();
-      return!!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.tamu_instansi?.toLowerCase().includes(q)||row.kebutuhan?.some(k=>k.toLowerCase().includes(q))||row.day_of_week.toLowerCase().includes(q));
+      const matchPic=!!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.day_of_week.toLowerCase().includes(q));
+      const matchTd=rowTd.some(td=>td.tamu_instansi?.toLowerCase().includes(q)||td.nama_sales?.toLowerCase().includes(q)||td.sales_division?.toLowerCase().includes(q)||td.kebutuhan?.some(k=>k.toLowerCase().includes(q)));
+      return matchPic||matchTd;
     }
     return true;
   });
 
-  // Pie data
+  // Pie data — from tamuDetails
   const kMapAll:Record<string,number>={};
-  allRows.forEach(r=>(r.kebutuhan||[]).forEach(k=>{kMapAll[k]=(kMapAll[k]||0)+1;}));
+  tamuDetails.forEach(td=>(td.kebutuhan||[]).forEach(k=>{kMapAll[k]=(kMapAll[k]||0)+1;}));
   const kPieAll=Object.entries(kMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
 
   return(
@@ -854,12 +873,12 @@ export default function PiketShowroomPage() {
         <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 py-5 space-y-4">
 
           {/* ── SUMMARY CARDS — Minggu / Bulan / Tahun / Total ── */}
-          <TamuSummaryCards allRows={allRows}/>
+          <TamuSummaryCards allRows={allRows} tamuDetails={tamuDetails}/>
 
           {/* ── PIE CHARTS ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TamuInstansiPie
-              allRows={allRows}
+              tamuDetails={tamuDetails}
               activeFilter={filterInstansi}
               onSliceClick={label=>setFilterInstansi(filterInstansi===label?null:label)}
             />
