@@ -85,58 +85,76 @@ function getWeekKey(dateStr:string):string{
 
 // ─── Rolling schedule ─────────────────────────────────────────────────────────
 // Compute PIC untuk tanggal tertentu berdasarkan pola jadwal DB.
-// Ambil semua jadwal DB yang sudah tersimpan → urutkan → temukan pola 2-mingguan
-// → project ke depan secara infinite.
+// Pakai pic_ivp_name/pic_ump_name/pic_mlds_name yang tersedia di allRows.
+// Cycle = semua week_start unik di DB, berulang terus ke depan.
 
-// Dari DB rows, build pola: week_start → {day_of_week → user_id}
-type WeekPattern = Record<DayOfWeek, string>; // day → user_id
+type DayNamePattern = Record<DayOfWeek, string>; // day → pic name
 
-function buildRollingPattern(dbRows: PiketRow[]): {weekKeys: string[]; patterns: Record<string, WeekPattern>} {
-  const patterns: Record<string, WeekPattern> = {};
+function buildRollingNamePattern(dbRows: PiketRow[]): {weekKeys: string[]; patterns: Record<string, DayNamePattern>} {
+  const patterns: Record<string, DayNamePattern> = {};
   dbRows.forEach(r => {
-    if (!patterns[r.week_start]) patterns[r.week_start] = {} as WeekPattern;
-    const uid = r.pic_ivp_id || r.pic_ump_id || r.pic_mlds_id || '';
-    if (uid) patterns[r.week_start][r.day_of_week] = uid;
+    if (!r.week_start) return;
+    if (!patterns[r.week_start]) patterns[r.week_start] = {} as DayNamePattern;
+    const name = r.pic_ivp_name || r.pic_ump_name || r.pic_mlds_name || '';
+    if (name && r.day_of_week) patterns[r.week_start][r.day_of_week] = name;
   });
-  const weekKeys = Object.keys(patterns).sort();
+  // Only keep weeks that have at least 1 entry
+  const weekKeys = Object.keys(patterns).filter(wk => Object.keys(patterns[wk]).length > 0).sort();
   return { weekKeys, patterns };
 }
 
-// Untuk tanggal tertentu, cari user_id dari pola rolling
-// Cycle length = jumlah minggu unik di DB (min 1, max 2 untuk pola 2 minggu)
-function getRollingUserForDate(date: Date, dbRows: PiketRow[]): string {
+// Untuk tanggal tertentu, return nama PIC dari pola rolling
+function getRollingNameForDate(date: Date, dbRows: PiketRow[]): string {
   const dow = date.getDay();
-  if (dow === 0 || dow === 6) return ''; // weekend
-  const dayIdx = dow - 1; // Mon=0..Fri=4
-  const dayName = DAYS_OF_WEEK[dayIdx];
+  if (dow === 0 || dow === 6) return '';
+  const dayName = DAYS_OF_WEEK[dow - 1];
   if (!dayName) return '';
 
-  const { weekKeys, patterns } = buildRollingPattern(dbRows);
+  const { weekKeys, patterns } = buildRollingNamePattern(dbRows);
   if (weekKeys.length === 0) return '';
 
   const ws = getMonday(date);
   const wsKey = toKey(ws);
 
-  // Jika minggu ini ada di DB, pakai langsung
+  // Minggu ini ada di DB → pakai langsung
   if (patterns[wsKey]?.[dayName]) return patterns[wsKey][dayName];
 
-  // Cari pola: ambil cycle dari minggu-minggu yang ada
-  // Cycle = semua weekKeys yang tersimpan, berulang setiap N minggu
-  const cycleLen = weekKeys.length;
-  // Hitung offset minggu dari minggu pertama pola
+  // Project rolling: cycle dari minggu-minggu yang tersimpan
   const firstWs = new Date(weekKeys[0] + 'T00:00:00');
   const weeksDiff = Math.round((ws.getTime() - firstWs.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  if (weeksDiff < 0) return ''; // sebelum pola, tidak compute
-  const slotIdx = weeksDiff % cycleLen;
+  if (weeksDiff < 0) return '';
+  const slotIdx = weeksDiff % weekKeys.length;
   const patternWeek = weekKeys[slotIdx];
   return patterns[patternWeek]?.[dayName] || '';
 }
 
-// Untuk mini calendar: return nama PIC dari rolling
-function getRollingNameForDate(date: Date, dbRows: PiketRow[], users: UserRow[]): string {
-  const uid = getRollingUserForDate(date, dbRows);
-  if (!uid) return '';
-  return users.find(u => u.id === uid)?.full_name || '';
+// Untuk ScheduleModal: return user_id dari pola rolling (butuh pic_ivp_id dll)
+function getRollingUserIdForDate(date: Date, dbRows: PiketRow[]): string {
+  const dow = date.getDay();
+  if (dow === 0 || dow === 6) return '';
+  const dayName = DAYS_OF_WEEK[dow - 1];
+  if (!dayName) return '';
+
+  // Build pattern dari uid
+  const uidPatterns: Record<string, Record<DayOfWeek, string>> = {};
+  dbRows.forEach(r => {
+    if (!r.week_start) return;
+    if (!uidPatterns[r.week_start]) uidPatterns[r.week_start] = {} as Record<DayOfWeek, string>;
+    const uid = r.pic_ivp_id || r.pic_ump_id || r.pic_mlds_id || '';
+    if (uid && r.day_of_week) uidPatterns[r.week_start][r.day_of_week] = uid;
+  });
+  const weekKeys = Object.keys(uidPatterns).filter(wk => Object.keys(uidPatterns[wk]).length > 0).sort();
+  if (weekKeys.length === 0) return '';
+
+  const ws = getMonday(date);
+  const wsKey = toKey(ws);
+  if (uidPatterns[wsKey]?.[dayName]) return uidPatterns[wsKey][dayName];
+
+  const firstWs = new Date(weekKeys[0] + 'T00:00:00');
+  const weeksDiff = Math.round((ws.getTime() - firstWs.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  if (weeksDiff < 0) return '';
+  const slotIdx = weeksDiff % weekKeys.length;
+  return uidPatterns[weekKeys[slotIdx]]?.[dayName] || '';
 }
 
 // ─── Pie Chart ────────────────────────────────────────────────────────────────
@@ -328,7 +346,7 @@ function TamuSummaryCards({allRows,kegiatanList,selectedYear,selectedMonth,onYea
 
 // ─── Mini Calendar Popup ──────────────────────────────────────────────────────
 
-function MiniCalendarPopup({allRows,users,onClose}:{allRows:PiketRow[];users:UserRow[];onClose:()=>void}) {
+function MiniCalendarPopup({allRows,onClose}:{allRows:PiketRow[];onClose:()=>void}) {
   const [calMonth,setCalMonth]=useState(()=>new Date());
   const y=calMonth.getFullYear(),m=calMonth.getMonth();
   const today=toKey(new Date());
@@ -377,7 +395,7 @@ function MiniCalendarPopup({allRows,users,onClose}:{allRows:PiketRow[];users:Use
             const dbPics=dayRows.flatMap(r=>[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[]);
             const dc=hasDB?DAY_COLOR[dayRows[0].day_of_week]:null;
             // Rolling: compute dari pola DB untuk tanggal yang belum ada
-            const rollingName=(!hasDB&&!isWeekend&&inMonth)?getRollingNameForDate(date,allRows,users):'';
+            const rollingName=(!hasDB&&!isWeekend&&inMonth)?getRollingNameForDate(date,allRows):'';
             const rollingDow=DAYS_OF_WEEK[dow-1] as DayOfWeek|undefined;
             const rollingDc=rollingDow?DAY_COLOR[rollingDow]:null;
             return(
@@ -653,7 +671,7 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
           DAYS_OF_WEEK.forEach(day=>{
             if(!na[wk as string][day]){
               const date=getDayDate(ws as Date,day);
-              const uid=getRollingUserForDate(date,allRows);
+              const uid=getRollingUserIdForDate(date,allRows);
               if(uid) na[wk as string][day]=uid;
             }
           });
@@ -1451,7 +1469,7 @@ export default function PiketShowroomPage() {
 
         {showSchedule&&isAdmin&&<ScheduleModal weekStart={weekStart} users={ptUsers} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>}
         {fillDetail&&<FillDetailModal row={fillDetail} onClose={()=>setFillDetail(null)} onSaved={fetchData}/>}
-        {showCalendar&&<MiniCalendarPopup allRows={allRows} users={ptUsers} onClose={()=>setShowCalendar(false)}/>}
+        {showCalendar&&<MiniCalendarPopup allRows={allRows} onClose={()=>setShowCalendar(false)}/>}
       </div>
 
       <style jsx>{`
