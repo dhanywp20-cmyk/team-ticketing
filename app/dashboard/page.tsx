@@ -326,7 +326,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                           <div>
                             <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Team Type</label>
                             <div className="flex gap-2">
-                              {['Team PTS', 'Team Services'].map(t => (
+                              {['Team PTS', 'Team PTS UMP','Team PTS MLDS', 'Team Services'].map(t => (
                                 <button key={t} type="button" onClick={() => setEditingUser({ ...editingUser, team_type: t })}
                                   className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all ${editingUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
                                   {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
@@ -440,7 +440,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
                 <div>
                   <label className="block text-xs font-bold mb-2 text-slate-600 tracking-widest uppercase">Team Type</label>
                   <div className="flex gap-2">
-                    {['Team PTS', 'Team PTS UMP', 'Team PTS MLDS', 'Team Services'].map(t => (
+                    {['Team PTS', 'Team PTS UMP','Team PTS MLDS', 'Team Services'].map(t => (
                       <button key={t} type="button" onClick={() => setNewUser({ ...newUser, team_type: t })}
                         className={`flex-1 py-2.5 rounded-lg border-2 text-xs font-bold transition-all ${newUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
                         {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
@@ -2348,7 +2348,7 @@ function AccountSettingsInline() {
                     <div>
                       <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Team Type</label>
                       <div className="flex gap-2">
-                        {['Team PTS', 'Team Services'].map(t => (
+                        {['Team PTS', 'Team PTS UMP','Team PTS MLDS', 'Team Services'].map(t => (
                           <button key={t} type="button" onClick={() => setEditingUser({ ...editingUser, team_type: t })}
                             className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all ${editingUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
                             {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
@@ -2437,7 +2437,7 @@ function AccountSettingsInline() {
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">Team Type</label>
                   <div className="flex gap-2">
-                    {['Team PTS', 'Team Services'].map(t => (
+                    {['Team PTS', 'Team PTS UMP','Team PTS MLDS', 'Team Services'].map(t => (
                       <button key={t} type="button" onClick={() => setNewUser({ ...newUser, team_type: t })}
                         className={`flex-1 py-2 rounded-lg border-2 text-xs font-bold transition-all ${newUser.team_type === t ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
                         {t === 'Team PTS' ? '🏗️' : '🔧'} {t}
