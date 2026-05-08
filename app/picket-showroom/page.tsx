@@ -1100,9 +1100,9 @@ export default function PiketShowroomPage() {
                             <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               {td?.nama_sales?(
                                 <div className="flex flex-col gap-0.5">
-                                  <span className="text-xs font-bold text-slate-800">{td.nama_sales}</span>
+                                  <span className="text-[9px] font-bold text-slate-800">{td.nama_sales}</span>
                                   {td.sales_division&&(
-                                    <span className="text-xs text-purple-500 font-semibold mt-0.5" style={{background:dc.grad}}>{td.sales_division}</span>
+                                    <span className="text-[9px] text-purple-500 font-semibold mt-0.5">{td.sales_division}</span>
                                   )}
                                 </div>
                               ):<span className="text-gray-300 text-xs">—</span>}
