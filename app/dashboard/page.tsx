@@ -2240,7 +2240,7 @@ function AccountSettingsInline() {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [newUser, setNewUser] = useState({
-    username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS,
+    username: '', password: '', full_name: '', role: 'guest', team_type: '', phone_number: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS,
   });
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -2269,21 +2269,21 @@ function AccountSettingsInline() {
     if (!newUser.username || !newUser.password || !newUser.full_name) { notify('error', 'Semua field wajib diisi!'); return; }
     if (newUser.role === 'guest' && !newUser.sales_division) { notify('error', 'Sales Division wajib diisi untuk role Guest!'); return; }
     setSaving(true);
-    const insertPayload: Record<string, unknown> = { username: newUser.username, password: newUser.password, full_name: newUser.full_name, role: newUser.role, allowed_menus: newUser.allowed_menus, jabatan: newUser.jabatan || null };
+    const insertPayload: Record<string, unknown> = { username: newUser.username, password: newUser.password, full_name: newUser.full_name, role: newUser.role, allowed_menus: newUser.allowed_menus, jabatan: newUser.jabatan || null, phone_number: newUser.phone_number || null };
     if (newUser.role === 'team') insertPayload.team_type = newUser.team_type || null;
     if (newUser.role === 'guest' || newUser.role === 'sales') insertPayload.sales_division = newUser.sales_division || null;
     const { error } = await supabase.from('users').insert([insertPayload]);
     setSaving(false);
     if (error) { notify('error', 'Gagal menambah akun: ' + error.message); return; }
     notify('success', 'Akun berhasil ditambahkan!');
-    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS });
+    setNewUser({ username: '', password: '', full_name: '', role: 'guest', team_type: '', phone_number: '', sales_division: '', jabatan: '', allowed_menus: ALL_MENU_KEYS });
     setActiveTab('list'); fetchUsers();
   };
 
   const handleSaveEdit = async () => {
     if (!editingUser) return;
     setSaving(true);
-    const updatePayload: Record<string, unknown> = { username: editingUser.username, password: editingUser.password, full_name: editingUser.full_name, role: editingUser.role, allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS, jabatan: editingUser.jabatan ?? null };
+    const updatePayload: Record<string, unknown> = { username: editingUser.username, password: editingUser.password, full_name: editingUser.full_name, role: editingUser.role, allowed_menus: editingUser.allowed_menus ?? ALL_MENU_KEYS, jabatan: editingUser.jabatan ?? null, phone_number: editingUser.phone_number ?? null };
     if (editingUser.role === 'team') updatePayload.team_type = editingUser.team_type ?? null;
     else if (editingUser.team_type === 'Pending Approval') { updatePayload.team_type = null; updatePayload.sales_division = editingUser.sales_division ?? null; }
     if (editingUser.role === 'guest' || editingUser.role === 'sales') updatePayload.sales_division = editingUser.sales_division ?? null;
@@ -2411,6 +2411,10 @@ function AccountSettingsInline() {
                       <option value="">— Pilih Jabatan —</option>{JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">📱 No. Telepon / WA</label>
+                    <input value={editingUser.phone_number || ''} onChange={e => setEditingUser({ ...editingUser, phone_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="Contoh: 08123456789" />
+                  </div>
                   <div className="col-span-3">
                     <MenuPermissionSelector selected={editingUser.allowed_menus ?? ALL_MENU_KEYS} target="edit" />
                   </div>
@@ -2434,6 +2438,9 @@ function AccountSettingsInline() {
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-slate-800 text-sm truncate">{user.full_name}</p>
                       <p className="text-xs text-slate-500">@{user.username}</p>
+                      {user.phone_number && (
+                        <p className="text-[10px] text-emerald-600 mt-0.5">📱 {user.phone_number}</p>
+                      )}
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase bg-slate-200 text-slate-600">{user.role}</span>
                         {user.jabatan && <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ {user.jabatan}</span>}
@@ -2499,6 +2506,10 @@ function AccountSettingsInline() {
                 <select value={newUser.jabatan} onChange={e => setNewUser({ ...newUser, jabatan: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 bg-white">
                   <option value="">— Pilih Jabatan —</option>{JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold mb-1 text-slate-600 uppercase tracking-widest">📱 No. Telepon / WA</label>
+                <input value={newUser.phone_number} onChange={e => setNewUser({ ...newUser, phone_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400" placeholder="Contoh: 08123456789" />
               </div>
               <div className="col-span-3">
                 <MenuPermissionSelector selected={newUser.allowed_menus} target="new" />
@@ -3481,8 +3492,9 @@ export default function Dashboard() {
             <button onClick={handleBackToDashboard}
               className={`w-full group flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl font-bold transition-all ${sidebarCollapsed ? 'justify-center' : 'justify-center'}`}
               style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#334155' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#0f172a'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = '#334155'; }}>
+              //onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#0f172a'; }}
+              //onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = '#334155'; }}
+              >
               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
