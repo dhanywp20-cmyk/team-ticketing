@@ -88,10 +88,25 @@ function getWeekKey(dateStr:string):string{
 // Jadwal yg sudah tersimpan di DB tidak akan berubah — hanya dipakai untuk minggu baru yg kosong.
 function getRollingUserId(ws:Date, dayIdx:number, users:UserRow[]):string {
   if(!users.length) return '';
-  const epoch=new Date('2024-01-01T00:00:00');
+  const epoch=new Date(2024,0,1); // local date: 1 Jan 2024
   const weeksDiff=Math.round((ws.getTime()-epoch.getTime())/(7*24*60*60*1000));
   const biWeekSlot=Math.floor(weeksDiff/2);
   return users[(biWeekSlot*5+dayIdx)%users.length]?.id||'';
+}
+
+// Get rolling names for a date (weekday only) — used by mini calendar for dates not in DB
+function getRollingNames(date:Date, users:UserRow[]):{name:string;team:string}[] {
+  if(!users.length) return [];
+  const dow=date.getDay();
+  if(dow===0||dow===6) return []; // weekend
+  const dayIdx=dow-1; // Mon=0..Fri=4
+  const ws=getMonday(date);
+  const uid=getRollingUserId(ws,dayIdx,users);
+  if(!uid) return [];
+  const u=users.find(x=>x.id===uid);
+  if(!u) return [];
+  const team=u.team_type==='Team PTS'?'PTS IVP':u.team_type==='Team PTS UMP'?'PTS UMP':'PTS MLDS';
+  return [{name:u.full_name,team}];
 }
 
 // ─── Pie Chart ────────────────────────────────────────────────────────────────
@@ -199,22 +214,22 @@ function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanLis
 
 // ─── Mini Calendar Popup ──────────────────────────────────────────────────────
 
-function MiniCalendarPopup({allRows,onClose}:{allRows:PiketRow[];onClose:()=>void}) {
+function MiniCalendarPopup({allRows,users,onClose}:{allRows:PiketRow[];users:UserRow[];onClose:()=>void}) {
   const [calMonth,setCalMonth]=useState(()=>new Date());
   const y=calMonth.getFullYear(),m=calMonth.getMonth();
   const today=toKey(new Date());
+  // Count only DB rows for the month header
   const totalMonth=allRows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 
   // Build full calendar grid starting Monday
-  // Find first Monday on or before the 1st of month
   const firstOfMonth=new Date(y,m,1);
-  const firstDayOfWeek=firstOfMonth.getDay(); // 0=Sun,1=Mon...
-  const startOffset=firstDayOfWeek===0?6:firstDayOfWeek-1; // days to go back to Monday
+  const firstDayOfWeek=firstOfMonth.getDay();
+  const startOffset=firstDayOfWeek===0?6:firstDayOfWeek-1;
   const gridStart=new Date(y,m,1-startOffset);
   // Grid: 6 rows x 7 cols = 42 cells
   const gridCells:Date[]=Array.from({length:42},(_,i)=>addDays(gridStart,i));
 
-  // Build map: dateKey -> row for quick lookup
+  // Build map: dateKey -> PiketRow[] from DB
   const rowMap:Record<string,PiketRow[]>={};
   allRows.forEach(r=>{if(!rowMap[r.day_date])rowMap[r.day_date]=[];rowMap[r.day_date].push(r);});
 
@@ -229,11 +244,22 @@ function MiniCalendarPopup({allRows,onClose}:{allRows:PiketRow[];onClose:()=>voi
           <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">‹</button>
           <div className="text-center">
             <p className="text-white font-black text-base">{MONTH_NAMES[m]} {y}</p>
-            <p className="text-white/70 text-[11px]">{totalMonth} jadwal bulan ini</p>
+            <p className="text-white/70 text-[11px]">{totalMonth>0?`${totalMonth} jadwal tersimpan`:'Jadwal dari rolling schedule'}</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">›</button>
             <button onClick={onClose} className="text-white/70 hover:text-white font-bold text-lg w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-lg">✕</button>
+          </div>
+        </div>
+        {/* Legend */}
+        <div className="px-4 py-2 flex items-center gap-4 border-b border-gray-100" style={{background:'rgba(248,250,252,0.9)'}}>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm" style={{background:'rgba(220,38,38,0.18)'}}/>
+            <span className="text-[10px] font-semibold text-gray-500">Tersimpan di DB</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm border border-dashed" style={{borderColor:'#94a3b8',background:'rgba(148,163,184,0.08)'}}/>
+            <span className="text-[10px] font-semibold text-gray-400">Rolling (estimasi)</span>
           </div>
         </div>
         {/* Day headers */}
@@ -248,26 +274,42 @@ function MiniCalendarPopup({allRows,onClose}:{allRows:PiketRow[];onClose:()=>voi
             const ds=toKey(date);
             const inMonth=date.getMonth()===m;
             const isT=ds===today;
-            const isSat=date.getDay()===6,isSun=date.getDay()===0;
-            const isWeekend=isSat||isSun;
+            const dow=date.getDay();
+            const isWeekend=dow===0||dow===6;
             const dayRows=rowMap[ds]||[];
-            const hasPiket=dayRows.length>0;
-            // Get PIC names for this day
-            const pics=dayRows.flatMap(r=>[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[]);
-            const dc=hasPiket?DAY_COLOR[dayRows[0].day_of_week]:null;
+            const hasDB=dayRows.length>0;
+
+            // DB confirmed pics
+            const dbPics=dayRows.flatMap(r=>[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[]);
+            const dc=hasDB?DAY_COLOR[dayRows[0].day_of_week]:null;
+
+            // Rolling virtual pics (only show when no DB data and is weekday and inMonth)
+            const rollingNames=(!hasDB&&!isWeekend&&inMonth)?getRollingNames(date,users):[];
+            // day color for rolling based on weekday
+            const rollingDayIdx=dow-1; // Mon=0..Fri=4
+            const rollingDay=DAYS_OF_WEEK[rollingDayIdx] as DayOfWeek|undefined;
+            const rollingDc=rollingDay?DAY_COLOR[rollingDay]:null;
+
             return(
-              <div key={i} className="border-r border-b border-gray-100 last:border-r-0 p-1.5 min-h-[60px] relative"
+              <div key={i} className="border-r border-b border-gray-100 p-1.5 min-h-[60px] relative"
                 style={{background:isT?'rgba(220,38,38,0.06)':!inMonth?'rgba(0,0,0,0.015)':'white'}}>
                 {/* Date number */}
-                <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-1 ${isT?'text-white':''}` }
+                <div className="w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-1"
                   style={{background:isT?'#dc2626':'transparent',color:isT?'white':!inMonth?'#d1d5db':isWeekend?'#d1d5db':'#374151',fontWeight:isT?900:600}}>
                   {date.getDate()}
                 </div>
-                {/* PIC names — show directly under date */}
-                {hasPiket&&inMonth&&pics.map((name,pi)=>(
-                  <div key={pi} className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
-                    style={{color:dc?.accent||'#374151',background:`${dc?.accent||'#dc2626'}12`}}>
+                {/* DB confirmed names */}
+                {hasDB&&inMonth&&dbPics.map((name,pi)=>(
+                  <div key={`db-${pi}`} className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
+                    style={{color:dc?.accent||'#374151',background:`${dc?.accent||'#dc2626'}18`}}>
                     {name}
+                  </div>
+                ))}
+                {/* Rolling virtual names — dimmer style with dashed border */}
+                {rollingNames.map((r,ri)=>(
+                  <div key={`roll-${ri}`} className="text-[9px] leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
+                    style={{color:rollingDc?.accent||'#94a3b8',background:`${rollingDc?.accent||'#94a3b8'}0d`,border:`1px dashed ${rollingDc?.accent||'#94a3b8'}50`,fontWeight:500,fontStyle:'italic'}}>
+                    {r.name}
                   </div>
                 ))}
               </div>
@@ -1276,7 +1318,7 @@ export default function PiketShowroomPage() {
 
         {showSchedule&&isAdmin&&<ScheduleModal weekStart={weekStart} users={ptUsers} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>}
         {fillDetail&&<FillDetailModal row={fillDetail} onClose={()=>setFillDetail(null)} onSaved={fetchData}/>}
-        {showCalendar&&<MiniCalendarPopup allRows={allRows} onClose={()=>setShowCalendar(false)}/>}
+        {showCalendar&&<MiniCalendarPopup allRows={allRows} users={ptUsers} onClose={()=>setShowCalendar(false)}/>}
       </div>
 
       <style jsx>{`
