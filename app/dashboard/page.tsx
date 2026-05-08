@@ -3497,8 +3497,8 @@ export default function Dashboard() {
 
           <div className="flex-1 overflow-y-auto px-3 pb-3" style={{ scrollbarWidth: 'none' }}>
             <button onClick={handleBackToDashboard}
-              className={`w-full group flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl font-bold transition-all ${sidebarCollapsed ? 'justify-center' : 'justify-center'}`}
-              style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#334155' }}
+              className={`w-full group flex items-center gap-3 px-3 py-2.5 mb-4 font-bold transition-all ${sidebarCollapsed ? 'justify-center' : 'justify-center'}`}
+              style={{ color: '#334155' }}
               //onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#0f172a'; }}
              //</div> onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = '#334155'; }}
              >
