@@ -66,7 +66,13 @@ interface KegiatanEntry {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getMonday(d:Date):Date{const r=new Date(d),day=r.getDay();r.setDate(r.getDate()-day+(day===0?-6:1));r.setHours(0,0,0,0);return r;}
+function getMonday(d:Date):Date{
+  const r=new Date(d);r.setHours(0,0,0,0);
+  const day=r.getDay();
+  const diff=day===0?-6:1-day;
+  r.setDate(r.getDate()+diff);
+  return r;
+}
 function addDays(d:Date,n:number):Date{const r=new Date(d);r.setDate(r.getDate()+n);return r;}
 function toKey(d:Date):string{return d.toISOString().split('T')[0];}
 function getDayDate(ws:Date,day:DayOfWeek):Date{return addDays(ws,DAYS_OF_WEEK.indexOf(day));}
@@ -191,77 +197,80 @@ function TamuSummaryCards({allRows,kegiatanList}:{allRows:PiketRow[];kegiatanLis
 
 function MiniCalendarPopup({allRows,onClose}:{allRows:PiketRow[];onClose:()=>void}) {
   const [calMonth,setCalMonth]=useState(()=>new Date());
-  const [selDay,setSelDay]=useState<string|null>(null);
   const y=calMonth.getFullYear(),m=calMonth.getMonth();
-  const firstDay=new Date(y,m,1).getDay();
-  const daysInMonth=new Date(y,m+1,0).getDate();
   const today=toKey(new Date());
-  const selRows=selDay?allRows.filter(r=>r.day_date===selDay):[];
   const totalMonth=allRows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
+
+  // Build full calendar grid starting Monday
+  // Find first Monday on or before the 1st of month
+  const firstOfMonth=new Date(y,m,1);
+  const firstDayOfWeek=firstOfMonth.getDay(); // 0=Sun,1=Mon...
+  const startOffset=firstDayOfWeek===0?6:firstDayOfWeek-1; // days to go back to Monday
+  const gridStart=new Date(firstOfMonth);
+  gridStart.setDate(1-startOffset);
+  // Grid: 6 rows x 7 cols = 42 cells
+  const gridCells:Date[]=Array.from({length:42},(_,i)=>addDays(gridStart,i));
+
+  // Build map: dateKey -> row for quick lookup
+  const rowMap:Record<string,PiketRow[]>={};
+  allRows.forEach(r=>{if(!rowMap[r.day_date])rowMap[r.day_date]=[];rowMap[r.day_date].push(r);});
+
+  const WEEK_DAYS=['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
+
   return(
     <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" style={{animation:'scale-in 0.2s ease-out',border:'1.5px solid rgba(220,38,38,0.2)'}}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
-          <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-xl px-2 rounded-lg hover:bg-white/10">‹</button>
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden" style={{width:'640px',maxWidth:'95vw',animation:'scale-in 0.2s ease-out',border:'1.5px solid rgba(220,38,38,0.2)'}}>
+        {/* Header */}
+        <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
+          <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">‹</button>
           <div className="text-center">
-            <p className="text-white font-bold text-sm">{MONTH_NAMES[m]} {y}</p>
-            <p className="text-white/70 text-[10px]">{totalMonth} jadwal bulan ini</p>
+            <p className="text-white font-black text-base">{MONTH_NAMES[m]} {y}</p>
+            <p className="text-white/70 text-[11px]">{totalMonth} jadwal bulan ini</p>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-xl px-2 rounded-lg hover:bg-white/10">›</button>
-            <button onClick={onClose} className="text-white/70 hover:text-white text-sm font-bold bg-white/15 hover:bg-white/25 px-2 py-1 rounded-lg ml-1">✕</button>
-          </div>
-        </div>
-        <div className="p-3">
-          <div className="grid grid-cols-7 mb-1">
-            {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i)=>(
-              <div key={i} className="text-center text-[10px] font-bold py-1 text-slate-400">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-0.5">
-            {Array.from({length:firstDay===0?6:firstDay-1}).map((_,i)=><div key={`e-${i}`}/>)}
-            {Array.from({length:daysInMonth},(_,i)=>i+1).map(day=>{
-              const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-              const cnt=allRows.filter(r=>r.day_date===ds).length;
-              const isSel=selDay===ds,isT=ds===today;
-              return(
-                <button key={day} onClick={()=>setSelDay(isSel?null:ds)}
-                  className="relative aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] transition-all"
-                  style={{background:isSel?'#dc2626':isT?'rgba(220,38,38,0.12)':'transparent',color:isSel?'white':isT?'#dc2626':'#374151',fontWeight:isT||isSel?800:500}}>
-                  {day}
-                  {cnt>0&&<span className="absolute bottom-0.5 w-1 h-1 rounded-full" style={{background:isSel?'white':'#dc2626'}}/>}
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-2">
+            <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10">›</button>
+            <button onClick={onClose} className="text-white/70 hover:text-white font-bold text-lg w-8 h-8 flex items-center justify-center bg-white/15 hover:bg-white/25 rounded-lg">✕</button>
           </div>
         </div>
-        {selDay&&(
-          <div className="border-t border-gray-100 p-3">
-            <p className="text-xs font-bold text-slate-600 mb-2">
-              📅 {new Date(selDay+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
-            </p>
-            {selRows.length===0?(
-              <p className="text-[11px] text-slate-400 italic">Tidak ada jadwal</p>
-            ):(
-              <div className="space-y-2">
-                {selRows.map(row=>{
-                  const dc=DAY_COLOR[row.day_of_week];
-                  const pics=[row.pic_ivp_name,row.pic_ump_name,row.pic_mlds_name].filter(Boolean);
-                  return(
-                    <div key={row.id} className="rounded-xl p-2.5" style={{background:dc.light,border:`1px solid ${dc.accent}25`}}>
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <div className="w-1.5 h-1.5 rounded-full" style={{background:dc.accent}}/>
-                        <span className="text-[10px] font-black" style={{color:dc.accent}}>{row.day_of_week}</span>
-                      </div>
-                      {pics.length>0&&<p className="text-[10px] text-slate-600 font-semibold">👤 {pics.join(', ')}</p>}
-                    </div>
-                  );
-                })}
+        {/* Day headers */}
+        <div className="grid grid-cols-7 border-b border-gray-100">
+          {WEEK_DAYS.map((d,i)=>(
+            <div key={i} className="text-center text-[11px] font-bold py-2" style={{color:i<5?'#374151':'#d1d5db'}}>{d}</div>
+          ))}
+        </div>
+        {/* Grid */}
+        <div className="grid grid-cols-7" style={{minHeight:'360px'}}>
+          {gridCells.map((date,i)=>{
+            const ds=toKey(date);
+            const inMonth=date.getMonth()===m;
+            const isT=ds===today;
+            const isSat=date.getDay()===6,isSun=date.getDay()===0;
+            const isWeekend=isSat||isSun;
+            const dayRows=rowMap[ds]||[];
+            const hasPiket=dayRows.length>0;
+            // Get PIC names for this day
+            const pics=dayRows.flatMap(r=>[r.pic_ivp_name,r.pic_ump_name,r.pic_mlds_name].filter(Boolean) as string[]);
+            const dc=hasPiket?DAY_COLOR[dayRows[0].day_of_week]:null;
+            return(
+              <div key={i} className="border-r border-b border-gray-100 last:border-r-0 p-1.5 min-h-[60px] relative"
+                style={{background:isT?'rgba(220,38,38,0.06)':!inMonth?'rgba(0,0,0,0.015)':'white'}}>
+                {/* Date number */}
+                <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-1 ${isT?'text-white':''}` }
+                  style={{background:isT?'#dc2626':'transparent',color:isT?'white':!inMonth?'#d1d5db':isWeekend?'#d1d5db':'#374151',fontWeight:isT?900:600}}>
+                  {date.getDate()}
+                </div>
+                {/* PIC names — show directly under date */}
+                {hasPiket&&inMonth&&pics.map((name,pi)=>(
+                  <div key={pi} className="text-[9px] font-semibold leading-tight truncate px-0.5 py-0.5 rounded mb-0.5"
+                    style={{color:dc?.accent||'#374151',background:`${dc?.accent||'#dc2626'}12`}}>
+                    {name}
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -378,19 +387,23 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
                       className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}}/>
                   </div>
                 </div>
-                {/* Produk — underline style, no rounded */}
+                {/* Produk — checkbox grid */}
                 <div>
-                  <label className="block text-[10px] font-bold mb-1.5 tracking-widest uppercase text-slate-400">📦 Produk yang Digunakan</label>
-                  <div className="flex flex-wrap gap-2">
+                  <label className="block text-[10px] font-bold mb-2 tracking-widest uppercase text-slate-400">📦 Produk yang Digunakan</label>
+                  <div className="grid grid-cols-4 gap-2">
                     {PRODUK_LIST.map(p=>{
                       const isAll=entry.produk.includes('All Product');
                       const isSel=entry.produk.includes(p);
                       const isDis=(p==='All Product'&&entry.produk.length>0&&!isAll)||(p!=='All Product'&&isAll);
                       return(
                         <button key={p} type="button" onClick={()=>!isDis&&toggleP(idx,p)} disabled={isDis}
-                          className="text-xs font-semibold px-1 pb-0.5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                          style={isSel?{borderBottom:`2px solid ${dc.accent}`,color:dc.accent}:{borderBottom:'2px solid transparent',color:'#94a3b8'}}>
-                          {p}
+                          className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          style={isSel?{borderColor:dc.accent,background:`${dc.accent}12`,color:dc.accent}:{borderColor:'rgba(0,0,0,0.1)',background:'rgba(255,255,255,0.6)',color:'#64748b'}}>
+                          <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                            style={isSel?{borderColor:dc.accent,background:dc.accent}:{borderColor:'#d1d5db',background:'white'}}>
+                            {isSel&&<svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
+                          </div>
+                          <span className="text-xs font-semibold leading-tight">{p}</span>
                         </button>
                       );
                     })}
@@ -686,7 +699,7 @@ export default function PiketShowroomPage() {
   const fetchData=useCallback(async()=>{
     setLoading(true);
     const[wRes,aRes,uRes,kgRes]=await Promise.all([
-      supabase.from('piket_schedules').select('*').eq('week_start',wk),
+      supabase.from('piket_schedules').select('*').in('week_start',[wk,toKey(addDays(new Date(wk+'T00:00:00'),7))]).order('day_date'),
       supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name'),
       supabase.from('users').select('id,full_name,username,team_type,role').in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS']).order('full_name'),
       supabase.from('piket_tamu_detail').select('*').order('created_at'),
@@ -709,7 +722,7 @@ export default function PiketShowroomPage() {
   const wLabel=fmtW(weekStart);
   const wLabel2=fmtW(addDays(weekStart,7));
 
-  const displayRows=rows.filter(row=>{
+  const displayRows=rows.slice().sort((a,b)=>a.day_date.localeCompare(b.day_date)).filter(row=>{
     if(filterDay&&row.day_of_week!==filterDay)return false;
     const rowKg=kegiatanList.filter(k=>k.piket_id===row.id);
     if(filterTamu&&!rowKg.some(k=>k.tamu_instansi))return false;
@@ -797,11 +810,13 @@ export default function PiketShowroomPage() {
                   <div className="flex items-center gap-1">
                     <button onClick={()=>setWeekStart(d=>addDays(d,-14))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">‹‹</button>
                     <button onClick={()=>setWeekStart(d=>addDays(d,-7))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-base text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">‹</button>
-                    <div className="flex flex-col items-center px-3 py-1 rounded-lg" style={{background:'rgba(220,38,38,0.07)',border:'1px solid rgba(220,38,38,0.2)'}}>
-                      <span className="text-[8px] font-bold text-red-400 uppercase tracking-widest">2 Minggu:</span>
-                      <span className="text-[10px] font-bold text-red-700 leading-tight">{wLabel}</span>
-                      <span className="text-[9px] text-red-400 leading-tight">{wLabel2}</span>
-                      {!isCurrWeek&&<button onClick={()=>setWeekStart(getMonday(new Date()))} className="text-[8px] font-bold px-1.5 py-0.5 rounded text-white mt-0.5" style={{background:'#dc2626'}}>Minggu Ini</button>}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{background:'rgba(220,38,38,0.07)',border:'1px solid rgba(220,38,38,0.2)'}}>
+                      <div className="flex flex-col">
+                        <span className="text-[8px] font-bold text-red-400 uppercase tracking-widest leading-none mb-0.5">2 MINGGU</span>
+                        <span className="text-[11px] font-bold text-red-700 leading-tight">{wLabel}</span>
+                        <span className="text-[10px] text-red-500 leading-tight">{wLabel2}</span>
+                      </div>
+                      {!isCurrWeek&&<button onClick={()=>setWeekStart(getMonday(new Date()))} className="text-[9px] font-bold px-2 py-1 rounded-lg text-white flex-shrink-0" style={{background:'#dc2626'}}>Ini</button>}
                     </div>
                     <button onClick={()=>setWeekStart(d=>addDays(d,7))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-base text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">›</button>
                     <button onClick={()=>setWeekStart(d=>addDays(d,14))} className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 hover:bg-red-50">››</button>
