@@ -1194,28 +1194,55 @@ export default function PiketShowroomPage() {
     const virtual: PiketRow[] = [];
     [weekStart, addDays(weekStart,7)].forEach(ws=>{
       const wkKey = toKey(ws);
-      DAYS_OF_WEEK.forEach((day,dayIdx)=>{
-        if(existingKeys.has(`${wkKey}__${day}`)) return; // sudah ada di DB
+      DAYS_OF_WEEK.forEach((day)=>{
+        if(existingKeys.has(`${wkKey}__${day}`)) return;
         const date = getDayDate(ws, day);
         const name = getRollingNameForDate(date, allRows);
         if(!name) return;
+        // Cari user berdasarkan nama untuk tentukan team
+        const u = ptUsers.find(x=>x.full_name===name);
+        const tt = u?.team_type||'';
+        const isIVP=tt==='Team PTS', isUMP=tt==='Team PTS UMP', isMlds=tt==='Team PTS MLDS';
         virtual.push({
           id: `virtual-${wkKey}-${day}`,
           week_start: wkKey,
           day_of_week: day,
           day_date: toKey(date),
-          pic_ivp_name: name,
-          pic_ump_id: null, pic_ivp_id: null, pic_mlds_id: null,
-          pic_ump_name: null, pic_mlds_name: null,
+          pic_ivp_id: isIVP?(u?.id||null):null,
+          pic_ivp_name: isIVP?name:null,
+          pic_ump_id: isUMP?(u?.id||null):null,
+          pic_ump_name: isUMP?name:null,
+          pic_mlds_id: isMlds?(u?.id||null):null,
+          pic_mlds_name: isMlds?name:null,
           tamu_instansi: null, kebutuhan: [],
           created_at: '', updated_at: '',
         });
       });
     });
     return [...rows, ...virtual];
-  }, [rows, allRows, weekStart]);
+  }, [rows, allRows, weekStart, ptUsers]);
 
-  const displayRows=effectiveRows.slice().sort((a,b)=>a.day_date.localeCompare(b.day_date)).filter(row=>{
+  // Auto-save virtual row ke DB lalu buka FillDetailModal
+  const handleFillVirtual = useCallback(async(row: PiketRow)=>{
+    const{error}=await supabase.from('piket_schedules').upsert({
+      week_start: row.week_start,
+      day_of_week: row.day_of_week,
+      day_date: row.day_date,
+      pic_ivp_id: row.pic_ivp_id,
+      pic_ivp_name: row.pic_ivp_name,
+      pic_ump_id: row.pic_ump_id,
+      pic_ump_name: row.pic_ump_name,
+      pic_mlds_id: row.pic_mlds_id,
+      pic_mlds_name: row.pic_mlds_name,
+      tamu_instansi: null, kebutuhan: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
+    if(error){console.error('Failed to save virtual row:',error.message);return;}
+    // Fetch the saved row to get real id, then open modal
+    const{data}=await supabase.from('piket_schedules').select('*').eq('week_start',row.week_start).eq('day_of_week',row.day_of_week).single();
+    if(data){setFillDetail(data as PiketRow);fetchData();}
+  },[fetchData]);
     // Hide weekends from list (Sabtu/Minggu hidden, shown only in mini calendar)
     const d=new Date(row.day_date+'T00:00:00');
     if(d.getDay()===0||d.getDay()===6)return false;
@@ -1474,14 +1501,12 @@ export default function PiketShowroomPage() {
                           {/* Action */}
                           {kgIdx===0&&(
                             <td className="px-3 py-3 align-middle text-center" rowSpan={kgToShow.length} style={{verticalAlign:'middle'}}>
-                              {row.id.startsWith('virtual-')
-                                ? <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Rolling</span>
-                                : <button onClick={()=>setFillDetail(row)}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
-                                    style={{background:dc.grad,boxShadow:`0 2px 8px ${dc.accent}30`}}>
-                                    ✍️ Isi
-                                  </button>
-                              }
+                              <button
+                                onClick={()=>isVirtual?handleFillVirtual(row):setFillDetail(row)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
+                                style={{background:dc.grad,boxShadow:`0 2px 8px ${dc.accent}30`}}>
+                                ✍️ Isi
+                              </button>
                             </td>
                           )}
                         </tr>
