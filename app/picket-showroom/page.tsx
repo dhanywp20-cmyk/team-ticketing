@@ -680,13 +680,24 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
         const ivpU=users.find(u=>u.id===a.ivp);
         const umpU=users.find(u=>u.id===a.ump);
         const mldsU=users.find(u=>u.id===a.mlds);
-        await supabase.from('piket_schedules').upsert({
-          week_start:wk,day_of_week:day,day_date:toKey(getDayDate(weekStart,day)),
-          pic_ivp_id:a.ivp||null,pic_ivp_name:ivpU?.full_name||null,
-          pic_ump_id:a.ump||null,pic_ump_name:umpU?.full_name||null,
-          pic_mlds_id:a.mlds||null,pic_mlds_name:mldsU?.full_name||null,
+        const{error}=await supabase.from('piket_schedules').upsert({
+          week_start:wk,
+          day_of_week:day,
+          day_date:toKey(getDayDate(weekStart,day)),
+          pic_ivp_id:a.ivp||null,
+          pic_ivp_name:ivpU?.full_name||null,
+          pic_ump_id:a.ump||null,
+          pic_ump_name:umpU?.full_name||null,
+          pic_mlds_id:a.mlds||null,
+          pic_mlds_name:mldsU?.full_name||null,
+          created_at:new Date().toISOString(),
           updated_at:new Date().toISOString(),
         },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
+        if(error){
+          notify('error',`Gagal simpan ${day}: ${error.message}`);
+          setSaving(false);
+          return;
+        }
       }
       notify('success','Jadwal berhasil disimpan!');
       setTimeout(()=>{onSaved();onClose();},800);
