@@ -92,6 +92,7 @@ const ALL_MENU_KEYS = [
   'database-pts',
   'unit-movement',
   'reminder-schedule',
+  'piket-showroom',
 ];
 
 interface AccountSettingsModalProps {
@@ -125,6 +126,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
     'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
+    'piket-showroom': { label: 'Piket Showroom', icon: '🏪', gradient: 'from-teal-600 to-teal-500' },
   };
 
   const notify = (type: 'success' | 'error', msg: string) => {
@@ -480,6 +482,7 @@ const ALL_MENU_LABELS: Record<string, { label: string; icon: string }> = {
   'database-pts': { label: 'Database PTS', icon: '💼' },
   'unit-movement': { label: 'Unit Movement Log', icon: '🚚' },
   'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️' },
+  'piket-showroom': { label: 'Piket Showroom', icon: '🏪' },
 };
 
 const ROLE_BADGE: Record<string, string> = {
@@ -2209,6 +2212,7 @@ function AccountSettingsInline() {
     'database-pts': { label: 'Database PTS', icon: '💼' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚' },
     'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️' },
+    'piket-showroom': { label: 'Piket Showroom', icon: '🏪' },
   };
 
   const notify = (type: 'success' | 'error', msg: string) => { setNotification({ type, msg }); setTimeout(() => setNotification(null), 3000); };
@@ -2841,6 +2845,677 @@ function BrandPicSettingInline() {
   return <BrandPicSettingContent />;
 }
 
+// ─── Piket Showroom ───────────────────────────────────────────────────────────
+
+const PIKET_DAYS_OF_WEEK = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'] as const;
+type PiketDayOfWeek = typeof PIKET_DAYS_OF_WEEK[number];
+
+const PIKET_DAY_EN: Record<PiketDayOfWeek, string> = {
+  Senin: 'MON', Selasa: 'TUE', Rabu: 'WED', Kamis: 'THU', Jumat: 'FRI',
+};
+
+const PIKET_DAY_COLORS: Record<PiketDayOfWeek, { accent: string; bg: string; border: string; calBg: string; calText: string; ribbon: string }> = {
+  Senin:  { accent: '#dc2626', bg: 'rgba(220,38,38,0.07)',   border: 'rgba(220,38,38,0.25)',   calBg: '#dc2626', calText: '#fff', ribbon: '#991b1b' },
+  Selasa: { accent: '#ca8a04', bg: 'rgba(202,138,4,0.07)',   border: 'rgba(202,138,4,0.25)',   calBg: '#ca8a04', calText: '#fff', ribbon: '#92400e' },
+  Rabu:   { accent: '#2563eb', bg: 'rgba(37,99,235,0.07)',   border: 'rgba(37,99,235,0.25)',   calBg: '#2563eb', calText: '#fff', ribbon: '#1e3a8a' },
+  Kamis:  { accent: '#7c3aed', bg: 'rgba(124,58,237,0.07)',  border: 'rgba(124,58,237,0.25)',  calBg: '#7c3aed', calText: '#fff', ribbon: '#4c1d95' },
+  Jumat:  { accent: '#059669', bg: 'rgba(5,150,105,0.07)',   border: 'rgba(5,150,105,0.25)',   calBg: '#059669', calText: '#fff', ribbon: '#064e3b' },
+};
+
+const PIKET_TEAM_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  'PTS IVP':  { bg: 'rgba(220,38,38,0.1)',  text: '#b91c1c', border: 'rgba(220,38,38,0.3)',  dot: '#dc2626' },
+  'PTS UMP':  { bg: 'rgba(37,99,235,0.1)',  text: '#1e40af', border: 'rgba(37,99,235,0.3)',  dot: '#2563eb' },
+  'PTS MLDS': { bg: 'rgba(124,58,237,0.1)', text: '#6d28d9', border: 'rgba(124,58,237,0.3)', dot: '#7c3aed' },
+};
+
+const PIKET_KEBUTUHAN_OPTIONS = [
+  'Meeting Room', 'Auditorium', 'Command Center', 'Digital Signage Kiosk',
+  'Digital Signage Custom', 'Paging System', 'Background Music', 'Signage LED Outdoor',
+  'Smartclass Room', 'Ballroom', 'Camera ETLE', 'Conference Room',
+  'Paperless System', 'Delegate System', 'Camera Tracking',
+];
+
+interface PiketPerson {
+  id: string;
+  name: string;
+  team: 'PTS IVP' | 'PTS UMP' | 'PTS MLDS';
+  is_active: boolean;
+}
+
+interface PiketScheduleRow {
+  id: string;
+  week_start: string;
+  day_of_week: PiketDayOfWeek;
+  day_date?: string;
+  pic_ivp_id: string | null;
+  pic_ivp_name: string | null;
+  pic_ump_id: string | null;
+  pic_ump_name: string | null;
+  pic_mlds_id: string | null;
+  pic_mlds_name: string | null;
+  tamu_instansi: string | null;
+  kebutuhan: string[];
+  foto_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function piketGetMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff); d.setHours(0, 0, 0, 0);
+  return d;
+}
+function piketAddDays(date: Date, days: number): Date {
+  const d = new Date(date); d.setDate(d.getDate() + days); return d;
+}
+function piketFmtDate(date: Date): string { return date.toISOString().split('T')[0]; }
+function piketGetDayDate(weekStart: Date, day: PiketDayOfWeek): Date {
+  return piketAddDays(weekStart, PIKET_DAYS_OF_WEEK.indexOf(day));
+}
+function piketIsToday(date: Date): boolean {
+  const t = new Date();
+  return date.getFullYear() === t.getFullYear() && date.getMonth() === t.getMonth() && date.getDate() === t.getDate();
+}
+
+function PiketMiniPie({ data, size = 72 }: { data: { label: string; value: number; color: string }[]; size?: number }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return <div className="rounded-full flex items-center justify-center text-[9px] text-slate-400" style={{ width: size, height: size, background: 'rgba(0,0,0,0.06)' }}>—</div>;
+  const cx = size / 2, cy = size / 2, r = (size - 4) / 2;
+  let start = -Math.PI / 2;
+  const slices: React.ReactNode[] = [];
+  data.forEach((d, i) => {
+    if (d.value === 0) return;
+    const angle = (d.value / total) * 2 * Math.PI;
+    const end = start + angle;
+    const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
+    const large = angle > Math.PI ? 1 : 0;
+    if (total === d.value) { slices.push(<circle key={i} cx={cx} cy={cy} r={r} fill={d.color} />); }
+    else { slices.push(<path key={i} d={`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`} fill={d.color} />); }
+    start = end;
+  });
+  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>{slices}<circle cx={cx} cy={cy} r={r * 0.45} fill="white" /></svg>;
+}
+
+function PiketPersonSettingModal({ onClose }: { onClose: () => void }) {
+  const [persons, setPersons] = useState<PiketPerson[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newTeam, setNewTeam] = useState<PiketPerson['team']>('PTS IVP');
+  const [notif, setNotif] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const pfNotify = (type: 'success' | 'error', msg: string) => { setNotif({ type, msg }); setTimeout(() => setNotif(null), 3000); };
+  useEffect(() => { fetchP(); }, []);
+  const fetchP = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('piket_persons').select('*').order('team').order('name');
+    if (data) setPersons(data as PiketPerson[]);
+    setLoading(false);
+  };
+  const handleAdd = async () => {
+    if (!newName.trim()) { pfNotify('error', 'Nama wajib diisi!'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('piket_persons').insert([{ name: newName.trim(), team: newTeam, is_active: true }]);
+    if (error) { pfNotify('error', 'Gagal: ' + error.message); } else { pfNotify('success', 'Berhasil!'); setNewName(''); await fetchP(); }
+    setSaving(false);
+  };
+  const handleToggle = async (p: PiketPerson) => { await supabase.from('piket_persons').update({ is_active: !p.is_active }).eq('id', p.id); await fetchP(); };
+  const handleDelete = async (id: string) => {
+    if (!confirm('Hapus orang ini?')) return;
+    await supabase.from('piket_persons').delete().eq('id', id);
+    pfNotify('success', 'Dihapus.'); await fetchP();
+  };
+  const grouped = { 'PTS IVP': persons.filter(p => p.team === 'PTS IVP'), 'PTS UMP': persons.filter(p => p.team === 'PTS UMP'), 'PTS MLDS': persons.filter(p => p.team === 'PTS MLDS') };
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden border border-slate-200">
+        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg">👥</div>
+            <div><h2 className="text-base font-bold text-white">Setting Anggota Piket</h2><p className="text-white/60 text-xs">Kelola daftar nama per tim piket</p></div>
+          </div>
+          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">✕</button>
+        </div>
+        {notif && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 flex items-center gap-2 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{notif.type === 'success' ? '✅' : '❌'} {notif.msg}</div>}
+        <div className="px-5 py-4 border-b border-slate-100 flex-shrink-0 bg-slate-50">
+          <p className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-3">➕ Tambah Anggota</p>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1"><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Nama</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-400" placeholder="Nama lengkap..." onKeyDown={e => e.key === 'Enter' && handleAdd()} /></div>
+            <div className="w-40"><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Tim</label>
+              <select value={newTeam} onChange={e => setNewTeam(e.target.value as PiketPerson['team'])} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white outline-none">
+                <option value="PTS IVP">PTS IVP</option><option value="PTS UMP">PTS UMP</option><option value="PTS MLDS">PTS MLDS</option>
+              </select></div>
+            <button onClick={handleAdd} disabled={saving} className="px-5 py-2 rounded-lg font-bold text-sm text-white transition-all disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #0f766e, #0d9488)' }}>{saving ? '...' : '➕ Tambah'}</button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {loading ? <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-t-teal-500 border-teal-200 animate-spin" /></div> : (
+            Object.entries(grouped).map(([team, members]) => {
+              const tc = PIKET_TEAM_COLORS[team];
+              return (
+                <div key={team} className="rounded-xl border overflow-hidden" style={{ borderColor: tc.border }}>
+                  <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: tc.bg, borderBottom: `1px solid ${tc.border}` }}>
+                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ background: tc.dot }} /><span className="font-bold text-sm" style={{ color: tc.text }}>{team}</span></div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text, border: `1px solid ${tc.border}` }}>{members.length} orang</span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {members.length === 0 ? <div className="px-4 py-4 text-xs text-slate-400 text-center italic">Belum ada anggota</div> : members.map(p => (
+                      <div key={p.id} className="flex items-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-50 transition-colors">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0" style={{ background: tc.dot }}>{p.name.charAt(0).toUpperCase()}</div>
+                        <span className={`flex-1 text-sm font-semibold ${p.is_active ? 'text-slate-800' : 'text-slate-400 line-through'}`}>{p.name}</span>
+                        <button onClick={() => handleToggle(p)} className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${p.is_active ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>{p.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                        <button onClick={() => handleDelete(p.id)} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-all">Hapus</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PiketScheduleSettingModal({ weekStart, onClose, onSaved }: { weekStart: Date; onClose: () => void; onSaved: () => void }) {
+  const [persons, setPersons] = useState<PiketPerson[]>([]);
+  const [assignments, setAssignments] = useState<Record<PiketDayOfWeek, { ivp: string; ump: string; mlds: string }>>(() => {
+    const init: Record<string, any> = {};
+    PIKET_DAYS_OF_WEEK.forEach(d => { init[d] = { ivp: '', ump: '', mlds: '' }; });
+    return init as any;
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const weekKey = piketFmtDate(weekStart);
+  const psNotify = (type: 'success' | 'error', msg: string) => { setNotif({ type, msg }); setTimeout(() => setNotif(null), 3000); };
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const [persRes, schedRes] = await Promise.all([
+        supabase.from('piket_persons').select('*').eq('is_active', true).order('name'),
+        supabase.from('piket_schedules').select('*').eq('week_start', weekKey),
+      ]);
+      if (persRes.data) setPersons(persRes.data as PiketPerson[]);
+      if (schedRes.data && schedRes.data.length > 0) {
+        const na: Record<string, any> = {};
+        PIKET_DAYS_OF_WEEK.forEach(d => { na[d] = { ivp: '', ump: '', mlds: '' }; });
+        (schedRes.data as PiketScheduleRow[]).forEach(s => { na[s.day_of_week] = { ivp: s.pic_ivp_id || '', ump: s.pic_ump_id || '', mlds: s.pic_mlds_id || '' }; });
+        setAssignments(na as any);
+      }
+      setLoading(false);
+    };
+    load();
+  }, [weekKey]);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      for (const day of PIKET_DAYS_OF_WEEK) {
+        const a = assignments[day];
+        const ivpP = persons.find(p => p.id === a.ivp), umpP = persons.find(p => p.id === a.ump), mldsP = persons.find(p => p.id === a.mlds);
+        await supabase.from('piket_schedules').upsert({
+          week_start: weekKey, day_of_week: day,
+          day_date: piketFmtDate(piketGetDayDate(weekStart, day)),
+          pic_ivp_id: a.ivp || null, pic_ivp_name: ivpP?.name || null,
+          pic_ump_id: a.ump || null, pic_ump_name: umpP?.name || null,
+          pic_mlds_id: a.mlds || null, pic_mlds_name: mldsP?.name || null,
+          tamu_instansi: null, kebutuhan: [], foto_url: null, updated_at: new Date().toISOString(),
+        }, { onConflict: 'week_start,day_of_week', ignoreDuplicates: false });
+      }
+      psNotify('success', 'Jadwal berhasil disimpan!');
+      setTimeout(() => { onSaved(); onClose(); }, 900);
+    } catch (e: any) { psNotify('error', 'Gagal: ' + e.message); }
+    setSaving(false);
+  };
+  const ivpP = persons.filter(p => p.team === 'PTS IVP'), umpP = persons.filter(p => p.team === 'PTS UMP'), mldsP = persons.filter(p => p.team === 'PTS MLDS');
+  const wLabel = `${weekStart.toLocaleDateString('id-ID', { day: '2-digit', month: 'long' })} – ${piketAddDays(weekStart, 4).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg">📋</div>
+            <div><h2 className="text-base font-bold text-white">Atur Jadwal Piket</h2><p className="text-white/60 text-xs">Minggu: {wLabel}</p></div>
+          </div>
+          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition-all">✕</button>
+        </div>
+        {notif && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 flex items-center gap-2 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{notif.type === 'success' ? '✅' : '❌'} {notif.msg}</div>}
+        <div className="flex-1 overflow-y-auto p-5">
+          {loading ? <div className="flex justify-center py-12"><div className="w-6 h-6 rounded-full border-2 border-t-teal-500 border-teal-200 animate-spin" /></div> : (
+            <div className="space-y-3">
+              {PIKET_DAYS_OF_WEEK.map(day => {
+                const dc = PIKET_DAY_COLORS[day]; const date = piketGetDayDate(weekStart, day);
+                return (
+                  <div key={day} className="rounded-xl border overflow-hidden" style={{ borderColor: dc.border }}>
+                    <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: dc.bg, borderBottom: `1px solid ${dc.border}` }}>
+                      <div className="w-10 h-10 rounded-lg flex flex-col items-center justify-center text-white flex-shrink-0" style={{ background: dc.calBg }}>
+                        <span className="text-[11px] font-black leading-none">{PIKET_DAY_EN[day]}</span>
+                        <span className="text-[10px] font-semibold leading-none mt-0.5 opacity-80">{date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</span>
+                      </div>
+                      <span className="font-bold text-sm" style={{ color: dc.accent }}>{day}</span>
+                      {piketIsToday(date) && <span className="text-[9px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: dc.accent }}>HARI INI</span>}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 p-4 bg-white">
+                      {([['ivp','PTS IVP',ivpP],['ump','PTS UMP',umpP],['mlds','PTS MLDS',mldsP]] as [string,string,PiketPerson[]][]).map(([key, label, opts]) => {
+                        const tc = PIKET_TEAM_COLORS[label];
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center gap-1.5 mb-1.5"><div className="w-2 h-2 rounded-full" style={{ background: tc.dot }} /><label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: tc.text }}>{label}</label></div>
+                            <select value={(assignments[day] as any)[key]} onChange={e => setAssignments(prev => ({ ...prev, [day]: { ...prev[day], [key]: e.target.value } }))}
+                              className="w-full border rounded-lg px-3 py-2 text-xs outline-none bg-white" style={{ borderColor: tc.border }}>
+                              <option value="">— Belum ditentukan —</option>
+                              {opts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={saving || loading} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50 flex items-center justify-center gap-2 transition-all" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
+            {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}💾 Simpan Jadwal
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PiketFillDetailModal({ schedule, onClose, onSaved }: { schedule: PiketScheduleRow; onClose: () => void; onSaved: () => void }) {
+  const [tamu, setTamu] = useState(schedule.tamu_instansi || '');
+  const [kebutuhan, setKebutuhan] = useState<string[]>(schedule.kebutuhan || []);
+  const [fotoUrl, setFotoUrl] = useState(schedule.foto_url || '');
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [notif, setNotif] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const dc = PIKET_DAY_COLORS[schedule.day_of_week];
+  const fdNotify = (type: 'success' | 'error', msg: string) => { setNotif({ type, msg }); setTimeout(() => setNotif(null), 3000); };
+  const toggleK = (k: string) => setKebutuhan(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `piket/${schedule.id}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('piket-photos').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from('piket-photos').getPublicUrl(path);
+      setFotoUrl(urlData.publicUrl);
+      fdNotify('success', 'Foto berhasil diupload!');
+    } catch (e: any) { fdNotify('error', 'Upload gagal: ' + e.message); }
+    setUploading(false);
+  };
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from('piket_schedules').update({ tamu_instansi: tamu || null, kebutuhan, foto_url: fotoUrl || null, updated_at: new Date().toISOString() }).eq('id', schedule.id);
+    setSaving(false);
+    if (error) { fdNotify('error', 'Gagal: ' + error.message); return; }
+    fdNotify('success', 'Data berhasil disimpan!');
+    setTimeout(() => { onSaved(); onClose(); }, 800);
+  };
+  return (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ background: `linear-gradient(135deg, ${dc.calBg}, ${dc.ribbon})` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg">✍️</div>
+            <div><h2 className="text-base font-bold text-white">Isi Detail Piket</h2><p className="text-white/70 text-xs">{schedule.day_of_week} — {[schedule.pic_ivp_name, schedule.pic_ump_name, schedule.pic_mlds_name].filter(Boolean).join(' / ')}</p></div>
+          </div>
+          <button onClick={onClose} className="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition-all">✕</button>
+        </div>
+        {notif && <div className={`mx-5 mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0 flex items-center gap-2 ${notif.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{notif.type === 'success' ? '✅' : '❌'} {notif.msg}</div>}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">🏢 Tamu Instansi <span className="text-slate-400 normal-case font-normal">(opsional)</span></label>
+            <input value={tamu} onChange={e => setTamu(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100" placeholder="Nama instansi / perusahaan tamu..." />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">🎯 Kebutuhan <span className="text-slate-400 normal-case font-normal">(opsional)</span></label>
+            <div className="grid grid-cols-2 gap-2">
+              {PIKET_KEBUTUHAN_OPTIONS.map(k => {
+                const checked = kebutuhan.includes(k);
+                return (
+                  <button key={k} onClick={() => toggleK(k)} className="flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left text-xs font-semibold"
+                    style={checked ? { background: 'rgba(13,148,136,0.1)', borderColor: 'rgba(13,148,136,0.4)', color: '#0d9488' } : { background: '#f8fafc', borderColor: '#e2e8f0', color: '#475569' }}>
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'border-teal-500 bg-teal-500' : 'border-slate-300 bg-white'}`}>
+                      {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                    </div>{k}
+                  </button>
+                );
+              })}
+            </div>
+            {kebutuhan.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {kebutuhan.map(k => (
+                  <span key={k} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${dc.calBg}, ${dc.ribbon})` }}>
+                    {k}<button onClick={() => toggleK(k)} className="ml-0.5 opacity-80 hover:opacity-100">✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-widest mb-2">📷 Foto <span className="text-slate-400 normal-case font-normal">(opsional)</span></label>
+            {fotoUrl ? (
+              <div className="relative inline-block">
+                <img src={fotoUrl} alt="Foto piket" className="w-32 h-32 rounded-xl object-cover border border-slate-200 shadow-sm" />
+                <button onClick={() => setFotoUrl('')} className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-600 shadow">✕</button>
+              </div>
+            ) : (
+              <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex items-center gap-3 px-5 py-4 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-teal-400 hover:text-teal-600 hover:bg-teal-50/50 transition-all w-full text-sm font-semibold disabled:opacity-50">
+                {uploading ? <><div className="w-4 h-4 border-2 border-t-teal-500 border-teal-200 rounded-full animate-spin" />Mengupload...</> : <><span className="text-2xl">📁</span> Klik untuk upload foto</>}
+              </button>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-600 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: `linear-gradient(135deg, ${dc.calBg}, ${dc.ribbon})` }}>
+            {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}💾 Simpan Detail
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PiketWeeklyStrip({ weekStart, schedules }: { weekStart: Date; schedules: PiketScheduleRow[] }) {
+  return (
+    <div className="flex gap-2">
+      {PIKET_DAYS_OF_WEEK.map(day => {
+        const date = piketGetDayDate(weekStart, day); const dc = PIKET_DAY_COLORS[day];
+        const sched = schedules.find(s => s.day_of_week === day); const todayDay = piketIsToday(date);
+        return (
+          <div key={day} className="flex-1 rounded-xl overflow-hidden border-2 transition-all"
+            style={{ borderColor: todayDay ? dc.accent : dc.border, boxShadow: todayDay ? `0 0 12px ${dc.accent}30` : undefined }}>
+            <div className="flex flex-col items-center py-2 px-1 text-white" style={{ background: `linear-gradient(135deg, ${dc.calBg}, ${dc.ribbon})` }}>
+              <div className="flex gap-1 mb-1"><div className="w-1.5 h-1.5 rounded-full bg-white/60" /><div className="w-1.5 h-1.5 rounded-full bg-white/60" /></div>
+              <span className="text-xs font-black leading-none">{date.getDate().toString().padStart(2, '0')}</span>
+              <span className="text-[9px] font-bold leading-none mt-0.5 opacity-90">{PIKET_DAY_EN[day]}</span>
+            </div>
+            <div className="text-center py-1 text-[9px] font-black uppercase tracking-widest" style={{ background: dc.bg, color: dc.accent }}>{day.toUpperCase()}</div>
+            <div className="p-2 space-y-1 min-h-[56px] bg-white/90">
+              {sched?.pic_ivp_name && <div className="text-[10px] font-semibold text-slate-700 truncate px-1 py-0.5 rounded" style={{ background: PIKET_TEAM_COLORS['PTS IVP'].bg }}>{sched.pic_ivp_name.split(' ')[0]}</div>}
+              {sched?.pic_ump_name && <div className="text-[10px] font-semibold text-slate-700 truncate px-1 py-0.5 rounded" style={{ background: PIKET_TEAM_COLORS['PTS UMP'].bg }}>{sched.pic_ump_name.split(' ')[0]}</div>}
+              {sched?.pic_mlds_name && <div className="text-[10px] font-semibold text-slate-700 truncate px-1 py-0.5 rounded" style={{ background: PIKET_TEAM_COLORS['PTS MLDS'].bg }}>{sched.pic_mlds_name.split(' ')[0]}</div>}
+              {!sched && <div className="text-[9px] text-slate-300 text-center pt-2">—</div>}
+            </div>
+            {todayDay && <div className="py-0.5 text-center text-[8px] font-black text-white tracking-widest" style={{ background: dc.accent }}>TODAY</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PiketScheduleCard({ day, date, schedule, onFillDetail, onPhotoZoom }: { day: PiketDayOfWeek; date: Date; schedule: PiketScheduleRow | null; onFillDetail: (s: PiketScheduleRow) => void; onPhotoZoom: (url: string) => void }) {
+  const dc = PIKET_DAY_COLORS[day]; const todayDay = piketIsToday(date);
+  return (
+    <div className="rounded-2xl overflow-hidden border-2 shadow-sm hover:shadow-md transition-all"
+      style={{ borderColor: todayDay ? dc.accent : dc.border, boxShadow: todayDay ? `0 0 16px ${dc.accent}25` : undefined, background: 'white', animation: 'fadeInUp 0.4s ease forwards' }}>
+      <div className="relative overflow-hidden">
+        <div className="flex justify-center gap-4 py-1.5" style={{ background: dc.calBg }}>
+          {[0,1,2].map(i => <div key={i} className="w-0.5 h-3 rounded-full bg-white/50" />)}
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3" style={{ background: `linear-gradient(135deg, ${dc.calBg}, ${dc.ribbon})` }}>
+          <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex-shrink-0">
+            <span className="text-2xl font-black text-white leading-none">{date.getDate().toString().padStart(2, '0')}</span>
+            <span className="text-[10px] font-bold text-white/80 leading-none mt-0.5 tracking-wider">{PIKET_DAY_EN[day]}</span>
+          </div>
+          <div>
+            <p className="text-white font-black text-base tracking-tight leading-tight">{day.toUpperCase()}</p>
+            <p className="text-white/70 text-[11px]">{date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            {todayDay && <span className="inline-block mt-1 text-[9px] font-black px-2 py-0.5 rounded-full text-white tracking-widest" style={{ background: 'rgba(255,255,255,0.25)' }}>HARI INI</span>}
+          </div>
+          {schedule && (
+            <button onClick={() => onFillDetail(schedule)} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white font-bold text-xs bg-white/15 hover:bg-white/25 flex-shrink-0 transition-all">✍️ Isi Detail</button>
+          )}
+        </div>
+      </div>
+      <div className="px-4 py-3 space-y-2" style={{ background: dc.bg }}>
+        {([['pic_ivp_name','PTS IVP'],['pic_ump_name','PTS UMP'],['pic_mlds_name','PTS MLDS']] as [keyof PiketScheduleRow, string][]).map(([field, team]) => {
+          const name = schedule ? (schedule[field] as string | null) : null; const tc = PIKET_TEAM_COLORS[team];
+          return name ? (
+            <div key={team} className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: tc.dot }} />
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ background: tc.dot }}>{name.charAt(0).toUpperCase()}</div>
+              <div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-800 leading-tight truncate">{name}</p><span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: tc.text }}>{team}</span></div>
+            </div>
+          ) : (
+            <div key={team} className="flex items-center gap-2 opacity-40">
+              <div className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] text-slate-400 bg-slate-100 flex-shrink-0">—</div>
+              <div><p className="text-xs text-slate-400 italic">Belum ditentukan</p><span className="text-[9px] font-bold uppercase tracking-widest text-slate-300">{team}</span></div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="h-px mx-4" style={{ background: `linear-gradient(90deg, transparent, ${dc.accent}50, transparent)` }} />
+      <div className="px-4 py-3 space-y-2 bg-white">
+        <div className="flex items-start gap-2">
+          <span className="text-sm flex-shrink-0">🏢</span>
+          <div className="flex-1 min-w-0"><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamu Instansi</p>
+            <p className="text-xs font-semibold text-slate-700 mt-0.5">{schedule?.tamu_instansi || <span className="text-slate-300 italic font-normal">—</span>}</p></div>
+        </div>
+        {schedule?.kebutuhan && schedule.kebutuhan.length > 0 && (
+          <div className="flex items-start gap-2">
+            <span className="text-sm flex-shrink-0">🎯</span>
+            <div className="flex-1 min-w-0"><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Kebutuhan</p>
+              <div className="flex flex-wrap gap-1">{schedule.kebutuhan.map(k => <span key={k} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: dc.calBg }}>{k}</span>)}</div></div>
+          </div>
+        )}
+        {schedule?.foto_url && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm flex-shrink-0">📷</span>
+            <div className="flex-1 min-w-0"><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Foto</p>
+              <button onClick={() => onPhotoZoom(schedule.foto_url!)} className="relative overflow-hidden rounded-lg hover:opacity-90 transition-opacity">
+                <img src={schedule.foto_url} alt="Foto piket" className="w-14 h-14 object-cover rounded-lg border border-slate-200 shadow-sm" />
+              </button></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PiketShowroomView() {
+  const [weekStart, setWeekStart] = useState<Date>(() => piketGetMonday(new Date()));
+  const [schedules, setSchedules] = useState<PiketScheduleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showPersonSetting, setShowPersonSetting] = useState(false);
+  const [showScheduleSetting, setShowScheduleSetting] = useState(false);
+  const [fillDetail, setFillDetail] = useState<PiketScheduleRow | null>(null);
+  const [photoZoom, setPhotoZoom] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterDay, setFilterDay] = useState<PiketDayOfWeek | ''>('');
+  const [filterHasTamu, setFilterHasTamu] = useState(false);
+  const [filterHasKebutuhan, setFilterHasKebutuhan] = useState(false);
+  const weekKey = piketFmtDate(weekStart);
+
+  const fetchSchedules = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('piket_schedules').select('*').eq('week_start', weekKey);
+    if (data) setSchedules(data as PiketScheduleRow[]);
+    setLoading(false);
+  }, [weekKey]);
+
+  useEffect(() => { fetchSchedules(); }, [fetchSchedules]);
+
+  useEffect(() => {
+    const ch = supabase.channel('piket-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'piket_schedules' }, () => { setTimeout(fetchSchedules, 300); }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [fetchSchedules]);
+
+  const isCurrentWeek = weekKey === piketFmtDate(piketGetMonday(new Date()));
+  const weekLabel = `${weekStart.toLocaleDateString('id-ID', { day: '2-digit', month: 'long' })} – ${piketAddDays(weekStart, 4).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+
+  const filteredDays = PIKET_DAYS_OF_WEEK.filter(day => {
+    if (filterDay && day !== filterDay) return false;
+    const sched = schedules.find(s => s.day_of_week === day);
+    if (filterHasTamu && !sched?.tamu_instansi) return false;
+    if (filterHasKebutuhan && (!sched?.kebutuhan || sched.kebutuhan.length === 0)) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return !!(sched?.pic_ivp_name?.toLowerCase().includes(q) || sched?.pic_ump_name?.toLowerCase().includes(q) || sched?.pic_mlds_name?.toLowerCase().includes(q) || sched?.tamu_instansi?.toLowerCase().includes(q) || sched?.kebutuhan?.some(k => k.toLowerCase().includes(q)) || day.toLowerCase().includes(q));
+    }
+    return true;
+  });
+
+  const tamuStats = schedules.filter(s => s.tamu_instansi).length;
+  const kebutuhanCount: Record<string, number> = {};
+  schedules.forEach(s => (s.kebutuhan || []).forEach(k => { kebutuhanCount[k] = (kebutuhanCount[k] || 0) + 1; }));
+  const topK = Object.entries(kebutuhanCount).sort(([,a],[,b]) => b-a).slice(0,5);
+  const kPieColors = ['#0d9488','#2563eb','#7c3aed','#ca8a04','#dc2626'];
+  const kPieData = topK.map(([k,v],i) => ({ label: k, value: v, color: kPieColors[i % 5] }));
+  const tamuPieData = [{ label: 'Ada Tamu', value: tamuStats, color: '#0d9488' }, { label: 'Tanpa Tamu', value: schedules.length - tamuStats, color: '#e2e8f0' }];
+
+  return (
+    <div className="min-h-full flex flex-col" style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 60%, #0f3460 100%)', fontFamily: "'Exo 2', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800;900&family=Orbitron:wght@600;700;800;900&display=swap');
+        .piket-card { animation: fadeInUp 0.4s ease forwards; }
+      `}</style>
+
+      {/* Header */}
+      <div className="sticky top-0 z-40 border-b" style={{ background: 'rgba(15,23,42,0.97)', backdropFilter: 'blur(16px)', borderBottomColor: 'rgba(255,255,255,0.08)' }}>
+        <div className="px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)', boxShadow: '0 0 16px rgba(13,148,136,0.4)' }}>
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div>
+              <h1 className="font-black text-lg text-white leading-tight tracking-tight" style={{ fontFamily: "'Orbitron', sans-serif" }}>PIKET SHOWROOM</h1>
+              <p className="text-[11px] text-teal-400 font-semibold tracking-widest uppercase">IndoVisual Presentama</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => setShowPersonSetting(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.75)' }}>
+              <span>👥</span><span>Kelola Anggota</span>
+            </button>
+            <button onClick={() => setShowScheduleSetting(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all" style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)', boxShadow: '0 0 14px rgba(13,148,136,0.35)' }}>
+              <span>📋</span><span>Atur Jadwal</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 px-6 py-6 space-y-6">
+        {/* Week nav */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeekStart(d => piketAddDays(d, -7))} className="w-9 h-9 rounded-xl flex items-center justify-center text-white transition-all" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <div className="px-5 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <p className="text-xs text-teal-400 font-bold uppercase tracking-widest text-center">Jadwal Piket</p>
+              <p className="text-sm font-bold text-white text-center">{weekLabel}</p>
+            </div>
+            <button onClick={() => setWeekStart(d => piketAddDays(d, 7))} className="w-9 h-9 rounded-xl flex items-center justify-center text-white transition-all" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
+            {!isCurrentWeek && (
+              <button onClick={() => setWeekStart(piketGetMonday(new Date()))} className="px-3 py-2 rounded-xl text-xs font-bold transition-all" style={{ background: 'rgba(13,148,136,0.15)', border: '1px solid rgba(13,148,136,0.4)', color: '#2dd4bf' }}>Minggu Ini</button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ background: 'rgba(13,148,136,0.15)', border: '1px solid rgba(13,148,136,0.3)' }}><div className="w-2 h-2 rounded-full bg-teal-400" /><span className="text-xs font-bold text-teal-300">{tamuStats} Tamu</span></div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)' }}><div className="w-2 h-2 rounded-full bg-indigo-400" /><span className="text-xs font-bold text-indigo-300">{Object.values(kebutuhanCount).reduce((a,b) => a+b, 0)} Kebutuhan</span></div>
+          </div>
+        </div>
+
+        {/* Weekly strip */}
+        <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">📅 Jadwal Mingguan</p>
+          <PiketWeeklyStrip weekStart={weekStart} schedules={schedules} />
+        </div>
+
+        {/* Search & Filter */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cari nama, instansi, kebutuhan..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none transition-all"
+              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }} />
+          </div>
+          <select value={filterDay} onChange={e => setFilterDay(e.target.value as any)} className="px-4 py-2.5 rounded-xl text-sm font-bold text-white outline-none" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+            <option value="">Semua Hari</option>
+            {PIKET_DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <button onClick={() => setFilterHasTamu(f => !f)} className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+            style={filterHasTamu ? { background: 'rgba(13,148,136,0.25)', border: '1px solid rgba(13,148,136,0.5)', color: '#2dd4bf' } : { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+            🏢 Ada Tamu
+          </button>
+          <button onClick={() => setFilterHasKebutuhan(f => !f)} className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+            style={filterHasKebutuhan ? { background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc' } : { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+            🎯 Ada Kebutuhan
+          </button>
+          {(searchQuery || filterDay || filterHasTamu || filterHasKebutuhan) && (
+            <button onClick={() => { setSearchQuery(''); setFilterDay(''); setFilterHasTamu(false); setFilterHasKebutuhan(false); }} className="px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 transition-all" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>✕ Reset</button>
+          )}
+        </div>
+
+        {/* Cards */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20"><div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(13,148,136,0.3)', borderTopColor: '#0d9488' }} /></div>
+        ) : filteredDays.length === 0 ? (
+          <div className="text-center py-20"><div className="text-5xl mb-4">🔍</div><p className="text-slate-400 font-semibold">Tidak ada jadwal yang cocok</p></div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {filteredDays.map(day => (
+              <PiketScheduleCard key={day} day={day} date={piketGetDayDate(weekStart, day)} schedule={schedules.find(s => s.day_of_week === day) ?? null} onFillDetail={setFillDetail} onPhotoZoom={setPhotoZoom} />
+            ))}
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">🏢 Statistik Tamu Minggu Ini</p>
+            <div className="flex items-center gap-6">
+              <PiketMiniPie data={tamuPieData} size={72} />
+              <div className="space-y-2 flex-1">{tamuPieData.map(d => <div key={d.label} className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ background: d.color }} /><span className="text-xs font-semibold text-slate-300 flex-1">{d.label}</span><span className="text-sm font-black text-white">{d.value}</span></div>)}</div>
+            </div>
+          </div>
+          <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">🎯 Top Kebutuhan Minggu Ini</p>
+            {kPieData.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">Belum ada data kebutuhan</p> : (
+              <div className="flex items-center gap-6">
+                <PiketMiniPie data={kPieData} size={72} />
+                <div className="space-y-2 flex-1">{kPieData.map(d => <div key={d.label} className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ background: d.color }} /><span className="text-xs font-semibold text-slate-300 flex-1 truncate">{d.label}</span><span className="text-sm font-black text-white">{d.value}×</span></div>)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Photo zoom */}
+      {photoZoom && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setPhotoZoom(null)}>
+          <div className="relative max-w-3xl max-h-[90vh]">
+            <img src={photoZoom} alt="Foto piket zoom" className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain" />
+            <button onClick={() => setPhotoZoom(null)} className="absolute top-3 right-3 w-9 h-9 bg-black/60 text-white rounded-full flex items-center justify-center font-bold hover:bg-black/80 transition-all">✕</button>
+          </div>
+        </div>
+      )}
+
+      {showPersonSetting && <PiketPersonSettingModal onClose={() => setShowPersonSetting(false)} />}
+      {showScheduleSetting && <PiketScheduleSettingModal weekStart={weekStart} onClose={() => setShowScheduleSetting(false)} onSaved={fetchSchedules} />}
+      {fillDetail && <PiketFillDetailModal schedule={fillDetail} onClose={() => setFillDetail(null)} onSaved={fetchSchedules} />}
+    </div>
+  );
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -2876,6 +3551,12 @@ export default function Dashboard() {
   const [visibleMenuItems, setVisibleMenuItems] = useState<MenuItem[]>([]);
 
   const allMenuItems: MenuItem[] = [
+    {
+      title: 'Piket Showroom', icon: '🏪', key: 'piket-showroom',
+      gradient: 'from-teal-700 via-teal-600 to-cyan-500',
+      description: 'Jadwal piket showroom Team PTS IVP, UMP & MLDS',
+      items: [{ name: 'Piket Showroom', url: '/piket-showroom', icon: '📅', internal: true, embed: true }]
+    },
     {
       title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
       gradient: 'from-cyan-700 via-cyan-600 to-teal-500',
@@ -3051,14 +3732,15 @@ export default function Dashboard() {
 
   const isAdmin = ['admin', 'superadmin'].includes(currentUser?.role?.toLowerCase() ?? '');
 
-  const INTERNAL_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting'];
-  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting'];
+  const INTERNAL_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting', 'piket-showroom'];
+  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting', 'piket-showroom'];
   const INTERNAL_DAILY_KEYS = ['daily-report', 'database-pts', 'unit-movement'];
 
   const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
   const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_DAILY_KEYS.includes(m.key));
 
   const MENU_ICONS: Record<string, JSX.Element> = {
+    'piket-showroom': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
     'reminder-schedule': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
     'form-require-project': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>,
     'form-bast': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>,
@@ -3539,7 +4221,11 @@ export default function Dashboard() {
         {/* MAIN CONTENT */}
         <div className="flex-1 flex flex-col overflow-y-auto">
           <div className="flex-1 overflow-hidden bg-white">
-            {showTicketing ? (
+            {showTicketing && internalUrl === '/piket-showroom' ? (
+              <div className="w-full h-full overflow-auto">
+                <PiketShowroomView />
+              </div>
+            ) : showTicketing ? (
               <div className="w-full h-full overflow-auto">
                 <iframe src={internalUrl} className="w-full h-full border-0" title={iframeTitle} />
               </div>
