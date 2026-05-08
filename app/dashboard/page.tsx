@@ -92,7 +92,7 @@ const ALL_MENU_KEYS = [
   'database-pts',
   'unit-movement',
   'reminder-schedule',
-  'piket-showroom',
+  'picket-showroom',
 ];
 
 interface AccountSettingsModalProps {
@@ -126,7 +126,7 @@ function AccountSettingsModal({ onClose }: AccountSettingsModalProps) {
     'database-pts': { label: 'Database PTS', icon: '💼', gradient: 'from-indigo-600 to-indigo-500' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚', gradient: 'from-amber-600 to-amber-500' },
     'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️', gradient: 'from-cyan-600 to-cyan-500' },
-    'piket-showroom': { label: 'Piket Showroom', icon: '🏪', gradient: 'from-teal-600 to-teal-500' },
+    'picket-showroom': { label: 'Piket Showroom', icon: '🏪', gradient: 'from-teal-600 to-teal-500' },
   };
 
   const notify = (type: 'success' | 'error', msg: string) => {
@@ -482,7 +482,7 @@ const ALL_MENU_LABELS: Record<string, { label: string; icon: string }> = {
   'database-pts': { label: 'Database PTS', icon: '💼' },
   'unit-movement': { label: 'Unit Movement Log', icon: '🚚' },
   'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️' },
-  'piket-showroom': { label: 'Piket Showroom', icon: '🏪' },
+  'picket-showroom': { label: 'Piket Showroom', icon: '🏪' },
 };
 
 const ROLE_BADGE: Record<string, string> = {
@@ -2212,7 +2212,7 @@ function AccountSettingsInline() {
     'database-pts': { label: 'Database PTS', icon: '💼' },
     'unit-movement': { label: 'Unit Movement Log', icon: '🚚' },
     'reminder-schedule': { label: 'Reminder Schedule', icon: '🗓️' },
-    'piket-showroom': { label: 'Piket Showroom', icon: '🏪' },
+    'picket-showroom': { label: 'Piket Showroom', icon: '🏪' },
   };
 
   const notify = (type: 'success' | 'error', msg: string) => { setNotification({ type, msg }); setTimeout(() => setNotification(null), 3000); };
@@ -2881,10 +2881,10 @@ export default function Dashboard() {
 
   const allMenuItems: MenuItem[] = [
     {
-      title: 'Piket Showroom', icon: '🏪', key: 'piket-showroom',
+      title: 'Piket Showroom', icon: '🏪', key: 'picket-showroom',
       gradient: 'from-teal-700 via-teal-600 to-cyan-500',
       description: 'Jadwal piket showroom Team PTS IVP, UMP & MLDS',
-      items: [{ name: 'Piket Showroom', url: '/piket-showroom', icon: '📅', internal: true, embed: true }]
+      items: [{ name: 'Piket Showroom', url: '/picket-showroom', icon: '📅', internal: true, embed: true }]
     },
     {
       title: 'Reminder Schedule', icon: '🗓️', key: 'reminder-schedule',
@@ -3061,15 +3061,15 @@ export default function Dashboard() {
 
   const isAdmin = ['admin', 'superadmin'].includes(currentUser?.role?.toLowerCase() ?? '');
 
-  const INTERNAL_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting', 'piket-showroom'];
-  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting', 'piket-showroom'];
+  const INTERNAL_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting', 'picket-showroom'];
+  const PROJECT_KEYS = ['reminder-schedule', 'form-require-project', 'form-bast', 'ticket-troubleshooting', 'picket-showroom'];
   const INTERNAL_DAILY_KEYS = ['daily-report', 'database-pts', 'unit-movement'];
 
   const projectMenuItems = visibleMenuItems.filter(m => PROJECT_KEYS.includes(m.key));
   const internalMenuItems = visibleMenuItems.filter(m => INTERNAL_DAILY_KEYS.includes(m.key));
 
   const MENU_ICONS: Record<string, JSX.Element> = {
-    'piket-showroom': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+    'picket-showroom': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
     'reminder-schedule': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
     'form-require-project': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>,
     'form-bast': <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>,
