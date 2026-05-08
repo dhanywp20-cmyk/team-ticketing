@@ -2911,6 +2911,7 @@ export default function Dashboard() {
     confirm_password: '',
     sales_division: '',
     jabatan: '',
+    phone_number: '',
   });
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
@@ -3034,12 +3035,13 @@ export default function Dashboard() {
         role: 'guest',
         sales_division: sales_division,
         jabatan: registerForm.jabatan.trim() || null,
+        phone_number: registerForm.phone_number.trim() || null,
         team_type: 'Pending Approval',
         allowed_menus: [],
       }]);
       if (error) throw error;
       setRegisterSuccess(true);
-      setRegisterForm({ full_name: '', username: '', password: '', confirm_password: '', sales_division: '', jabatan: '' });
+      setRegisterForm({ full_name: '', username: '', password: '', confirm_password: '', sales_division: '', jabatan: '', phone_number: '' });
     } catch (err: any) {
       alert('Registrasi gagal: ' + err.message);
     }
@@ -3281,6 +3283,11 @@ export default function Dashboard() {
                         {JABATAN_LIST.map(j => <option key={j} value={j}>{JABATAN_CONFIG[j].icon} {j}</option>)}
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-widest uppercase">No. Telepon / WhatsApp</label>
+                      <input type="tel" value={registerForm.phone_number} onChange={e => setRegisterForm({ ...registerForm, phone_number: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" placeholder="Contoh: 08123456789" />
+                    </div>
                     <button onClick={handleRegister} disabled={registerLoading}
                       className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
                       {registerLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
@@ -3492,9 +3499,8 @@ export default function Dashboard() {
             <button onClick={handleBackToDashboard}
               className={`w-full group flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl font-bold transition-all ${sidebarCollapsed ? 'justify-center' : 'justify-center'}`}
               style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)', color: '#334155' }}
-              //onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#0f172a'; }}
-              //onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = '#334155'; }}
-              >
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#0f172a'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = '#334155'; }}>
               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
