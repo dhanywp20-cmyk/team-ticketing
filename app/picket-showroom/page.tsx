@@ -25,12 +25,10 @@ const TEAM_LABEL: Record<string,{dot:string;text:string;bg:string}> = {
   'PTS UMP':  {dot:'#2563eb',text:'#1e40af',bg:'rgba(37,99,235,0.1)'},
   'PTS MLDS': {dot:'#7c3aed',text:'#6d28d9',bg:'rgba(124,58,237,0.1)'},
 };
-// team_type in DB → display label
-// 'Team PTS' → PTS IVP, 'Team PTS UMP' → PTS UMP, 'Team PTS MLDS' → PTS MLDS
 function teamTypeToLabel(tt:string):string {
   if (tt==='Team PTS UMP') return 'PTS UMP';
   if (tt==='Team PTS MLDS') return 'PTS MLDS';
-  return 'PTS IVP'; // 'Team PTS' = internal IVP
+  return 'PTS IVP';
 }
 const KEBUTUHAN_LIST = [
   'Meeting Room','Auditorium','Command Center','Digital Signage Kiosk',
@@ -39,6 +37,7 @@ const KEBUTUHAN_LIST = [
   'Paperless System','Delegate System','Camera Tracking',
 ];
 const PIE_COLORS = ['#7c3aed','#0ea5e9','#10b981','#e11d48','#f59e0b','#6366f1','#14b8a6','#f97316','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,7 +65,15 @@ function toKey(d:Date):string{return d.toISOString().split('T')[0];}
 function getDayDate(ws:Date,day:DayOfWeek):Date{return addDays(ws,DAYS_OF_WEEK.indexOf(day));}
 function isToday(d:Date):boolean{const t=new Date();return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate();}
 
-// ─── Donut Pie Chart — identical to Reminder Schedule ────────────────────────
+function getWeekKey(dateStr:string):string {
+  const d=new Date(dateStr+'T00:00:00');
+  const mon=getMonday(d);
+  return toKey(mon);
+}
+function getMonthKey(dateStr:string):string { return dateStr.slice(0,7); }
+function getYearKey(dateStr:string):string { return dateStr.slice(0,4); }
+
+// ─── Donut Pie Chart ──────────────────────────────────────────────────────────
 
 function MiniPieChart({data,title,icon,activeFilter,onSliceClick}:{
   data:{label:string;value:number;color:string}[];
@@ -135,7 +142,230 @@ function MiniPieChart({data,title,icon,activeFilter,onSliceClick}:{
   );
 }
 
-// ─── Mini Calendar — identical to Reminder Schedule ──────────────────────────
+// ─── Bar Chart ────────────────────────────────────────────────────────────────
+
+function BarChart({data,title,icon,color,yLabel}:{
+  data:{label:string;value:number}[];
+  title:string;icon:string;color:string;yLabel?:string;
+}) {
+  const [hov,setHov]=useState<number|null>(null);
+  const max=Math.max(...data.map(d=>d.value),1);
+  return(
+    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(255,255,255,0.8)',backdropFilter:'blur(10px)'}}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">{icon} {title}</p>
+        {yLabel&&<span className="text-[9px] text-gray-400 font-medium">{yLabel}</span>}
+      </div>
+      <div className="flex items-end gap-1.5 h-[100px]">
+        {data.map((d,i)=>{
+          const pct=Math.round((d.value/max)*100);
+          const isHov=hov===i;
+          return(
+            <div key={i} className="flex flex-col items-center gap-1 flex-1 min-w-0"
+              onMouseEnter={()=>setHov(i)} onMouseLeave={()=>setHov(null)}>
+              {isHov&&<span className="text-[9px] font-black rounded px-1 py-0.5 text-white shadow-sm" style={{background:color}}>{d.value}</span>}
+              {!isHov&&<span className="text-[9px] font-bold text-slate-400">{d.value||''}</span>}
+              <div className="w-full rounded-t-md transition-all duration-200" style={{
+                height:`${Math.max(pct,d.value>0?4:0)}px`,
+                background:isHov?color:`${color}99`,
+                minHeight:d.value>0?'4px':0,
+              }}/>
+              <span className="text-[8px] text-gray-400 font-medium truncate w-full text-center leading-tight">{d.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tamu Instansi Pie Chart ──────────────────────────────────────────────────
+
+function TamuInstansiPie({allRows,activeFilter,onSliceClick}:{
+  allRows:PiketRow[];activeFilter?:string|null;onSliceClick?:(label:string)=>void;
+}) {
+  const map:Record<string,number>={};
+  allRows.forEach(r=>{if(r.tamu_instansi){map[r.tamu_instansi]=(map[r.tamu_instansi]||0)+1;}});
+  const data=Object.entries(map).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+  return <MiniPieChart data={data} title="Tamu per Instansi (Semua)" icon="🏢" activeFilter={activeFilter} onSliceClick={onSliceClick}/>;
+}
+
+// ─── Tamu Summary Cards ───────────────────────────────────────────────────────
+
+function TamuSummaryCards({allRows}:{allRows:PiketRow[]}) {
+  const now=new Date();
+  const thisWeek=toKey(getMonday(now));
+  const thisMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const thisYear=String(now.getFullYear());
+
+  const countTamu=(rows:PiketRow[])=>rows.filter(r=>r.tamu_instansi).length;
+  const countK=(rows:PiketRow[])=>rows.filter(r=>r.kebutuhan&&r.kebutuhan.length>0).length;
+
+  const weekRows=allRows.filter(r=>getWeekKey(r.day_date)===thisWeek);
+  const monthRows=allRows.filter(r=>r.day_date?.startsWith(thisMonth));
+  const yearRows=allRows.filter(r=>r.day_date?.startsWith(thisYear));
+
+  const cards=[
+    {period:'Minggu Ini',tamu:countTamu(weekRows),kebutuhan:countK(weekRows),total:weekRows.length,color:'#2563eb',grad:'linear-gradient(135deg,#2563eb,#1e40af)',shadow:'rgba(37,99,235,0.3)'},
+    {period:'Bulan Ini',tamu:countTamu(monthRows),kebutuhan:countK(monthRows),total:monthRows.length,color:'#7c3aed',grad:'linear-gradient(135deg,#7c3aed,#4c1d95)',shadow:'rgba(124,58,237,0.3)'},
+    {period:'Tahun '+thisYear,tamu:countTamu(yearRows),kebutuhan:countK(yearRows),total:yearRows.length,color:'#059669',grad:'linear-gradient(135deg,#059669,#047857)',shadow:'rgba(5,150,105,0.3)'},
+    {period:'Total Semua',tamu:countTamu(allRows),kebutuhan:countK(allRows),total:allRows.length,color:'#dc2626',grad:'linear-gradient(135deg,#dc2626,#991b1b)',shadow:'rgba(220,38,38,0.3)'},
+  ];
+
+  return(
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {cards.map(c=>(
+        <div key={c.period} className="rounded-2xl p-4 relative overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:`1px solid ${c.color}25`,backdropFilter:'blur(10px)',boxShadow:`0 4px 16px ${c.shadow}`}}>
+          <div className="absolute right-3 top-2 text-3xl opacity-10 select-none">🏢</div>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{color:c.color}}>{c.period}</p>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-500 font-medium">Total Hari</span>
+              <span className="text-sm font-black" style={{color:c.color}}>{c.total}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-500 font-medium">🏢 Ada Tamu</span>
+              <span className="text-sm font-black text-emerald-600">{c.tamu}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-500 font-medium">🎯 Kebutuhan</span>
+              <span className="text-sm font-black text-amber-600">{c.kebutuhan}</span>
+            </div>
+          </div>
+          <div className="mt-2.5 h-1 rounded-full overflow-hidden" style={{background:`${c.color}15`}}>
+            <div className="h-full rounded-full transition-all" style={{width:`${c.total>0?Math.min((c.tamu/c.total)*100,100):0}%`,background:c.grad}}/>
+          </div>
+          <p className="text-[8px] text-gray-400 mt-0.5">{c.total>0?Math.round((c.tamu/c.total)*100):0}% ada tamu</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Tamu Trend Bar Charts ────────────────────────────────────────────────────
+
+function TamuTrendCharts({allRows}:{allRows:PiketRow[]}) {
+  const [view,setView]=useState<'minggu'|'bulan'|'tahun'>('bulan');
+  const now=new Date();
+
+  // Per minggu — last 12 weeks
+  const weeklyData=()=>{
+    const weeks:Record<string,{tamu:number;kebutuhan:number}>={}; 
+    for(let i=11;i>=0;i--){
+      const wStart=getMonday(addDays(now,-i*7));
+      const key=toKey(wStart);
+      weeks[key]={tamu:0,kebutuhan:0};
+    }
+    allRows.forEach(r=>{
+      const wk=getWeekKey(r.day_date);
+      if(weeks[wk]){
+        if(r.tamu_instansi)weeks[wk].tamu++;
+        if(r.kebutuhan&&r.kebutuhan.length>0)weeks[wk].kebutuhan++;
+      }
+    });
+    return Object.entries(weeks).map(([key,v])=>{
+      const d=new Date(key+'T00:00:00');
+      const label=`${d.getDate()}/${d.getMonth()+1}`;
+      return{label,tamu:v.tamu,kebutuhan:v.kebutuhan};
+    });
+  };
+
+  // Per bulan — last 12 months
+  const monthlyData=()=>{
+    const months:Record<string,{tamu:number;kebutuhan:number}>={};
+    for(let i=11;i>=0;i--){
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      months[key]={tamu:0,kebutuhan:0};
+    }
+    allRows.forEach(r=>{
+      const mk=getMonthKey(r.day_date);
+      if(months[mk]){
+        if(r.tamu_instansi)months[mk].tamu++;
+        if(r.kebutuhan&&r.kebutuhan.length>0)months[mk].kebutuhan++;
+      }
+    });
+    return Object.entries(months).map(([key,v])=>{
+      const [y,m]=key.split('-');
+      const label=MONTH_NAMES[parseInt(m)-1]+(y!==String(now.getFullYear())?`'${y.slice(2)}`:'');
+      return{label,tamu:v.tamu,kebutuhan:v.kebutuhan};
+    });
+  };
+
+  // Per tahun — last 5 years
+  const yearlyData=()=>{
+    const years:Record<string,{tamu:number;kebutuhan:number}>={};
+    for(let i=4;i>=0;i--){
+      const y=String(now.getFullYear()-i);
+      years[y]={tamu:0,kebutuhan:0};
+    }
+    allRows.forEach(r=>{
+      const yk=getYearKey(r.day_date);
+      if(years[yk]){
+        if(r.tamu_instansi)years[yk].tamu++;
+        if(r.kebutuhan&&r.kebutuhan.length>0)years[yk].kebutuhan++;
+      }
+    });
+    return Object.entries(years).map(([key,v])=>({label:key,tamu:v.tamu,kebutuhan:v.kebutuhan}));
+  };
+
+  const data=view==='minggu'?weeklyData():view==='bulan'?monthlyData():yearlyData();
+  const tamuData=data.map(d=>({label:d.label,value:d.tamu}));
+  const kData=data.map(d=>({label:d.label,value:d.kebutuhan}));
+
+  return(
+    <div className="rounded-2xl p-4 space-y-4" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(255,255,255,0.8)',backdropFilter:'blur(10px)'}}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">📊 Tren Tamu & Kebutuhan</p>
+        <div className="flex gap-1">
+          {(['minggu','bulan','tahun'] as const).map(v=>(
+            <button key={v} onClick={()=>setView(v)}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all"
+              style={view===v?{background:'linear-gradient(135deg,#dc2626,#991b1b)',color:'white',boxShadow:'0 2px 8px rgba(220,38,38,0.3)'}:{background:'rgba(0,0,0,0.05)',color:'#64748b'}}>
+              {v==='minggu'?'Mingguan':v==='bulan'?'Bulanan':'Tahunan'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">🏢 Tamu Instansi</p>
+          <div className="flex items-end gap-1 h-[80px]">
+            {tamuData.map((d,i)=>{
+              const max=Math.max(...tamuData.map(x=>x.value),1);
+              const pct=Math.round((d.value/max)*100);
+              return(
+                <div key={i} title={`${d.label}: ${d.value}`} className="flex flex-col items-center gap-0.5 flex-1 min-w-0 cursor-pointer group">
+                  <span className="text-[7px] font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">{d.value||''}</span>
+                  <div className="w-full rounded-t transition-all duration-200 group-hover:opacity-100 opacity-80" style={{height:`${Math.max(pct,d.value>0?4:0)}px`,background:'linear-gradient(to top,#059669,#10b981)',minHeight:d.value>0?'3px':0}}/>
+                  <span className="text-[7px] text-gray-400 truncate w-full text-center">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mb-1.5">🎯 Kebutuhan Customer</p>
+          <div className="flex items-end gap-1 h-[80px]">
+            {kData.map((d,i)=>{
+              const max=Math.max(...kData.map(x=>x.value),1);
+              const pct=Math.round((d.value/max)*100);
+              return(
+                <div key={i} title={`${d.label}: ${d.value}`} className="flex flex-col items-center gap-0.5 flex-1 min-w-0 cursor-pointer group">
+                  <span className="text-[7px] font-bold text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity">{d.value||''}</span>
+                  <div className="w-full rounded-t transition-all duration-200 group-hover:opacity-100 opacity-80" style={{height:`${Math.max(pct,d.value>0?4:0)}px`,background:'linear-gradient(to top,#d97706,#f59e0b)',minHeight:d.value>0?'3px':0}}/>
+                  <span className="text-[7px] text-gray-400 truncate w-full text-center">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mini Calendar ────────────────────────────────────────────────────────────
 
 function MiniCalendar({allRows,calMonth,setCalMonth,selDay,setSelDay}:{
   allRows:PiketRow[];calMonth:Date;setCalMonth:(d:Date)=>void;
@@ -145,14 +375,11 @@ function MiniCalendar({allRows,calMonth,setCalMonth,selDay,setSelDay}:{
   const firstDay=new Date(y,m,1).getDay();
   const daysInMonth=new Date(y,m+1,0).getDate();
   const today=toKey(new Date());
-  const monthNames=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
   const getRowsForDay=(day:number)=>{
     const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     return allRows.filter(r=>r.day_date===ds);
   };
   const totalMonth=allRows.filter(r=>r.day_date?.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
-
-  // Selected day rows for summary below calendar
   const selRows=selDay?allRows.filter(r=>r.day_date===selDay):[];
 
   return(
@@ -161,7 +388,7 @@ function MiniCalendar({allRows,calMonth,setCalMonth,selDay,setSelDay}:{
         <div className="px-4 py-3 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
           <button onClick={()=>setCalMonth(new Date(y,m-1,1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">‹</button>
           <div className="text-center">
-            <p className="text-white font-bold text-sm">{monthNames[m]} {y}</p>
+            <p className="text-white font-bold text-sm">{MONTH_NAMES[m]} {y}</p>
             <p className="text-white/70 text-[10px] mt-0.5">{totalMonth} jadwal bulan ini</p>
           </div>
           <button onClick={()=>setCalMonth(new Date(y,m+1,1))} className="text-white/80 hover:text-white font-bold text-lg px-2 py-0.5 rounded-lg hover:bg-white/10 transition-all">›</button>
@@ -193,7 +420,6 @@ function MiniCalendar({allRows,calMonth,setCalMonth,selDay,setSelDay}:{
         </div>
       </div>
 
-      {/* Summary below calendar when a day is selected */}
       {selDay&&selRows.length>0&&(
         <div className="rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.08)',backdropFilter:'blur(12px)'}}>
           <div className="px-4 py-2.5 flex items-center justify-between" style={{background:'linear-gradient(135deg,#dc2626,#991b1b)'}}>
@@ -212,7 +438,6 @@ function MiniCalendar({allRows,calMonth,setCalMonth,selDay,setSelDay}:{
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:dc.accent}}/>
                     <span className="text-xs font-black" style={{color:dc.accent}}>{row.day_of_week}</span>
                   </div>
-                  {/* PIC List */}
                   <div className="space-y-1">
                     {([['pic_ivp_name','PTS IVP'],['pic_ump_name','PTS UMP'],['pic_mlds_name','PTS MLDS']] as [keyof PiketRow,string][]).map(([f,team])=>{
                       const name=row[f] as string|null;
@@ -258,20 +483,40 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
   const [toast,setToast]=useState<{type:'success'|'error';msg:string}|null>(null);
   const fileRef=useRef<HTMLInputElement>(null);
   const dc=DAY_COLOR[row.day_of_week];
-  const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
+  const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3500);};
   const toggleK=(k:string)=>setKebutuhan(p=>p.includes(k)?p.filter(x=>x!==k):[...p,k]);
 
   const handleUpload=async(file:File)=>{
     setUploading(true);
     try{
-      const ext=file.name.split('.').pop()||'jpg';
-      const path=`piket/${row.id}_${Date.now()}.${ext}`;
-      const {error:upErr}=await supabase.storage.from('piket-photos').upload(path,file,{upsert:true,contentType:file.type});
-      if(upErr)throw upErr;
+      // Compress/resize image before upload to keep under storage limits
+      const ext=file.name.split('.').pop()?.toLowerCase()||'jpg';
+      const validExt=['jpg','jpeg','png','webp'].includes(ext)?ext:'jpg';
+      const path=`piket-photos/${row.id}_${Date.now()}.${validExt}`;
+
+      // Upload with upsert true — ensure storage bucket policy allows authenticated users
+      const {error:upErr,data:upData}=await supabase.storage
+        .from('piket-photos')
+        .upload(path,file,{
+          upsert:true,
+          contentType:file.type||'image/jpeg',
+          // cacheControl: '3600',
+        });
+
+      if(upErr){
+        // If RLS error on storage, try with different bucket or show specific hint
+        if(upErr.message?.toLowerCase().includes('row-level security')||upErr.message?.toLowerCase().includes('policy')){
+          throw new Error('Upload gagal: Storage bucket belum dikonfigurasi. Pastikan bucket "piket-photos" ada dan policy INSERT diizinkan untuk authenticated users di Supabase Dashboard → Storage → Policies.');
+        }
+        throw upErr;
+      }
+
       const {data:urlData}=supabase.storage.from('piket-photos').getPublicUrl(path);
       setFotoUrl(urlData.publicUrl);
       notify('success','Foto berhasil diupload!');
-    }catch(e:any){notify('error','Upload gagal: '+e.message);}
+    }catch(e:any){
+      notify('error',e.message||'Upload gagal');
+    }
     setUploading(false);
   };
 
@@ -305,7 +550,12 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
             </button>
           </div>
         </div>
-        {toast&&<div className={`mx-5 mt-4 px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 ${toast.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>{toast.type==='success'?'✅':'❌'} {toast.msg}</div>}
+        {toast&&(
+          <div className={`mx-5 mt-4 px-4 py-3 rounded-xl text-sm font-semibold flex items-start gap-2 ${toast.type==='success'?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-red-50 text-red-700 border border-red-200'}`}>
+            <span className="flex-shrink-0">{toast.type==='success'?'✅':'❌'}</span>
+            <span className="leading-snug">{toast.msg}</span>
+          </div>
+        )}
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* Tamu */}
           <div>
@@ -315,7 +565,7 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
               style={{background:'rgba(255,255,255,0.95)',border:'1px solid rgba(0,0,0,0.12)'}}
               placeholder="Nama instansi / perusahaan tamu..."/>
           </div>
-          {/* Kebutuhan — vertikal */}
+          {/* Kebutuhan */}
           <div>
             <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{color:'#94a3b8'}}>🎯 Kebutuhan <span className="font-normal normal-case text-slate-400">(bisa lebih dari satu)</span></label>
             <div className="space-y-2">
@@ -367,6 +617,8 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
                   :<><span className="text-xl">📷</span>Klik untuk upload foto</>}
               </button>
             )}
+            {/* Storage RLS hint */}
+            <p className="text-[9px] text-slate-400 mt-1.5">⚠️ Pastikan bucket <code className="bg-slate-100 px-1 rounded">piket-photos</code> sudah dibuat di Supabase Storage dan policy INSERT diizinkan untuk authenticated users.</p>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={e=>{const f=e.target.files?.[0];if(f)handleUpload(f);e.target.value='';}}/>
           </div>
@@ -398,7 +650,6 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
   const notify=(type:'success'|'error',msg:string)=>{setToast({type,msg});setTimeout(()=>setToast(null),3000);};
   const wk=toKey(weekStart);
 
-  // Users by team
   const ivpUsers=users.filter(u=>u.team_type==='Team PTS');
   const umpUsers=users.filter(u=>u.team_type==='Team PTS UMP');
   const mldsUsers=users.filter(u=>u.team_type==='Team PTS MLDS');
@@ -497,10 +748,6 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
   );
 }
 
-// ─── Person Modal (admin only) ────────────────────────────────────────────────
-// Not needed anymore — users come from table 'users' with team_type
-// Kept as info panel
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PiketShowroomPage() {
@@ -519,9 +766,9 @@ export default function PiketShowroomPage() {
   const [filterKebutuhan,setFilterKebutuhan]=useState<string|null>(null);
   const [calMonth,setCalMonth]=useState<Date>(()=>new Date());
   const [selDay,setSelDay]=useState<string|null>(null);
+  const [filterInstansi,setFilterInstansi]=useState<string|null>(null);
   const wk=toKey(weekStart);
 
-  // Read current user from localStorage
   useEffect(()=>{
     try{
       const saved=localStorage.getItem('currentUser');
@@ -536,7 +783,6 @@ export default function PiketShowroomPage() {
     const[wRes,aRes,uRes]=await Promise.all([
       supabase.from('piket_schedules').select('*').eq('week_start',wk),
       supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name,tamu_instansi,kebutuhan'),
-      // Load team PTS users from users table
       supabase.from('users').select('id,full_name,username,team_type,role')
         .in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS'])
         .order('full_name'),
@@ -558,11 +804,11 @@ export default function PiketShowroomPage() {
   const isCurrWeek=wk===toKey(getMonday(new Date()));
   const wLabel=`${weekStart.toLocaleDateString('id-ID',{day:'2-digit',month:'long'})} – ${addDays(weekStart,4).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})}`;
 
-  // Filter rows for table display — calendar selection does NOT filter table
   const displayRows=rows.filter(row=>{
     if(filterDay&&row.day_of_week!==filterDay)return false;
     if(filterTamu&&!row.tamu_instansi)return false;
     if(filterKebutuhan&&(!row.kebutuhan||!row.kebutuhan.includes(filterKebutuhan)))return false;
+    if(filterInstansi&&row.tamu_instansi!==filterInstansi)return false;
     if(search){
       const q=search.toLowerCase();
       return!!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.tamu_instansi?.toLowerCase().includes(q)||row.kebutuhan?.some(k=>k.toLowerCase().includes(q))||row.day_of_week.toLowerCase().includes(q));
@@ -570,19 +816,7 @@ export default function PiketShowroomPage() {
     return true;
   });
 
-  // Stat cards (no "hari ini")
-  const totalRows=rows.length;
-  const hasTamuCount=rows.filter(r=>r.tamu_instansi).length;
-  const hasKCount=rows.filter(r=>r.kebutuhan&&r.kebutuhan.length>0).length;
-
-  // Pie data — from ALL rows (not just current week)
-  const tamuAllCount=allRows.filter(r=>r.tamu_instansi).length;
-  const noTamuAllCount=allRows.length-tamuAllCount;
-  const tamuPie=[
-    {label:'Ada Tamu',value:tamuAllCount,color:'#10b981'},
-    {label:'Tanpa Tamu',value:noTamuAllCount,color:'#e2e8f0'},
-  ].filter(d=>d.value>0);
-
+  // Pie data
   const kMapAll:Record<string,number>={};
   allRows.forEach(r=>(r.kebutuhan||[]).forEach(k=>{kMapAll[k]=(kMapAll[k]||0)+1;}));
   const kPieAll=Object.entries(kMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
@@ -605,14 +839,22 @@ export default function PiketShowroomPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Admin-only buttons */}
               {isAdmin&&(
                 <button onClick={()=>setShowSchedule(true)}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 hover:opacity-90"
                   style={{background:'linear-gradient(135deg,#dc2626,#b91c1c)',boxShadow:'0 4px 14px rgba(220,38,38,0.4)'}}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                   Atur Jadwal
                 </button>
+              )}
+              {currentUser&&(
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)'}}>
+                  <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center text-white text-[10px] font-black">{currentUser.full_name?.charAt(0)||'?'}</div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 leading-none">{currentUser.full_name}</p>
+                    <p className="text-[9px] text-slate-500">{currentUser.role}</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -635,57 +877,59 @@ export default function PiketShowroomPage() {
             {!isCurrWeek&&<button onClick={()=>setWeekStart(getMonday(new Date()))} className="px-3 py-2 rounded-xl text-xs font-bold transition-all" style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.25)',color:'#dc2626'}}>Minggu Ini</button>}
           </div>
 
-          {/* ── STAT CARDS (3 cards, no "hari ini") ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[
-              {label:'Total Hari',value:totalRows,sub:'Jadwal minggu ini',grad:'linear-gradient(135deg,#4f46e5,#6d28d9)',icon:'📋',shadow:'rgba(79,70,229,0.35)',active:!filterTamu&&!filterKebutuhan},
-              {label:'Ada Tamu',value:hasTamuCount,sub:'Instansi hadir minggu ini',grad:'linear-gradient(135deg,#d97706,#b45309)',icon:'🏢',shadow:'rgba(217,119,6,0.35)',active:filterTamu,onClick:()=>setFilterTamu(f=>!f)},
-              {label:'Ada Kebutuhan',value:hasKCount,sub:'Kebutuhan tercatat minggu ini',grad:'linear-gradient(135deg,#059669,#047857)',icon:'🎯',shadow:'rgba(5,150,105,0.35)',active:!!filterKebutuhan,onClick:()=>setFilterKebutuhan(null)},
-            ].map(card=>(
-              <div key={card.label} onClick={card.onClick}
-                className={`rounded-2xl p-4 relative overflow-hidden flex flex-col gap-2 transition-all hover:scale-[1.03] select-none ${card.onClick?'cursor-pointer':''}`}
-                style={{background:card.grad,boxShadow:card.active?`0 6px 24px ${card.shadow}`:`0 4px 16px ${card.shadow}`,outline:card.active?'3px solid white':'none',transform:card.active?'scale(1.04)':undefined}}>
-                <div className="absolute right-3 top-2 text-4xl opacity-[0.15] select-none">{card.icon}</div>
-                {card.active&&<div className="absolute inset-0 rounded-2xl border-4 border-white/50 pointer-events-none"/>}
-                <span className="text-3xl font-black text-white leading-none">{card.value}</span>
-                <div><p className="text-sm font-bold text-white leading-tight">{card.label}</p><p className="text-[10px] font-medium leading-tight" style={{color:'rgba(255,255,255,0.75)'}}>{card.sub}</p></div>
-                {card.active&&<span className="absolute top-2 left-2 text-white/80 text-[9px] font-bold uppercase tracking-widest">Filter Aktif ✓</span>}
-              </div>
-            ))}
-          </div>
+          {/* ── SUMMARY CARDS — Minggu / Bulan / Tahun / Total ── */}
+          <TamuSummaryCards allRows={allRows}/>
 
-          {/* ── PIE CHARTS — all-time data, kebutuhan clickable for filter ── */}
+          {/* ── TREN GRAFIK ── */}
+          <TamuTrendCharts allRows={allRows}/>
+
+          {/* ── PIE CHARTS ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MiniPieChart data={tamuPie} title="Statistik Tamu (Semua)" icon="🏢"/>
+            <TamuInstansiPie
+              allRows={allRows}
+              activeFilter={filterInstansi}
+              onSliceClick={label=>setFilterInstansi(filterInstansi===label?null:label)}
+            />
             <MiniPieChart
               data={kPieAll} title="Kebutuhan (Semua) — Klik untuk filter" icon="🎯"
               activeFilter={filterKebutuhan}
               onSliceClick={label=>setFilterKebutuhan(filterKebutuhan===label?null:label)}
             />
           </div>
-          {filterKebutuhan&&(
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{background:'rgba(124,58,237,0.1)',border:'1px solid rgba(124,58,237,0.3)'}}>
-              <span className="text-xs font-bold text-violet-700">🎯 Filter Kebutuhan Aktif:</span>
-              <span className="text-xs font-semibold text-violet-600">{filterKebutuhan}</span>
-              <button onClick={()=>setFilterKebutuhan(null)} className="ml-auto text-xs font-bold text-violet-500 hover:text-violet-700 px-2 py-0.5 rounded-lg hover:bg-violet-100 transition-all">✕ Hapus filter</button>
+
+          {/* Active filter banners */}
+          {(filterInstansi||filterKebutuhan)&&(
+            <div className="flex flex-wrap gap-2">
+              {filterInstansi&&(
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.3)'}}>
+                  <span className="text-xs font-bold text-sky-700">🏢 Filter Instansi Aktif:</span>
+                  <span className="text-xs font-semibold text-sky-600">{filterInstansi}</span>
+                  <button onClick={()=>setFilterInstansi(null)} className="ml-auto text-xs font-bold text-sky-500 hover:text-sky-700 px-2 py-0.5 rounded-lg hover:bg-sky-100 transition-all">✕</button>
+                </div>
+              )}
+              {filterKebutuhan&&(
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{background:'rgba(124,58,237,0.1)',border:'1px solid rgba(124,58,237,0.3)'}}>
+                  <span className="text-xs font-bold text-violet-700">🎯 Filter Kebutuhan Aktif:</span>
+                  <span className="text-xs font-semibold text-violet-600">{filterKebutuhan}</span>
+                  <button onClick={()=>setFilterKebutuhan(null)} className="ml-auto text-xs font-bold text-violet-500 hover:text-violet-700 px-2 py-0.5 rounded-lg hover:bg-violet-100 transition-all">✕</button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* ── MAIN AREA: LIST + CALENDAR ── */}
+          {/* ── MAIN AREA: TABLE + CALENDAR ── */}
           <div className="flex gap-4 items-start">
 
-            {/* ── SCHEDULE LIST TABLE ── */}
+            {/* ── SCHEDULE TABLE ── */}
             <div className="flex-1 min-w-0 rounded-2xl overflow-hidden" style={{background:'rgba(255,255,255,0.97)',border:'1px solid rgba(200,200,200,0.6)',backdropFilter:'blur(12px)'}}>
-
-              {/* Header + filters */}
               <div className="px-5 py-3.5 border-b border-gray-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Schedule Piket</span>
                     <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">{displayRows.length}</span>
                   </div>
-                  {(search||filterDay||filterTamu||filterKebutuhan)&&(
-                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);}}
+                  {(search||filterDay||filterTamu||filterKebutuhan||filterInstansi)&&(
+                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);setFilterInstansi(null);}}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',color:'#dc2626'}}>
                       ✕ Reset Filter
@@ -712,7 +956,6 @@ export default function PiketShowroomPage() {
                 </div>
               </div>
 
-              {/* Table — with proper borders like Reminder Schedule */}
               {loading?(
                 <div className="flex justify-center py-16"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/><p className="text-sm text-slate-500">Memuat jadwal...</p></div></div>
               ):(
@@ -742,7 +985,6 @@ export default function PiketShowroomPage() {
                         return(
                           <tr key={row.id} className="transition-colors hover:bg-gray-50/70" style={{borderBottom:'1px solid #e5e7eb',background:todayRow?'rgba(220,38,38,0.025)':undefined}}>
                             <td className="px-4 py-3 text-gray-500 text-xs font-medium align-middle" style={{borderRight:'1px solid #e5e7eb'}}>{idx+1}</td>
-                            {/* Tanggal */}
                             <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               <div className="inline-flex flex-col items-center px-2 py-1.5 rounded-xl"
                                 style={{background:todayRow?'rgba(220,38,38,0.12)':dc.light,border:`1px solid ${todayRow?'rgba(220,38,38,0.35)':dc.accent+'30'}`}}>
@@ -752,7 +994,6 @@ export default function PiketShowroomPage() {
                               <div className="mt-1"><span className="text-xs font-bold" style={{color:dc.accent}}>{row.day_of_week}</span></div>
                               {todayRow&&<span className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white mt-0.5" style={{background:dc.accent}}>HARI INI</span>}
                             </td>
-                            {/* PIC */}
                             <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               <div className="space-y-1.5">
                                 {([['pic_ivp_name','PTS IVP'],['pic_ump_name','PTS UMP'],['pic_mlds_name','PTS MLDS']] as [keyof PiketRow,string][]).map(([field,team])=>{
@@ -772,11 +1013,16 @@ export default function PiketShowroomPage() {
                                 })}
                               </div>
                             </td>
-                            {/* Tamu */}
                             <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
-                              {row.tamu_instansi?<div className="flex items-center gap-1.5"><span className="text-sm">🏢</span><span className="text-xs font-semibold text-slate-700">{row.tamu_instansi}</span></div>:<span className="text-gray-300 text-xs">—</span>}
+                              {row.tamu_instansi?(
+                                <button onClick={()=>setFilterInstansi(filterInstansi===row.tamu_instansi?null:row.tamu_instansi||null)}
+                                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-left"
+                                  title="Klik untuk filter instansi ini">
+                                  <span className="text-sm">🏢</span>
+                                  <span className="text-xs font-semibold text-slate-700 underline decoration-dotted">{row.tamu_instansi}</span>
+                                </button>
+                              ):<span className="text-gray-300 text-xs">—</span>}
                             </td>
-                            {/* Kebutuhan — vertical list */}
                             <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               {row.kebutuhan&&row.kebutuhan.length>0?(
                                 <div className="flex flex-col gap-1">
@@ -789,7 +1035,6 @@ export default function PiketShowroomPage() {
                                 </div>
                               ):<span className="text-gray-300 text-xs">—</span>}
                             </td>
-                            {/* Foto */}
                             <td className="px-4 py-3 align-middle" style={{borderRight:'1px solid #e5e7eb'}}>
                               {row.foto_url?(
                                 <button onClick={()=>setPhotoZoom(row.foto_url!)} className="hover:opacity-80 transition-opacity">
@@ -797,7 +1042,6 @@ export default function PiketShowroomPage() {
                                 </button>
                               ):<span className="text-gray-300 text-xs">—</span>}
                             </td>
-                            {/* Action */}
                             <td className="px-4 py-3 align-middle text-center">
                               <button onClick={()=>setFillDetail(row)} title="Isi / Edit Detail"
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:scale-105"
@@ -818,7 +1062,7 @@ export default function PiketShowroomPage() {
               )}
             </div>
 
-            {/* ── MINI CALENDAR + Summary ── */}
+            {/* ── MINI CALENDAR ── */}
             <MiniCalendar allRows={allRows} calMonth={calMonth} setCalMonth={setCalMonth} selDay={selDay} setSelDay={setSelDay}/>
           </div>
 
