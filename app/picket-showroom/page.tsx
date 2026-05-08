@@ -783,6 +783,8 @@ export default function PiketShowroomPage() {
   const [calMonth,setCalMonth]=useState<Date>(()=>new Date());
   const [selDay,setSelDay]=useState<string|null>(null);
   const [filterInstansi,setFilterInstansi]=useState<string|null>(null);
+  const [filterSales,setFilterSales]=useState<string|null>(null);
+  const [filterDivision,setFilterDivision]=useState<string|null>(null);
   const wk=toKey(weekStart);
 
   useEffect(()=>{
@@ -829,6 +831,8 @@ export default function PiketShowroomPage() {
     if(filterTamu&&rowTd.length===0)return false;
     if(filterKebutuhan&&!rowTd.some(td=>td.kebutuhan?.includes(filterKebutuhan)))return false;
     if(filterInstansi&&!rowTd.some(td=>td.tamu_instansi===filterInstansi))return false;
+    if(filterSales&&!rowTd.some(td=>td.nama_sales===filterSales))return false;
+    if(filterDivision&&!rowTd.some(td=>td.sales_division===filterDivision))return false;
     if(search){
       const q=search.toLowerCase();
       const matchPic=!!(row.pic_ivp_name?.toLowerCase().includes(q)||row.pic_ump_name?.toLowerCase().includes(q)||row.pic_mlds_name?.toLowerCase().includes(q)||row.day_of_week.toLowerCase().includes(q));
@@ -842,6 +846,14 @@ export default function PiketShowroomPage() {
   const kMapAll:Record<string,number>={};
   tamuDetails.forEach(td=>(td.kebutuhan||[]).forEach(k=>{kMapAll[k]=(kMapAll[k]||0)+1;}));
   const kPieAll=Object.entries(kMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+
+  const salesMapAll:Record<string,number>={};
+  tamuDetails.forEach(td=>{if(td.nama_sales){salesMapAll[td.nama_sales]=(salesMapAll[td.nama_sales]||0)+1;}});
+  const salesPieAll=Object.entries(salesMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
+
+  const divMapAll:Record<string,number>={};
+  tamuDetails.forEach(td=>{if(td.sales_division){divMapAll[td.sales_division]=(divMapAll[td.sales_division]||0)+1;}});
+  const divPieAll=Object.entries(divMapAll).sort(([,a],[,b])=>b-a).slice(0,12).map(([label,value],i)=>({label,value,color:PIE_COLORS[i%PIE_COLORS.length]}));
 
   return(
     <div className="min-h-screen flex flex-col relative" style={{backgroundImage:`url('/IVP_Background.png')`,backgroundSize:'cover',backgroundPosition:'center',backgroundAttachment:'fixed'}}>
@@ -888,38 +900,28 @@ export default function PiketShowroomPage() {
           <TamuSummaryCards allRows={allRows} tamuDetails={tamuDetails}/>
 
           {/* ── PIE CHARTS ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <TamuInstansiPie
               tamuDetails={tamuDetails}
               activeFilter={filterInstansi}
               onSliceClick={label=>setFilterInstansi(filterInstansi===label?null:label)}
             />
             <MiniPieChart
-              data={kPieAll} title="Kebutuhan (Semua) — Klik untuk filter" icon="🎯"
+              data={kPieAll} title="Kebutuhan (Semua) — Klik filter" icon="🎯"
               activeFilter={filterKebutuhan}
               onSliceClick={label=>setFilterKebutuhan(filterKebutuhan===label?null:label)}
             />
+            <MiniPieChart
+              data={salesPieAll} title="Sales (Semua) — Klik filter" icon="👤"
+              activeFilter={filterSales}
+              onSliceClick={label=>setFilterSales(filterSales===label?null:label)}
+            />
+            <MiniPieChart
+              data={divPieAll} title="Division (Semua) — Klik filter" icon="🏷️"
+              activeFilter={filterDivision}
+              onSliceClick={label=>setFilterDivision(filterDivision===label?null:label)}
+            />
           </div>
-
-          {/* Active filter banners */}
-          {(filterInstansi||filterKebutuhan)&&(
-            <div className="flex flex-wrap gap-2">
-              {filterInstansi&&(
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.3)'}}>
-                  <span className="text-xs font-bold text-sky-700">🏢 Filter Instansi Aktif:</span>
-                  <span className="text-xs font-semibold text-sky-600">{filterInstansi}</span>
-                  <button onClick={()=>setFilterInstansi(null)} className="ml-auto text-xs font-bold text-sky-500 hover:text-sky-700 px-2 py-0.5 rounded-lg hover:bg-sky-100 transition-all">✕</button>
-                </div>
-              )}
-              {filterKebutuhan&&(
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{background:'rgba(124,58,237,0.1)',border:'1px solid rgba(124,58,237,0.3)'}}>
-                  <span className="text-xs font-bold text-violet-700">🎯 Filter Kebutuhan Aktif:</span>
-                  <span className="text-xs font-semibold text-violet-600">{filterKebutuhan}</span>
-                  <button onClick={()=>setFilterKebutuhan(null)} className="ml-auto text-xs font-bold text-violet-500 hover:text-violet-700 px-2 py-0.5 rounded-lg hover:bg-violet-100 transition-all">✕</button>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* ── MAIN AREA: TABLE + CALENDAR ── */}
           <div className="flex gap-4 items-start">
@@ -950,8 +952,8 @@ export default function PiketShowroomPage() {
                         style={{background:'rgba(255,255,255,0.9)'}}>›</button>
                     </div>
                   </div>
-                  {(search||filterDay||filterTamu||filterKebutuhan||filterInstansi)&&(
-                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);setFilterInstansi(null);}}
+                  {(search||filterDay||filterTamu||filterKebutuhan||filterInstansi||filterSales||filterDivision)&&(
+                    <button onClick={()=>{setSearch('');setFilterDay('');setFilterTamu(false);setFilterKebutuhan(null);setFilterInstansi(null);setFilterSales(null);setFilterDivision(null);}}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{background:'rgba(220,38,38,0.08)',border:'1px solid rgba(220,38,38,0.2)',color:'#dc2626'}}>
                       ✕ Reset Filter
@@ -976,6 +978,39 @@ export default function PiketShowroomPage() {
                     🏢 Ada Tamu
                   </button>
                 </div>
+                {/* ── ACTIVE FILTER CHIPS ── */}
+                {(filterInstansi||filterKebutuhan||filterSales||filterDivision)&&(
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {filterInstansi&&(
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.35)'}}>
+                        <span className="text-[10px] font-bold text-sky-600">🏢 Instansi:</span>
+                        <span className="text-[10px] font-semibold text-sky-700">{filterInstansi}</span>
+                        <button onClick={()=>setFilterInstansi(null)} className="text-[10px] font-black text-sky-400 hover:text-sky-700 ml-0.5 hover:bg-sky-100 rounded px-0.5 transition-all">✕</button>
+                      </div>
+                    )}
+                    {filterKebutuhan&&(
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(124,58,237,0.1)',border:'1px solid rgba(124,58,237,0.35)'}}>
+                        <span className="text-[10px] font-bold text-violet-600">🎯 Kebutuhan:</span>
+                        <span className="text-[10px] font-semibold text-violet-700">{filterKebutuhan}</span>
+                        <button onClick={()=>setFilterKebutuhan(null)} className="text-[10px] font-black text-violet-400 hover:text-violet-700 ml-0.5 hover:bg-violet-100 rounded px-0.5 transition-all">✕</button>
+                      </div>
+                    )}
+                    {filterSales&&(
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.35)'}}>
+                        <span className="text-[10px] font-bold text-emerald-600">👤 Sales:</span>
+                        <span className="text-[10px] font-semibold text-emerald-700">{filterSales}</span>
+                        <button onClick={()=>setFilterSales(null)} className="text-[10px] font-black text-emerald-400 hover:text-emerald-700 ml-0.5 hover:bg-emerald-100 rounded px-0.5 transition-all">✕</button>
+                      </div>
+                    )}
+                    {filterDivision&&(
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.35)'}}>
+                        <span className="text-[10px] font-bold text-amber-600">🏷️ Division:</span>
+                        <span className="text-[10px] font-semibold text-amber-700">{filterDivision}</span>
+                        <button onClick={()=>setFilterDivision(null)} className="text-[10px] font-black text-amber-400 hover:text-amber-700 ml-0.5 hover:bg-amber-100 rounded px-0.5 transition-all">✕</button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {loading?(
