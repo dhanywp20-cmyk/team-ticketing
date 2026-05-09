@@ -56,6 +56,7 @@ interface PiketRow {
   pic_mlds_id:string|null; pic_mlds_name:string|null;
   tamu_instansi:string|null; kebutuhan:string[];
   created_at:string; updated_at:string;
+  edited_by_name?:string|null;
 }
 interface KegiatanEntry {
   id?:string; piket_id:string;
@@ -248,9 +249,6 @@ function TamuSummaryCards({allRows,kegiatanList,selectedYear,selectedMonth,onYea
 
   const demoList=activeKg.filter(k=>k.jenis_kegiatan==='Demo Product'&&k.tamu_instansi);
   const activeDays=new Set(activeKg.map(k=>piketDateMap[k.piket_id]).filter(Boolean)).size;
-  const rndCount=activeKg.filter(k=>k.jenis_kegiatan==='RnD').length;
-  const maintCount=activeKg.filter(k=>k.jenis_kegiatan==='Maintenance').length;
-  const shootCount=activeKg.filter(k=>k.jenis_kegiatan==='Shooting Markom').length;
 
   // Top divisi — divisi yang paling banyak bawa tamu
   const divMap:Record<string,number>={};
@@ -259,17 +257,17 @@ function TamuSummaryCards({allRows,kegiatanList,selectedYear,selectedMonth,onYea
   const topDivisi=topDivisiEntry?topDivisiEntry[0]:'—';
   const topDivisiCount=topDivisiEntry?topDivisiEntry[1]:0;
 
-  // Top jenis kegiatan — kegiatan yang paling sering
-  const kgMap:Record<string,number>={};
-  activeKg.forEach(k=>{kgMap[k.jenis_kegiatan]=(kgMap[k.jenis_kegiatan]||0)+1;});
-  const topKgEntry=Object.entries(kgMap).sort(([,a],[,b])=>b-a)[0];
-  const topKegiatan=topKgEntry?topKgEntry[0]:'—';
-  const topKegiatanCount=topKgEntry?topKgEntry[1]:0;
-
   // Top produk
   const topProdukMap:Record<string,number>={};
   activeKg.forEach(k=>(k.produk||[]).forEach(p=>{topProdukMap[p]=(topProdukMap[p]||0)+1;}));
   const topProduk=Object.entries(topProdukMap).sort(([,a],[,b])=>b-a)[0]?.[0]||'—';
+
+  // Top kebutuhan tamu terbanyak
+  const kbtMap:Record<string,number>={};
+  activeKg.forEach(k=>(k.kebutuhan||[]).forEach(kb=>{kbtMap[kb]=(kbtMap[kb]||0)+1;}));
+  const topKbtEntry=Object.entries(kbtMap).sort(([,a],[,b])=>b-a)[0];
+  const topKebutuhan=topKbtEntry?topKbtEntry[0]:'—';
+  const topKebutuhanCount=topKbtEntry?topKbtEntry[1]:0;
 
   const periodLabel=selectedMonth!==null
     ?`${MONTH_NAMES[selectedMonth-1]} ${selectedYear}`
@@ -278,14 +276,11 @@ function TamuSummaryCards({allRows,kegiatanList,selectedYear,selectedMonth,onYea
   const accentGrad=selectedMonth!==null?'linear-gradient(135deg,#7c3aed,#4c1d95)':'linear-gradient(135deg,#059669,#047857)';
 
   const stats=[
-    {label:'Hari Aktif',     val:activeDays,          hint:'ada kegiatan',        icon:'📅', color:accentColor},
-    {label:'RnD',            val:rndCount,             hint:'research & dev',      icon:'🔬', color:'#7c3aed'},
-    {label:'Demo Product',   val:demoList.length,      hint:'sesi demo tamu',      icon:'🏢', color:'#2563eb'},
-    {label:'Maintenance',    val:maintCount,           hint:'perawatan',           icon:'🔧', color:'#d97706'},
-    {label:'Shooting',       val:shootCount,           hint:'markom',              icon:'🎬', color:'#059669'},
-    {label:'Top Divisi',     val:topDivisi,            hint:`${topDivisiCount}x kegiatan`,   icon:'🏷️', color:'#0891b2', isText:true},
-    {label:'Top Kegiatan',   val:topKegiatan,          hint:`${topKegiatanCount}x terbanyak`, icon:'📋', color:'#d97706', isText:true},
-    {label:'Top Produk',     val:topProduk,            hint:'paling sering demo',  icon:'🥇', color:'#059669', isText:true},
+    {label:'Hari Aktif',        val:activeDays,         hint:'ada kegiatan',                  icon:'📅', color:accentColor},
+    {label:'Demo Product',      val:demoList.length,    hint:'sesi demo tamu',                icon:'🏢', color:'#2563eb'},
+    {label:'Top Divisi',        val:topDivisi,          hint:`${topDivisiCount}x kegiatan`,   icon:'🏷️', color:'#0891b2', isText:true},
+    {label:'Top Produk',        val:topProduk,          hint:'paling sering demo',            icon:'🥇', color:'#059669', isText:true},
+    {label:'Kebutuhan Terbanyak', val:topKebutuhan,     hint:`${topKebutuhanCount}x diminta`, icon:'🎯', color:'#7c3aed', isText:true},
   ];
 
   return(
@@ -644,7 +639,7 @@ function FillDetailModal({row,onClose,onSaved}:{row:PiketRow;onClose:()=>void;on
 
 // ─── Schedule Modal — 2 minggu ────────────────────────────────────────────────
 
-function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:UserRow[];onClose:()=>void;onSaved:()=>void}) {
+function ScheduleModal({weekStart,users,currentUser,onClose,onSaved}:{weekStart:Date;users:UserRow[];currentUser:any;onClose:()=>void;onSaved:()=>void}) {
   const week2Start=addDays(weekStart,7);
   const wk1=toKey(weekStart),wk2=toKey(week2Start);
   type W2 = Record<string,Record<DayOfWeek,string>>;
@@ -696,6 +691,7 @@ function ScheduleModal({weekStart,users,onClose,onSaved}:{weekStart:Date;users:U
             pic_ivp_id:isIVP?uid:null,pic_ivp_name:isIVP?u?.full_name||null:null,
             pic_ump_id:isUMP?uid:null,pic_ump_name:isUMP?u?.full_name||null:null,
             pic_mlds_id:isMlds?uid:null,pic_mlds_name:isMlds?u?.full_name||null:null,
+            edited_by_name:currentUser?.full_name||null,
             created_at:new Date().toISOString(),updated_at:new Date().toISOString(),
           },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
           if(error){notify('error',`Gagal ${day} ${wk}: ${error.message}`);setSaving(false);return;}
@@ -1166,7 +1162,7 @@ export default function PiketShowroomPage() {
     const wk2=toKey(addDays(weekStart,7));
     const[wRes,aRes,uRes,kgRes]=await Promise.all([
       supabase.from('piket_schedules').select('*').in('week_start',[wk,wk2]).order('day_date'),
-      supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name'),
+      supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name,edited_by_name'),
       supabase.from('users').select('id,full_name,username,team_type,role').in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS']).order('full_name'),
       supabase.from('piket_tamu_detail').select('*').order('created_at'),
     ]);
@@ -1399,6 +1395,32 @@ export default function PiketShowroomPage() {
               )}
             </div>
 
+            {/* ── Today Banner ── */}
+            {(()=>{
+              const now=new Date();
+              const todayDow=now.getDay();
+              const isWeekday=todayDow>=1&&todayDow<=5;
+              const todayName=DAYS_OF_WEEK[todayDow-1];
+              const todayDc=isWeekday&&todayName?DAY_COLOR[todayName]:null;
+              const todayInView=displayRows.find(r=>r.day_date===toKey(now));
+              const todayPIC=todayInView?[todayInView.pic_ivp_name,todayInView.pic_ump_name,todayInView.pic_mlds_name].filter(Boolean).join(' / ')||'Belum ada PIC':null;
+              if(!isWeekday)return null;
+              return(
+                <div className="mx-4 mb-3 mt-1 flex items-center gap-3 px-4 py-2.5 rounded-xl" style={{background:`${todayDc?.accent||'#dc2626'}10`,border:`1px solid ${todayDc?.accent||'#dc2626'}30`}}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm flex-shrink-0" style={{background:todayDc?.grad||'linear-gradient(135deg,#dc2626,#991b1b)'}}>
+                    {now.getDate()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black" style={{color:todayDc?.accent||'#dc2626'}}>📍 Hari ini: {todayName}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">{now.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}</span>
+                      {todayInView&&todayPIC&&<span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{background:todayDc?.accent||'#dc2626'}}>PIC: {todayPIC}</span>}
+                      {!todayInView&&<span className="text-[10px] text-slate-400 italic">Jadwal hari ini tidak tampil di view ini</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {loading?(
               <div className="flex justify-center py-16"><div className="flex flex-col items-center gap-3"><div className="w-8 h-8 rounded-full border-2 border-t-red-600 border-red-200 animate-spin"/><p className="text-sm text-slate-500">Memuat jadwal...</p></div></div>
             ):(
@@ -1424,22 +1446,29 @@ export default function PiketShowroomPage() {
                       </td></tr>
                     ):displayRows.map((row,idx)=>{
                       const dc=DAY_COLOR[row.day_of_week];
-                      const todayRow=row.day_date===toKey(new Date());
+                      const todayKey=toKey(new Date());
+                      const todayRow=row.day_date===todayKey;
+                      const rowDateMs=new Date(row.day_date+'T00:00:00').getTime();
+                      const todayMs=new Date(todayKey+'T00:00:00').getTime();
+                      const diffDays=Math.round((rowDateMs-todayMs)/(1000*60*60*24));
                       const isVirtual=row.id.startsWith('virtual-');
                       const rowKg=kegiatanList.filter(k=>k.piket_id===row.id);
                       const kgToShow=rowKg.length>0?rowKg:[null];
+                      // Countdown badge
+                      const countdownBadge=todayRow?null:diffDays===1?{label:'BESOK',color:'#d97706'}:diffDays>1&&diffDays<=9?{label:`${diffDays} hr lagi`,color:'#64748b'}:null;
                       return kgToShow.map((kg,kgIdx)=>(
                         <tr key={`${row.id}-${kgIdx}`} className="transition-colors hover:bg-gray-50/70"
-                          style={{borderBottom:kgIdx===kgToShow.length-1?'2px solid #e5e7eb':'1px solid #f3f4f6',background:todayRow?'rgba(220,38,38,0.025)':isVirtual?'rgba(148,163,184,0.04)':undefined}}>
+                          style={{borderBottom:kgIdx===kgToShow.length-1?'2px solid #e5e7eb':'1px solid #f3f4f6',background:todayRow?'rgba(220,38,38,0.04)':isVirtual?'rgba(148,163,184,0.04)':undefined}}>
                           {kgIdx===0&&(
                             <>
                               <td className="px-3 py-3 text-gray-400 text-xs align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>{idx+1}</td>
                               <td className="px-3 py-3 align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>
-                                <div className="flex flex-col" style={{borderLeft:`3px solid ${dc.accent}`,paddingLeft:'6px'}}>
+                                <div className="flex flex-col" style={{borderLeft:`3px solid ${todayRow?dc.accent:dc.accent}`,paddingLeft:'6px'}}>
                                   <span className="text-base font-black leading-tight" style={{color:dc.accent}}>{new Date(row.day_date+'T00:00:00').getDate()}</span>
                                   <span className="text-[9px] font-bold" style={{color:dc.accent}}>{new Date(row.day_date+'T00:00:00').toLocaleDateString('id-ID',{month:'short',year:'2-digit'})}</span>
                                   <span className="text-xs font-bold mt-0.5" style={{color:dc.accent}}>{row.day_of_week}</span>
-                                  {todayRow&&<span className="text-[8px] font-bold px-1 py-0.5 rounded text-white mt-0.5 w-fit" style={{background:dc.accent}}>HARI INI</span>}
+                                  {todayRow&&<span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white mt-0.5 w-fit" style={{background:dc.accent,boxShadow:`0 2px 6px ${dc.accent}50`}}>📍 HARI INI</span>}
+                                  {countdownBadge&&<span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 w-fit" style={{background:`${countdownBadge.color}15`,color:countdownBadge.color,border:`1px solid ${countdownBadge.color}40`}}>{countdownBadge.label}</span>}
                                 </div>
                               </td>
                               <td className="px-3 py-3 align-middle" rowSpan={kgToShow.length} style={{borderRight:'1px solid #e5e7eb',verticalAlign:'middle'}}>
@@ -1450,6 +1479,7 @@ export default function PiketShowroomPage() {
                                     return(<div key={team} className="flex items-center gap-1.5"><div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0" style={{background:tc.dot}}>{name.charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="text-xs font-semibold text-slate-800 truncate leading-tight">{name}</p><span className="text-[8px] font-bold uppercase" style={{color:tc.text}}>{team}</span></div></div>);
                                   })}
                                   {![row.pic_ivp_name,row.pic_ump_name,row.pic_mlds_name].some(Boolean)&&<span className="text-gray-300 text-xs">—</span>}
+                                  {row.edited_by_name&&<div className="flex items-center gap-1 mt-1 pt-1" style={{borderTop:'1px dashed #e2e8f0'}}><span className="text-[8px] text-slate-400">✏️ edit:</span><span className="text-[8px] font-semibold text-slate-500 truncate">{row.edited_by_name}</span></div>}
                                 </div>
                               </td>
                             </>
@@ -1525,7 +1555,7 @@ export default function PiketShowroomPage() {
           </div>
         </div>
 
-        {showSchedule&&isAdmin&&<ScheduleModal weekStart={weekStart} users={ptUsers} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>}
+        {showSchedule&&isAdmin&&<ScheduleModal weekStart={weekStart} users={ptUsers} currentUser={currentUser} onClose={()=>setShowSchedule(false)} onSaved={fetchData}/>}
         {fillDetail&&<FillDetailModal row={fillDetail} onClose={()=>setFillDetail(null)} onSaved={fetchData}/>}
         {showCalendar&&<MiniCalendarPopup allRows={allRows} onClose={()=>setShowCalendar(false)}/>}
       </div>
