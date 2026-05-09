@@ -686,15 +686,18 @@ function ScheduleModal({weekStart,users,currentUser,onClose,onSaved}:{weekStart:
           const u=users.find(x=>x.id===uid);
           const tt=u?.team_type||'';
           const isIVP=tt==='Team PTS',isUMP=tt==='Team PTS UMP',isMlds=tt==='Team PTS MLDS';
-          const{error}=await supabase.from('piket_schedules').upsert({
+          const{error,data:savedRow}=await supabase.from('piket_schedules').upsert({
             week_start:wk,day_of_week:day,day_date:toKey(getDayDate(ws,day)),
             pic_ivp_id:isIVP?uid:null,pic_ivp_name:isIVP?u?.full_name||null:null,
             pic_ump_id:isUMP?uid:null,pic_ump_name:isUMP?u?.full_name||null:null,
             pic_mlds_id:isMlds?uid:null,pic_mlds_name:isMlds?u?.full_name||null:null,
-            edited_by_name:currentUser?.full_name||null,
             created_at:new Date().toISOString(),updated_at:new Date().toISOString(),
-          },{onConflict:'week_start,day_of_week',ignoreDuplicates:false});
+          },{onConflict:'week_start,day_of_week',ignoreDuplicates:false}).select('id').single();
           if(error){notify('error',`Gagal ${day} ${wk}: ${error.message}`);setSaving(false);return;}
+          // Update edited_by_name secara terpisah — aman jika kolom belum ada di DB
+          if(currentUser?.full_name&&savedRow?.id){
+            await supabase.from('piket_schedules').update({edited_by_name:currentUser.full_name}).eq('id',savedRow.id).then(()=>{});
+          }
         }
       }
       notify('success','Jadwal 2 minggu tersimpan!');
@@ -1162,7 +1165,7 @@ export default function PiketShowroomPage() {
     const wk2=toKey(addDays(weekStart,7));
     const[wRes,aRes,uRes,kgRes]=await Promise.all([
       supabase.from('piket_schedules').select('*').in('week_start',[wk,wk2]).order('day_date'),
-      supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name,edited_by_name'),
+      supabase.from('piket_schedules').select('id,day_date,week_start,day_of_week,pic_ivp_name,pic_ump_name,pic_mlds_name'),
       supabase.from('users').select('id,full_name,username,team_type,role').in('team_type',['Team PTS','Team PTS UMP','Team PTS MLDS']).order('full_name'),
       supabase.from('piket_tamu_detail').select('*').order('created_at'),
     ]);
